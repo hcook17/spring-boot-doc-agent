@@ -1,0 +1,12 @@
+{
+  "name": "spring-boot-doc-agent-marketplace",
+  "owner": {
+    "name": "EHE-ECM"
+  },
+  "plugins": [
+    {
+      "name": "spring-boot-doc-agent",
+      "source": "./"
+    }
+  ]
+}

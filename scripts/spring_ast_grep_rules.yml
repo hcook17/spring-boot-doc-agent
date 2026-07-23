@@ -1,0 +1,237 @@
+# spring_ast_grep_rules.yml
+#
+# ast-grep rule config for spring_signal_scan.py's Java structural detection.
+# Loaded with: ast-grep scan --rule <this file> --json=compact <path>
+#
+# Each rule's `id` is "<bucket>__<subkind>" — spring_signal_scan.py splits on
+# "__" and files every match under `evidence[bucket]`. `persistence__entity`
+# and `persistence__repository` both follow that convention (so they land
+# in evidence.persistence like every other rule) but are relational (kind +
+# has), not literal patterns: they locate the right class/interface
+# declaration structurally, and spring_signal_scan.py regexes the *matched
+# node's own text* (never the whole file) to pull out NAME/TABLE/ENTITY/ID.
+# `persistence__entity` gets one more layer of special-casing in Python on
+# top of that — it's the only rule whose matches also build
+# entity_table_map, not just an evidence-bucket entry.
+#
+# Written and empirically verified against synthetic fixtures, including
+# the cases that broke the first draft of this file:
+#   - multi-line annotations (@Query spanning several lines)
+#   - argument-order independence (@Query(value=..., nativeQuery=true) vs
+#     @Query(nativeQuery=true, value=...), @Table(schema=..., name=...))
+#   - modifier sensitivity (public interface vs bare interface)
+#   - annotation-adjacency brittleness: a literal pattern like
+#     "@Entity\n@Table(...)\npublic class $NAME {$$$}" stops matching the
+#     instant another annotation (@EntityListeners, @Cacheable, ...) sits
+#     between @Entity and the class, or a bare "@Entity\npublic class X"
+#     literal pattern stops matching once ANY other annotation is added —
+#     both are extremely common in real Spring code. Same failure mode hit
+#     "public interface $NAME extends JpaRepository<$ENTITY, $ID> {$$$}"
+#     the moment a @Repository annotation preceded the interface. Fixed by
+#     switching both to kind+has relational rules (order/count of *other*
+#     annotations no longer matters), confirmed against a real, large
+#     production Spring Boot codebase as well as synthetic fixtures.
+#   - see scripts/test_spring_signal_scan.py for the fixtures and expected
+#     counts this file's rules are pinned against.
+
+  # ---- api_surface ----
+---
+id: api_surface__controller
+language: java
+rule:
+  any:
+    - pattern: "@RestController"
+    - pattern: "@Controller"
+---
+id: api_surface__mapping
+language: java
+rule:
+  any:
+    - pattern: "@GetMapping"
+    - pattern: "@GetMapping($$$ARGS)"
+    - pattern: "@PostMapping"
+    - pattern: "@PostMapping($$$ARGS)"
+    - pattern: "@PutMapping"
+    - pattern: "@PutMapping($$$ARGS)"
+    - pattern: "@PatchMapping"
+    - pattern: "@PatchMapping($$$ARGS)"
+    - pattern: "@DeleteMapping"
+    - pattern: "@DeleteMapping($$$ARGS)"
+    - pattern: "@RequestMapping"
+    - pattern: "@RequestMapping($$$ARGS)"
+
+  # ---- outbound_clients ----
+---
+id: outbound_clients__feign
+language: java
+rule:
+  pattern: "@FeignClient($$$ARGS)"
+---
+id: outbound_clients__import
+language: java
+rule:
+  kind: import_declaration
+  regex: "\\.(RestTemplate|WebClient|RestClient)(;|\\.)"
+---
+id: outbound_clients__type_usage
+language: java
+rule:
+  kind: type_identifier
+  regex: "^(RestTemplate|WebClient|RestClient)$"
+
+  # ---- messaging ----
+---
+id: messaging__listener
+language: java
+rule:
+  any:
+    - pattern: "@KafkaListener"
+    - pattern: "@KafkaListener($$$ARGS)"
+    - pattern: "@RabbitListener"
+    - pattern: "@RabbitListener($$$ARGS)"
+    - pattern: "@JmsListener"
+    - pattern: "@JmsListener($$$ARGS)"
+    - pattern: "@SqsListener"
+    - pattern: "@SqsListener($$$ARGS)"
+---
+id: messaging__import
+language: java
+rule:
+  kind: import_declaration
+  regex: "\\.(KafkaTemplate|RabbitTemplate|JmsTemplate|SqsTemplate)(;|\\.)"
+---
+id: messaging__type_usage
+language: java
+rule:
+  kind: type_identifier
+  regex: "^(KafkaTemplate|RabbitTemplate|JmsTemplate|SqsTemplate)$"
+
+  # ---- persistence: entities (feed entity_table_map, not a bucket) ----
+  # Relational, not literal: matches any class carrying @Entity anywhere
+  # among its annotations, regardless of what else is stacked alongside it
+  # or in what order. NAME/TABLE are pulled from the matched text in
+  # Python, not from ast-grep meta-variables.
+---
+id: persistence__entity
+language: java
+rule:
+  kind: class_declaration
+  has:
+    kind: marker_annotation
+    regex: "^@Entity$"
+    stopBy: end
+
+  # ---- persistence: repositories ----
+  # Relational for the same reason as persistence__entity: a literal
+  # "public interface $NAME extends JpaRepository<...> {$$$}" pattern
+  # breaks the moment @Repository (or any annotation) precedes the
+  # interface. This instead locates the extends-clause structurally and
+  # lets Python regex NAME/ENTITY/ID out of the matched interface's own
+  # text.
+---
+id: persistence__repository
+language: java
+rule:
+  kind: interface_declaration
+  has:
+    kind: extends_interfaces
+    stopBy: end
+    has:
+      kind: generic_type
+      stopBy: end
+      has:
+        kind: type_identifier
+        regex: "^(JpaRepository|CrudRepository|PagingAndSortingRepository|MongoRepository|ReactiveCrudRepository)$"
+
+  # ---- raw_queries (jpql vs native split happens in Python, from $$$ARGS) ----
+---
+id: raw_queries__query
+language: java
+rule:
+  pattern: "@Query($$$ARGS)"
+
+  # ---- security ----
+---
+id: security__method
+language: java
+rule:
+  any:
+    - pattern: "@PreAuthorize($$$ARGS)"
+    - pattern: "@PostAuthorize($$$ARGS)"
+    - pattern: "@Secured($$$ARGS)"
+    - pattern: "@Secured"
+    - pattern: "@RolesAllowed($$$ARGS)"
+    - pattern: "@RolesAllowed"
+---
+id: security__config
+language: java
+rule:
+  any:
+    - pattern: "@EnableWebSecurity"
+    - pattern: "@EnableMethodSecurity"
+    - pattern: "@EnableMethodSecurity($$$ARGS)"
+---
+id: security__filterchain_type
+language: java
+rule:
+  kind: type_identifier
+  regex: "^SecurityFilterChain$"
+
+  # ---- configuration ----
+---
+id: configuration__properties
+language: java
+rule:
+  any:
+    - pattern: "@ConfigurationProperties"
+    - pattern: "@ConfigurationProperties($$$ARGS)"
+    - pattern: "@Value($$$ARGS)"
+
+  # ---- error_handling ----
+---
+id: error_handling__advice
+language: java
+rule:
+  any:
+    - pattern: "@ControllerAdvice"
+    - pattern: "@ControllerAdvice($$$ARGS)"
+    - pattern: "@RestControllerAdvice"
+    - pattern: "@RestControllerAdvice($$$ARGS)"
+    - pattern: "@ExceptionHandler"
+    - pattern: "@ExceptionHandler($$$ARGS)"
+
+  # ---- observability ----
+---
+id: observability__timed
+language: java
+rule:
+  any:
+    - pattern: "@Timed"
+    - pattern: "@Timed($$$ARGS)"
+---
+id: observability__meterregistry_type
+language: java
+rule:
+  kind: type_identifier
+  regex: "^MeterRegistry$"
+---
+id: observability__import
+language: java
+rule:
+  kind: import_declaration
+  regex: "^import (io\\.micrometer|io\\.opentelemetry)\\."
+
+  # ---- testing ----
+---
+id: testing__springboottest
+language: java
+rule:
+  any:
+    - pattern: "@SpringBootTest"
+    - pattern: "@SpringBootTest($$$ARGS)"
+---
+id: testing__import
+language: java
+rule:
+  kind: import_declaration
+  regex: "^import org\\.testcontainers\\."

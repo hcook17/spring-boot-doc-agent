@@ -1,0 +1,297 @@
+#!/usr/bin/env python3
+"""
+Integration test for spring_signal_scan.py, run against the fixture repo in
+test_fixtures/spring_signals/.
+
+This is a REAL integration test, not a mocked one: it calls scan() directly,
+which shells out to the actual ast-grep binary using the actual bundled
+spring_ast_grep_rules.yml. That's deliberate — the thing most worth testing
+here is whether the rule file and the Python wrapper still agree with each
+other and with a real ast-grep install, not whether some mock was configured
+correctly. If ast-grep isn't on PATH, this fails loudly, which is correct:
+that's a real deployment problem, not a reason to skip the test.
+
+Every fixture file exists to guard a specific, previously-broken behavior —
+see the comment at the top of each one. Run with:
+
+    python3 scripts/test_spring_signal_scan.py -v
+
+Requires: ast-grep on PATH (see spring_signal_scan.py's error message for
+install instructions if this fails with "ast-grep binary is not on PATH").
+"""
+
+import os
+import sys
+import unittest
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+FIXTURE_DIR = os.path.join(SCRIPT_DIR, "test_fixtures", "spring_signals")
+sys.path.insert(0, SCRIPT_DIR)
+
+import spring_signal_scan  # noqa: E402
+
+
+class SpringSignalScanTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.result = spring_signal_scan.scan(FIXTURE_DIR)
+        cls.evidence = cls.result["evidence"]
+
+    def _entries_for(self, bucket, filename):
+        return [e for e in self.evidence[bucket] if e["file"] == filename]
+
+    # ---- filename-based detection (unchanged from the regex-era scanner) ----
+
+    def test_file_counts(self):
+        fs = self.result["files_scanned"]
+        self.assertEqual(fs["java"], 9, "target/generated-sources/ShouldBeExcluded.java must not be counted")  # 8 original + SLARule.java
+        self.assertEqual(fs["config"], 2)
+        self.assertEqual(fs["deployment"], 1)
+        self.assertEqual(fs["other_relevant"], 2)  # logback-spring.xml + db/migration/V1__init.sql
+
+    def test_excluded_dirs_are_not_scanned(self):
+        all_files = {e["file"] for entries in self.evidence.values() for e in entries}
+        all_files |= set(self.result["entity_table_map"][k]["file"] for k in self.result["entity_table_map"])
+        self.assertFalse(any("target" in f for f in all_files), "files under target/ leaked into evidence")
+
+    def test_config_and_deployment_and_logging_and_migration(self):
+        self.assertEqual(len(self._entries_for("configuration", "application-local.yml")), 1)
+        self.assertEqual(len(self._entries_for("configuration", "bootstrap.yml")), 1)
+        self.assertEqual(len(self._entries_for("deployment", "Dockerfile")), 1)
+        self.assertEqual(len(self._entries_for("observability", "logback-spring.xml")), 1)
+        self.assertEqual(len(self._entries_for("persistence", "db/migration/V1__init.sql")), 1)
+
+    # ---- entity / table detection ----
+
+    def test_entity_with_explicit_table(self):
+        m = self.result["entity_table_map"]["Invoice"]
+        self.assertEqual(m["table"], "billing_invoice")
+        self.assertEqual(m["table_name_source"], "explicit")
+
+    def test_entity_with_inferred_table(self):
+        m = self.result["entity_table_map"]["LegacyAudit"]
+        self.assertEqual(m["table"], "legacy_audit")
+        self.assertEqual(m["table_name_source"], "inferred-default-naming")
+
+    def test_acronym_bearing_entity_matches_real_hibernate_default(self):
+        # Regression guard for the to_snake_case bug flagged (and deferred)
+        # across every prior round: the old implementation inserted an
+        # underscore before every capital letter, turning SLARule into
+        # s_l_a_rule. The real Spring/Hibernate default naming strategy
+        # produces "slarule" instead — see to_snake_case's docstring for the
+        # verified source. This is deliberately NOT "sla_rule": that's the
+        # "nicer" guess a naive acronym-aware fix would produce, and it's
+        # just as wrong for this function's purpose as the old bug was.
+        m = self.result["entity_table_map"]["SLARule"]
+        self.assertEqual(m["table"], "slarule")
+        self.assertEqual(m["table_name_source"], "inferred-default-naming")
+
+    def test_entity_survives_stacked_annotations(self):
+        # Regression guard: @Entity/@Table with @EntityListeners/@Cacheable
+        # also present used to break a literal (non-relational) ast-grep
+        # pattern entirely. See PaymentLedger.java.
+        m = self.result["entity_table_map"]["PaymentLedger"]
+        self.assertEqual(m["table"], "payment_ledger")
+        self.assertEqual(m["table_name_source"], "explicit")
+
+    def test_entityscan_is_not_a_false_positive_entity(self):
+        # Regression guard for a REAL bug found by running the old scanner
+        # against a production codebase's Application.java: it did
+        # `"@Entity" in text`, a substring check that also matched
+        # "@EntityScan(...)". Misc.java carries @EntityScan on a non-entity
+        # class specifically to guard against that recurring.
+        self.assertNotIn("SecurityConfig", self.result["entity_table_map"])
+
+    def test_three_real_entities_and_no_more(self):
+        # NOTE: SLARule.java is deliberately excluded from this count — it's
+        # a dedicated fixture for test_acronym_bearing_entity_matches_real_
+        # hibernate_default above and would make this assertion's name a lie.
+        # It's still covered by test_excluded_dirs_are_not_scanned's file
+        # sweep and by its own dedicated test.
+        entities = set(self.result["entity_table_map"].keys()) - {"SLARule"}
+        self.assertEqual(entities, {"Invoice", "LegacyAudit", "PaymentLedger"})
+
+    # ---- repository detection ----
+
+    def test_plain_repository(self):
+        entries = self._entries_for("persistence", "InvoiceRepository.java")
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["repository"], "InvoiceRepository")
+        self.assertEqual(entries[0]["entity"], "Invoice")
+        self.assertEqual(entries[0]["id_type"], "Long")
+
+    def test_repository_survives_leading_annotation(self):
+        # Regression guard: same annotation-adjacency issue as entities, for
+        # "public interface $N extends JpaRepository<...> {$$$}". Most real
+        # repository interfaces carry @Repository, which used to break this.
+        entries = self._entries_for("persistence", "AnnotatedRepository.java")
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["repository"], "AnnotatedRepository")
+
+    def test_non_repository_interface_is_not_matched(self):
+        # Negative case: NotARepository.java sits in the same conceptual
+        # role but extends nothing Spring-Data-shaped. Zero matches expected
+        # — detection is structural, not filename/directory based.
+        self.assertEqual(len(self._entries_for("persistence", "NotARepository.java")), 0)
+
+    # ---- raw queries: jpql vs native, argument-order independence ----
+
+    def test_jpql_query_extracted(self):
+        entries = self._entries_for("raw_queries", "InvoiceRepository.java")
+        jpql = [e for e in entries if e["query_kind"] == "jpql"]
+        self.assertEqual(len(jpql), 1)
+        self.assertEqual(jpql[0]["query"], "SELECT i FROM Invoice i WHERE i.status = :status")
+
+    def test_native_query_extracted_regardless_of_argument_order(self):
+        # nativeQuery=true appears AFTER the query string here — a fixed
+        # this-line-or-next-line heuristic or an argument-order-sensitive
+        # pattern both got this right only by accident.
+        entries = self._entries_for("raw_queries", "InvoiceRepository.java")
+        native = [e for e in entries if e["query_kind"] == "native"]
+        self.assertEqual(len(native), 1)
+        self.assertEqual(native[0]["query"], "SELECT * FROM billing_invoice WHERE status = :status")
+
+    # ---- native-query SQL lineage (sqllineage integration) ----
+
+    def test_native_query_lineage_extracts_source_table(self):
+        # This is the real integration path: scan() -> extract_sql_lineage()
+        # -> the actual sqllineage library, against the fixture's real
+        # native query text (":status" named parameter and all).
+        entries = self._entries_for("raw_queries", "InvoiceRepository.java")
+        native = next(e for e in entries if e["query_kind"] == "native")
+        self.assertIn("lineage", native)
+        self.assertTrue(native["lineage"]["available"], native["lineage"].get("reason"))
+        self.assertEqual(native["lineage"]["source_tables"], ["billing_invoice"])
+        self.assertEqual(native["lineage"]["target_tables"], [])
+
+    def test_jpql_query_has_no_lineage_field(self):
+        # JPQL references entity names, not table names, and isn't valid
+        # SQL grammar at all — lineage extraction is never attempted for
+        # it, not attempted-and-failed. The field should be absent
+        # entirely, not present with available: false.
+        entries = self._entries_for("raw_queries", "InvoiceRepository.java")
+        jpql = next(e for e in entries if e["query_kind"] == "jpql")
+        self.assertNotIn("lineage", jpql)
+
+    # ---- api_surface / security ----
+
+    def test_controller_and_mappings(self):
+        entries = self._entries_for("api_surface", "InvoiceController.java")
+        self.assertEqual(len(entries), 4)  # @RestController, @RequestMapping, @GetMapping, @PostMapping
+
+    def test_multiline_security_annotation_detected(self):
+        entries = self._entries_for("security", "InvoiceController.java")
+        self.assertEqual(len(entries), 1)
+
+    # ---- dedup: two distinct AST matches on one line collapse to one entry ----
+
+    def test_same_line_double_usage_is_deduped(self):
+        # Misc.java has `RestTemplate restTemplate = new RestTemplate();` —
+        # two real, distinct type_identifier matches on one line. The old
+        # regex scanner reported at most one hit per line; this scanner
+        # dedupes by (file, line, ruleId) to match that, rather than
+        # reporting every AST node individually.
+        entries = self._entries_for("outbound_clients", "Misc.java")
+        self.assertEqual(len(entries), 2)  # one import entry + one deduped usage entry
+
+    def test_evidence_is_sorted_for_determinism(self):
+        for bucket, entries in self.evidence.items():
+            keys = [(e["file"], e.get("line", 0)) for e in entries]
+            self.assertEqual(keys, sorted(keys), f"evidence[{bucket}] is not sorted")
+
+
+class SqlLineageExtractionTest(unittest.TestCase):
+    """Unit-level tests against extract_sql_lineage() directly, rather than
+    through a full scan() — same real sqllineage dependency, no mocking,
+    just exercising query shapes the fixture repo doesn't happen to cover
+    (positional params, UPDATE/INSERT target-table detection, genuinely
+    malformed input, and the soft-degradation path when sqllineage is
+    unavailable)."""
+
+    def test_positional_param_query_extracts_source_table(self):
+        result = spring_signal_scan.extract_sql_lineage(
+            "SELECT * FROM billing_invoice WHERE id = ?1 AND status = ?2"
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        self.assertEqual(result["source_tables"], ["billing_invoice"])
+
+    def test_update_query_extracts_target_table(self):
+        result = spring_signal_scan.extract_sql_lineage(
+            "UPDATE billing_invoice SET status = :status WHERE id = :id"
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        self.assertEqual(result["target_tables"], ["billing_invoice"])
+
+    def test_insert_query_extracts_target_table(self):
+        result = spring_signal_scan.extract_sql_lineage(
+            "INSERT INTO audit_log (event, ts) VALUES (:event, :ts)"
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        self.assertEqual(result["target_tables"], ["audit_log"])
+
+    def test_join_query_extracts_both_source_tables(self):
+        result = spring_signal_scan.extract_sql_lineage(
+            "SELECT i.id FROM billing_invoice i "
+            "JOIN customer c ON i.customer_id = c.id WHERE i.status = ?"
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        self.assertEqual(result["source_tables"], ["billing_invoice", "customer"])
+
+    def test_time_literal_survives_param_normalization(self):
+        # Regression guard for the negative-lookbehind in NAMED_PARAM_RE:
+        # a time literal's colons must not be mistaken for bind parameters
+        # (each one is preceded by a digit, never by whitespace/operator/
+        # '('/',' the way a real ":status"-style parameter always is).
+        result = spring_signal_scan.extract_sql_lineage(
+            "SELECT * FROM billing_invoice WHERE created_at > '2024-01-01 12:00:00'"
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        self.assertEqual(result["source_tables"], ["billing_invoice"])
+
+    def test_malformed_sql_degrades_gracefully(self):
+        result = spring_signal_scan.extract_sql_lineage("this is not sql at all !!! @#$%")
+        self.assertFalse(result["available"])
+        self.assertIn("reason", result)
+
+    def test_spel_expression_degrades_gracefully_not_raises(self):
+        # A Spring SpEL expression like :#{#tenant} is real, fairly common
+        # (multi-tenant native queries) Spring syntax, but it is not real
+        # bind-parameter syntax NAMED_PARAM_RE normalizes, and it isn't
+        # valid SQL either. This must degrade, not raise all the way up
+        # through scan().
+        result = spring_signal_scan.extract_sql_lineage(
+            "SELECT * FROM billing_invoice WHERE tenant_id = :#{#tenant}"
+        )
+        self.assertFalse(result["available"])
+        self.assertIn("reason", result)
+
+    def test_dialect_override_is_honored(self):
+        # mysql-specific backtick-quoted identifiers fail to parse under
+        # plain ansi but succeed once the real dialect is passed — proof
+        # the --sql-dialect flag actually reaches sqllineage, not just that
+        # the default works.
+        query = "SELECT * FROM `billing_invoice` WHERE status = ?"
+        ansi_result = spring_signal_scan.extract_sql_lineage(query, dialect="ansi")
+        mysql_result = spring_signal_scan.extract_sql_lineage(query, dialect="mysql")
+        self.assertFalse(ansi_result["available"])
+        self.assertTrue(mysql_result["available"], mysql_result.get("reason"))
+        self.assertEqual(mysql_result["source_tables"], ["billing_invoice"])
+
+    def test_unavailable_when_sqllineage_not_installed(self):
+        # Simulates the "package genuinely not installed" branch by
+        # flipping the module's own availability flag — this exercises our
+        # soft-degradation code path, not sqllineage's parsing behavior
+        # (which every other test in this class already covers for real).
+        original = spring_signal_scan._SQLLINEAGE_AVAILABLE
+        spring_signal_scan._SQLLINEAGE_AVAILABLE = False
+        try:
+            result = spring_signal_scan.extract_sql_lineage(
+                "SELECT * FROM billing_invoice WHERE status = :status"
+            )
+        finally:
+            spring_signal_scan._SQLLINEAGE_AVAILABLE = original
+        self.assertEqual(result, {"available": False, "reason": "sqllineage not installed"})
+
+
+if __name__ == "__main__":
+    unittest.main()
