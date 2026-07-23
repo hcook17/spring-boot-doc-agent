@@ -27,6 +27,7 @@ Pick up `claude/steering-prompts/01-testability-research-prompt.md` (no test cov
 ## Cross-links
 
 - `claude/session-log.md` — append-only commit history for steering-prompt-affecting changes.
+- `claude/llms/README.md` — one file per PR, pairing that PR's summary with deterministic `git`/`grep` commands a reader can run to verify each claim directly, rather than trusting this file's or the session log's prose.
 - `CONTRIBUTING.md` — write-then-verify rule and the research behind it.
 - `CONSTRAINTS.md` — the plugin's standing constraints, a different axis from this file's done/pending tracking.
 - `IMPLEMENTATION_HANDOFF.md` — the six-item handoff this file's "Done" section summarizes.
