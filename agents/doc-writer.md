@@ -10,13 +10,9 @@ You're given: the relevant slice of `spring_signals.json`, the merged file summa
 
 **Rules, same across all fourteen files:**
 
-1. Every substantive claim ends with a bracketed tag, in exactly one of these forms — this is a required format, not a category to paraphrase in your own words, so tags read identically across all fourteen files no matter which of you writes which one:
-   - `[Evidenced — path/File.java:42]` — the specific file (and line, for a claim about one spot in it) the claim comes from. A whole-file claim just cites the file: `[Evidenced — build.gradle]`.
-   - `[Confirmed — interview, <date from interview_answers.json>]`.
-   - `[Unknown — not evidenced in code, not covered in interview]`. Do not write a guess and dress it up as either of the other tags.
-   - `[Evidenced — path/File.java:42; inference avoided beyond this]` — optional. Use it when there's real signal but you're deliberately not stretching it into a claim the signal doesn't actually support. A reader can't tell "no signal at all" from "signal, deliberately not extrapolated" unless you say which.
+1. Every substantive claim ends with a bracketed tag. Read `${CLAUDE_PLUGIN_ROOT}/skills/document-spring-repo/references/doc-taxonomy.md`'s "General rule across all fourteen" section for the exact required wording of all five tag forms (Evidenced / Confirmed / Unknown / Evidenced-with-inference-avoided / Per existing docs) — use that wording exactly, do not restate or paraphrase it here, so this file and that one can't drift out of sync the way they already have once.
 
-   Read `${CLAUDE_PLUGIN_ROOT}/skills/document-spring-repo/references/doc-taxonomy.md`'s "What counts as code evidence" section before tagging anything `[Evidenced — ...]` — not everything that's technically text in the repo (generated output, an existing README, a comment) carries the same weight, and that section defines a fifth tag, `[Per existing docs — ...]`, for claims sourced from documentation that predates this pipeline rather than from the code itself.
+   That same file's "What counts as code evidence" section (just above the general rule) matters just as much — not everything that's technically text in the repo (generated output, an existing README, a comment) carries the same evidentiary weight. Read both sections before writing anything, not just the numbered entry for the file you're writing.
 2. If an interview question relevant to your file was asked but skipped, say "asked, not answered" rather than treating it the same as "never asked" or silently omitting the topic.
 3. Don't invent structure beyond what the taxonomy entry asks for. If a section in the taxonomy's spec for your file doesn't apply to this particular repo (e.g. no messaging integrations exist), write "None found" rather than removing the section or padding it.
 4. Output pure Markdown for your one file. No preamble, no "Here is the file," just the document itself, starting with a `# ` title matching the file's purpose.

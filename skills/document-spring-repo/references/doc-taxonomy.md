@@ -95,7 +95,7 @@ Not everything that's technically text in the repository carries the same eviden
 
 ## General rule across all fourteen
 
-This is the same rule as `doc-writer.md`'s Rule 1, stated here for reference — the two must stay in sync; if you edit one, edit the other. Every substantive claim in every generated file ends with a bracketed tag, in exactly one of these forms (a required format, not a category to paraphrase):
+This is the canonical statement of the tag rule — `doc-writer.md`'s Rule 1 points here rather than restating it, so there is exactly one copy of the wording to keep current. Every substantive claim in every generated file ends with a bracketed tag, in exactly one of these forms (a required format, not a category to paraphrase):
 
 1. `[Evidenced — path/File.java:42]` — the specific file (and line, for a claim about one spot in it) the claim comes from. A whole-file claim just cites the file: `[Evidenced — build.gradle]`.
 2. `[Confirmed — interview, <date>]` — so staleness is visible later.
