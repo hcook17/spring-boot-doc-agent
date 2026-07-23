@@ -16,6 +16,13 @@ Files touched: claude/session-log.md
 
 ---
 
+## 2026-07-23 — Add CONSTRAINTS.md
+Commit: uncommitted
+Tests: not applicable — documentation-only change, no code touched
+Assumptions affected:
+- `claude/steering-prompts/03-constraints-research-prompt.md` — "What to scaffold and implement": a single `CONSTRAINTS.md` at the plugin root, structured like `doc-taxonomy.md`, tagged by kind (runtime prerequisite / integration gap not a scope cut / known precision tradeoff / confidentiality-handling rule), cross-linked from `README.md` and `SKILL.md` — [Resolved — `CONSTRAINTS.md` added at plugin root with all four specified kinds plus a fifth ("Enterprise-readiness gap") added to hold findings — license, no CI, no RBAC, no audit trail, unpinned deps, no multi-repo — from a direct 2026-07-23 audit of this repo that didn't fit the original four categories cleanly. Cross-linked from both `README.md` and `SKILL.md` as specified.]
+- `claude/steering-prompts/03-constraints-research-prompt.md` — "the confidentiality rule... currently lives only in prose handoff notes rather than a standing rule in the repo itself" — [New info — a standing confidentiality rule now exists in `CONSTRAINTS.md`, but its exact wording is a fresh reconstruction from the prompt's own hint ("the real-repo-name/content rule"), not a verbatim carry-forward of the original handoff prose, which wasn't reachable from this repo/session. Flagged explicitly in the entry itself; worth reconciling against the original text if it ever resurfaces.]
+Files touched: CONSTRAINTS.md, README.md, skills/document-spring-repo/SKILL.md, claude/session-log.md
 ## 2026-07-23 — Wire spring_drift_check.py into SKILL.md and README.md
 Commit: e614e7c (also f969521 on the same branch)
 Tests: 12/12 passing (`python3 scripts/test_spring_drift_check.py -v`) — an initial run surfaced a real Windows path-separator bug in `spring_drift_check.py`'s `tier1_scan()` (raw `os.path.relpath()` instead of normalizing to forward slashes like `spring_signal_scan.py` does everywhere else), fixed in this same PR along with a stale test assertion that predated the `references` bucket being cited as per-file evidence
