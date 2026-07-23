@@ -185,11 +185,12 @@ class SpringDriftCheckTest(unittest.TestCase):
         self.assertEqual(len(drifted), 1)
         self.assertEqual(drifted[0]["match"], "@PostMapping")
 
-        # Everything else in the same file — @RestController, @RequestMapping,
-        # @GetMapping, @PreAuthorize — must still confirm.
+        # Everything else in the same file must still confirm: @RestController,
+        # @RequestMapping, @GetMapping, @PreAuthorize (api_surface/security),
+        # plus the package declaration and two imports (references) — 7 total.
         confirmed = [r for r in report["results"]
                      if r["file"] == "InvoiceController.java" and r["status"] == spring_drift_check.STATUS_CONFIRMED]
-        self.assertEqual(len(confirmed), 4)
+        self.assertEqual(len(confirmed), 7)
 
     # ---- raw query text change ----
 

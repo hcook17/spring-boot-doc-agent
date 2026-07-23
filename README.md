@@ -37,6 +37,19 @@ This started as a regex scanner and was rewritten to ast-grep specifically becau
 ## Constraints
 
 `CONSTRAINTS.md` at the plugin root is the single place that collects this plugin's real runtime prerequisites, integration gaps, precision tradeoffs, confidentiality rules, and enterprise-readiness gaps (license, CI, RBAC, audit trail, and more) — read it before evaluating this plugin for use beyond your own machine.
+## On drift detection (`spring_drift_check.py`)
+
+Once you have a `spring_signals.json` from a prior scan of a repo, `scripts/spring_drift_check.py` checks whether it's still accurate against the repo's current state: a cheap whole-repo file-signature hash (tier 1) tells you which files changed at all, and only for those, a targeted `ast-grep` re-run (tier 2) re-verifies the specific fact each citation recorded — entity/table mapping, repository type args, query text, or annotation shape — rather than flagging every citation in a changed file just because *something* in it moved. It exists because a comment fix three lines from a cited annotation shouldn't read as drift on every fact the file happens to also contain.
+
+```bash
+python3 scripts/spring_signal_scan.py <repo_path> --out spring_signals.json
+# ... time passes, repo changes ...
+python3 scripts/spring_drift_check.py <repo_path> spring_signals.json --out drift_report.json
+```
+
+Tested via `python3 scripts/test_spring_drift_check.py -v`, a real integration test suite (real `ast-grep` subprocesses against mutated copies of the same fixture repo `test_spring_signal_scan.py` uses) — see `skills/document-spring-repo/SKILL.md`'s Stage 0 for how to use the report as a pre-flight check before deciding whether a full pipeline re-run is warranted.
+
+This is deliberately standalone, not a bug: no LLM calls, no CI wiring, not invoked automatically by the `document-spring-repo` pipeline. You run it by hand, pointing it at a repo and a prior scan, and use its report to decide what (if anything) needs a closer look.
 
 ## Install (local, not yet published)
 
