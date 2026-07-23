@@ -52,6 +52,10 @@ This is deliberately standalone, not a bug: no LLM calls, no CI wiring, not invo
 
 `CONSTRAINTS.md` at the plugin root is the single place that collects this plugin's real runtime prerequisites, integration gaps, precision tradeoffs, confidentiality rules, and enterprise-readiness gaps (license, CI, RBAC, audit trail, and more) — read it before evaluating this plugin for use beyond your own machine.
 
+## Status and contributing
+
+`STATUS.md` at the plugin root is a single, in-place-edited snapshot of what's done vs. pending on this plugin's own scaffolding work, and the next concrete action — read it before picking up any of `claude/steering-prompts/`. `CONTRIBUTING.md` has this repo's write-then-verify rule for anything written through a device bridge, remote tool, or a prior session's unverified claim about repo state.
+
 ## Install (local, not yet published)
 
 ```bash
