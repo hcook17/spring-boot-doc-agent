@@ -44,25 +44,28 @@ class BuildGroupsTest(unittest.TestCase):
         # final group." Six small (20-token) files up front let the early
         # groups close cheaply; twelve medium (90-token) files in the tail
         # give whichever group is presumed "last" far more than its fair
-        # share to absorb. Verified by hand against both the old and new
-        # build_groups() implementations before being locked in here — see
-        # the review doc's "Resolution, part 3" for the full trace.
+        # share to absorb.
+        #
+        # Since this test's original assertions were written, build_groups()
+        # was swapped from check-after-append to check-before-append
+        # ("strict") semantics — see the module docstring and the strict
+        # replacement's own docstring for why. Under strict mode this exact
+        # scenario (the handoff's own "Scenario A") now produces 15 groups
+        # sized [100,40,20,90,90,90,90,90,90,90,90,90,90,90,90] instead of
+        # the old algorithm's 14 groups with a 180-token final group — a
+        # different shape, but the same underlying invariant this test
+        # exists to protect (the last group is never an outlier vs. the
+        # rest of the distribution) still holds, now with an even tighter
+        # bound (max_tokens itself, not 1.8x it).
         file_tokens = [(f"small{i}.txt", 20) for i in range(6)] + [(f"big{i}.txt", 90) for i in range(12)]
         max_tokens = 100
 
         groups = partition_repo.build_groups(file_tokens, max_tokens, overlap_ratio=0.10)
         group_sizes = [sum(t for _, t in g) for g in groups]
 
-        # The old code produced a final group of 270 tokens here — 2.7x
-        # max_tokens, and dramatically larger than every other group in the
-        # same run (all 180 or smaller). That's the bug: not that groups
-        # can ever slightly exceed max_tokens (they can, everywhere, since
-        # this partitions at file granularity and can't split a file
-        # mid-token — see the module docstring), but that the *last* group
-        # specifically had no ceiling at all, unlike every other group.
-        self.assertEqual(group_sizes, [100, 130, 180, 180, 180, 180, 180, 180, 180, 180, 180, 180, 180, 90])
-        self.assertEqual(max(group_sizes), 180, "final group must not be an outlier vs. the rest of the distribution")
-        self.assertNotEqual(max(group_sizes), 270, "this is the exact unbounded-last-group value the old code produced")
+        self.assertEqual(group_sizes, [100, 40, 20, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90])
+        self.assertEqual(max(group_sizes), max_tokens, "final group must not be an outlier vs. the rest of the distribution")
+        self.assertNotEqual(max(group_sizes), 270, "this is the exact unbounded-last-group value the pre-strict-swap code produced")
 
     def test_single_oversized_file_forms_its_own_group(self):
         # Can't split a file's tokens across groups — a single file bigger
@@ -94,15 +97,24 @@ class BuildGroupsTest(unittest.TestCase):
         # more step back and force-includes whatever's there next - even a
         # single file far bigger than the entire next group's budget.
         #
-        # Here, small.txt + giant.txt (900 tokens, 9x max_tokens) close the
-        # first group. Carrying giant.txt whole into the next group isn't
-        # "a bit of overlap" - it's a duplicate of the entire file, and
-        # because that next group now starts already past max_tokens before
-        # a single new file is added, it closes again immediately and
-        # re-carries giant.txt again. Verified against the unfixed
-        # build_groups(): this exact scenario produced 3 groups with
-        # giant.txt in every one of them, instead of the 2 groups / 1
-        # occurrence asserted below.
+        # Here, small.txt + giant.txt (900 tokens, 9x max_tokens) used to
+        # close the first group under check-after-append. Carrying
+        # giant.txt whole into the next group isn't "a bit of overlap" -
+        # it's a duplicate of the entire file, and because that next group
+        # now starts already past max_tokens before a single new file is
+        # added, it closes again immediately and re-carries giant.txt
+        # again. Verified against the unfixed build_groups(): this exact
+        # scenario produced 3 groups with giant.txt in every one of them.
+        #
+        # Since this test was written, build_groups() was swapped to
+        # check-before-append ("strict") semantics — see the module
+        # docstring. Under strict mode, small.txt and giant.txt can no
+        # longer even share a group (50 + 900 > 100), so each of the three
+        # files ends up alone: [small.txt], [giant.txt], [after.txt]. The
+        # duplication invariant this test protects still holds (giant.txt
+        # appears exactly once, not chain-duplicated across groups) — the
+        # group count changed because strict mode isolates the oversized
+        # file instead of merging it with a small neighbor first.
         file_tokens = [("small.txt", 50), ("giant.txt", 900), ("after.txt", 30)]
         groups = partition_repo.build_groups(file_tokens, max_tokens=100, overlap_ratio=0.10)
         files_in_groups = [f for g in groups for f, _ in g]
@@ -112,8 +124,24 @@ class BuildGroupsTest(unittest.TestCase):
             "an oversized trailing file must not be duplicated into subsequent "
             f"groups via overlap carry; got groups: {[[f for f, _ in g] for g in groups]}",
         )
-        self.assertEqual(len(groups), 2)
-        self.assertEqual([f for f, _ in groups[1]], ["after.txt"])
+        self.assertEqual(len(groups), 3)
+        self.assertEqual([[f for f, _ in g] for g in groups], [["small.txt"], ["giant.txt"], ["after.txt"]])
+
+    def test_strict_mode_zero_progress_guard_prevents_infinite_loop(self):
+        """A group whose entire content gets carried forward unchanged,
+        followed by a file that still doesn't fit even against that full
+        carry, must not retry against unchanged state forever. Regression
+        for the infinite loop found while porting build_groups() to
+        check-before-append (strict) semantics."""
+        file_tokens = [("only.txt", 90), ("trigger.txt", 95)]
+        groups = partition_repo.build_groups(file_tokens, max_tokens=100, overlap_ratio=0.10)
+        all_files = [f for g in groups for f, _ in g]
+        self.assertIn("only.txt", all_files)
+        self.assertIn("trigger.txt", all_files)
+        for g in groups:
+            total = sum(t for _, t in g)
+            if total > 100:
+                self.assertEqual(len(g), 1, f"group exceeds max_tokens with more than one file: {g}")
 
 
 class EstimateTokensTest(unittest.TestCase):

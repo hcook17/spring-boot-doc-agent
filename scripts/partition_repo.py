@@ -182,13 +182,47 @@ def dfs_file_list(repo_path, excluded_dirs, excluded_exts, excluded_files, gitig
 
 def build_groups(file_tokens, max_tokens, overlap_ratio):
     """file_tokens: list of (relpath, tokens) in DFS order.
-    Returns list of groups: each a list of (relpath, tokens)."""
+    Returns list of groups: each a list of (relpath, tokens).
+
+    Check-before-append ("strict"): a candidate file is only added to the
+    current group if doing so would not exceed max_tokens (unless the
+    current group is still empty, in which case the file is added
+    regardless — a single file larger than max_tokens has nowhere else to
+    go; groups are atomic at the file level, so "a group containing that
+    file is at least that file's size" is an unavoidable floor, not a bug).
+    This bounds every group's total to at most max_tokens, except a group
+    forced to open with a single oversized file — versus the previous
+    check-after-append behavior's max_tokens + (whatever file closed the
+    group) bound. Verified by direct execution against five scenarios plus
+    an overlap-duplication regression and a deliberate infinite-loop
+    trigger case — see the module's accompanying handoff notes / commit
+    message for the exact scenarios and output, so nobody has to re-derive
+    this from scratch if it's questioned later.
+    """
     total_tokens = sum(t for _, t in file_tokens)
     if total_tokens == 0 or not file_tokens:
         return []
 
     num_groups = max(1, math.ceil(total_tokens / max_tokens))
     target_per_group = total_tokens / num_groups
+
+    def carry_forward(closed_group, closed_tokens):
+        """Build ~overlap_ratio worth of trailing tokens from a just-closed
+        group to seed the next one. Same oversized-trailing-file guard as
+        the previous check-after-append version: a candidate is never
+        added to the carry if doing so would, by itself, already reach
+        max_tokens."""
+        overlap_budget = closed_tokens * overlap_ratio
+        carry, carried = [], 0
+        for relpath2, tok2 in reversed(closed_group):
+            if carried >= overlap_budget:
+                break
+            if carried + tok2 >= max_tokens:
+                break
+            carry.append((relpath2, tok2))
+            carried += tok2
+        carry.reverse()
+        return carry, carried
 
     groups = []
     current = []
@@ -198,73 +232,37 @@ def build_groups(file_tokens, max_tokens, overlap_ratio):
 
     while i < n:
         relpath, tok = file_tokens[i]
+        is_last_group_being_filled = len(groups) == num_groups - 1
+
+        would_exceed_hard_cap = bool(current) and (current_tokens + tok > max_tokens)
+        would_exceed_soft_target = (
+            bool(current)
+            and not is_last_group_being_filled
+            and current_tokens >= target_per_group
+        )
+
+        if would_exceed_hard_cap or would_exceed_soft_target:
+            groups.append(current)
+            carry, carried = carry_forward(current, current_tokens)
+
+            # Zero-progress guard: if the entire just-closed group got
+            # carried forward unchanged (carried == current_tokens, i.e.
+            # nothing was dropped) and the same triggering file still
+            # wouldn't fit even against that unchanged carry, retrying
+            # as-is would reproduce the exact same state forever — this is
+            # the exact infinite loop a naive first port of this swap hit.
+            # Force the carry empty instead: better to lose the overlap at
+            # this one seam than to hang.
+            if carried == current_tokens and carried + tok > max_tokens:
+                carry, carried = [], 0
+
+            current, current_tokens = list(carry), carried
+            continue  # re-evaluate the same file against the new group
+
         current.append((relpath, tok))
         current_tokens += tok
         i += 1
 
-        is_last_group_being_filled = len(groups) == num_groups - 1
-        # target_per_group is a *planning* number (total / num_groups) used
-        # to spread files evenly across the groups we expect to need. The
-        # last group skips that even-distribution target on purpose, so a
-        # small remainder doesn't spin up its own near-empty straggler
-        # group — but it must still respect max_tokens, the actual
-        # context-window constraint this whole scheme exists to protect.
-        # Every group, last or not, closes the instant it hits that hard
-        # ceiling; only the softer target_per_group threshold is skipped
-        # for the presumed-last one. Since num_groups was computed from a
-        # heuristic token *estimate*, real content can legitimately need
-        # more groups than planned (e.g. DFS order happens to put a large
-        # cluster of files at the tail) — this lets that happen rather than
-        # silently producing one oversized final group, which is what the
-        # unconditional "never close the last group" version used to do.
-        hit_hard_cap = current_tokens >= max_tokens
-        hit_soft_target = current_tokens >= target_per_group and not is_last_group_being_filled
-        if hit_hard_cap or hit_soft_target:
-            groups.append(current)
-            # Build ~overlap_ratio worth of trailing tokens from this group
-            # to seed the front of the next one, per the paper's DFS +
-            # 10%-overlap scheme.
-            #
-            # The `carried + tok2 >= max_tokens` guard below exists because
-            # of a real bug found by validating against a real repo's file
-            # tree (see test_overlap_skips_oversized_trailing_file in
-            # test_partition_repo.py and the module docstring's "overlap
-            # carry" note): the loop below walks BACKWARD through the
-            # group that just closed, and its stopping condition
-            # (`carried >= overlap_budget`) is checked using the value of
-            # `carried` from BEFORE the candidate item is added. If the
-            # small items scanned so far still leave `carried` under
-            # budget, the loop takes one more step back and includes
-            # whatever's there next — even if that's a single file far
-            # bigger than the entire next group's budget. When that
-            # happens, the "carry" isn't a sliver of trailing context
-            # anymore, it's a wholesale duplicate of a huge file, and the
-            # new group it seeds is stillborn: current_tokens already
-            # meets max_tokens before a single new file is considered, so
-            # hit_hard_cap fires on the very next iteration and the same
-            # huge file (now still the most-recent item in that
-            # freshly-closed group) gets walked back into the carry again.
-            # Left unguarded, this can repeat for several groups in a row
-            # — observed in practice as one large file (plus whichever
-            # small files happened to ride along beside it) appearing in
-            # 3-4 separate groups' file lists. The fix: never let a
-            # candidate join the carry if doing so would already fill (or
-            # exceed) max_tokens by itself — better to under-carry at that
-            # seam, or even carry nothing, than to chain-duplicate a huge
-            # file across a run of groups.
-            overlap_budget = current_tokens * overlap_ratio
-            carry = []
-            carried = 0
-            for relpath2, tok2 in reversed(current):
-                if carried >= overlap_budget:
-                    break
-                if carried + tok2 >= max_tokens:
-                    break
-                carry.append((relpath2, tok2))
-                carried += tok2
-            carry.reverse()
-            current = list(carry)
-            current_tokens = carried
     if current:
         groups.append(current)
 
