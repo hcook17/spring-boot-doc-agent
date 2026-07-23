@@ -16,7 +16,10 @@ Implements the grouping scheme described in Pan, Mao, Ma & Ling,
 Token counts here are estimated with a cheap heuristic (chars / N) rather
 than a real tokenizer, since this only needs to be "close enough" to size
 groups sensibly — it is not used for anything that requires exact counts.
-No third-party dependencies, so it runs anywhere Python 3 does.
+No third-party dependencies for default behavior, so it runs anywhere
+Python 3 does. The optional --respect-gitignore flag is the one exception:
+it needs the `pathspec` library installed, and degrades to a no-op (with
+default exclude behavior unchanged) if that library isn't available.
 
 N depends on content density rather than being a flat 4 for everything —
 see CHARS_PER_TOKEN_DEFAULT / CHARS_PER_TOKEN_DENSE below for what that's
@@ -52,7 +55,7 @@ import math
 import os
 import sys
 
-from _shared_excludes import DEFAULT_EXCLUDED_DIRS
+from _shared_excludes import DEFAULT_EXCLUDED_DIRS, load_gitignore_spec
 
 DEFAULT_EXCLUDED_EXTS = {
     ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".webp", ".bmp",
@@ -130,12 +133,21 @@ def estimate_tokens(path, max_file_bytes):
     return max(1, len(text) // divisor), None
 
 
-def dfs_file_list(repo_path, excluded_dirs, excluded_exts, excluded_files):
+def dfs_file_list(repo_path, excluded_dirs, excluded_exts, excluded_files, gitignore_spec=None):
     """Depth-first, deterministically-ordered walk of the repo, yielding
     relative file paths. Directories and files are sorted at each level so
     the ordering is stable across runs (important since overlap depends on
-    a consistent DFS order)."""
+    a consistent DFS order).
+
+    gitignore_spec, if given, is a pathspec.PathSpec (see
+    _shared_excludes.load_gitignore_spec) additionally consulted against
+    each entry's path relative to repo_path — opt-in, off by default, on
+    top of the hardcoded excluded_dirs/excluded_exts/excluded_files floor,
+    not a replacement for it."""
     files = []
+
+    def _relpath(full):
+        return os.path.relpath(full, repo_path).replace("\\", "/")
 
     def _walk(dir_path):
         try:
@@ -147,6 +159,8 @@ def dfs_file_list(repo_path, excluded_dirs, excluded_exts, excluded_files):
             full = os.path.join(dir_path, name)
             if os.path.isdir(full):
                 if name not in excluded_dirs and not name.startswith("."):
+                    if gitignore_spec is not None and gitignore_spec.match_file(_relpath(full) + "/"):
+                        continue
                     dirs.append(full)
             else:
                 regular.append((name, full))
@@ -155,6 +169,8 @@ def dfs_file_list(repo_path, excluded_dirs, excluded_exts, excluded_files):
                 continue
             _, ext = os.path.splitext(name)
             if ext.lower() in excluded_exts:
+                continue
+            if gitignore_spec is not None and gitignore_spec.match_file(_relpath(full)):
                 continue
             files.append(full)
         for d in dirs:
@@ -267,6 +283,10 @@ def main():
                     help="Additional directory name to exclude (repeatable)")
     ap.add_argument("--max-file-bytes", type=int, default=2_000_000,
                     help="Skip files larger than this many bytes (default: 2,000,000)")
+    ap.add_argument("--respect-gitignore", action="store_true", default=False,
+                    help="Additionally exclude paths matched by the repo's own .gitignore, "
+                         "on top of the hardcoded exclude list (default: off; requires the "
+                         "pathspec library)")
     args = ap.parse_args()
 
     repo_path = os.path.abspath(args.repo_path)
@@ -276,7 +296,10 @@ def main():
 
     excluded_dirs = DEFAULT_EXCLUDED_DIRS | set(args.exclude_dir)
 
-    all_files = dfs_file_list(repo_path, excluded_dirs, DEFAULT_EXCLUDED_EXTS, DEFAULT_EXCLUDED_FILES)
+    gitignore_spec = load_gitignore_spec(repo_path) if args.respect_gitignore else None
+
+    all_files = dfs_file_list(repo_path, excluded_dirs, DEFAULT_EXCLUDED_EXTS, DEFAULT_EXCLUDED_FILES,
+                               gitignore_spec=gitignore_spec)
 
     file_tokens = []
     skipped = []

@@ -19,3 +19,21 @@ DEFAULT_EXCLUDED_DIRS = frozenset({
     "bin", "build", "coverage", "dist", "env", "node_modules", "obj",
     "out", "target", "vendor", "venv",
 })
+
+
+def load_gitignore_spec(repo_path):
+    """Return a pathspec.PathSpec built from repo_path/.gitignore, or None
+    if there is no .gitignore or the pathspec library isn't installed.
+    Soft dependency, same pattern as spring_signal_scan.py's existing
+    sqllineage handling — a missing install degrades this one feature,
+    it doesn't fail the whole scan."""
+    import os
+    gitignore_path = os.path.join(repo_path, ".gitignore")
+    if not os.path.isfile(gitignore_path):
+        return None
+    try:
+        import pathspec
+    except ImportError:
+        return None
+    with open(gitignore_path) as f:
+        return pathspec.PathSpec.from_lines("gitwildmatch", f)

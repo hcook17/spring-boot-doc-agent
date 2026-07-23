@@ -107,7 +107,7 @@ import shutil
 import subprocess
 import sys
 
-from _shared_excludes import DEFAULT_EXCLUDED_DIRS as EXCLUDED_DIRS
+from _shared_excludes import DEFAULT_EXCLUDED_DIRS as EXCLUDED_DIRS, load_gitignore_spec
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RULE_FILE = os.path.join(SCRIPT_DIR, "spring_ast_grep_rules.yml")
@@ -261,11 +261,23 @@ def to_snake_case(name):
     return "".join(buf).lower()
 
 
-def dfs_walk(root):
+def dfs_walk(root, gitignore_spec=None):
+    """gitignore_spec, if given, is a pathspec.PathSpec (see
+    _shared_excludes.load_gitignore_spec) additionally consulted against
+    each entry's path relative to root — opt-in, off by default, on top
+    of the hardcoded EXCLUDED_DIRS floor, not a replacement for it."""
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = sorted(d for d in dirnames if d not in EXCLUDED_DIRS and not d.startswith("."))
+        if gitignore_spec is not None:
+            dirnames[:] = [
+                d for d in dirnames
+                if not gitignore_spec.match_file(os.path.relpath(os.path.join(dirpath, d), root).replace("\\", "/") + "/")
+            ]
         for name in sorted(filenames):
-            yield os.path.join(dirpath, name)
+            full = os.path.join(dirpath, name)
+            if gitignore_spec is not None and gitignore_spec.match_file(os.path.relpath(full, root).replace("\\", "/")):
+                continue
+            yield full
 
 
 def compute_file_signature(path):
@@ -307,21 +319,32 @@ def find_ast_grep():
     return path
 
 
-def run_ast_grep(ast_grep_path, repo_path):
+def run_ast_grep(ast_grep_path, repo_path, respect_gitignore=False):
     cmd = [
         ast_grep_path, "scan",
         "--rule", RULE_FILE,
         "--json=compact",
         # Make exclusion depend only on EXCLUDED_DIRS below, not on whatever
         # .gitignore happens to say in a given checkout — same reasoning as
-        # the rest of this script's build-independence.
+        # the rest of this script's build-independence. When respect_gitignore
+        # is set, "vcs" is omitted below so ast-grep's own native .gitignore
+        # handling takes over for that one category — no need to reimplement
+        # gitignore matching for the ast-grep subprocess call itself. Note
+        # this only actually does anything inside a real VCS root (a .git
+        # directory present) — same as ripgrep's underlying `ignore` crate,
+        # a standalone .gitignore with no .git next to it is invisible to
+        # this. Real target repos for this plugin are checkouts, so this
+        # isn't a practical gap, but it's why the Python-side dfs_walk
+        # gitignore_spec matching (which has no such requirement) is the
+        # one actually doing the work in a bare-directory scan.
         "--no-ignore", "hidden",
         "--no-ignore", "dot",
-        "--no-ignore", "vcs",
         "--no-ignore", "parent",
         "--no-ignore", "global",
         "--no-ignore", "exclude",
     ]
+    if not respect_gitignore:
+        cmd += ["--no-ignore", "vcs"]
     for d in sorted(EXCLUDED_DIRS):
         cmd += ["--globs", f"!**/{d}/**"]
     cmd.append(repo_path)
@@ -398,7 +421,9 @@ def _extract_query(multi_args):
     return query_kind, query_text
 
 
-def scan(repo_path, sql_dialect="ansi"):
+def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
+    gitignore_spec = load_gitignore_spec(repo_path) if respect_gitignore else None
+
     buckets = {
         "api_surface": [], "outbound_clients": [], "messaging": [],
         "persistence": [], "raw_queries": [], "security": [],
@@ -417,7 +442,7 @@ def scan(repo_path, sql_dialect="ansi"):
     # above), unconditionally, before the classification below, so
     # file_signatures covers exactly the set of files dfs_walk visits —
     # the same set drift-check tooling will later re-walk and re-hash.
-    for full in dfs_walk(repo_path):
+    for full in dfs_walk(repo_path, gitignore_spec=gitignore_spec):
         rel = os.path.relpath(full, repo_path).replace("\\", "/")
         name = os.path.basename(full)
         _, ext = os.path.splitext(name)
@@ -465,7 +490,7 @@ def scan(repo_path, sql_dialect="ansi"):
 
     # Pass 2: everything Java-structural, via ast-grep.
     ast_grep_path = find_ast_grep()
-    matches = run_ast_grep(ast_grep_path, repo_path)
+    matches = run_ast_grep(ast_grep_path, repo_path, respect_gitignore=respect_gitignore)
 
     seen = set()  # (file, line, ruleId) -> collapse same AST-node-kind hits that land on one line
     for m in matches:
@@ -563,13 +588,18 @@ def main():
              "one (e.g. 'mysql', 'postgres', 'oracle', 'sqlite', 'tsql') for "
              "better accuracy if you know it.",
     )
+    ap.add_argument("--respect-gitignore", action="store_true", default=False,
+                     help="Additionally exclude paths matched by the repo's own .gitignore, "
+                          "on top of the hardcoded EXCLUDED_DIRS floor (default: off; requires "
+                          "the pathspec library for the Python-side walk; ast-grep's own native "
+                          "gitignore handling is used for the ast-grep subprocess call)")
     args = ap.parse_args()
 
     if not os.path.isdir(args.repo_path):
         print(f"error: not a directory: {args.repo_path}", file=sys.stderr)
         sys.exit(1)
 
-    result = scan(args.repo_path, sql_dialect=args.sql_dialect)
+    result = scan(args.repo_path, sql_dialect=args.sql_dialect, respect_gitignore=args.respect_gitignore)
     with open(args.out, "w") as f:
         json.dump(result, f, indent=2)
 

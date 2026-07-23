@@ -169,5 +169,44 @@ class EstimateTokensTest(unittest.TestCase):
         self.assertIn("too-large", reason)
 
 
+class RespectGitignoreOptInTest(unittest.TestCase):
+    """--respect-gitignore is additive-only: default behavior (flag/spec
+    omitted) must be unaffected, and a directory not covered by the
+    hardcoded DEFAULT_EXCLUDED_DIRS floor should only disappear when the
+    repo's own .gitignore excludes it AND the caller opts in."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        os.makedirs(os.path.join(self.tmpdir, "scratch"))
+        with open(os.path.join(self.tmpdir, "scratch", "notes.txt"), "w") as f:
+            f.write("not source")
+        with open(os.path.join(self.tmpdir, "kept.txt"), "w") as f:
+            f.write("kept")
+        with open(os.path.join(self.tmpdir, ".gitignore"), "w") as f:
+            f.write("scratch/\n")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _relpaths(self, gitignore_spec):
+        files = partition_repo.dfs_file_list(
+            self.tmpdir,
+            partition_repo.DEFAULT_EXCLUDED_DIRS,
+            partition_repo.DEFAULT_EXCLUDED_EXTS,
+            partition_repo.DEFAULT_EXCLUDED_FILES,
+            gitignore_spec=gitignore_spec,
+        )
+        return {os.path.relpath(f, self.tmpdir).replace("\\", "/") for f in files}
+
+    def test_scratch_dir_included_without_opt_in(self):
+        self.assertEqual(self._relpaths(gitignore_spec=None), {".gitignore", "kept.txt", "scratch/notes.txt"})
+
+    def test_scratch_dir_excluded_with_opt_in(self):
+        from _shared_excludes import load_gitignore_spec
+        spec = load_gitignore_spec(self.tmpdir)
+        self.assertIsNotNone(spec, "pathspec must be installed for this test to be meaningful")
+        self.assertEqual(self._relpaths(gitignore_spec=spec), {".gitignore", "kept.txt"})
+
+
 if __name__ == "__main__":
     unittest.main()

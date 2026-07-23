@@ -24,6 +24,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/partition_repo.py" <repo_path> --max-toke
 
 `spring_signal_scan.py` shells out to the `ast-grep` binary, so it needs to be on `PATH` (the script's own error message links install instructions if it isn't).
 
+Both scripts also accept an optional `--respect-gitignore` flag, off by default, that additionally excludes paths matched by the repo's own `.gitignore` on top of the hardcoded exclude list — default behavior (flag omitted) is unchanged.
+
 Also grep for `TODO|FIXME|XXX|HACK` across the repo yourself (not worth a dedicated script) and keep the hits — they feed `known_limitations.md` as candidates, not facts.
 
 ## Stage 1 — Parallel file summarization
