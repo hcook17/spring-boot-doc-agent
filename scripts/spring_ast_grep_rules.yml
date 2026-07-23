@@ -235,3 +235,29 @@ language: java
 rule:
   kind: import_declaration
   regex: "^import org\\.testcontainers\\."
+
+  # ---- references (repo-wide import/package index, not a documentation
+  # bucket) ----
+  # Plain import_declaration / package_declaration captures, no narrowing
+  # regex to any specific type — unlike outbound_clients__import /
+  # messaging__import / observability__import / testing__import above,
+  # which each look for one specific set of framework types. This exists
+  # so file-summarizer (Stage 1) can consult a repo-wide reference index
+  # for cross-group relationships (e.g. a controller in one group calling
+  # a service in another), which its own per-group file view otherwise has
+  # no way to see. ast-grep already parses every file's full AST for the
+  # 21 rules above, so this is marginal cost, not a new pass. See
+  # spring_signal_scan.py's scan() "references" bucket and
+  # file-summarizer.md step 3 for how this actually gets consumed — this
+  # rule alone only builds the index, it doesn't do any relationship
+  # resolution itself.
+---
+id: references__import
+language: java
+rule:
+  kind: import_declaration
+---
+id: references__package
+language: java
+rule:
+  kind: package_declaration

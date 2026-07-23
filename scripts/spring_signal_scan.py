@@ -39,6 +39,8 @@ Output buckets map directly to documentation categories:
   observability     -> observability.md
   deployment        -> operations.md
   testing           -> testing.md
+  references        -> consumed by file-summarizer for cross-group relationship-
+                        finding; not written directly into any of the 14 output files
 
 NOTE on raw_queries: @Query annotations without nativeQuery=true contain
 JPQL, not SQL — JPQL references entity names, not table names, and tools
@@ -428,7 +430,7 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
         "api_surface": [], "outbound_clients": [], "messaging": [],
         "persistence": [], "raw_queries": [], "security": [],
         "configuration": [], "error_handling": [], "observability": [],
-        "deployment": [], "testing": [],
+        "deployment": [], "testing": [], "references": [],
     }
     entity_table_map = {}
     files_scanned = {"java": 0, "config": 0, "deployment": 0, "other_relevant": 0}

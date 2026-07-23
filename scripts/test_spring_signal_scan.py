@@ -296,6 +296,46 @@ class SqlLineageExtractionTest(unittest.TestCase):
         self.assertEqual(result, {"available": False, "reason": "sqllineage not installed"})
 
 
+class ReferencesBucketTest(unittest.TestCase):
+    """references__import / references__package (spring_ast_grep_rules.yml)
+    build a repo-wide import/package index so file-summarizer can find
+    cross-group relationships its own per-group file view can't see (see
+    the "references" rule block's header comment). Two files in different
+    fictional "groups" (directories, standing in for partition_repo.py
+    groups, which this scanner has no concept of) — groupA/Consumer.java
+    importing groupB.Service — must produce a references__import entry
+    for the import, independent of any group boundary."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        group_a = os.path.join(self.tmpdir, "groupA")
+        group_b = os.path.join(self.tmpdir, "groupB")
+        os.makedirs(group_a)
+        os.makedirs(group_b)
+        with open(os.path.join(group_a, "Consumer.java"), "w") as f:
+            f.write(
+                "package groupA;\n\n"
+                "import groupB.Service;\n\n"
+                "public class Consumer {\n"
+                "    private final Service service = new Service();\n"
+                "}\n"
+            )
+        with open(os.path.join(group_b, "Service.java"), "w") as f:
+            f.write("package groupB;\n\npublic class Service {\n}\n")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_cross_group_import_appears_in_references_bucket(self):
+        result = spring_signal_scan.scan(self.tmpdir)
+        import_entries = [
+            e for e in result["evidence"]["references"]
+            if e["rule_id"] == "references__import" and e["file"] == "groupA/Consumer.java"
+        ]
+        self.assertEqual(len(import_entries), 1)
+        self.assertIn("groupB.Service", import_entries[0]["match"])
+
+
 class RespectGitignoreOptInTest(unittest.TestCase):
     """--respect-gitignore is additive-only: a directory not covered by the
     hardcoded EXCLUDED_DIRS floor (unlike vendor/, venv/, etc.) should only
