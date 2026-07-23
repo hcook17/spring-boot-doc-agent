@@ -92,13 +92,10 @@ about the rest of the scan depends on this succeeding. Named (`:status`)
 and positional (`?`, `?1`) bind parameters are substituted with a bare
 `1` before parsing, since sqlfluff (sqllineage's parser backend) fails to
 lex either form in any dialect, and lineage only needs table-level
-structure, not bound values. JPQL entries (query_kind == "jpql") never
-get this field: JPQL references entity names, not table names, and isn't
-valid SQL grammar in the first place — see the note above. The dialect
-used is a CLI flag (`--sql-dialect`, default "ansi", sqllineage's own
-generic baseline) since this scanner has no way to know the target
-database; pass the real one (e.g. "mysql", "postgres", "oracle") for
-better accuracy if you know it.
+structure, not bound values. The dialect used is a CLI flag (`--sql-dialect`,
+default "ansi", sqllineage's own generic baseline) since this scanner has
+no way to know the target database; pass the real one (e.g. "mysql",
+"postgres", "oracle") for better accuracy if you know it.
 """
 
 import argparse
@@ -424,7 +421,7 @@ def scan(repo_path, sql_dialect="ansi"):
     # file_signatures covers exactly the set of files dfs_walk visits —
     # the same set drift-check tooling will later re-walk and re-hash.
     for full in dfs_walk(repo_path):
-        rel = os.path.relpath(full, repo_path)
+        rel = os.path.relpath(full, repo_path).replace("\\", "/")
         name = os.path.basename(full)
         _, ext = os.path.splitext(name)
 
@@ -458,14 +455,13 @@ def scan(repo_path, sql_dialect="ansi"):
             continue
 
         if ext in (".yml", ".yaml") and any(
-                seg in rel.replace("\\", "/").split("/") for seg in ("k8s", "helm", "charts", "deploy", "deployment", ".github")
+            seg in rel.split("/") for seg in ("k8s", "helm", "charts", "deploy", "deployment", ".github")
         ):
             files_scanned["deployment"] += 1
             buckets["deployment"].append({"file": rel, "match": "deployment manifest"})
             continue
 
-        rel_posix = rel.replace("\\", "/")
-        if any(hint in rel_posix for hint in MIGRATION_DIR_HINTS):
+        if any(hint in rel for hint in MIGRATION_DIR_HINTS):
             files_scanned["other_relevant"] += 1
             buckets["persistence"].append({"file": rel, "match": "migration script"})
             continue
@@ -476,7 +472,7 @@ def scan(repo_path, sql_dialect="ansi"):
 
     seen = set()  # (file, line, ruleId) -> collapse same AST-node-kind hits that land on one line
     for m in matches:
-        rel = os.path.relpath(m["file"], repo_path)
+        rel = os.path.relpath(m["file"], repo_path).replace("\\", "/")
         line = m["range"]["start"]["line"] + 1
         text = m.get("text", "")
         rule_id = m["ruleId"]
