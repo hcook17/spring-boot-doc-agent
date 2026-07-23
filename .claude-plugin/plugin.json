@@ -1,9 +1,9 @@
 {
   "name": "spring-boot-doc-agent",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Scan a Spring Boot repository, ask clarifying questions about what static analysis can't determine, and generate a fixed 14-file documentation set (readme, architecture, integrations, authorization, database, operations, observability, troubleshooting, configuration, change_impact, glossary, local_development, testing, known_limitations).",
   "author": {
-    "name": "EHE-ECM"
+    "name": "Hunter Cook"
   },
   "license": "MIT",
   "keywords": ["documentation", "spring-boot", "architecture", "onboarding", "java"]
