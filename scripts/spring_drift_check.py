@@ -156,7 +156,7 @@ def tier1_scan(repo_path):
     original scan walked, not some independently reinvented notion of it."""
     current = {}
     for full in spring_signal_scan.dfs_walk(repo_path):
-        rel = os.path.relpath(full, repo_path)
+        rel = os.path.relpath(full, repo_path).replace("\\", "/")
         try:
             current[rel] = spring_signal_scan.compute_file_signature(full)
         except OSError as e:

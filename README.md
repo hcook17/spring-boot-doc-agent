@@ -34,6 +34,20 @@ This started as a regex scanner and was rewritten to ast-grep specifically becau
 
 **Native-query lineage**: `raw_queries` entries tagged `"query_kind": "native"` now get best-effort source/target table extraction via [SQLLineage](https://sqllineage.io), in a `lineage` field on the entry (`{"available": true, "source_tables": [...], "target_tables": [...]}` on success, `{"available": false, "reason": "..."}` on failure). This is a **soft dependency** — unlike `ast-grep`, a missing `sqllineage` install (`pip install sqllineage`) or a query SQLLineage can't parse (an exotic dialect feature, a Spring SpEL expression like `:#{#tenant}` that isn't real bind-parameter syntax) degrades that one entry's `lineage` field rather than failing the scan. Spring's own `:name`/`?`/`?1` bind-parameter placeholders aren't valid SQL grammar in any dialect either, so they're substituted with a harmless literal before parsing — lineage only needs table-level structure, not the bound values. The dialect defaults to `ansi` (SQLLineage's own generic baseline, since this scanner has no way to know the target database) — pass `--sql-dialect mysql` (or `postgres`, `oracle`, `sqlite`, `tsql`, etc.) to `spring_signal_scan.py` for better accuracy if you know it. Entries tagged `"query_kind": "jpql"` still never get a `lineage` field, and this is fundamental rather than a gap to close later — JPQL references entity names, not table names, and isn't valid SQL grammar at all, a known, documented limitation of general-purpose SQL lineage tools generally, not something specific to this scanner or to SQLLineage.
 
+## On drift detection (`spring_drift_check.py`)
+
+Once you have a `spring_signals.json` from a prior scan of a repo, `scripts/spring_drift_check.py` checks whether it's still accurate against the repo's current state: a cheap whole-repo file-signature hash (tier 1) tells you which files changed at all, and only for those, a targeted `ast-grep` re-run (tier 2) re-verifies the specific fact each citation recorded — entity/table mapping, repository type args, query text, or annotation shape — rather than flagging every citation in a changed file just because *something* in it moved. It exists because a comment fix three lines from a cited annotation shouldn't read as drift on every fact the file happens to also contain.
+
+```bash
+python3 scripts/spring_signal_scan.py <repo_path> --out spring_signals.json
+# ... time passes, repo changes ...
+python3 scripts/spring_drift_check.py <repo_path> spring_signals.json --out drift_report.json
+```
+
+Tested via `python3 scripts/test_spring_drift_check.py -v`, a real integration test suite (real `ast-grep` subprocesses against mutated copies of the same fixture repo `test_spring_signal_scan.py` uses) — see `skills/document-spring-repo/SKILL.md`'s Stage 0 for how to use the report as a pre-flight check before deciding whether a full pipeline re-run is warranted.
+
+This is deliberately standalone, not a bug: no LLM calls, no CI wiring, not invoked automatically by the `document-spring-repo` pipeline. You run it by hand, pointing it at a repo and a prior scan, and use its report to decide what (if anything) needs a closer look.
+
 ## Install (local, not yet published)
 
 ```bash

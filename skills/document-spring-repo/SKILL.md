@@ -28,6 +28,16 @@ Both scripts also accept an optional `--respect-gitignore` flag, off by default,
 
 Also grep for `TODO|FIXME|XXX|HACK` across the repo yourself (not worth a dedicated script) and keep the hits — they feed `known_limitations.md` as candidates, not facts.
 
+### Optional pre-flight: checking for drift before a full re-run
+
+If you already have a `spring_signals.json` from a prior scan of this same repo (schema_version >= 2), it's worth checking whether anything actually drifted before committing to a full five-stage re-run:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/spring_drift_check.py" <repo_path> <prior_spring_signals.json> --out drift_report.json
+```
+
+This re-hashes every file (cheap, tier 1) and, only for files that changed, re-verifies the specific fact each citation recorded via a targeted `ast-grep` re-run (tier 2) — not just "did the file change" but "is the cited entity/repository/query/annotation still there in essentially the same shape." Each citation in `drift_report.json` ends up `unchanged`, `confirmed_still_present`, `drifted`, `file_deleted`, or (for filename-based evidence with no `rule_id` to recheck, e.g. config/migration files) `suspected_drift_content_changed_no_rule_to_recheck`. Use the report to decide whether a full re-run is warranted or whether only the drifted files/claims need attention. This is standalone tooling — it isn't invoked automatically as part of Stage 0, and there's no CI wiring; you run it by hand when you have a prior scan to check against.
+
 ## Stage 1 — Parallel file summarization
 
 For every group in `groups.json`, dispatch a `file-summarizer` subagent — a registered subagent type (`agents/file-summarizer.md`) — in the same turn as its sibling groups, so they run concurrently. Give each one its group's file list (it reads the files itself via its own `Read`/`Grep`/`Glob` access) **and** the relevant slice of `spring_signals.json` (matches whose `file` field falls in that group) so it isn't rediscovering annotations the ast-grep pass already found — it should focus on business meaning, not re-detection. Also give each dispatch the **entire** `references` bucket from `spring_signals.json` — repo-wide, not scoped to that group. This is the one slice that's deliberately passed in full to every dispatch: it's file-summarizer's only way to see cross-group relationships (a controller in one group calling a service in another), since its own group's file list otherwise has no visibility outside itself, and the ~10% DFS overlap between adjacent groups only rescues relationships that happen to straddle two *adjacent* groups. It's cheap — file/line/package-or-import-text triples, not source — so passing all of it to every dispatch should be inexpensive regardless of repo size, but this is worth confirming against a real repo's actual `references` bucket size rather than just assumed. Each returns a JSON array, one object per file (`file`, `cluster`, `summary`, `relationships`, `cross_group_relationships`, `group_function`, `spring_role`).
@@ -87,5 +97,5 @@ Tell the user what was written, and — importantly — surface a short summary 
 
 - No cross-repository discovery beyond what the interview surfaces manually.
 - No SQL-lineage-grade parsing of native queries — `raw_queries` entries tagged `native` in `spring_signals.json` are flagged as candidates for a real SQL parser, not run through one. If you want that level of rigor, that's a natural next add-on, not something this pipeline does today.
-- No re-run/drift detection. Re-running the whole pipeline is the refresh mechanism.
+- No automatic re-run/drift detection. `scripts/spring_drift_check.py` (see the Stage 0 pre-flight section above) can tell you what's drifted since a prior scan, but it's a standalone script you run by hand — it isn't invoked automatically by this pipeline or by CI, and running the whole pipeline again remains the actual refresh mechanism once you've decided a re-run is warranted.
 - No verification against ArchUnit or a compiled build — `spring_signal_scan.py` parses raw source text via ast-grep/tree-sitter by design, trading some precision for not needing a build step or classpath. If you want higher fidelity (resolved inheritance, annotations picked up via meta-annotations, etc.), that's a legitimate upgrade path, not something worth blocking v1 on.

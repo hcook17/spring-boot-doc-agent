@@ -5,6 +5,6 @@
   "author": {
     "name": "EHE-ECM"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "keywords": ["documentation", "spring-boot", "architecture", "onboarding", "java"]
 }
