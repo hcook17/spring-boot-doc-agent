@@ -52,12 +52,7 @@ import math
 import os
 import sys
 
-DEFAULT_EXCLUDED_DIRS = {
-    ".git", ".hg", ".svn", "node_modules", "dist", "build", "target",
-    "venv", ".venv", "env", "__pycache__", ".next", ".nuxt", ".gradle",
-    ".idea", ".vscode", "vendor", "coverage", ".pytest_cache", ".mypy_cache",
-    "out", "bin", "obj",
-}
+from _shared_excludes import DEFAULT_EXCLUDED_DIRS
 
 DEFAULT_EXCLUDED_EXTS = {
     ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".webp", ".bmp",

@@ -107,13 +107,10 @@ import shutil
 import subprocess
 import sys
 
+from _shared_excludes import DEFAULT_EXCLUDED_DIRS as EXCLUDED_DIRS
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RULE_FILE = os.path.join(SCRIPT_DIR, "spring_ast_grep_rules.yml")
-
-EXCLUDED_DIRS = {
-    ".git", ".hg", ".svn", "node_modules", "target", "build", ".gradle",
-    ".idea", ".vscode", "out", "bin", "obj", "dist", ".mvn",
-}
 
 JAVA_EXT = {".java"}
 CONFIG_NAME_PATTERNS = [
