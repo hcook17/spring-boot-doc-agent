@@ -24,11 +24,13 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/partition_repo.py" <repo_path> --max-toke
 
 `spring_signal_scan.py` shells out to the `ast-grep` binary, so it needs to be on `PATH` (the script's own error message links install instructions if it isn't).
 
+Both scripts also accept an optional `--respect-gitignore` flag, off by default, that additionally excludes paths matched by the repo's own `.gitignore` on top of the hardcoded exclude list — default behavior (flag omitted) is unchanged.
+
 Also grep for `TODO|FIXME|XXX|HACK` across the repo yourself (not worth a dedicated script) and keep the hits — they feed `known_limitations.md` as candidates, not facts.
 
 ## Stage 1 — Parallel file summarization
 
-For every group in `groups.json`, dispatch a `file-summarizer` subagent — a registered subagent type (`agents/file-summarizer.md`) — in the same turn as its sibling groups, so they run concurrently. Give each one its group's file list (it reads the files itself via its own `Read`/`Grep`/`Glob` access) **and** the relevant slice of `spring_signals.json` (matches whose `file` field falls in that group) so it isn't rediscovering annotations the ast-grep pass already found — it should focus on business meaning, not re-detection. Each returns a JSON array, one object per file (`file`, `cluster`, `summary`, `relationships`, `group_function`, `spring_role`).
+For every group in `groups.json`, dispatch a `file-summarizer` subagent — a registered subagent type (`agents/file-summarizer.md`) — in the same turn as its sibling groups, so they run concurrently. Give each one its group's file list (it reads the files itself via its own `Read`/`Grep`/`Glob` access) **and** the relevant slice of `spring_signals.json` (matches whose `file` field falls in that group) so it isn't rediscovering annotations the ast-grep pass already found — it should focus on business meaning, not re-detection. Also give each dispatch the **entire** `references` bucket from `spring_signals.json` — repo-wide, not scoped to that group. This is the one slice that's deliberately passed in full to every dispatch: it's file-summarizer's only way to see cross-group relationships (a controller in one group calling a service in another), since its own group's file list otherwise has no visibility outside itself, and the ~10% DFS overlap between adjacent groups only rescues relationships that happen to straddle two *adjacent* groups. It's cheap — file/line/package-or-import-text triples, not source — so passing all of it to every dispatch should be inexpensive regardless of repo size, but this is worth confirming against a real repo's actual `references` bucket size rather than just assumed. Each returns a JSON array, one object per file (`file`, `cluster`, `summary`, `relationships`, `cross_group_relationships`, `group_function`, `spring_role`).
 
 Collect results into `summaries.json`.
 

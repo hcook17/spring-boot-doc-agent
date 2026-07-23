@@ -39,6 +39,8 @@ Output buckets map directly to documentation categories:
   observability     -> observability.md
   deployment        -> operations.md
   testing           -> testing.md
+  references        -> consumed by file-summarizer for cross-group relationship-
+                        finding; not written directly into any of the 14 output files
 
 NOTE on raw_queries: @Query annotations without nativeQuery=true contain
 JPQL, not SQL — JPQL references entity names, not table names, and tools
@@ -92,13 +94,10 @@ about the rest of the scan depends on this succeeding. Named (`:status`)
 and positional (`?`, `?1`) bind parameters are substituted with a bare
 `1` before parsing, since sqlfluff (sqllineage's parser backend) fails to
 lex either form in any dialect, and lineage only needs table-level
-structure, not bound values. JPQL entries (query_kind == "jpql") never
-get this field: JPQL references entity names, not table names, and isn't
-valid SQL grammar in the first place — see the note above. The dialect
-used is a CLI flag (`--sql-dialect`, default "ansi", sqllineage's own
-generic baseline) since this scanner has no way to know the target
-database; pass the real one (e.g. "mysql", "postgres", "oracle") for
-better accuracy if you know it.
+structure, not bound values. The dialect used is a CLI flag (`--sql-dialect`,
+default "ansi", sqllineage's own generic baseline) since this scanner has
+no way to know the target database; pass the real one (e.g. "mysql",
+"postgres", "oracle") for better accuracy if you know it.
 """
 
 import argparse
@@ -110,13 +109,10 @@ import shutil
 import subprocess
 import sys
 
+from _shared_excludes import DEFAULT_EXCLUDED_DIRS as EXCLUDED_DIRS, load_gitignore_spec
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RULE_FILE = os.path.join(SCRIPT_DIR, "spring_ast_grep_rules.yml")
-
-EXCLUDED_DIRS = {
-    ".git", ".hg", ".svn", "node_modules", "target", "build", ".gradle",
-    ".idea", ".vscode", "out", "bin", "obj", "dist", ".mvn",
-}
 
 JAVA_EXT = {".java"}
 CONFIG_NAME_PATTERNS = [
@@ -267,11 +263,23 @@ def to_snake_case(name):
     return "".join(buf).lower()
 
 
-def dfs_walk(root):
+def dfs_walk(root, gitignore_spec=None):
+    """gitignore_spec, if given, is a pathspec.PathSpec (see
+    _shared_excludes.load_gitignore_spec) additionally consulted against
+    each entry's path relative to root — opt-in, off by default, on top
+    of the hardcoded EXCLUDED_DIRS floor, not a replacement for it."""
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = sorted(d for d in dirnames if d not in EXCLUDED_DIRS and not d.startswith("."))
+        if gitignore_spec is not None:
+            dirnames[:] = [
+                d for d in dirnames
+                if not gitignore_spec.match_file(os.path.relpath(os.path.join(dirpath, d), root).replace("\\", "/") + "/")
+            ]
         for name in sorted(filenames):
-            yield os.path.join(dirpath, name)
+            full = os.path.join(dirpath, name)
+            if gitignore_spec is not None and gitignore_spec.match_file(os.path.relpath(full, root).replace("\\", "/")):
+                continue
+            yield full
 
 
 def compute_file_signature(path):
@@ -313,21 +321,32 @@ def find_ast_grep():
     return path
 
 
-def run_ast_grep(ast_grep_path, repo_path):
+def run_ast_grep(ast_grep_path, repo_path, respect_gitignore=False):
     cmd = [
         ast_grep_path, "scan",
         "--rule", RULE_FILE,
         "--json=compact",
         # Make exclusion depend only on EXCLUDED_DIRS below, not on whatever
         # .gitignore happens to say in a given checkout — same reasoning as
-        # the rest of this script's build-independence.
+        # the rest of this script's build-independence. When respect_gitignore
+        # is set, "vcs" is omitted below so ast-grep's own native .gitignore
+        # handling takes over for that one category — no need to reimplement
+        # gitignore matching for the ast-grep subprocess call itself. Note
+        # this only actually does anything inside a real VCS root (a .git
+        # directory present) — same as ripgrep's underlying `ignore` crate,
+        # a standalone .gitignore with no .git next to it is invisible to
+        # this. Real target repos for this plugin are checkouts, so this
+        # isn't a practical gap, but it's why the Python-side dfs_walk
+        # gitignore_spec matching (which has no such requirement) is the
+        # one actually doing the work in a bare-directory scan.
         "--no-ignore", "hidden",
         "--no-ignore", "dot",
-        "--no-ignore", "vcs",
         "--no-ignore", "parent",
         "--no-ignore", "global",
         "--no-ignore", "exclude",
     ]
+    if not respect_gitignore:
+        cmd += ["--no-ignore", "vcs"]
     for d in sorted(EXCLUDED_DIRS):
         cmd += ["--globs", f"!**/{d}/**"]
     cmd.append(repo_path)
@@ -404,12 +423,14 @@ def _extract_query(multi_args):
     return query_kind, query_text
 
 
-def scan(repo_path, sql_dialect="ansi"):
+def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
+    gitignore_spec = load_gitignore_spec(repo_path) if respect_gitignore else None
+
     buckets = {
         "api_surface": [], "outbound_clients": [], "messaging": [],
         "persistence": [], "raw_queries": [], "security": [],
         "configuration": [], "error_handling": [], "observability": [],
-        "deployment": [], "testing": [],
+        "deployment": [], "testing": [], "references": [],
     }
     entity_table_map = {}
     files_scanned = {"java": 0, "config": 0, "deployment": 0, "other_relevant": 0}
@@ -423,8 +444,8 @@ def scan(repo_path, sql_dialect="ansi"):
     # above), unconditionally, before the classification below, so
     # file_signatures covers exactly the set of files dfs_walk visits —
     # the same set drift-check tooling will later re-walk and re-hash.
-    for full in dfs_walk(repo_path):
-        rel = os.path.relpath(full, repo_path)
+    for full in dfs_walk(repo_path, gitignore_spec=gitignore_spec):
+        rel = os.path.relpath(full, repo_path).replace("\\", "/")
         name = os.path.basename(full)
         _, ext = os.path.splitext(name)
 
@@ -458,25 +479,24 @@ def scan(repo_path, sql_dialect="ansi"):
             continue
 
         if ext in (".yml", ".yaml") and any(
-                seg in rel.replace("\\", "/").split("/") for seg in ("k8s", "helm", "charts", "deploy", "deployment", ".github")
+            seg in rel.split("/") for seg in ("k8s", "helm", "charts", "deploy", "deployment", ".github")
         ):
             files_scanned["deployment"] += 1
             buckets["deployment"].append({"file": rel, "match": "deployment manifest"})
             continue
 
-        rel_posix = rel.replace("\\", "/")
-        if any(hint in rel_posix for hint in MIGRATION_DIR_HINTS):
+        if any(hint in rel for hint in MIGRATION_DIR_HINTS):
             files_scanned["other_relevant"] += 1
             buckets["persistence"].append({"file": rel, "match": "migration script"})
             continue
 
     # Pass 2: everything Java-structural, via ast-grep.
     ast_grep_path = find_ast_grep()
-    matches = run_ast_grep(ast_grep_path, repo_path)
+    matches = run_ast_grep(ast_grep_path, repo_path, respect_gitignore=respect_gitignore)
 
     seen = set()  # (file, line, ruleId) -> collapse same AST-node-kind hits that land on one line
     for m in matches:
-        rel = os.path.relpath(m["file"], repo_path)
+        rel = os.path.relpath(m["file"], repo_path).replace("\\", "/")
         line = m["range"]["start"]["line"] + 1
         text = m.get("text", "")
         rule_id = m["ruleId"]
@@ -570,13 +590,18 @@ def main():
              "one (e.g. 'mysql', 'postgres', 'oracle', 'sqlite', 'tsql') for "
              "better accuracy if you know it.",
     )
+    ap.add_argument("--respect-gitignore", action="store_true", default=False,
+                     help="Additionally exclude paths matched by the repo's own .gitignore, "
+                          "on top of the hardcoded EXCLUDED_DIRS floor (default: off; requires "
+                          "the pathspec library for the Python-side walk; ast-grep's own native "
+                          "gitignore handling is used for the ast-grep subprocess call)")
     args = ap.parse_args()
 
     if not os.path.isdir(args.repo_path):
         print(f"error: not a directory: {args.repo_path}", file=sys.stderr)
         sys.exit(1)
 
-    result = scan(args.repo_path, sql_dialect=args.sql_dialect)
+    result = scan(args.repo_path, sql_dialect=args.sql_dialect, respect_gitignore=args.respect_gitignore)
     with open(args.out, "w") as f:
         json.dump(result, f, indent=2)
 

@@ -21,7 +21,10 @@ install instructions if this fails with "ast-grep binary is not on PATH").
 """
 
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -291,6 +294,85 @@ class SqlLineageExtractionTest(unittest.TestCase):
         finally:
             spring_signal_scan._SQLLINEAGE_AVAILABLE = original
         self.assertEqual(result, {"available": False, "reason": "sqllineage not installed"})
+
+
+class ReferencesBucketTest(unittest.TestCase):
+    """references__import / references__package (spring_ast_grep_rules.yml)
+    build a repo-wide import/package index so file-summarizer can find
+    cross-group relationships its own per-group file view can't see (see
+    the "references" rule block's header comment). Two files in different
+    fictional "groups" (directories, standing in for partition_repo.py
+    groups, which this scanner has no concept of) — groupA/Consumer.java
+    importing groupB.Service — must produce a references__import entry
+    for the import, independent of any group boundary."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        group_a = os.path.join(self.tmpdir, "groupA")
+        group_b = os.path.join(self.tmpdir, "groupB")
+        os.makedirs(group_a)
+        os.makedirs(group_b)
+        with open(os.path.join(group_a, "Consumer.java"), "w") as f:
+            f.write(
+                "package groupA;\n\n"
+                "import groupB.Service;\n\n"
+                "public class Consumer {\n"
+                "    private final Service service = new Service();\n"
+                "}\n"
+            )
+        with open(os.path.join(group_b, "Service.java"), "w") as f:
+            f.write("package groupB;\n\npublic class Service {\n}\n")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_cross_group_import_appears_in_references_bucket(self):
+        result = spring_signal_scan.scan(self.tmpdir)
+        import_entries = [
+            e for e in result["evidence"]["references"]
+            if e["rule_id"] == "references__import" and e["file"] == "groupA/Consumer.java"
+        ]
+        self.assertEqual(len(import_entries), 1)
+        self.assertIn("groupB.Service", import_entries[0]["match"])
+
+
+class RespectGitignoreOptInTest(unittest.TestCase):
+    """--respect-gitignore is additive-only: a directory not covered by the
+    hardcoded EXCLUDED_DIRS floor (unlike vendor/, venv/, etc.) should only
+    disappear from the scan when the repo's own .gitignore excludes it AND
+    the caller opts in via respect_gitignore=True.
+
+    This scratch repo is a real `git init`-ed one, not just a bare
+    directory with a .gitignore file: ast-grep's own native gitignore
+    handling (what run_ast_grep's --no-ignore vcs omission relies on for
+    the ast-grep-side half of this feature) only activates inside an
+    actual VCS root, the same as ripgrep's underlying `ignore` crate --
+    a .gitignore next to files with no .git present is invisible to it.
+    Real target repos for this plugin are checkouts, so this is
+    realistic, not a workaround."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        subprocess.run(["git", "init", "-q"], cwd=self.tmpdir, check=True)
+        scratch_dir = os.path.join(self.tmpdir, "scratch_module")
+        os.makedirs(scratch_dir)
+        with open(os.path.join(scratch_dir, "Scratch.java"), "w") as f:
+            f.write("package scratch_module;\n\n@Entity\npublic class Scratch {\n}\n")
+        with open(os.path.join(self.tmpdir, ".gitignore"), "w") as f:
+            f.write("scratch_module/\n")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_scratch_module_scanned_without_opt_in(self):
+        result = spring_signal_scan.scan(self.tmpdir)
+        self.assertEqual(result["files_scanned"]["java"], 1)
+        self.assertIn("Scratch", result["entity_table_map"])
+
+    def test_scratch_module_excluded_with_opt_in(self):
+        result = spring_signal_scan.scan(self.tmpdir, respect_gitignore=True)
+        self.assertEqual(result["files_scanned"]["java"], 0)
+        self.assertNotIn("Scratch", result["entity_table_map"])
 
 
 if __name__ == "__main__":
