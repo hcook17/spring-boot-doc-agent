@@ -25,8 +25,10 @@ Every generated file tags its claims as **evidenced in code**, **confirmed in in
 Java structural detection runs on [ast-grep](https://ast-grep.github.io/) (tree-sitter-based AST matching), not regex — see `scripts/spring_ast_grep_rules.yml` for the rule set. It's still source-text analysis, not bytecode — no build step or classpath required, at some cost in precision (it won't resolve inherited annotations or interfaces implemented indirectly). See `claude/research/source-text-vs-bytecode-analysis.md` for a deeper comparison against compiled-bytecode/ArchUnit-style analysis. Needs the `ast-grep` binary on `PATH`:
 
 ```bash
-cargo install ast-grep       # or: npm install -g @ast-grep/cli
+pip install -r requirements.txt   # pins ast-grep-cli, sqllineage, pathspec
 ```
+
+That is the pinned path, and the one CI uses. `cargo install ast-grep` and `npm install -g @ast-grep/cli` also work, but they install an unpinned binary outside `requirements.txt` — and if you have already installed `ast-grep` that way, the two can shadow each other on `PATH` and you may not be running the version you think you are. See `claude/tool-quirks.md`'s `ast-grep` PATH-shadowing entry; `ast-grep --version` tells you which one won.
 
 Tested against the fixture repo in `scripts/test_fixtures/spring_signals/` (run `python3 scripts/test_spring_signal_scan.py -v`) — controller, entities (including one with extra annotations stacked on top of `@Entity`/`@Table`, and one with only `@Entity`), repositories (including an `@Repository`-annotated one, and a same-package class that deliberately isn't a repository), a JPQL and a native `@Query`, a multi-line security annotation, `application.yml`, `Dockerfile`. It correctly separates the JPQL query from the native one regardless of argument order, resolves each entity's own table independently (rather than pairing the first `@Table` found in a file with the first class found in the same file, which silently mismatched in any file with more than one entity), and doesn't false-positive `@EntityScan` as `@Entity` — that last one was a real bug in the original regex version, caught by running it against a large production Spring Boot codebase during this rewrite, not just the synthetic fixture.
 
@@ -89,7 +91,7 @@ claude plugin install spring-boot-doc-agent@spring-boot-doc-agent-marketplace
 
 ## Before you use this for real
 
-1. `.claude-plugin/plugin.json` and `marketplace.json` already have a real author; `license` is still `"UNLICENSED"` — set a real one if you're sharing this beyond your own machine.
+1. `.claude-plugin/plugin.json` and `marketplace.json` both name a real author, and `plugin.json`'s `license` is `"MIT"`, matching the root `LICENSE` file. (`marketplace.json` carries no `license` field of its own — it inherits by reference, since its one plugin entry points at `./`.) Confirm both still say what you want before sharing this beyond your own machine.
 2. Read `skills/document-spring-repo/references/doc-taxonomy.md` once yourself before the first real run — it's the actual spec for what "good" looks like per file, and it's worth knowing what it does and doesn't ask about.
 3. Make sure `ast-grep` is on `PATH` (see above) before the first run — Stage 0 will fail fast with an install pointer if it isn't.
 4. Try it on one real (ideally smaller) service first. All five `agents/` files are native Claude Code subagent prompts now (not literal text adapted from a paper or another plugin) — `architect-segment`/`architect-merge` still carry forward the source paper's methodology (node-naming fidelity, subgraph aggregation, discrepancy-flagging), just reimplemented rather than copied.

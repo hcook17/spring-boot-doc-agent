@@ -1,8 +1,8 @@
-# Shared research standards for the five steering prompts
+# Shared research standards for the steering prompts
 
-This file is referenced by all five category prompts in `claude/steering-prompts/`. Read it first, once, before running any of them — it defines the bar every finding in every category must clear, so results are comparable across categories and consistent with this project's existing research (`claude/spring-boot-doc-agent-review.md`, `claude/comparable-tools-benchmark.md`, `claude/sdd-brownfield-research-2026-07.md` — these live in the Claude project "Plugin For Asynchronous Documentation Creation," not in this repo; ask the user for access or a copy if you need the full text).
+This file is referenced by the five category prompts (`01`–`05`) in `claude/steering-prompts/`, and by the review layer (`10`–`12`) as its research counterpart — `10-review-persona-and-standards.md` governs *review and judgement* and states only its delta from this file. Read it first, once, before running any of them — it defines the bar every finding in every category must clear, so results are comparable across categories and consistent with this project's existing research (`claude/spring-boot-doc-agent-review.md`, `claude/comparable-tools-benchmark.md`, `claude/sdd-brownfield-research-2026-07.md` — these live in the Claude project "Plugin For Asynchronous Documentation Creation," not in this repo; ask the user for access or a copy if you need the full text).
 
-## Why these five prompts exist
+## Why the five category prompts exist
 
 A principal-engineer review of `spring-boot-doc-agent` (this plugin) is largely done and its launch-blocking bugs are fixed — see `IMPLEMENTATION_HANDOFF.md` and this repo's own history for the technical detail. What's still missing isn't more bug fixes to the pipeline logic; it's scaffolding *around* the pipeline that makes it trustworthy to operate: automated testing of the LLM stages (not just the two deterministic scripts), formal contracts between stages, a single place that states what this tool does and doesn't do, and run-level telemetry so a human doesn't have to read fourteen markdown files to know if a run went well. Each of the five prompts (`01` through `05`) scopes one of these gaps into its own research → scaffold → implement task.
 
@@ -25,4 +25,4 @@ Research alone isn't the deliverable. Each prompt ends with a concrete artifact 
 
 ## Mirrored copy — keep in sync
 
-This file and its four siblings (`01` through `05`) are mirrored here from the Claude project's `claude/steering-prompts/` docs so a local Claude Code CLI session (which has no access to that project) can read them directly. If you edit these files here in the repo, the canonical copy in the Claude project needs the same edit made back — note it in your commit message or in `claude/session-log.md` so a project-connected session picks it up.
+This file and its siblings (`01` through `12`) are mirrored here from the Claude project's `claude/steering-prompts/` docs so a local Claude Code CLI session (which has no access to that project) can read them directly. If you edit these files here in the repo, the canonical copy in the Claude project needs the same edit made back — note it in your commit message or in `claude/session-log.md` so a project-connected session picks it up.
