@@ -64,7 +64,7 @@ By default it runs against synthetic sample data shaped like each agent's docume
 
 ## Status and contributing
 
-`STATUS.md` at the plugin root is a single, in-place-edited snapshot of what's done vs. pending on this plugin's own scaffolding work, and the next concrete action — read it before picking up any of `claude/steering-prompts/`. `CONTRIBUTING.md` has this repo's write-then-verify rule for anything written through a device bridge, remote tool, or a prior session's unverified claim about repo state.
+`STATUS.md` at the plugin root is a single, in-place-edited snapshot of what's done vs. pending on this plugin's own scaffolding work, and the next concrete action — read it before picking up any of `claude/steering-prompts/`. `CONTRIBUTING.md` has this repo's write-then-verify rule for anything written through a device bridge, remote tool, or a prior session's unverified claim about repo state. `claude/llms/README.md` indexes this repo's own PR history, one file per PR, each pairing a summary with deterministic `git`/`grep` commands to verify its claims directly instead of trusting the prose.
 
 ## Install (local, not yet published)
 
