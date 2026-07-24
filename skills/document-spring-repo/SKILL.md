@@ -95,6 +95,16 @@ Never silently overwrite an existing `README.md` at the repo root — if one exi
 
 Tell the user what was written, and — importantly — surface a short summary of what ended up in "Unknown" across all fourteen files, so they can see at a glance what the interview didn't cover and decide whether it's worth a follow-up pass.
 
+## Testing this pipeline's own output
+
+`scripts/test_pipeline_stages.py` is a mechanical (not LLM-judge) structural test suite for the four LLM stages above — file-summarizer, architect-segment/architect-merge, gap-analyzer, doc-writer — none of which had any test coverage before this file, unlike the deterministic Stage 0 scripts. Run it the same way as the other suites:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/test_pipeline_stages.py" -v
+```
+
+It validates the exact required tag grammar (`[Evidenced — ...]`/`[Confirmed — ...]`/`[Unknown — ...]`/`[Per existing docs — ...]`), whether `[Evidenced — path:line]` citations actually resolve to real files/lines, `file-summarizer`'s and `gap-analyzer`'s required JSON output shapes, and whether architecture-diagram node labels trace back to real file/class names — against synthetic sample data by default. It can also validate a *real* completed pipeline run's actual output (`summaries.json`, the merged architecture diagram, `gap_questions.json`, and the fourteen `docs/*.md` files) if you point `PIPELINE_ARTIFACTS_DIR` (and, for citation resolution against the target repo, `PIPELINE_ARTIFACTS_TARGET_REPO`) at them — opt-in, skipped otherwise, same pattern as `test_partition_repo_real_world.py`.
+
 ## What this deliberately does not do yet
 
 - No cross-repository discovery beyond what the interview surfaces manually.

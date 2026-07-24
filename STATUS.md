@@ -31,3 +31,4 @@ Pick up `claude/steering-prompts/07-ci-scaffold-task-prompt.md` (this repo's fir
 - `CONTRIBUTING.md` — write-then-verify rule and the research behind it.
 - `CONSTRAINTS.md` — the plugin's standing constraints, a different axis from this file's done/pending tracking.
 - `IMPLEMENTATION_HANDOFF.md` — the six-item handoff this file's "Done" section summarizes.
+
