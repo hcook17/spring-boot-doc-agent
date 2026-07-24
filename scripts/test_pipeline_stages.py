@@ -47,64 +47,30 @@ Opt-in real-artifacts pass:
 import json
 import os
 import re
+import sys
 import unittest
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 FIXTURE_DIR = os.path.join(SCRIPT_DIR, "test_fixtures", "spring_signals")
+sys.path.insert(0, SCRIPT_DIR)
 
-# The fourteen documentation files this pipeline produces — the doc-writer
-# fan-out list and gap-analyzer's blocks_file allowlist both draw from this
-# same set. Source of truth: skills/document-spring-repo/references/doc-taxonomy.md's
-# fourteen numbered sections.
-VALID_DOC_FILES = frozenset({
-    "readme", "architecture", "integrations", "authorization", "database",
-    "operations", "observability", "troubleshooting", "configuration",
-    "change_impact", "glossary", "local_development", "testing",
-    "known_limitations",
-})
+# TAG_PATTERNS, TAG_WORD_SPAN, find_malformed_tags(), count_tags_by_kind(),
+# and VALID_DOC_FILES moved to doc_tag_utils.py so run_manifest.py's
+# evidence_tag_counts computation can import the exact same tag grammar
+# instead of a second copy that could drift out of sync with what this
+# suite enforces. Re-imported here under their original names so the rest
+# of this file (and its own tests, which assert against these names
+# directly) is unchanged.
+from doc_tag_utils import (  # noqa: E402
+    VALID_DOC_FILES, TAG_PATTERNS, TAG_WORD_SPAN,
+    find_malformed_tags, count_tags_by_kind,
+)
 
 # agents/file-summarizer.md step 4's exact enumerated list.
 VALID_SPRING_ROLES = frozenset({
     "controller", "service", "repository", "entity", "config", "security",
     "messaging-producer", "messaging-consumer", "test", "other",
 })
-
-# doc-taxonomy.md's "General rule across all fourteen", five numbered forms,
-# verbatim. A doc-writer output containing a bracketed tag that looks like
-# one of these but doesn't match exactly (wrong dash, wrong case, missing
-# the citation) is the specific failure class this pattern exists to catch.
-TAG_PATTERNS = {
-    "evidenced": re.compile(r"\[Evidenced — ([^\];]+?)(?::(\d+))?(?:; inference avoided beyond this)?\]"),
-    "confirmed": re.compile(r"\[Confirmed — interview, [^\]]+\]"),
-    "unknown": re.compile(r"\[Unknown — not evidenced in code, not covered in interview\]"),
-    "per_existing_docs": re.compile(r"\[Per existing docs — [^,]+, unverified against code\]"),
-}
-
-# Any bracketed run that starts with one of the five tag *words* but doesn't
-# match its exact required pattern above — malformed-tag detection works by
-# finding all bracket spans that start with a known tag word, then checking
-# whether they were also matched by TAG_PATTERNS.
-TAG_WORD_SPAN = re.compile(r"\[(Evidenced|Confirmed|Unknown|Per existing docs)\b[^\]]*\]")
-
-
-def find_malformed_tags(text):
-    """Bracketed spans that start with a recognized tag word but don't match
-    any of the five exact required forms in TAG_PATTERNS. Returns the raw
-    malformed spans found, in order."""
-    all_valid_spans = set()
-    for pattern in TAG_PATTERNS.values():
-        for m in pattern.finditer(text):
-            all_valid_spans.add((m.start(), m.end()))
-
-    malformed = []
-    for m in TAG_WORD_SPAN.finditer(text):
-        if (m.start(), m.end()) not in all_valid_spans:
-            malformed.append(m.group(0))
-    return malformed
-
-
-def count_tags_by_kind(text):
-    return {kind: len(pattern.findall(text)) for kind, pattern in TAG_PATTERNS.items()}
 
 
 def resolve_evidenced_citations(text, repo_root):

@@ -1,0 +1,87 @@
+{
+  "$comment": "Plain JSON documentation of run_manifest.py's output shape — not enforced via a jsonschema library (no new dependency added for this; see 00-shared-research-standards.md). scripts/test_run_manifest.py's validate_manifest_shape() hand-checks a manifest against this shape instead. schema_version below refers to run_manifest.json's own top-level integer field, an independent counter from spring_signals.json's.",
+  "schema_version": 1,
+  "type": "object",
+  "required": [
+    "schema_version", "run_id", "target_repo", "timestamp_start", "timestamp_end",
+    "status", "stages", "file_signatures", "evidence_tag_counts", "interview",
+    "capacity_preflight"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "run_id": {"type": "string", "$comment": "'<UTC ISO8601 Z>-<8 hex chars>' — uniqueness suffix only, not a git hash"},
+    "target_repo": {
+      "type": "object",
+      "required": ["path", "commit_hash", "dirty"],
+      "properties": {
+        "path": {"type": "string"},
+        "commit_hash": {"type": ["string", "null"], "$comment": "null if repo_path isn't a git repo or git isn't on PATH"},
+        "dirty": {"type": ["boolean", "null"], "$comment": "true if `git status --porcelain` reported anything; null if it couldn't be determined"}
+      }
+    },
+    "timestamp_start": {"type": "string", "format": "date-time"},
+    "timestamp_end": {"type": ["string", "null"], "format": "date-time", "$comment": "null until finalize is called"},
+    "status": {"type": "string", "enum": ["running", "complete", "failed", "partial"]},
+    "stages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "status", "start_time_ms", "end_time_ms", "duration_ms", "error", "actual_fanout"],
+        "properties": {
+          "name": {"type": "string"},
+          "status": {"type": "string", "enum": ["new", "running", "complete", "failed", "cached", "canceled"]},
+          "start_time_ms": {"type": "integer"},
+          "end_time_ms": {"type": ["integer", "null"]},
+          "duration_ms": {"type": ["integer", "null"]},
+          "error": {"type": ["string", "null"]},
+          "actual_fanout": {"type": ["integer", "null"], "$comment": "subagent dispatch count for this stage, if applicable"}
+        }
+      }
+    },
+    "file_signatures": {
+      "type": "object",
+      "additionalProperties": {"type": "string"},
+      "$comment": "relative_posix_path -> sha256 hex digest, same algorithm/normalization as spring_signals.json's own field; suitable as spring_drift_check.py's prior-scan input"
+    },
+    "evidence_tag_counts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "Evidenced": {"type": "integer"},
+          "Confirmed": {"type": "integer"},
+          "Unknown": {"type": "integer"},
+          "PerExistingDocs": {"type": "integer"}
+        }
+      },
+      "$comment": "keyed by doc-writer output filename, e.g. 'readme.md'"
+    },
+    "interview": {
+      "type": ["object", "null"],
+      "properties": {
+        "asked": {"type": "integer"},
+        "answered": {"type": "integer"},
+        "skipped": {"type": "integer"},
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "status": {"type": "string", "enum": ["answered", "skipped"]}
+            }
+          }
+        }
+      }
+    },
+    "capacity_preflight": {
+      "type": ["object", "null"],
+      "properties": {
+        "source_file": {"type": "string"},
+        "total_predicted_fanout": {"type": "integer"},
+        "predicted_fanout_by_manifest_stage": {"type": "object", "additionalProperties": {"type": "integer"}},
+        "unmapped_preflight_keys": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}
