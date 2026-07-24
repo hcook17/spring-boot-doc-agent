@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history, not the default shallow clone: verify_llms_docs.py
+          # (and several of the claude/llms/pr-*.md commands it re-runs) read
+          # old commit SHAs via `git show <sha>:path`, which fails with
+          # "invalid object name" on a shallow checkout even though nothing
+          # is actually broken.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          # No version is pinned anywhere else in this repo (no
+          # requirements.txt/pyproject.toml, confirmed absent — see
+          # CONSTRAINTS.md's "Runtime prerequisites" item 4); 3.11 is a
+          # deliberate, modern default, not an assumption carried over from
+          # elsewhere.
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          pip install ast-grep-cli sqllineage pathspec
+
+      - name: Verify ast-grep is on PATH
+        run: ast-grep --version
+
+      - name: test_spring_signal_scan.py
+        run: python3 scripts/test_spring_signal_scan.py -v
+
+      - name: test_partition_repo.py
+        run: python3 scripts/test_partition_repo.py -v
+
+      - name: test_spring_drift_check.py
+        run: python3 scripts/test_spring_drift_check.py -v
+
+      - name: test_pipeline_stages.py
+        run: python3 scripts/test_pipeline_stages.py -v
+
+      - name: test_verify_llms_docs.py
+        run: python3 scripts/test_verify_llms_docs.py -v
+
+      - name: verify_llms_docs.py (claude/llms/ meta-verification)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/verify_llms_docs.py
