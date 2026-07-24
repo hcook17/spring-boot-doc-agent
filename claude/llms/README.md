@@ -8,6 +8,15 @@ Every command is pinned to a commit SHA (or, for a still-open PR, its head branc
 
 > **The grace window did not hold, and the table below records where.** This paragraph used to claim the exemption was "a bounded grace window, not a hole: the exemption shifts to whichever PR merges next, so nothing stays undocumented past one PR cycle." That reasoning only holds while the check can actually fail. `scripts/check_llms_coverage.py` has `ENFORCE = False` (set during a fast-merge burst and never flipped back), so the findings print and the build stays green — and **PRs #21–#27 merged with no `pr-N.md` at all**, seven PRs rather than one. Run `python3 scripts/check_llms_coverage.py` to see the current list. The exemption is sound in principle; what failed is that nothing enforced the window's closing. Either backfill #21–#27 and set `ENFORCE = True`, or drop the convention deliberately — but the CI step is currently named "fails on a merged PR with no `claude/llms/pr-N.md`" and cannot fail, which is the worst of the three options.
 
+## Writing the commands
+
+Two rules that are requirements of `scripts/verify_llms_docs.py`, not style. Both were found the same way — by writing a `pr-N.md`, running the verifier, and having it reject correct-looking claims — so they are recorded here, where the next author looks, rather than in the file where they happened to surface.
+
+1. **A command may not contain a backtick.** `parse_commands()` extracts single-backtick-fenced text, so wrapping a command in double backticks to let its grep pattern contain backticks does not work: the parser truncates at the first inner backtick and runs a fragment. Choose a distinctive backtick-free substring to grep for instead.
+2. **An expected-empty result must say "no output", not a count of `0`.** `evaluate()` grades a non-zero exit as failure unless the `Expect:` line matches "no output" or "empty output" — and `grep -c` exits 1 whenever the count is zero. So `grep -c ...` with `Expect: 0` fails the harness while being factually right. Use `grep -n ...` with `Expect: no output`.
+
+The reason to run the verifier before committing is not really the harness, though. Doing so on `pr-31.md` also surfaced a claim whose own commands did not support it — a summary asserting a three-way split where the file states a two-way one. A verification doc that asserts more than it checks is the exact failure this index exists to prevent, and only running it finds that.
+
 | PR | Title | State |
 |----|-------|-------|
 | [#1](pr-1.md) | Implement six agreed fixes from IMPLEMENTATION_HANDOFF.md | merged (`0b7b7de`) |
@@ -39,6 +48,7 @@ Every command is pinned to a commit SHA (or, for a still-open PR, its head branc
 | #27 | spring_drift_check.py: follow-ups to PR #26 (manifest empty-repo edge case, research note) | merged (`40910bc`) — **no `pr-27.md`** |
 | [#28](pr-28.md) | Sync status docs, fix ast-grep test-killing bug, resolve bounded JPQL lineage | merged (`03c16dd`) |
 | #29 | Fix broken doc references and sweep stale numbers out of the living snapshots | merged (`add3083`) — exempt as most-recently-merged when opened; `pr-29.md` still owed |
-| [#30](pr-30.md) | Fix two JPQL-provenance gate misses in spring_drift_check.py | open (`570a55a`) |
+| [#30](pr-30.md) | Fix two JPQL-provenance gate misses in spring_drift_check.py | merged (`a677279`) |
+| [#31](pr-31.md) | Correct the mirror-back scope and annotate the maturation plan's stale items | merged (`6f04332`) |
 
 Cross-linked from `STATUS.md` and `README.md`. See `claude/session-log.md` for the append-only history of which steering-prompt assumptions each of these PRs affected — this index is about verifying *what a PR did*, the session log is about *what it means for the steering prompts*. Different axis, same underlying discipline.
