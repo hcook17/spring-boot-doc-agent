@@ -13,33 +13,14 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/document-spring-repo/references/doc-taxonomy.
 
 **All five agent files — `file-summarizer.md`, `doc-writer.md`, `gap-analyzer.md`, `architect-segment.md`, and `architect-merge.md` — are registered Claude Code subagents**, each with proper YAML frontmatter (`name`, `description`, `tools`), dispatched by name via the Task tool. This wasn't always true of the last two: earlier drafts of `architect-segment.md`/`architect-merge.md` carried their source paper's (ArchAgent, arXiv:2601.13007) own literal Position/Objective/Reasoning-Steps prompt text — no frontmatter, and literal `{README}`/`{REPO}` placeholders under "Input Variables" instead of resolved content — which meant they had to be dispatched by hand (read the file, substitute the placeholders, send as a generic prompt), the same legitimate no-frontmatter pattern Anthropic's own `skill-creator` plugin uses for its `analyzer`/`comparator`/`grader` agents. Both have since been rewritten into native, frontmatter-complete prompts that keep the paper's methodology — node-naming fidelity, ignore-non-functional-code, subgraph aggregation, discrepancy-flagging against existing docs — without the placeholder-substitution mechanism, so they now dispatch exactly like the other three (see Stage 2 below).
 
-## Run-level telemetry: `run_manifest.py`
-
-**Concurrency contract — read this before Stage 0, it governs every stage below:** `run_manifest.py start-stage`/`end-stage` are called exactly once per named stage (`signal_scan`, `partition`, `file_summarize`, `architect`, `gap_analysis_interview`, `doc_writer`), **by the orchestrating thread only** — never from inside a subagent, and never once per individual parallel dispatch within a stage (e.g. not once per file-summarizer group). A subagent calling this itself, or the orchestrating thread calling it per-dispatch instead of once per stage, produces a read-modify-write race against the same `run_manifest.json` and silently loses updates — `run_manifest.py` has no locking to protect against that.
-
-`run_manifest.json` is written to the same working directory the orchestrating thread already runs `spring_signal_scan.py --out spring_signals.json` etc. from — alongside `spring_signals.json`/`groups.json`/`summaries.json`/`interview_answers.json`, not into the target repo.
-
-Kick off the run before Stage 0's own scripts:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_manifest.py" init <repo_path> --out run_manifest.json
-```
-
 ## Stage 0 — Deterministic evidence gathering (no LLM)
 
-Run both scripts against the target repo, each bracketed by its own manifest stage (they fail independently, so each gets its own timing/pass-fail record rather than being lumped together):
+Run both scripts against the target repo:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_manifest.py" start-stage run_manifest.json signal_scan
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/spring_signal_scan.py" <repo_path> --out spring_signals.json
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_manifest.py" end-stage run_manifest.json signal_scan --status complete
-
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_manifest.py" start-stage run_manifest.json partition
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/partition_repo.py" <repo_path> --max-tokens 120000 --out groups.json
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_manifest.py" end-stage run_manifest.json partition --status complete
 ```
-
-(Use `--status failed --error "<what went wrong>"` on the matching `end-stage` call instead if a script exits non-zero.)
 
 `spring_signals.json` gives you AST-detected Spring markers (controllers, entities, security annotations, messaging, deployment files, etc.) — via ast-grep, see `scripts/spring_ast_grep_rules.yml` — plus an `entity_table_map` resolving JPA entity classes to table names. `groups.json` gives you the token-bounded, DFS-ordered file groups for Stage 1. Read both before proceeding.
 
@@ -63,15 +44,11 @@ This re-hashes every file (cheap, tier 1) and, only for files that changed, re-v
 
 ## Stage 1 — Parallel file summarization
 
-Wrap this whole stage in one `start-stage run_manifest.json file_summarize --fanout <num_groups>` / `end-stage ... --status complete` pair — one call before dispatching the group subagents, one after they've all returned, not one pair per group.
-
 For every group in `groups.json`, dispatch a `file-summarizer` subagent — a registered subagent type (`agents/file-summarizer.md`) — in the same turn as its sibling groups, so they run concurrently. Give each one its group's file list (it reads the files itself via its own `Read`/`Grep`/`Glob` access) **and** the relevant slice of `spring_signals.json` (matches whose `file` field falls in that group) so it isn't rediscovering annotations the ast-grep pass already found — it should focus on business meaning, not re-detection. Also give each dispatch the **entire** `references` bucket from `spring_signals.json` — repo-wide, not scoped to that group. This is the one slice that's deliberately passed in full to every dispatch: it's file-summarizer's only way to see cross-group relationships (a controller in one group calling a service in another), since its own group's file list otherwise has no visibility outside itself, and the ~10% DFS overlap between adjacent groups only rescues relationships that happen to straddle two *adjacent* groups. It's cheap — file/line/package-or-import-text triples, not source — so passing all of it to every dispatch should be inexpensive regardless of repo size, but this is worth confirming against a real repo's actual `references` bucket size rather than just assumed. Each returns a JSON array, one object per file (`file`, `cluster`, `summary`, `relationships`, `cross_group_relationships`, `group_function`, `spring_role`).
 
 Collect results into `summaries.json`.
 
 ## Stage 2 — Parallel architecture (segment + merge)
-
-Wrap this whole stage — both segment and merge together — in one `start-stage run_manifest.json architect --fanout <num_groups + 1>` / `end-stage ... --status complete` pair (the `+1` is the single merge dispatch; `run_manifest.py`'s capacity-preflight tie-in already treats segment+merge as one combined stage for this same reason).
 
 Same dispatch pattern as Stage 1 and Stage 3 — `architect-segment` and `architect-merge` are registered subagents (`agents/architect-segment.md`, `agents/architect-merge.md`), dispatched by name via the Task tool. Don't read their file text and hand-substitute placeholders — that workaround applied only to an earlier, pre-rewrite draft of these two files and no longer applies.
 
@@ -82,26 +59,13 @@ This produces the diagram that feeds `architecture.md` and grounds several of th
 
 ## Stage 3 — Gap analysis, then live interview
 
-Wrap this whole stage — gap-analyzer dispatch plus the live interview that follows it — in one `start-stage run_manifest.json gap_analysis_interview --fanout 1` / `end-stage ... --status complete` pair (`--fanout 1` because only the gap-analyzer dispatch is a subagent; the interview itself has zero subagent fan-out, it's the orchestrating thread talking to the user).
-
 Dispatch one `gap-analyzer` subagent (`agents/gap-analyzer.md`) with `spring_signals.json`, `summaries.json`, the merged architecture, and the TODO/FIXME grep hits. It does **not** talk to the user — it returns a structured list of candidate clarifying questions, one per genuine gap, organized by which of the fourteen files each gap blocks. Use `${CLAUDE_PLUGIN_ROOT}/skills/document-spring-repo/references/doc-taxonomy.md`'s "Interview-worthy" notes per file as the standard for what counts as a genuine gap versus something safely inferable.
 
 **Then — in this orchestrating thread, not a subagent** — actually ask the user these questions. Batch them sensibly (don't fire off 40 separate questions one at a time); group by file or by theme, and let the user answer "don't know" or "skip" for any of them. Record every answer, verbatim, with today's date, into `interview_answers.json`. If the user skips a question, write that down as a skip, not as a blank — a doc-writer should treat "asked, unanswered" differently from "never asked."
 
-`interview_answers.json` is a JSON list of objects in this shape — `run_manifest.py finalize --interview-file interview_answers.json` (see Output, below) parses exactly this to compute the asked/answered/skipped counts it records:
-
-```json
-[
-  {"id": "integrations.who-calls-us", "question": "...", "status": "answered", "answer": "...", "date": "2026-07-24"},
-  {"id": "known_limitations.retry-policy", "question": "...", "status": "skipped", "answer": null, "date": "2026-07-24"}
-]
-```
-
 Don't skip this stage even if the codebase looks self-explanatory. The whole reason it exists is that some categories (write ownership, external consumers, known limitations, deployment topology) are structurally invisible to static analysis regardless of how clean the code is.
 
 ## Stage 4 — Parallel doc generation
-
-Wrap this whole stage in one `start-stage run_manifest.json doc_writer --fanout 14` / `end-stage ... --status complete` pair — fanout is always 14, one dispatch per output file.
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/document-spring-repo/references/doc-taxonomy.md` fully now if you haven't already. For **each of the fourteen files**, dispatch a `doc-writer` subagent (`agents/doc-writer.md`), in the same turn as its thirteen siblings, passing:
 - which of the fourteen files it's writing (so it reads the right section of the taxonomy)
@@ -131,14 +95,7 @@ docs/
 
 Never silently overwrite an existing `README.md` at the repo root — if one exists, write the generated overview to `docs/readme.md` and tell the user there's a pre-existing README they may want to reconcile it with.
 
-Close out the run manifest before reporting back to the user:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_manifest.py" finalize run_manifest.json \
-    --signals-file spring_signals.json --docs-dir docs/ --interview-file interview_answers.json
-```
-
-(Add `--preflight-file capacity_preflight_report.json` too, if `capacity-preflight` was run before this run — see `skills/capacity-preflight/SKILL.md`.) This prints a short human-readable summary — per-stage timing, total duration, evidence-tag totals, interview answered/skipped, and any stage that had to be auto-canceled because it never reported back. Fold that summary into what you tell the user: what was written, and — importantly — a summary of what ended up in "Unknown" across all fourteen files (the manifest's own `evidence_tag_counts` gives you this directly, no need to re-derive it by re-reading all fourteen files), so they can see at a glance what the interview didn't cover and decide whether it's worth a follow-up pass. Note: the finalized manifest's `file_signatures` field records the same hash-keyed shape `spring_drift_check.py` needs for its tier-1 pass, but that script's CLI still expects a full `spring_signals.json` (with `evidence`/`entity_table_map` too) — feeding `run_manifest.json` into it directly isn't wired up yet (see "What this deliberately does not do yet," below); keep `spring_signals.json` itself around for that purpose in the meantime.
+Tell the user what was written, and — importantly — surface a short summary of what ended up in "Unknown" across all fourteen files, so they can see at a glance what the interview didn't cover and decide whether it's worth a follow-up pass.
 
 ### Optional post-run check: confidentiality (secret leakage)
 
@@ -160,11 +117,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/test_pipeline_stages.py" -v
 
 It validates the exact required tag grammar (`[Evidenced — ...]`/`[Confirmed — ...]`/`[Unknown — ...]`/`[Per existing docs — ...]`), whether `[Evidenced — path:line]` citations actually resolve to real files/lines, `file-summarizer`'s and `gap-analyzer`'s required JSON output shapes, and whether architecture-diagram node labels trace back to real file/class names — against synthetic sample data by default. It can also validate a *real* completed pipeline run's actual output (`summaries.json`, the merged architecture diagram, `gap_questions.json`, and the fourteen `docs/*.md` files) if you point `PIPELINE_ARTIFACTS_DIR` (and, for citation resolution against the target repo, `PIPELINE_ARTIFACTS_TARGET_REPO`) at them — opt-in, skipped otherwise, same pattern as `test_partition_repo_real_world.py`.
 
-`scripts/test_run_manifest.py` covers `run_manifest.py` itself (the telemetry tool this file wires in above, not one of the four LLM stages) — stage timing math, the retry case (a stage that failed and was restarted), the partial-run case (a stage never ended before `finalize`), and the `capacity_preflight` stage-key mapping. Run it the same way: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/test_run_manifest.py" -v`.
-
 ## What this deliberately does not do yet
 
 - No cross-repository discovery beyond what the interview surfaces manually.
 - No SQL-lineage-grade parsing of native queries — `raw_queries` entries tagged `native` in `spring_signals.json` are flagged as candidates for a real SQL parser, not run through one. If you want that level of rigor, that's a natural next add-on, not something this pipeline does today.
-- No automatic re-run/drift detection. `scripts/spring_drift_check.py` (see the Stage 0 pre-flight section above) can tell you what's drifted since a prior scan, but it's a standalone script you run by hand — it isn't invoked automatically by this pipeline or by CI, and running the whole pipeline again remains the actual refresh mechanism once you've decided a re-run is warranted. `run_manifest.json`'s `file_signatures` field records the same hash-keyed shape `spring_drift_check.py` reads for its tier-1 pass, but `spring_drift_check.py`'s CLI still hardcodes reading a full `spring_signals.json` (it also needs `evidence`/`entity_table_map` for its tier-2 recheck, which `run_manifest.json` doesn't carry) — so passing a `run_manifest.json` straight in as `<prior_spring_signals.json>` doesn't work today. Feeding it directly is still a real gap, not yet closed by this change.
+- No automatic re-run/drift detection. `scripts/spring_drift_check.py` (see the Stage 0 pre-flight section above) can tell you what's drifted since a prior scan, but it's a standalone script you run by hand — it isn't invoked automatically by this pipeline or by CI, and running the whole pipeline again remains the actual refresh mechanism once you've decided a re-run is warranted.
 - No verification against ArchUnit or a compiled build — `spring_signal_scan.py` parses raw source text via ast-grep/tree-sitter by design, trading some precision for not needing a build step or classpath. If you want higher fidelity (resolved inheritance, annotations picked up via meta-annotations, etc.), that's a legitimate upgrade path, not something worth blocking v1 on.
