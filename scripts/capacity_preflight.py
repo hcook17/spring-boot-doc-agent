@@ -234,7 +234,11 @@ def main():
         sys.exit(1)
 
     groups_data = _load_or_build_groups(repo_path, args.max_tokens, args.overlap, args.groups_file)
-    references = _load_or_scan_references(repo_path, args.signals_file)
+    try:
+        references = _load_or_scan_references(repo_path, args.signals_file)
+    except spring_signal_scan.AstGrepNotFoundError as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
 
     report = compute_preflight(
         repo_path, max_tokens=args.max_tokens, overlap=args.overlap,

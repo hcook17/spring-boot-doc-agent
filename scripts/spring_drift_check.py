@@ -634,7 +634,11 @@ def main():
 
     signals = load_signals(args.signals_path)
     manifest = load_manifest(args.manifest) if args.manifest is not None else None
-    report = check_drift(args.repo_path, signals, manifest=manifest)
+    try:
+        report = check_drift(args.repo_path, signals, manifest=manifest)
+    except spring_signal_scan.AstGrepNotFoundError as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
 
     with open(args.out, "w") as f:
         json.dump(report, f, indent=2)

@@ -53,7 +53,11 @@ and Spring Data's default snake_case-of-class-name fallback). Unlike the
 regex version, classification now reads the @Query annotation's own
 argument list (via ast-grep's multi-meta-variable capture) rather than
 guessing from "this line or the next" — so it survives arguments in either
-order and annotations split across more than two lines.
+order and annotations split across more than two lines. As of
+schema_version 3 (see the SQL lineage note below), the bounded common case
+of a single-entity JPQL FROM clause is resolved to real lineage via
+resolve_jpql_to_lineage(), not left as raw text forever — see that
+function's own docstring for exactly what's in and out of scope.
 
 NOTE on entity_table_map: each entity's NAME/TABLE now come from the text
 of that entity's own class_declaration match, not from independent
@@ -98,6 +102,17 @@ structure, not bound values. The dialect used is a CLI flag (`--sql-dialect`,
 default "ansi", sqllineage's own generic baseline) since this scanner has
 no way to know the target database; pass the real one (e.g. "mysql",
 "postgres", "oracle") for better accuracy if you know it.
+
+query_kind == "jpql" entries also carry a `lineage` field, resolved via
+resolve_jpql_to_lineage() (a bounded rewrite-to-SQL step feeding into the
+same extract_sql_lineage() above) rather than left unattempted — but only
+for the single-entity, no-join, no-association-traversal, no-JPQL-function
+common case; anything outside that scope degrades to the same
+`{"available": false, "reason": "..."}` shape, not a crash or a wrong
+answer. See resolve_jpql_to_lineage()'s own docstring for the exact
+boundary and why no broader JPQL-to-SQL translator was built or adopted
+(no published research or usable open-source tooling exists for this —
+verified 2026-07-25, see claude/session-log.md).
 
 NOTE on redaction zones (schema_version 4): output now also carries
 `redaction_zones`, a {file: [{"line", "heuristic"}, ...]} map of lines in
@@ -182,6 +197,28 @@ POSITIONAL_PARAM_RE = re.compile(r"\?\d*")
 
 SQLLINEAGE_DEFAULT_SCHEMA_PREFIX = "<default>."
 
+# Bounded JPQL resolution (schema_version 3, same release as native-query
+# lineage above — see resolve_jpql_to_lineage()'s own docstring for the full
+# scope statement). Matches "FROM <Entity> <alias>", optionally with an
+# "AS" keyword — deliberately anchored to exactly one FROM target: a
+# comma-separated or JOINed multi-entity FROM clause won't match this
+# pattern the way a single-entity one does, which is how multi-entity
+# queries fall through to "out of scope" below rather than being
+# (wrongly) partially resolved.
+JPQL_FROM_RE = re.compile(r"\bFROM\s+(\w+)\s+(?:AS\s+)?(\w+)\b", re.IGNORECASE)
+# An explicit JOIN keyword (including "JOIN FETCH") always means more than
+# one entity is involved, even though JPQL_FROM_RE above still matches
+# exactly once for "FROM Invoice i JOIN i.customer c" — the join target
+# isn't itself introduced by a second FROM, so it has to be caught
+# separately, before the single-FROM-match check below can be trusted to
+# mean "genuinely single-entity."
+JPQL_JOIN_RE = re.compile(r"\bJOIN\b", re.IGNORECASE)
+# JPQL-only functions with no SQL equivalent a rewritten-to-SQL string could
+# ever satisfy — not an attempt at a general JPQL grammar, just the specific
+# functions that would otherwise silently produce wrong (not just
+# unavailable) lineage if naively passed through to a SQL parser.
+JPQL_FUNCTION_RE = re.compile(r"\b(SIZE|KEY|VALUE|INDEX|TYPE)\s*\(", re.IGNORECASE)
+
 
 def _normalize_bind_params(sql):
     """Substitute a harmless numeric literal for every named/positional bind
@@ -236,6 +273,101 @@ def extract_sql_lineage(query_text, dialect="ansi"):
     except Exception as e:
         reason = str(e).splitlines()[0][:150] if str(e) else ""
         return {"available": False, "reason": f"{type(e).__name__}: {reason}".rstrip(": ")}
+
+
+def resolve_jpql_to_lineage(jpql_text, entity_table_map, dialect="ansi"):
+    """Best-effort lineage for the narrow slice of JPQL this scanner can
+    safely rewrite to real SQL: a single-entity `FROM <Entity> <alias>`
+    clause, no joins, no association-traversal through the alias (e.g.
+    `u.orders.total`), none of JPQL's relationship-only functions (SIZE,
+    KEY, VALUE, INDEX, TYPE — no SQL equivalent exists for these, so
+    passing them through would risk a wrong answer, not just an
+    unavailable one). Resolves the entity name to a table name via
+    entity_table_map (built earlier in scan() from @Entity/@Table
+    annotations), strips the alias prefix from field references, and
+    hands the rewritten string to extract_sql_lineage() — no independent
+    SQL-parsing logic here, just enough rewriting to make an existing SQL
+    parser applicable.
+
+    No published academic or open-source precedent exists for general
+    JPQL/HQL-to-SQL lineage translation (verified 2026-07-25: an arXiv
+    search turned up nothing on-point, and sqllineage's own tracker has an
+    open, unresolved request for exactly this — reata/sqllineage#461).
+    This function's scope is deliberately narrow rather than attempting a
+    general translator: the "resolve identifiers against a pre-built
+    entity metamodel, then lower to SQL" shape mirrors how Hibernate's own
+    SQM pipeline resolves JPQL at a much larger scope, so the *approach*
+    has precedent even though no *tool* does.
+
+    Explicitly, permanently out of scope, not just "not yet handled" —
+    each of these needs more than a rewrite to resolve correctly, so
+    resolving them wrong would be worse than reporting unavailable:
+      - Multi-entity FROM (joins, comma-separated entities).
+      - Association-traversal paths through the alias (`u.orders.total`).
+      - `@Entity(name=...)` overrides: entity_table_map is keyed by Java
+        class name, so a query using an overridden JPQL entity name
+        legitimately won't resolve — a correct "not found", not a wrong
+        resolution, since this scanner doesn't currently extract the
+        `name=` argument of @Entity separately from @Table's.
+      - Polymorphic FROM (naming a superclass/interface — inherently
+        multi-table under JOINED/TABLE_PER_CLASS inheritance).
+      - Embedded/composite keys (`@EmbeddedId`/`@IdClass` field paths like
+        `i.id.customerId`) — needs embeddable-aware path resolution, not a
+        flat class-name lookup.
+
+    Returns the same shape extract_sql_lineage() does — {"available":
+    True, "source_tables": [...], "target_tables": [...]} or
+    {"available": False, "reason": "..."} — so callers don't need to
+    distinguish "JPQL degrade" from "native SQL degrade"."""
+    if JPQL_JOIN_RE.search(jpql_text):
+        return {
+            "available": False,
+            "reason": "multi-entity or unparseable FROM clause, out of scope for the bounded JPQL resolver",
+        }
+    matches = list(JPQL_FROM_RE.finditer(jpql_text))
+    if len(matches) != 1:
+        return {
+            "available": False,
+            "reason": "multi-entity or unparseable FROM clause, out of scope for the bounded JPQL resolver",
+        }
+    if JPQL_FUNCTION_RE.search(jpql_text):
+        return {
+            "available": False,
+            "reason": "uses a JPQL-only relationship function (SIZE/KEY/VALUE/INDEX/TYPE), out of scope",
+        }
+
+    from_match = matches[0]
+    entity_name, alias = from_match.group(1), from_match.group(2)
+
+    # A second, comma-separated entity right after the first doesn't repeat
+    # the FROM keyword ("FROM Invoice i, Customer c ..."), so it wouldn't
+    # otherwise be caught by the single-FROM-match check above.
+    if jpql_text[from_match.end():].lstrip().startswith(","):
+        return {
+            "available": False,
+            "reason": "multi-entity or unparseable FROM clause, out of scope for the bounded JPQL resolver",
+        }
+
+    traversal_re = re.compile(r"\b" + re.escape(alias) + r"\.\w+\.\w+")
+    if traversal_re.search(jpql_text):
+        return {
+            "available": False,
+            "reason": "association-traversal path through the entity alias, out of scope",
+        }
+
+    map_entry = entity_table_map.get(entity_name)
+    if map_entry is None:
+        return {
+            "available": False,
+            "reason": f"entity '{entity_name}' not found in entity_table_map — unresolved rather than "
+                      "guessed (possibly an @Entity(name=...) override this scanner doesn't capture)",
+        }
+
+    rewritten = jpql_text[:from_match.start()] + f"FROM {map_entry['table']}" + jpql_text[from_match.end():]
+    alias_prefix_re = re.compile(r"\b" + re.escape(alias) + r"\.")
+    rewritten = alias_prefix_re.sub("", rewritten)
+
+    return extract_sql_lineage(rewritten, dialect=dialect)
 
 
 def to_snake_case(name):
@@ -336,17 +468,32 @@ def compute_file_signature(path):
     return h.hexdigest()
 
 
+class AstGrepNotFoundError(RuntimeError):
+    """Raised by find_ast_grep() when the binary isn't on PATH.
+
+    A plain Exception subclass on purpose, not a sys.exit(1) call directly:
+    when scan() runs inside unittest's setUpClass (test_spring_signal_scan.py,
+    test_capacity_preflight.py, test_spring_drift_check.py all call scan()
+    there), unittest's _handleClassSetUp only catches Exception, not
+    BaseException — SystemExit is a BaseException, so raising it here used to
+    propagate straight through and kill the whole test process with no
+    per-class error and no "Ran N tests" summary line, rather than being
+    reported as a normal setUpClass failure for just that one class. CLI
+    entry points (main() in this file, spring_drift_check.py, and
+    capacity_preflight.py) catch this explicitly and print the same
+    stderr message + sys.exit(1) as before, so command-line behavior is
+    unchanged."""
+
+
 def find_ast_grep():
     path = shutil.which("ast-grep")
     if path is None:
-        print(
+        raise AstGrepNotFoundError(
             "error: the 'ast-grep' binary is not on PATH. This scanner shells out to "
             "ast-grep for all Java structural detection (see spring_ast_grep_rules.yml). "
             "Install it (e.g. `cargo install ast-grep` or `npm install -g @ast-grep/cli`, "
-            "see https://ast-grep.github.io/guide/quick-start.html) and re-run.",
-            file=sys.stderr,
+            "see https://ast-grep.github.io/guide/quick-start.html) and re-run."
         )
-        sys.exit(1)
     return path
 
 
@@ -625,6 +772,16 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
 
         buckets[bucket].append(entry)
 
+    # JPQL lineage resolution happens in its own pass, after the match loop
+    # above finishes, not inline alongside the native-query branch: it needs
+    # entity_table_map fully populated, and ast-grep's match order (see the
+    # threading note below) gives no guarantee that a class's
+    # persistence__entity match is processed before a raw_queries__query
+    # match elsewhere that references it.
+    for entry in buckets["raw_queries"]:
+        if entry.get("query_kind") == "jpql" and entry.get("query") is not None:
+            entry["lineage"] = resolve_jpql_to_lineage(entry["query"], entity_table_map, dialect=sql_dialect)
+
     # ast-grep may use multiple threads internally (-j/--threads defaults to
     # a heuristic thread count), so match order isn't guaranteed stable
     # across runs even when the underlying file set hasn't changed. Sort
@@ -669,7 +826,11 @@ def main():
         print(f"error: not a directory: {args.repo_path}", file=sys.stderr)
         sys.exit(1)
 
-    result = scan(args.repo_path, sql_dialect=args.sql_dialect, respect_gitignore=args.respect_gitignore)
+    try:
+        result = scan(args.repo_path, sql_dialect=args.sql_dialect, respect_gitignore=args.respect_gitignore)
+    except AstGrepNotFoundError as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
     with open(args.out, "w") as f:
         json.dump(result, f, indent=2)
 
