@@ -21,5 +21,6 @@ Every command is pinned to a commit SHA (or, for a still-open PR, its head branc
 | [#13](pr-13.md) | Add semantic-pipeline-eval and capacity-preflight skills, plus a maturity assessment | merged (`e8dbe89a`) |
 | [#14](pr-14.md) | Land two commits stranded after PR #13 merged early | merged (`b8d07f9`) |
 | [#15](pr-15.md) | Pin ast-grep-cli, sqllineage, pathspec via requirements.txt | merged (`9a517e3`) |
+| [#16](pr-16.md) | Add claude/llms/ coverage check; backfill pr-9..15.md; fix stale pr-13.md | merged (`1e6467b`) |
 
 Cross-linked from `STATUS.md` and `README.md`. See `claude/session-log.md` for the append-only history of which steering-prompt assumptions each of these PRs affected — this index is about verifying *what a PR did*, the session log is about *what it means for the steering prompts*. Different axis, same underlying discipline.
