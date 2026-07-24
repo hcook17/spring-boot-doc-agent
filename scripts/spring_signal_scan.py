@@ -127,6 +127,16 @@ leakage" entry describes: Stage 1 (file-summarizer) reads full file
 content directly and had no signal telling it which lines not to
 transcribe into its own output.
 
+NOTE on JPQL lineage provenance (schema_version 6): a `jpql`-kind
+raw_queries entry whose `lineage` resolved successfully now also carries
+`lineage.resolved_via_entity` — the entity class name entity_table_map was
+consulted through. This exists for spring_drift_check.py: a JPQL
+citation's lineage has a cross-file dependency on the entity's own file
+(its @Table(name=...)), which the per-file tier-1/tier-2 model otherwise
+can't see — the query's own file doesn't change just because the entity's
+table mapping did. See spring_drift_check.py's
+_query_citations_depending_on_entity() and _flag_stale_jpql_lineage().
+
 NOTE on config key sets (schema_version 5): output now also carries
 `config_key_sets`, a {file: [dotted.key.path, ...]} map for configuration/
 deployment files (see _config_keys.py for the mechanical, no-YAML-
@@ -367,7 +377,15 @@ def resolve_jpql_to_lineage(jpql_text, entity_table_map, dialect="ansi"):
     alias_prefix_re = re.compile(r"\b" + re.escape(alias) + r"\.")
     rewritten = alias_prefix_re.sub("", rewritten)
 
-    return extract_sql_lineage(rewritten, dialect=dialect)
+    result = extract_sql_lineage(rewritten, dialect=dialect)
+    if result["available"]:
+        # Records the dependency, not just the outcome: spring_drift_check.py
+        # needs to know a JPQL citation's lineage came from *this* entity so
+        # it can flag the citation as possibly stale if that entity's own
+        # table mapping later changes in a different file — a cross-file
+        # dependency the per-file tier-1/tier-2 model can't otherwise see.
+        result["resolved_via_entity"] = entity_name
+    return result
 
 
 def to_snake_case(name):
@@ -790,7 +808,7 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
         bucket.sort(key=lambda e: (e["file"], e.get("line", 0)))
 
     return {
-        "schema_version": 5,
+        "schema_version": 6,
         "repo_path": os.path.abspath(repo_path),
         "files_scanned": files_scanned,
         "entity_table_map": entity_table_map,

@@ -102,6 +102,43 @@ worth a human look, not the routine one. A repo without config_key_sets
 in its prior scan (an older schema_version) just gets the original
 generic fallback — this is additive, not a hard requirement.
 
+DERIVED CITATIONS HAVE MORE THAN ONE INPUT — PROVENANCE, NOT A SPECIAL CASE
+Every rule above implicitly assumes a citation's freshness is a function of
+exactly one file: its own. That's true for primary evidence (a
+@RestController is present because that file, and only that file, says
+so), which is why the per-file loop in check_drift() can get away with
+"file unchanged -> citation unchanged." It stops being true the moment a
+citation's value is *derived* from more than one file. JPQL lineage
+(spring_signal_scan.py schema_version >= 6) is the first such citation:
+its source_tables is computed from the query text (its own file) AND the
+entity->table mapping resolve_jpql_to_lineage() looked up
+(entity_table_map[entity]["file"], typically a different file entirely).
+A table rename in the entity's file doesn't touch the query's own file at
+all, so tier 1 alone would call that citation unchanged while its lineage
+silently goes stale.
+
+The fix generalizes the existing rule rather than special-casing JPQL:
+"a citation is fresh iff every file in its provenance is unchanged" was
+always the real invariant — every rule above just has provenance = {own
+file} implicitly. resolve_jpql_to_lineage() stamps its result with
+lineage.resolved_via_entity, so a JPQL citation's provenance is knowable
+as {own file, entity_table_map[entity]["file"]} without any new stored
+index. _reverify_jpql_lineage_provenance() runs once after the main
+per-file loop (same reason spring_signal_scan.py itself defers JPQL
+resolution to its own post-loop pass: ast-grep's match order isn't
+guaranteed, so the entity's file and the query's file might get tier-2
+rechecked in either order) and re-derives the JPQL citation's freshness
+from fresh_entity_tables — the same class_name -> table map
+_recheck_entities() already builds internally to do its own comparison,
+exposed rather than thrown away, so this costs zero extra ast-grep
+invocations. The outcome reuses STATUS_CONFIRMED/STATUS_DRIFTED, not a new
+status: an entity file changing without its table mapping actually moving
+(a comment edit, a new unrelated field) still confirms the lineage,
+exactly like the false-positive-avoidance case every other rule already
+handles. No new machinery is needed if a second derived-citation type ever
+shows up later — it only needs to name its own provenance set the same
+way.
+
 WHY A PLAIN CONTENT HASH, NOT A GIT BLOB SHA (a design fork, resolved here)
 spring_signal_scan.py's dfs_walk() reads whatever is actually sitting on
 disk — uncommitted edits and untracked files included. A git blob SHA
@@ -359,7 +396,15 @@ def _recheck_entities(file_rel, fresh_matches, group):
     """group: citations whose rule_id is persistence__entity — both the
     persistence-bucket entries (existence only, no table info) and the
     entity_table_map entries (class_name injected by all_citations,
-    table/table_name_source present) go through here uniformly."""
+    table/table_name_source present) go through here uniformly.
+
+    Returns (results, fresh_entities): fresh_entities is the class_name ->
+    {"table", "table_name_source"} map this function already derives
+    internally to do its own comparison — exposed to the caller rather than
+    discarded, so a second, unrelated derived-citation type (JPQL lineage's
+    entity_table_map dependency, see _reverify_jpql_lineage_provenance
+    below) can reuse this file's already-paid-for ast-grep re-run instead
+    of triggering a second one against the same file."""
     fresh_entities = {}
     for m in fresh_matches:
         extracted = spring_signal_scan._extract_entity(file_rel, m.get("text", ""))
@@ -384,7 +429,7 @@ def _recheck_entities(file_rel, fresh_matches, group):
             results.append(drift_result(source, citation, STATUS_DRIFTED, 2, detail))
         else:
             results.append(drift_result(source, citation, STATUS_CONFIRMED, 2))
-    return results
+    return results, fresh_entities
 
 
 def _recheck_repositories(fresh_matches, group):
@@ -455,6 +500,85 @@ def _recheck_generic(fresh_matches, group):
     return results
 
 
+def _raw_query_entries_with_resolved_entity(signals):
+    """Single responsibility: yield every raw_queries entry whose JPQL
+    lineage was resolved through an entity (lineage.resolved_via_entity,
+    spring_signal_scan.py schema_version >= 6) — the only citations with a
+    second provenance input beyond their own file. Native-query entries and
+    out-of-scope/unavailable JPQL entries (no resolved_via_entity key at
+    all — see resolve_jpql_to_lineage()) are silently skipped, not an
+    oversight: they have exactly one input (their own file), already
+    covered by the ordinary per-file tier-1/tier-2 loop."""
+    for entry in signals.get("evidence", {}).get("raw_queries", []):
+        lineage = entry.get("lineage")
+        if lineage and lineage.get("resolved_via_entity"):
+            yield entry
+
+
+def _reverify_jpql_lineage_provenance(results, signals, fresh_entity_tables, changed_set):
+    """A JPQL citation's lineage is DERIVED from two inputs, not one: the
+    query text (its own file, already handled by the per-file loop that
+    produced `results`) and the entity->table mapping (a different file,
+    entity_table_map[entity]["file"]). This citation is fresh only if BOTH
+    inputs are unchanged — the same freshness rule every other,
+    single-input citation already follows, just honestly widened for the
+    one citation type that actually has a second input, rather than a
+    special-cased "dependent entity" status. Mutates `results` in place;
+    runs once, after the main per-file loop, so it doesn't depend on
+    whether the query's file or the entity's file happened to be processed
+    first (ast-grep's per-repo match order isn't guaranteed stable either —
+    see spring_signal_scan.py's own JPQL-resolution pass for the same
+    reasoning).
+
+    fresh_entity_tables: class_name -> fresh {"table", ...} dict, built as
+    a side effect of the main loop's own ast-grep re-run on entity files
+    already in changed_set (see _recheck_entities) — reused here rather
+    than triggering a second ast-grep invocation against the same file."""
+    results_by_file_line = {(r["file"], r["line"]): r for r in results}
+
+    for entry in _raw_query_entries_with_resolved_entity(signals):
+        entity = entry["lineage"]["resolved_via_entity"]
+        entity_meta = signals.get("entity_table_map", {}).get(entity)
+        if entity_meta is None:
+            continue  # defensive: lineage only sets this when the entity WAS found at scan time
+
+        entity_file = entity_meta.get("file")
+        if entity_file not in changed_set:
+            continue  # this citation's second input didn't move — provenance fully unchanged
+
+        result = results_by_file_line.get((entry.get("file"), entry.get("line")))
+        if result is None or result["status"] != STATUS_UNCHANGED:
+            # Either no matching result (shouldn't happen — degrade safely,
+            # don't crash) or the query's OWN file already produced a real,
+            # more specific tier-2 verdict (e.g. its text changed) — that
+            # verdict is authoritative; don't overwrite it with a different
+            # DRIFTED detail about the entity instead.
+            continue
+
+        fresh = fresh_entity_tables.get(entity)
+        if fresh is None:
+            result["status"] = STATUS_DRIFTED
+            result["tier"] = 2
+            result["detail"] = (
+                f"JPQL lineage for this query was resolved via entity '{entity}', which "
+                f"persistence__entity no longer matches in its file ({entity_file}) — lineage cannot be confirmed"
+            )
+        elif fresh.get("table") == entity_meta.get("table"):
+            result["status"] = STATUS_CONFIRMED
+            result["tier"] = 2
+            result["detail"] = (
+                f"own file unchanged; provenance entity '{entity}' ({entity_file}) changed but its "
+                f"table mapping did not, so this query's lineage is still accurate"
+            )
+        else:
+            result["status"] = STATUS_DRIFTED
+            result["tier"] = 2
+            result["detail"] = (
+                f"JPQL lineage for this query was resolved via entity '{entity}', whose table mapping "
+                f"changed in a different file ({entity_file}): {entity_meta.get('table')!r} -> {fresh.get('table')!r}"
+            )
+
+
 def _recheck_config_keys(repo_path, file_rel, old_keys):
     """Compares a config/deployment file's stored key set (from a prior
     scan's config_key_sets) against a fresh extraction of the file as it
@@ -488,7 +612,12 @@ def tier2_recheck_file(repo_path, file_rel, citations_for_file, ast_grep_path):
     """citations_for_file: list of (source, citation), all sharing file_rel,
     all with a rule_id (caller filters out the no-rule_id ones first). One
     ast-grep invocation for the whole file — covering every rule_id it has
-    citations for — rather than one invocation per citation or per rule."""
+    citations for — rather than one invocation per citation or per rule.
+
+    Returns (results, fresh_entity_tables) — the latter is {} unless this
+    file actually has persistence__entity citations, in which case it's
+    _recheck_entities' own fresh_entities map passed straight through; see
+    that function's docstring for why it's surfaced here."""
     full_path = os.path.join(repo_path, file_rel)
     all_matches = spring_signal_scan.run_ast_grep(ast_grep_path, full_path)
 
@@ -501,17 +630,19 @@ def tier2_recheck_file(repo_path, file_rel, citations_for_file, ast_grep_path):
         old_by_rule.setdefault(citation["rule_id"], []).append((source, citation))
 
     results = []
+    fresh_entity_tables = {}
     for rule_id, group in old_by_rule.items():
         fresh = fresh_by_rule.get(rule_id, [])
         if rule_id == "persistence__entity":
-            results += _recheck_entities(file_rel, fresh, group)
+            entity_results, fresh_entity_tables = _recheck_entities(file_rel, fresh, group)
+            results += entity_results
         elif rule_id == "persistence__repository":
             results += _recheck_repositories(fresh, group)
         elif rule_id == "raw_queries__query":
             results += _recheck_queries(fresh, group)
         else:
             results += _recheck_generic(fresh, group)
-    return results
+    return results, fresh_entity_tables
 
 
 def check_drift(repo_path, signals, manifest=None):
@@ -544,6 +675,7 @@ def check_drift(repo_path, signals, manifest=None):
 
     results = []
     ast_grep_path = None  # resolved lazily — a run with nothing to tier-2-recheck needs no ast-grep at all
+    fresh_entity_tables = {}  # class_name -> fresh table info, accumulated across every changed entity file
 
     for file_rel in sorted(citations_by_file):
         citations = citations_by_file[file_rel]
@@ -592,7 +724,16 @@ def check_drift(repo_path, signals, manifest=None):
         if with_rule:
             if ast_grep_path is None:
                 ast_grep_path = spring_signal_scan.find_ast_grep()
-            results += tier2_recheck_file(repo_path, file_rel, with_rule, ast_grep_path)
+            file_results, file_fresh_entities = tier2_recheck_file(repo_path, file_rel, with_rule, ast_grep_path)
+            results += file_results
+            fresh_entity_tables.update(file_fresh_entities)
+
+    # Second provenance input for JPQL-lineage citations only — see
+    # _reverify_jpql_lineage_provenance's own docstring. Deliberately runs
+    # after the per-file loop above finishes, not inside it: it needs
+    # fresh_entity_tables fully populated regardless of whether a query's
+    # own file or its entity's file happened to sort first.
+    _reverify_jpql_lineage_provenance(results, signals, fresh_entity_tables, changed_set)
 
     results.sort(key=lambda r: (r["file"] or "", r["line"] or 0, r["source"]))
     status_counts = Counter(r["status"] for r in results)

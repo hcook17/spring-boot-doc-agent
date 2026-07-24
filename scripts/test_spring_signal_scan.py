@@ -322,6 +322,22 @@ class JpqlLineageResolutionTest(unittest.TestCase):
         self.assertTrue(result["available"], result.get("reason"))
         self.assertEqual(result["source_tables"], ["billing_invoice"])
 
+    def test_resolved_lineage_records_which_entity_it_used(self):
+        # Drift-check needs this to detect a cross-file dependency: a JPQL
+        # citation's lineage can go stale because the *entity's* file
+        # changed (e.g. @Table renamed), not the query's own file — see
+        # spring_drift_check.py's _query_citations_depending_on_entity().
+        result = spring_signal_scan.resolve_jpql_to_lineage(
+            "SELECT i FROM Invoice i WHERE i.status = :status", self.ENTITY_TABLE_MAP
+        )
+        self.assertEqual(result["resolved_via_entity"], "Invoice")
+
+    def test_unresolved_lineage_has_no_resolved_via_entity(self):
+        result = spring_signal_scan.resolve_jpql_to_lineage(
+            "SELECT i FROM Invoice i JOIN i.customer c WHERE c.active = true", self.ENTITY_TABLE_MAP
+        )
+        self.assertNotIn("resolved_via_entity", result)
+
     def test_query_with_as_keyword_resolves(self):
         result = spring_signal_scan.resolve_jpql_to_lineage(
             "SELECT c FROM Customer AS c WHERE c.active = true", self.ENTITY_TABLE_MAP
