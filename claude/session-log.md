@@ -241,7 +241,7 @@ Files touched: scripts/spring_signal_scan.py, scripts/spring_drift_check.py, scr
 ---
 
 ## 2026-07-24 — Fix the renumbering breakage in steering prompts 10-12; unstale CLAUDE.md's prompt count
-Commit: uncommitted
+Commit: 5bd750b
 Tests: not run (markdown-only change). Verified instead by resolving every backticked repo-internal path in the three new prompts, `CLAUDE.md`, and `README.md`: zero unresolved. The 20 that don't resolve are all correct as written — `scip.proto` (external artifact) and the pipeline's own output filenames (`architecture.md`, `spring_signals.json`, ...), which don't exist until a run.
 Assumptions affected:
 - `claude/steering-prompts/12-review-session-launcher.md` §A — "Copy §A verbatim into a new terminal session" — [Resolved — §A instructed a fresh session to read `08-review-persona-and-standards.md` and `09-context-traversal-protocol.md`. Neither exists: `08-` is the dependency-pinning task prompt and `09-` is tool-quirks indexing, both unrelated. The three review-layer files were renumbered on disk to `10`/`11`/`12` without updating their bodies, so all three H1s and every cross-reference still carried the pre-rename numbers. Headers and all cross-references (`11-…` "Pairs with", "§2 of file 08", "per file 08 §4"; `12-…` "file-09 interleave", "file-08 evidence tiers") corrected. The launcher's three paths now all resolve.]
@@ -259,7 +259,7 @@ Files touched: CLAUDE.md, README.md, claude/session-log.md, claude/steering-prom
 ---
 
 ## 2026-07-24 — Sweep stale numbers and self-contradictions out of the living snapshots
-Commit: uncommitted
+Commit: 2d68e64
 Tests: full suite 231 passing, 6 intentional skips (`python -m unittest discover -s scripts -p "test_*.py"`) — unchanged by this commit, which touches prose plus one CI step *name*. `.github/workflows/ci.yml` re-parsed with `yaml.safe_load` after the edit (17 steps, valid). Every backfilled session-log SHA verified to resolve and to match its entry's heading.
 Assumptions affected:
 - `STATUS.md` — "`test_semantic_eval_helpers.py` 12/12" — [Resolved — the suite has 19 tests and has had since the commit that created it (`3254d67`); `claude/session-log.md` recorded 19/19 correctly three separate times while `STATUS.md` kept the 12 from an early draft.]
@@ -277,7 +277,7 @@ Files touched: STATUS.md, CONSTRAINTS.md, .github/workflows/ci.yml, claude/llms/
 ---
 
 ## 2026-07-24 — Close two gate misses in the JPQL-provenance pass PR #28 added
-Commit: uncommitted
+Commit: 570a55a (entry added in ee9ba06)
 Tests: full suite 236 passing, 6 intentional skips (`python -m unittest discover -s scripts -p "test_*.py"`). `test_spring_drift_check.py` 41/41, up from 36 — 2 real-repo integration tests plus 3 isolated unit tests in `JpqlLineageProvenanceTest`. `test_spring_signal_scan.py` 42/42, unchanged. All eight `claude/llms/pr-30.md` verification commands re-run against the rebased head `570a55a` and confirmed matching their stated expectations.
 Assumptions affected:
 - `claude/steering-prompts/06-wiredrift-check-task-prompt.md` — "`scripts/spring_drift_check.py` already exists — a real, working two-tier drift detector" — [New info — still true, and more nearly true than it was. The provenance pass PR #28 introduced stated the correct invariant ("a citation is fresh iff every file in its provenance is unchanged") but its gate enforced a narrower one, in two ways that both yielded a confidently wrong verdict rather than a loud failure. (a) It skipped any citation whose own-file verdict was not `STATUS_UNCHANGED`, but `_recheck_queries()` returns `STATUS_CONFIRMED` when a query's file changed and its text is intact — and text presence says nothing about lineage accuracy, so an entity `@Table` rename plus any unrelated edit in the repository file reported `confirmed_still_present` over stale lineage. (b) It keyed on `changed_set` only, while `classify_files()` reports deletes (and moves, as a delete of the old path) in `deleted`, so deleting an entity's file left the dependent JPQL citation at tier-1 `STATUS_UNCHANGED`. Guard widened to `(STATUS_UNCHANGED, STATUS_CONFIRMED)`, `deleted_set` threaded through with a delete-specific detail, and the statuses still deliberately skipped now carry an inline reason each rather than hiding behind one blanket condition. No new status constant.]
@@ -285,3 +285,29 @@ Assumptions affected:
 - `scripts/spring_signal_scan.py`'s module docstring — pointed at `_query_citations_depending_on_entity()` and `_flag_stale_jpql_lineage()` in `spring_drift_check.py` — [Resolved — neither name has existed at any commit; they read like a design draft committed after the implementation was renamed. Corrected to the real names, `_raw_query_entries_with_resolved_entity()` and `_reverify_jpql_lineage_provenance()`. Same stale reference also fixed in `test_spring_signal_scan.py`.]
 - `scripts/spring_signal_scan.py`'s own `schema_version` history notes — [Resolved — two comments dated bounded JPQL resolution to `schema_version 3` and called it the same release as native-query lineage. It shipped under 5; native-query lineage was 3; and the same file already said 6 for `resolved_via_entity`, so the module contradicted itself. The emitted value is untouched at 6 — this corrects prose, it does not bump the contract.]
 Files touched: scripts/spring_drift_check.py, scripts/spring_signal_scan.py, scripts/test_spring_drift_check.py, scripts/test_spring_signal_scan.py, claude/llms/pr-30.md, claude/llms/README.md, claude/session-log.md
+
+---
+
+## 2026-07-24 — Correct the mirror-back scope, and record what actually needs mirroring
+Commit: e0200df
+Tests: not run (markdown-only). Verified instead against `git log` per file and against the repo owner's direct read of the Claude project's `steering-prompts/` folder, which holds `00`–`06` and nothing further.
+Assumptions affected:
+- `claude/steering-prompts/00-shared-research-standards.md` — "This file and its siblings (`01` through `12`) are mirrored here from the Claude project's `claude/steering-prompts/` docs" — [Resolved — false for six of them, and I introduced it: PR #29 widened the original, correct `01`–`05` to `01`–`12` during a docs sweep without checking what the project contains. Corrected to state the real split. `00`–`06` are mirrored and have a canonical project copy; `07`–`09` were authored in this repo (`03cce58`, `f3af862`, `14f7a91`); `10`–`12` were authored outside the project and landed here in `5bd750b`. This is the "prose winning over reality" anti-pattern `claude/10-architecture-maturation-plan.md` §4.3 lists as one this project has actually committed — committed again here, and the corrected paragraph says so rather than quietly fixing it.]
+- `CLAUDE.md` — "contains thirteen numbered prompts, plus a canonical copy that also lives in this project's attached Claude project", and "no access to the Claude project where the canonical steering prompts live" — [Resolved — both implied all thirteen have a project copy. Scoped to `00`–`06` in each place.]
+- `claude/session-log.md`'s own 2026-07-24 entry for PR #29 — "Mirror-back required ... prompts `00`, `10`, `11`, `12` were edited here. The canonical copies in the Claude project need the same edits" — [Resolved — superseded and wrong on both ends. `10`/`11`/`12` have no canonical project copy to update, so three of the four named files need nothing. Conversely the real backlog is wider: every one of `00`–`05` has diverged from the initial import. See the manifest below.]
+- **The stated mirror direction is inverted from practice** — [New info — `00` says the repo copies are mirrored *from* the project, i.e. the project is canonical. Every substantive edit to `00`–`05` since `8bb2404` has been made here instead, under version control (2–3 commits each); nothing has been observed flowing the other way. So the project copies are probably all stale and the repo is the de facto working copy of record. Recorded in `00` itself, with the caveat that if someone *has* been editing the project copies directly, the two have forked and need reconciliation rather than an overwrite — that's the one thing this session cannot check.]
+
+**Mirror-back manifest — repo → project, for a session with project access.** Only these six exist in the project. Overwrite each project copy from the repo at `main`, or diff first if you suspect the project side was edited directly:
+
+| Prompt | Repo commits since the initial import (`8bb2404`) | Action |
+|---|---|---|
+| `00-shared-research-standards.md` | `5bd750b`, `e0200df` | Overwrite — two rounds of edits, most recent is the scope correction above |
+| `01-testability-research-prompt.md` | `3eb1551`, `3254d67` | Overwrite — `status:` frontmatter moved to "partially resolved" |
+| `02-pluggability-research-prompt.md` | `c65d89e` | Overwrite |
+| `03-constraints-research-prompt.md` | `c65d89e`, `824b3b7` | Overwrite — `references/doc-taxonomy.md` path corrected to the real per-skill location |
+| `04-analytics-logging-research-prompt.md` | `c65d89e`, `824b3b7` | Overwrite — `status:` now `[Resolved]`, both items landed |
+| `05-clarity-delivery-trust-research-prompt.md` | `8b1cc65` | Overwrite |
+| `06-wiredrift-check-task-prompt.md` | none since `f38e8df` (creation) | **No action** — the only one still in sync. Note its `status: not started` frontmatter is stale in *both* copies; see the standing flag below. |
+
+`07`–`12` are deliberately absent from this table: they have no project copy, so there is nothing to mirror. Adding them to the project is a separate, optional decision — not a sync obligation.
+Files touched: CLAUDE.md, claude/steering-prompts/00-shared-research-standards.md, claude/session-log.md
