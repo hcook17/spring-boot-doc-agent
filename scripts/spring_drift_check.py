@@ -147,6 +147,15 @@ research this design followed.) No arXiv paper was found addressing
 multi-baseline selection directly for this kind of tool — noted there
 rather than overclaiming precedent.
 
+A run_manifest.json is only trustworthy as a baseline once its run reached
+a terminal state: load_manifest() rejects one still at status "running"
+(finalize was never called, so file_signatures is likely still init's
+empty {} placeholder) or one with an empty file_signatures map even after
+finalize (e.g. finalize called without --signals-file). Same principle
+OpenLineage's run-lifecycle model uses for its own RunState events (START/
+RUNNING are non-terminal; only COMPLETE/FAIL/ABORT are) — see
+https://openlineage.io/docs/spec/run-cycle/.
+
 Usage:
     python3 spring_signal_scan.py <repo_path> --out spring_signals.json
     # ... time passes, repo changes ...
@@ -212,7 +221,30 @@ def load_manifest(path):
     "OPTIONAL --manifest" section for why this is a provenance choice, not a
     recency heuristic. Only file_signatures (plus target_repo, for the report's
     own provenance metadata) is used from it; run_manifest.json's other fields
-    (stages, evidence_tag_counts, interview, ...) are irrelevant here."""
+    (stages, evidence_tag_counts, interview, ...) are irrelevant here.
+
+    run_manifest.py's build_init_manifest() sets file_signatures to {} and
+    status to "running", and only finalize_manifest() ever changes either
+    (status becomes one of "complete"/"failed"/"partial"; file_signatures is
+    only overwritten if finalize was actually given some). So status=="running"
+    reliably means finalize never ran on this manifest at all, and an empty
+    file_signatures map is *usually* a sign it was never given any (e.g.
+    finalize was called without --signals-file) — treating that as a real
+    baseline would silently classify every file in the repo as "added" instead
+    of comparing against a real prior state (see classify_files()). This
+    mirrors OpenLineage's run-lifecycle model
+    (https://openlineage.io/docs/spec/run-cycle/): RUNNING is a non-terminal
+    state a consumer shouldn't treat as a finished fact; only a terminal state
+    (COMPLETE/FAIL/ABORT there, complete/failed/partial here) is trustworthy
+    to act on.
+
+    One legitimate exception: a repo that genuinely had zero trackable files
+    at scan time also finalizes with an empty file_signatures map, and an
+    "everything is newly added" report is the *correct* answer for that case,
+    not a misreport. Since target_repo.path is recorded on every manifest,
+    that's checked directly — if the path still exists and a fresh dfs_walk
+    of it also finds zero files, the empty map is accepted as a real
+    (if unusual) empty-repo baseline rather than rejected."""
     with open(path) as f:
         data = json.load(f)
     if "file_signatures" not in data:
@@ -223,6 +255,37 @@ def load_manifest(path):
             file=sys.stderr,
         )
         sys.exit(1)
+    if data.get("status") == "running":
+        print(
+            f"error: '{path}' has status 'running' — its pipeline run was never "
+            f"finalized (scripts/run_manifest.py finalize was never called), so "
+            f"its file_signatures is likely still the empty placeholder from "
+            f"init and would misreport every file in the repo as newly added. "
+            f"Point --manifest at a manifest from after finalize, or omit "
+            f"--manifest to use spring_signals.json's own baseline instead.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if not data["file_signatures"]:
+        tr_path = data.get("target_repo", {}).get("path")
+        if tr_path and os.path.isdir(tr_path) and not any(spring_signal_scan.dfs_walk(tr_path)):
+            print(
+                f"note: '{path}' has an empty 'file_signatures' map, but its recorded "
+                f"target_repo.path ('{tr_path}') genuinely has zero trackable files right "
+                f"now too — treating this as a real empty-repo baseline, not a broken finalize.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"error: '{path}' has an empty 'file_signatures' map — finalize was "
+                f"called without ever recording any (e.g. no --signals-file and no "
+                f"repo to re-hash), so there's no real baseline to compare against. "
+                f"Point --manifest at a manifest with a populated file_signatures, "
+                f"or omit --manifest to use spring_signals.json's own baseline "
+                f"instead.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
     return data
 
 
@@ -461,6 +524,7 @@ def check_drift(repo_path, signals, manifest=None):
         baseline_provenance = {
             "source": "run_manifest.json",
             "run_id": manifest.get("run_id"),
+            "repo_path": manifest.get("target_repo", {}).get("path"),
             "commit_hash": manifest.get("target_repo", {}).get("commit_hash"),
             "dirty": manifest.get("target_repo", {}).get("dirty"),
         }

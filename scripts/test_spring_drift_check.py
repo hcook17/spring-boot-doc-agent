@@ -313,7 +313,7 @@ class SpringDriftCheckTest(unittest.TestCase):
         self.assertEqual(
             report["file_signatures_baseline"],
             {"source": "run_manifest.json", "run_id": "2026-07-25T00:00:00Z-deadbeef",
-             "commit_hash": "deadbeef", "dirty": False},
+             "repo_path": self.repo, "commit_hash": "deadbeef", "dirty": False},
         )
 
     def test_manifest_still_requires_signals_for_tier2_evidence(self):
@@ -335,6 +335,56 @@ class SpringDriftCheckTest(unittest.TestCase):
                 json.dump({"run_id": "x"}, f)
             with self.assertRaises(SystemExit):
                 spring_drift_check.load_manifest(bad_path)
+
+    def test_load_manifest_rejects_still_running_manifest(self):
+        # build_init_manifest()'s status stays "running" until finalize is
+        # ever called at all -- a manifest at that point always has an empty
+        # file_signatures placeholder and must not be usable as a baseline.
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "run_manifest.json")
+            with open(path, "w") as f:
+                json.dump({
+                    "run_id": "x", "status": "running",
+                    "target_repo": {"commit_hash": "abc", "dirty": False},
+                    "file_signatures": {},
+                }, f)
+            with self.assertRaises(SystemExit):
+                spring_drift_check.load_manifest(path)
+
+    def test_load_manifest_rejects_finalized_manifest_with_empty_file_signatures(self):
+        # finalize_manifest() only overwrites file_signatures if it was
+        # actually given some (e.g. no --signals-file and no repo to
+        # re-hash) -- a "complete" manifest can still have an empty map.
+        # No target_repo.path here, so there's nothing to re-check against --
+        # must be treated as the broken-finalize case, not the empty-repo one.
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "run_manifest.json")
+            with open(path, "w") as f:
+                json.dump({
+                    "run_id": "x", "status": "complete",
+                    "target_repo": {"commit_hash": "abc", "dirty": False},
+                    "file_signatures": {},
+                }, f)
+            with self.assertRaises(SystemExit):
+                spring_drift_check.load_manifest(path)
+
+    def test_load_manifest_accepts_empty_file_signatures_for_a_genuinely_empty_repo(self):
+        # An empty file_signatures map isn't always the broken-finalize case --
+        # a repo with zero trackable files at scan time finalizes with an
+        # empty map too, and "everything is newly added" is the correct
+        # report for that, not a misreport. target_repo.path is re-walked
+        # live to tell the two cases apart.
+        with tempfile.TemporaryDirectory() as empty_repo:
+            with tempfile.TemporaryDirectory() as d:
+                path = os.path.join(d, "run_manifest.json")
+                with open(path, "w") as f:
+                    json.dump({
+                        "run_id": "x", "status": "complete",
+                        "target_repo": {"path": empty_repo, "commit_hash": "abc", "dirty": False},
+                        "file_signatures": {},
+                    }, f)
+                data = spring_drift_check.load_manifest(path)
+                self.assertEqual(data["file_signatures"], {})
 
     def test_cli_accepts_manifest_flag_and_reports_its_source(self):
         with tempfile.TemporaryDirectory() as d:
