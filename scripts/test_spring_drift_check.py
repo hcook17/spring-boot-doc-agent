@@ -246,6 +246,23 @@ class SpringDriftCheckTest(unittest.TestCase):
         self.assertEqual(citation["status"], spring_drift_check.STATUS_NO_RULE_FALLBACK)
         self.assertEqual(citation["tier"], 1)
 
+    # ---- config key set drift (schema_version 5) ----
+
+    def test_config_value_changed_under_unchanged_key_is_flagged_for_review(self):
+        _edit(os.path.join(self.repo, "application-local.yml"), "port: 8080", "port: 9090")
+        report = self._drift()
+        citation = next(r for r in report["results"] if r["file"] == "application-local.yml")
+        self.assertEqual(citation["status"], spring_drift_check.STATUS_CONFIG_VALUES_ONLY_CHANGED)
+        self.assertEqual(citation["tier"], 1)
+
+    def test_config_key_added_is_structural_not_flagged_for_review(self):
+        with open(os.path.join(self.repo, "application-local.yml"), "a") as f:
+            f.write("  extra-new-key: added\n")
+        report = self._drift()
+        citation = next(r for r in report["results"] if r["file"] == "application-local.yml")
+        self.assertEqual(citation["status"], spring_drift_check.STATUS_CONFIG_STRUCTURE_CHANGED)
+        self.assertIn("extra-new-key", citation["detail"])
+
     # ---- schema guard ----
 
     def test_stale_schema_version_is_rejected_not_crashed(self):

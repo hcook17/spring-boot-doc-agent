@@ -51,6 +51,12 @@ jobs:
       - name: test_pipeline_stages.py
         run: python3 scripts/test_pipeline_stages.py -v
 
+      - name: test_secret_heuristics.py
+        run: python3 scripts/test_secret_heuristics.py -v
+
+      - name: test_config_keys.py
+        run: python3 scripts/test_config_keys.py -v
+
       - name: test_verify_llms_docs.py
         run: python3 scripts/test_verify_llms_docs.py -v
 

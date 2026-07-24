@@ -11,7 +11,7 @@ The signal scan already told you *where* the mechanical markers are (controllers
 For **each file** in your assigned group:
 
 1. Read the file.
-2. Check the signal-scan slice for anything already tagged on this file (e.g. it's an `@Entity`, it has a `@PreAuthorize` line) — treat that as ground truth, don't second-guess it.
+2. Check the signal-scan slice for anything already tagged on this file (e.g. it's an `@Entity`, it has a `@PreAuthorize` line) — treat that as ground truth, don't second-guess it. If the slice's `redaction_zones` names any line numbers for this file, treat those lines as carrying a real credential: never transcribe, quote, or paraphrase the actual value from one of those lines anywhere in your output (summary text, cluster names, anything) — refer to it generically instead, e.g. "a credential value is configured here (redacted)". This applies even if the value looks like it could be a placeholder to you; the scan already excluded genuine placeholders (`${...}`, `<...>`, `CHANGEME`) before flagging the line, so anything flagged is a real literal.
 3. Check whether it clearly relates to any *other file in your group* — shared types, direct imports, shared table/queue/topic names. Use Grep within the group's files if it's not obvious from imports.
    Then check for relationships *outside* your group: cross-check this file's own package/import lines (visible from your own read of it) against the repo-wide `references` bucket's package/import entries for files that aren't in your group. A match — this file imports a type whose package another file declares, or vice versa — is a candidate cross-group relationship; name it as such rather than folding it into the same-confidence in-group list (see step 4).
 

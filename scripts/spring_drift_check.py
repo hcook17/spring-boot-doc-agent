@@ -79,11 +79,28 @@ accounted for by the fresh count, and flags any shortfall as drifted.
 WHAT HAPPENS TO CITATIONS WITH NO rule_id
 Config/deployment/logging/migration-file evidence (spring_signal_scan.py's
 pass 1, plain filename matching) has no ast-grep rule behind it at all —
-there is nothing to re-run. For those, tier 2 cannot apply: if tier 1 says
-the file changed, the citation is reported as
+there is nothing to re-run. For most of these, tier 2 cannot apply: if
+tier 1 says the file changed, the citation is reported as
 "suspected_drift_content_changed_no_rule_to_recheck" rather than silently
 left unchecked or silently assumed fine. This is a deliberate, visible
 fallback, not an oversight.
+
+One specific exception: files spring_signal_scan.py recorded a
+config_key_sets entry for (schema_version >= 5 — application*.yml/
+properties, bootstrap*.yml/properties, and YAML deployment manifests) get
+a real tier-2-style recheck instead of the generic fallback above, via
+_recheck_config_keys(): the file's dotted key set is re-extracted
+(_config_keys.py, no YAML dependency — see that module's docstring) and
+compared against the stored snapshot. Key set changed -> reported as
+"config_structure_changed" (an expected, structural evolution — keys
+added/removed). Key set identical but the file's content hash still
+changed -> reported as "config_values_only_changed_review_needed": the
+only way that happens is a *value* changed under an unchanged key, which
+in a setup where these files are checked-in placeholders and real values
+are injected by an external service at deploy time is the anomalous case
+worth a human look, not the routine one. A repo without config_key_sets
+in its prior scan (an older schema_version) just gets the original
+generic fallback — this is additive, not a hard requirement.
 
 WHY A PLAIN CONTENT HASH, NOT A GIT BLOB SHA (a design fork, resolved here)
 spring_signal_scan.py's dfs_walk() reads whatever is actually sitting on
@@ -120,6 +137,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
 import spring_signal_scan  # noqa: E402
+from _config_keys import extract_config_keys  # noqa: E402
 
 
 # Every citation ends up with exactly one of these — nothing is ever
@@ -130,6 +148,14 @@ STATUS_DRIFTED = "drifted"
 STATUS_FILE_DELETED = "file_deleted"
 STATUS_NO_RULE_FALLBACK = "suspected_drift_content_changed_no_rule_to_recheck"
 STATUS_UNKNOWN_NO_SIGNATURE = "unknown_no_prior_signature"
+# The two config-file-specific outcomes below only apply to files
+# spring_signal_scan.py recorded a config_key_sets entry for (schema_version
+# >= 5) — everything else with no rule_id still falls back to
+# STATUS_NO_RULE_FALLBACK above. See _config_keys.py's module docstring for
+# why these two are worth telling apart rather than lumping both under one
+# generic "changed, can't precisely recheck" status.
+STATUS_CONFIG_STRUCTURE_CHANGED = "config_structure_changed"
+STATUS_CONFIG_VALUES_ONLY_CHANGED = "config_values_only_changed_review_needed"
 
 
 def load_signals(path):
@@ -315,6 +341,35 @@ def _recheck_generic(fresh_matches, group):
     return results
 
 
+def _recheck_config_keys(repo_path, file_rel, old_keys):
+    """Compares a config/deployment file's stored key set (from a prior
+    scan's config_key_sets) against a fresh extraction of the file as it
+    exists now. Returns (status, detail), or None if the file can't be
+    read (caller falls back to the generic no-rule status in that case).
+    """
+    full_path = os.path.join(repo_path, file_rel)
+    try:
+        with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+            text = f.read()
+    except OSError:
+        return None
+
+    new_keys = set(extract_config_keys(text, os.path.basename(file_rel)))
+    old_keys = set(old_keys)
+
+    if new_keys != old_keys:
+        added = sorted(new_keys - old_keys)
+        removed = sorted(old_keys - new_keys)
+        detail = f"config key set changed: added {added or '[]'}, removed {removed or '[]'}"
+        return STATUS_CONFIG_STRUCTURE_CHANGED, detail
+
+    detail = (
+        "file content changed but the config key set did not — a value changed under an "
+        "unchanged key, worth a human look rather than treating as routine"
+    )
+    return STATUS_CONFIG_VALUES_ONLY_CHANGED, detail
+
+
 def tier2_recheck_file(repo_path, file_rel, citations_for_file, ast_grep_path):
     """citations_for_file: list of (source, citation), all sharing file_rel,
     all with a rule_id (caller filters out the no-rule_id ones first). One
@@ -391,12 +446,18 @@ def check_drift(repo_path, signals):
         with_rule = [(s, c) for s, c in citations if c.get("rule_id")]
         without_rule = [(s, c) for s, c in citations if not c.get("rule_id")]
 
+        old_key_set = signals.get("config_key_sets", {}).get(file_rel)
         for source, citation in without_rule:
-            results.append(drift_result(
-                source, citation, STATUS_NO_RULE_FALLBACK, 1,
-                detail="file content changed and this citation has no rule_id to precisely recheck "
-                       "(filename-based evidence, e.g. config/deployment/migration match)",
-            ))
+            outcome = _recheck_config_keys(repo_path, file_rel, old_key_set) if old_key_set is not None else None
+            if outcome is not None:
+                status, detail = outcome
+                results.append(drift_result(source, citation, status, 1, detail))
+            else:
+                results.append(drift_result(
+                    source, citation, STATUS_NO_RULE_FALLBACK, 1,
+                    detail="file content changed and this citation has no rule_id to precisely recheck "
+                           "(filename-based evidence, e.g. config/deployment/migration match)",
+                ))
 
         if with_rule:
             if ast_grep_path is None:

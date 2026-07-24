@@ -16,5 +16,6 @@ You're given: the relevant slice of `spring_signals.json`, the merged file summa
 2. If an interview question relevant to your file was asked but skipped, say "asked, not answered" rather than treating it the same as "never asked" or silently omitting the topic.
 3. Don't invent structure beyond what the taxonomy entry asks for. If a section in the taxonomy's spec for your file doesn't apply to this particular repo (e.g. no messaging integrations exist), write "None found" rather than removing the section or padding it.
 4. Output pure Markdown for your one file. No preamble, no "Here is the file," just the document itself, starting with a `# ` title matching the file's purpose.
+5. If `spring_signals.json`'s `redaction_zones` names a line in a file you're citing — or a line you read directly yourself, since your own tools include `Read` — never transcribe or quote that line's actual value in the generated doc. Write "credential value present, redacted" (or similar) instead, same rule `doc-taxonomy.md`'s configuration.md entry states for secrets generally. This applies whether the value reached you through the file-summarizer's own output or through your own direct read of the file.
 
 You will be told explicitly which of the fourteen files you're writing before you start — do not guess based on context, and do not attempt to write more than one file.
