@@ -25,4 +25,12 @@ Research alone isn't the deliverable. Each prompt ends with a concrete artifact 
 
 ## Mirrored copy — keep in sync
 
-This file and its siblings (`01` through `12`) are mirrored here from the Claude project's `claude/steering-prompts/` docs so a local Claude Code CLI session (which has no access to that project) can read them directly. If you edit these files here in the repo, the canonical copy in the Claude project needs the same edit made back — note it in your commit message or in `claude/session-log.md` so a project-connected session picks it up.
+**Only `00` through `06` are mirrored** from the Claude project's `claude/steering-prompts/` docs, so a local Claude Code CLI session (which has no access to that project) can read them directly. Those six have a canonical copy there; **`07` through `12` do not** — they were authored in this repo and exist nowhere else. Confirmed 2026-07-24: the project's `steering-prompts/` folder holds `00`–`06` and nothing further.
+
+So the sync obligation is one-directional and narrow: **if you edit `00`–`06` here, the canonical copy in the Claude project needs the same edit made back** — note it in your commit message or in `claude/session-log.md` so a project-connected session picks it up. Editing `07`–`12` creates no such obligation; there is nothing to sync them with unless someone deliberately adds them to the project.
+
+**The stated direction is inverted from actual practice.** This section says the repo copies are mirrored *from* the project, i.e. the project is canonical. In fact every substantive edit to `00`–`05` since the initial import has been made *here*, in the repo, under version control (`git log -- claude/steering-prompts/0[0-5]-*.md` shows 2–3 commits each; only `06` is untouched since creation). Nothing has been observed flowing the other way. So in practice the repo is ahead and the project copies of all six are probably stale.
+
+Treat the repo as the working copy of record, mirror repo → project when syncing, and don't assume the project copy is newer just because this paragraph once implied it was. If that is wrong — if someone has been editing the project copies directly — say so here, because then the two have genuinely forked and need a real reconciliation rather than an overwrite.
+
+*(This paragraph previously claimed `01` through `12` were all mirrored from the project. That was wrong — it was widened from the original, correct `01`–`05` during a docs sweep without checking what the project actually contains, which is the exact "prose winning over reality" failure this repo's own tooling exists to catch. Corrected here.)*

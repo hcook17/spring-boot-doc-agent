@@ -2,7 +2,7 @@
 
 ## Steering prompts and the session log
 
-`claude/steering-prompts/` contains thirteen numbered prompts, plus a canonical copy that also lives in this project's attached Claude project ("Plugin For Asynchronous Documentation Creation"). They fall into three groups:
+`claude/steering-prompts/` contains thirteen numbered prompts. **`00`–`06` are mirrored from this project's attached Claude project ("Plugin For Asynchronous Documentation Creation") and have a canonical copy there; `07`–`12` were authored in this repo and exist nowhere else** (confirmed 2026-07-24 — the project's folder holds `00`–`06` only). Edits to `00`–`06` need mirroring back; edits to `07`–`12` do not. They fall into three groups:
 
 - **`00`–`05` — research/scaffold prompts.** `00` shared standards, then one per improvement category: testability, pluggability, constraints, analytics-logging, clarity/delivery-trust.
 - **`06`–`09` — implementation task prompts.** Wire drift-check, CI scaffold, dependency pinning, tool-quirks indexing. These carry a `status:` frontmatter field that is edited in place as the task lands; the body is left as historical record rather than rewritten.
@@ -32,7 +32,7 @@ Only tag an assumption `[Resolved]` if you're confident the prompt's stated prob
 
 ### Why this exists, not just what to do
 
-A Claude Code CLI session (this one) has full repo and git access but no access to the Claude project where the canonical steering prompts live. A Cowork session attached to that project has the reverse — it can read/edit the prompts but can't run git commands against this repo directly. `claude/session-log.md` is the one file that crosses that gap: cheap for this session to write (it already has full context of its own change), and small enough for the other session to read directly once it has folder access, without needing the full diff or `.git` history relayed by hand.
+A Claude Code CLI session (this one) has full repo and git access but no access to the Claude project where the canonical copies of `00`–`06` live. A Cowork session attached to that project has the reverse — it can read/edit the prompts but can't run git commands against this repo directly. `claude/session-log.md` is the one file that crosses that gap: cheap for this session to write (it already has full context of its own change), and small enough for the other session to read directly once it has folder access, without needing the full diff or `.git` history relayed by hand.
 
 ## Tool and environment quirks
 
