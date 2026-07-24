@@ -39,6 +39,18 @@ Run with:
     python3 scripts/check_llms_coverage.py
 """
 
+# Temporarily non-blocking (2026-07-25, repo owner's call): a burst of rapid
+# solo merges outran the "write your own pr-N.md pre-merge" convention
+# (claude/llms/README.md) faster than that convention could take effect,
+# producing a chain of same-day "add pr-N.md" follow-up PRs the owner found
+# more disruptive than useful (see claude/session-log.md and CONSTRAINTS.md
+# item 4's addenda for the full history). Findings still print in full when
+# this is False — nothing about detection changes — only whether they fail
+# the build. Flip back to True once merge cadence settles down enough for
+# the pre-merge convention to actually apply, or once the exemption
+# heuristic itself gets the refinement flagged in CONSTRAINTS.md item 4.
+ENFORCE = False
+
 import argparse
 import json
 import re
@@ -124,6 +136,14 @@ def check_coverage(merged_prs: List[dict], llms_dir: Path) -> List[str]:
     return issues
 
 
+def exit_code(issues: List[str], enforce: bool) -> int:
+    """Whether findings fail the build. Split out from main() so the
+    ENFORCE toggle's behavior is unit-testable without a live gh call."""
+    if not issues:
+        return 0
+    return 1 if enforce else 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--llms-dir", default=str(DEFAULT_LLMS_DIR),
@@ -149,10 +169,11 @@ def main() -> int:
         print(f"OK: all {len(merged_prs)} merged PR(s) have an up-to-date claude/llms/pr-N.md{grace_note}.")
         return 0
 
-    print(f"claude/llms/ coverage check failed ({len(issues)} issue(s)):", file=sys.stderr)
+    label = "coverage check failed" if ENFORCE else "coverage check found issues (non-blocking, ENFORCE=False)"
+    print(f"claude/llms/ {label} ({len(issues)} issue(s)):", file=sys.stderr)
     for issue in issues:
         print(f"  - {issue}", file=sys.stderr)
-    return 1
+    return exit_code(issues, ENFORCE)
 
 
 if __name__ == "__main__":
