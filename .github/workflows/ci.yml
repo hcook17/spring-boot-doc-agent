@@ -77,7 +77,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/verify_llms_docs.py
 
-      - name: check_llms_coverage.py (fails on a merged PR with no claude/llms/pr-N.md)
+      # NOTE: this step reports only — check_llms_coverage.py has ENFORCE = False,
+      # so it prints findings and exits 0. The name says "reports", not "fails", on
+      # purpose: a step named as a gate that cannot fail is worse than no gate,
+      # because it reads as enforcement to anyone scanning the workflow. Rename
+      # this back to "fails on ..." in the same change that sets ENFORCE = True.
+      - name: check_llms_coverage.py (reports merged PRs with no claude/llms/pr-N.md; non-blocking)
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/check_llms_coverage.py

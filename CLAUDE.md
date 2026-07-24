@@ -2,11 +2,17 @@
 
 ## Steering prompts and the session log
 
-`claude/steering-prompts/` contains five research/scaffold prompts (`00` shared standards, `01`–`05` one per improvement category: testability, pluggability, constraints, analytics-logging, clarity/delivery-trust) plus a canonical copy that also lives in this project's attached Claude project ("Plugin For Asynchronous Documentation Creation"). Each prompt states specific factual assumptions about the current state of this repo (e.g., "`references/` sits as a plugin-root-level sibling of `skills/`," "no test exists for the LLM stages," "the confidentiality rule only lives in a handoff doc"). Commits to this repo can make those assumptions stale.
+`claude/steering-prompts/` contains thirteen numbered prompts, plus a canonical copy that also lives in this project's attached Claude project ("Plugin For Asynchronous Documentation Creation"). They fall into three groups:
 
-**Before your final commit in any session that touches `scripts/`, `agents/`, `skills/`, or `references/`:** read the five prompt files, and check whether anything you just changed resolves, contradicts, or otherwise affects a stated assumption in any of them.
+- **`00`–`05` — research/scaffold prompts.** `00` shared standards, then one per improvement category: testability, pluggability, constraints, analytics-logging, clarity/delivery-trust.
+- **`06`–`09` — implementation task prompts.** Wire drift-check, CI scaffold, dependency pinning, tool-quirks indexing. These carry a `status:` frontmatter field that is edited in place as the task lands; the body is left as historical record rather than rewritten.
+- **`10`–`12` — the review layer.** Review persona and evidence tiers, the DFS/BFS context-traversal protocol, and the paste-able review-session launcher. Read these when the session is a review or a design-weighing pass rather than a build.
 
-- If nothing you changed is plausibly relevant to any of the five prompts, don't write a log entry — churn here is worse than silence. Most commits (a typo fix, a small test addition) won't touch anything a steering prompt assumed.
+Each prompt states specific factual assumptions about the current state of this repo (e.g., "no test exists for the LLM stages," "the confidentiality rule only lives in a handoff doc"). Commits to this repo can make those assumptions stale.
+
+**Before your final commit in any session that touches `scripts/`, `agents/`, or `skills/`:** read the prompt files, and check whether anything you just changed resolves, contradicts, or otherwise affects a stated assumption in any of them. In practice `00`–`09` are the ones that carry repo-state assumptions; `10`–`12` describe method and rarely go stale from a code change.
+
+- If nothing you changed is plausibly relevant to any of the prompts, don't write a log entry — churn here is worse than silence. Most commits (a typo fix, a small test addition) won't touch anything a steering prompt assumed.
 - If something is relevant, append one entry to `claude/session-log.md` (create it from the template below if it doesn't exist yet) in the same commit. Keep it distilled, not a raw diff — the point is that a downstream reviewer (human or another Claude session) can read ten lines instead of parsing a diff.
 
 ### Entry format

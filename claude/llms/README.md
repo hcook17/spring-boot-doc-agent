@@ -4,7 +4,9 @@ One file per pull request (`pr-N.md`), each pairing that PR's summary with **det
 
 Every command is pinned to a commit SHA (or, for a still-open PR, its head branch), not to `HEAD`/`main` — so a command in `pr-3.md` still resolves correctly even after ten more PRs land. Run them with `git show <ref>:<path>`, not by checking out the branch — that works from whatever's currently checked out, without disturbing your working tree.
 
-**Convention: write a PR's own `pr-N.md` in the same PR when possible.** For any PR touching `scripts/`/`agents/`/`skills/`/`references/`, add its `pr-N.md` (pinned to the PR's own head commit, per the still-open-PR case above — `pr-13.md` is the original precedent) as part of that same PR, using the PR number `gh pr create` returns once the PR is opened. `scripts/check_llms_coverage.py` (CI-wired) fails the build if a merged PR has no corresponding `pr-N.md`, or one with a stale `state:` frontmatter field — but a PR can never document its own merge commit before that commit exists, so the single most-recently-merged PR is always exempt from both checks (a bounded grace window, not a hole: the exemption shifts to whichever PR merges next, so nothing stays undocumented past one PR cycle). Following this convention keeps that exemption rarely exercised in practice, rather than relying on it as the default path.
+**Convention: write a PR's own `pr-N.md` in the same PR when possible.** For any PR touching `scripts/`/`agents/`/`skills/`/`references/`, add its `pr-N.md` (pinned to the PR's own head commit, per the still-open-PR case above — `pr-13.md` is the original precedent) as part of that same PR, using the PR number `gh pr create` returns once the PR is opened. `scripts/check_llms_coverage.py` (CI-wired) fails the build if a merged PR has no corresponding `pr-N.md`, or one with a stale `state:` frontmatter field — but a PR can never document its own merge commit before that commit exists, so the single most-recently-merged PR is always exempt from both checks. Following this convention keeps that exemption rarely exercised in practice, rather than relying on it as the default path.
+
+> **The grace window did not hold, and the table below records where.** This paragraph used to claim the exemption was "a bounded grace window, not a hole: the exemption shifts to whichever PR merges next, so nothing stays undocumented past one PR cycle." That reasoning only holds while the check can actually fail. `scripts/check_llms_coverage.py` has `ENFORCE = False` (set during a fast-merge burst and never flipped back), so the findings print and the build stays green — and **PRs #21–#27 merged with no `pr-N.md` at all**, seven PRs rather than one. Run `python3 scripts/check_llms_coverage.py` to see the current list. The exemption is sound in principle; what failed is that nothing enforced the window's closing. Either backfill #21–#27 and set `ENFORCE = True`, or drop the convention deliberately — but the CI step is currently named "fails on a merged PR with no `claude/llms/pr-N.md`" and cannot fail, which is the worst of the three options.
 
 | PR | Title | State |
 |----|-------|-------|
@@ -28,7 +30,13 @@ Every command is pinned to a commit SHA (or, for a still-open PR, its head branc
 | [#18](pr-18.md) | Fix infinite-regress bug in claude/llms/ coverage enforcement | merged (`5726135`) |
 | [#19](pr-19.md) | CONSTRAINTS.md: add solo-context note; flag coverage-exemption heuristic as provisional | merged (`0d7f727`) |
 | [#20](pr-20.md) | Add claude/llms/pr-18.md (grace window shifted forward as designed) | merged (`99804af`) |
-| #21 | Add claude/llms/pr-19.md (grace window shifted forward again) | merged (`bd66860`) — exempt as most-recently-merged |
-| [#28](pr-28.md) | Sync status docs, fix ast-grep test-killing bug, resolve bounded JPQL lineage | open (`824b3b7`) |
+| #21 | Add claude/llms/pr-19.md (grace window shifted forward again) | merged (`bd66860`) — **no `pr-21.md`** |
+| #22 | CONSTRAINTS.md: sketch future-team review workflow using claude/llms/pr-N.md | merged (`d8ce31c`) — **no `pr-22.md`** |
+| #23 | check_llms_coverage.py: add ENFORCE toggle, default False for now | merged (`958aaa2`) — **no `pr-23.md`** |
+| #24 | Add scripts/run_manifest.py: run-level telemetry for document-spring-repo | merged (`9d54efd`) — **no `pr-24.md`** |
+| #25 | test_run_manifest.py: derive required-key sets from run_manifest.schema.json | merged (`569785f`) — **no `pr-25.md`** |
+| #26 | spring_drift_check.py: add --manifest to use run_manifest.json's file_signatures as the tier-1 baseline | merged (`9620e27`) — **no `pr-26.md`** |
+| #27 | spring_drift_check.py: follow-ups to PR #26 (manifest empty-repo edge case, research note) | merged (`40910bc`) — **no `pr-27.md`** |
+| [#28](pr-28.md) | Sync status docs, fix ast-grep test-killing bug, resolve bounded JPQL lineage | merged (`03c16dd`) |
 
 Cross-linked from `STATUS.md` and `README.md`. See `claude/session-log.md` for the append-only history of which steering-prompt assumptions each of these PRs affected — this index is about verifying *what a PR did*, the session log is about *what it means for the steering prompts*. Different axis, same underlying discipline.
