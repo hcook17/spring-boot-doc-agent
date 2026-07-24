@@ -50,5 +50,6 @@ The reason to run the verifier before committing is not really the harness, thou
 | #29 | Fix broken doc references and sweep stale numbers out of the living snapshots | merged (`add3083`) — exempt as most-recently-merged when opened; `pr-29.md` still owed |
 | [#30](pr-30.md) | Fix two JPQL-provenance gate misses in spring_drift_check.py | merged (`a677279`) |
 | [#31](pr-31.md) | Correct the mirror-back scope and annotate the maturation plan's stale items | merged (`6f04332`) |
+| [#32](pr-32.md) | Execute the mirror-back; add pr-31.md and two claude/llms authoring rules | open (`c9bfb83`) |
 
 Cross-linked from `STATUS.md` and `README.md`. See `claude/session-log.md` for the append-only history of which steering-prompt assumptions each of these PRs affected — this index is about verifying *what a PR did*, the session log is about *what it means for the steering prompts*. Different axis, same underlying discipline.
