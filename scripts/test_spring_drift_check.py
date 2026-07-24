@@ -235,6 +235,57 @@ class SpringDriftCheckTest(unittest.TestCase):
         self.assertEqual(jpql_result["status"], spring_drift_check.STATUS_DRIFTED)
         self.assertIn("no fresh @Query match", jpql_result["detail"])
 
+    def test_entity_table_rename_drifts_jpql_even_when_query_file_also_changed_but_text_intact(self):
+        # audit Claim 1, end-to-end: both Invoice.java (table rename) AND
+        # InvoiceRepository.java change in the same interval, but the JPQL
+        # query STRING is untouched — so its own-file tier-2 recheck yields
+        # CONFIRMED (text still present). The provenance pass must still
+        # upgrade it to DRIFTED because the entity's table moved; the
+        # pre-fix guard (skip anything not STATUS_UNCHANGED) reported this as
+        # confirmed_still_present over now-stale lineage.
+        _edit(
+            os.path.join(self.repo, "Invoice.java"),
+            '@Table(name = "billing_invoice")',
+            '@Table(name = "invoices")',
+        )
+        _edit(
+            os.path.join(self.repo, "InvoiceRepository.java"),
+            "Invoice findByStatus(String status);",
+            "Invoice findByStatus(String status); // unrelated non-query edit",
+        )
+        report = self._drift()
+
+        # Guard: the query file really did change (so its own-file verdict is
+        # tier-2 CONFIRMED, not tier-1 UNCHANGED) — otherwise this test would
+        # silently reduce to the already-covered query-file-untouched case.
+        self.assertIn("InvoiceRepository.java", report["file_summary"]["changed"])
+
+        jpql_result = self._raw_query_result(report, "InvoiceRepository.java", "jpql")
+        self.assertEqual(jpql_result["status"], spring_drift_check.STATUS_DRIFTED)
+        self.assertEqual(jpql_result["tier"], 2)
+        self.assertIn("billing_invoice", jpql_result["detail"])
+        self.assertIn("invoices", jpql_result["detail"])
+
+    def test_deleting_entity_file_drifts_dependent_jpql_citation(self):
+        # audit finding #2, end-to-end: Invoice.java is deleted while
+        # InvoiceRepository.java is untouched. The JPQL citation's second
+        # provenance input is gone, so it must read DRIFTED (with a
+        # delete-specific detail), not the tier-1 STATUS_UNCHANGED its own
+        # untouched file would otherwise leave it at.
+        os.remove(os.path.join(self.repo, "Invoice.java"))
+        report = self._drift()
+        self.assertIn("Invoice.java", report["file_summary"]["deleted"])
+
+        jpql_result = self._raw_query_result(report, "InvoiceRepository.java", "jpql")
+        self.assertEqual(jpql_result["status"], spring_drift_check.STATUS_DRIFTED)
+        self.assertEqual(jpql_result["tier"], 2)
+        self.assertIn("deleted", jpql_result["detail"])
+
+        # The native query in the same file has no entity_table_map dependency,
+        # so deleting Invoice.java must not sweep it up.
+        native_result = self._raw_query_result(report, "InvoiceRepository.java", "native")
+        self.assertEqual(native_result["status"], spring_drift_check.STATUS_UNCHANGED)
+
     def _raw_query_result(self, report, file_rel, query_kind):
         """Look up a raw_queries__query drift result by (file, query_kind),
         via the baseline's own line number — drift_result() doesn't carry
@@ -583,14 +634,15 @@ class JpqlLineageProvenanceTest(unittest.TestCase):
         del signals["entity_table_map"]["Invoice"]
         results = [self._base_result()]
         spring_drift_check._reverify_jpql_lineage_provenance(
-            results, signals, fresh_entity_tables={}, changed_set={"Invoice.java"},
+            results, signals, fresh_entity_tables={}, changed_set={"Invoice.java"}, deleted_set=set(),
         )
         self.assertEqual(results[0]["status"], spring_drift_check.STATUS_UNCHANGED)
 
     def test_entity_file_not_changed_leaves_result_untouched(self):
         results = [self._base_result()]
         spring_drift_check._reverify_jpql_lineage_provenance(
-            results, self._signals(), fresh_entity_tables={}, changed_set=set(),  # Invoice.java not in changed_set
+            results, self._signals(), fresh_entity_tables={},
+            changed_set=set(), deleted_set=set(),  # Invoice.java in neither set
         )
         self.assertEqual(results[0]["status"], spring_drift_check.STATUS_UNCHANGED)
         self.assertEqual(results[0]["tier"], 1)
@@ -599,7 +651,7 @@ class JpqlLineageProvenanceTest(unittest.TestCase):
         results = [self._base_result()]
         spring_drift_check._reverify_jpql_lineage_provenance(
             results, self._signals(), fresh_entity_tables={"Invoice": {"table": "billing_invoice"}},
-            changed_set={"Invoice.java"},
+            changed_set={"Invoice.java"}, deleted_set=set(),
         )
         self.assertEqual(results[0]["status"], spring_drift_check.STATUS_CONFIRMED)
         self.assertEqual(results[0]["tier"], 2)
@@ -608,7 +660,7 @@ class JpqlLineageProvenanceTest(unittest.TestCase):
         results = [self._base_result()]
         spring_drift_check._reverify_jpql_lineage_provenance(
             results, self._signals(), fresh_entity_tables={"Invoice": {"table": "invoices"}},
-            changed_set={"Invoice.java"},
+            changed_set={"Invoice.java"}, deleted_set=set(),
         )
         self.assertEqual(results[0]["status"], spring_drift_check.STATUS_DRIFTED)
         self.assertEqual(results[0]["tier"], 2)
@@ -622,7 +674,7 @@ class JpqlLineageProvenanceTest(unittest.TestCase):
         # NOT be silently left at STATUS_UNCHANGED.
         results = [self._base_result()]
         spring_drift_check._reverify_jpql_lineage_provenance(
-            results, self._signals(), fresh_entity_tables={}, changed_set={"Invoice.java"},
+            results, self._signals(), fresh_entity_tables={}, changed_set={"Invoice.java"}, deleted_set=set(),
         )
         self.assertEqual(results[0]["status"], spring_drift_check.STATUS_DRIFTED)
         self.assertIn("no longer matches", results[0]["detail"])
@@ -636,10 +688,57 @@ class JpqlLineageProvenanceTest(unittest.TestCase):
         results[0]["detail"] = "no fresh @Query match with the same query text and kind found in this file"
         spring_drift_check._reverify_jpql_lineage_provenance(
             results, self._signals(), fresh_entity_tables={"Invoice": {"table": "invoices"}},
-            changed_set={"Invoice.java"},
+            changed_set={"Invoice.java"}, deleted_set=set(),
         )
         self.assertEqual(results[0]["status"], spring_drift_check.STATUS_DRIFTED)
         self.assertIn("no fresh @Query match", results[0]["detail"])
+
+    def test_confirmed_own_file_verdict_still_gets_entity_provenance_rechecked(self):
+        # THE regression case (audit Claim 1): the query's OWN file changed
+        # in a way that left its text intact, so _recheck_queries() already
+        # marked it STATUS_CONFIRMED — but "text still present" says nothing
+        # about whether the lineage is still accurate. If the entity's table
+        # renamed in the same interval, this CONFIRMED verdict must be
+        # UPGRADED to DRIFTED, not skipped. The pre-fix guard (skip unless
+        # STATUS_UNCHANGED) let this exact case through as confirmed-but-stale.
+        results = [self._base_result(status=spring_drift_check.STATUS_CONFIRMED, tier=2)]
+        spring_drift_check._reverify_jpql_lineage_provenance(
+            results, self._signals(), fresh_entity_tables={"Invoice": {"table": "invoices"}},
+            changed_set={"Invoice.java"}, deleted_set=set(),
+        )
+        self.assertEqual(results[0]["status"], spring_drift_check.STATUS_DRIFTED)
+        self.assertEqual(results[0]["tier"], 2)
+        self.assertIn("billing_invoice", results[0]["detail"])
+        self.assertIn("invoices", results[0]["detail"])
+
+    def test_confirmed_own_file_verdict_with_unchanged_table_stays_confirmed(self):
+        # The companion no-false-positive check for the case above: a
+        # CONFIRMED query whose entity file changed but whose table mapping
+        # did NOT must stay CONFIRMED — the upgrade fires on an actual table
+        # change, not merely on the entity file being touched.
+        results = [self._base_result(status=spring_drift_check.STATUS_CONFIRMED, tier=2)]
+        spring_drift_check._reverify_jpql_lineage_provenance(
+            results, self._signals(), fresh_entity_tables={"Invoice": {"table": "billing_invoice"}},
+            changed_set={"Invoice.java"}, deleted_set=set(),
+        )
+        self.assertEqual(results[0]["status"], spring_drift_check.STATUS_CONFIRMED)
+
+    def test_deleted_entity_file_drifts_dependent_jpql_with_delete_specific_detail(self):
+        # audit finding #2: the entity's file was DELETED (not just changed),
+        # so it never got tier-2 rechecked and never appears in
+        # fresh_entity_tables. The gate must still fire (via deleted_set), and
+        # the fresh-is-None branch must report DRIFTED with a delete-specific
+        # detail, not the "no longer matches in its file" wording that reads
+        # wrong for a file that no longer exists.
+        results = [self._base_result()]
+        spring_drift_check._reverify_jpql_lineage_provenance(
+            results, self._signals(), fresh_entity_tables={},
+            changed_set=set(), deleted_set={"Invoice.java"},
+        )
+        self.assertEqual(results[0]["status"], spring_drift_check.STATUS_DRIFTED)
+        self.assertEqual(results[0]["tier"], 2)
+        self.assertIn("deleted", results[0]["detail"])
+        self.assertIn("Invoice.java", results[0]["detail"])
 
     def test_no_matching_result_entry_does_not_crash(self):
         # Defensive: a citation with resolved_via_entity but no
@@ -650,7 +749,7 @@ class JpqlLineageProvenanceTest(unittest.TestCase):
         results = []
         spring_drift_check._reverify_jpql_lineage_provenance(
             results, self._signals(), fresh_entity_tables={"Invoice": {"table": "invoices"}},
-            changed_set={"Invoice.java"},
+            changed_set={"Invoice.java"}, deleted_set=set(),
         )
         self.assertEqual(results, [])
 

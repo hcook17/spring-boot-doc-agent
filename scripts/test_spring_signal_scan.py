@@ -326,7 +326,7 @@ class JpqlLineageResolutionTest(unittest.TestCase):
         # Drift-check needs this to detect a cross-file dependency: a JPQL
         # citation's lineage can go stale because the *entity's* file
         # changed (e.g. @Table renamed), not the query's own file — see
-        # spring_drift_check.py's _query_citations_depending_on_entity().
+        # spring_drift_check.py's _reverify_jpql_lineage_provenance().
         result = spring_signal_scan.resolve_jpql_to_lineage(
             "SELECT i FROM Invoice i WHERE i.status = :status", self.ENTITY_TABLE_MAP
         )
