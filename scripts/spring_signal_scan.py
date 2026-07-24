@@ -54,10 +54,12 @@ regex version, classification now reads the @Query annotation's own
 argument list (via ast-grep's multi-meta-variable capture) rather than
 guessing from "this line or the next" — so it survives arguments in either
 order and annotations split across more than two lines. As of
-schema_version 3 (see the SQL lineage note below), the bounded common case
-of a single-entity JPQL FROM clause is resolved to real lineage via
-resolve_jpql_to_lineage(), not left as raw text forever — see that
-function's own docstring for exactly what's in and out of scope.
+schema_version 5, the bounded common case of a single-entity JPQL FROM
+clause is resolved to real lineage via resolve_jpql_to_lineage(), not left
+as raw text forever — see that function's own docstring for exactly what's
+in and out of scope. (Native-query lineage landed earlier, at
+schema_version 3 — see the SQL lineage note below. The two are separate
+releases; JPQL resolution reuses that machinery but did not ship with it.)
 
 NOTE on entity_table_map: each entity's NAME/TABLE now come from the text
 of that entity's own class_declaration match, not from independent
@@ -135,7 +137,7 @@ citation's lineage has a cross-file dependency on the entity's own file
 (its @Table(name=...)), which the per-file tier-1/tier-2 model otherwise
 can't see — the query's own file doesn't change just because the entity's
 table mapping did. See spring_drift_check.py's
-_query_citations_depending_on_entity() and _flag_stale_jpql_lineage().
+_raw_query_entries_with_resolved_entity() and _reverify_jpql_lineage_provenance().
 
 NOTE on config key sets (schema_version 5): output now also carries
 `config_key_sets`, a {file: [dotted.key.path, ...]} map for configuration/
@@ -207,9 +209,10 @@ POSITIONAL_PARAM_RE = re.compile(r"\?\d*")
 
 SQLLINEAGE_DEFAULT_SCHEMA_PREFIX = "<default>."
 
-# Bounded JPQL resolution (schema_version 3, same release as native-query
-# lineage above — see resolve_jpql_to_lineage()'s own docstring for the full
-# scope statement). Matches "FROM <Entity> <alias>", optionally with an
+# Bounded JPQL resolution (schema_version 5 — a later release than the
+# native-query lineage above, whose machinery it reuses; see
+# resolve_jpql_to_lineage()'s own docstring for the full scope statement).
+# Matches "FROM <Entity> <alias>", optionally with an
 # "AS" keyword — deliberately anchored to exactly one FROM target: a
 # comma-separated or JOINed multi-entity FROM clause won't match this
 # pattern the way a single-entity one does, which is how multi-entity

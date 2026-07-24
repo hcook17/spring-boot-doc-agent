@@ -38,5 +38,7 @@ Every command is pinned to a commit SHA (or, for a still-open PR, its head branc
 | #26 | spring_drift_check.py: add --manifest to use run_manifest.json's file_signatures as the tier-1 baseline | merged (`9620e27`) — **no `pr-26.md`** |
 | #27 | spring_drift_check.py: follow-ups to PR #26 (manifest empty-repo edge case, research note) | merged (`40910bc`) — **no `pr-27.md`** |
 | [#28](pr-28.md) | Sync status docs, fix ast-grep test-killing bug, resolve bounded JPQL lineage | merged (`03c16dd`) |
+| #29 | Fix broken doc references and sweep stale numbers out of the living snapshots | merged (`add3083`) — exempt as most-recently-merged when opened; `pr-29.md` still owed |
+| [#30](pr-30.md) | Fix two JPQL-provenance gate misses in spring_drift_check.py | open (`570a55a`) |
 
 Cross-linked from `STATUS.md` and `README.md`. See `claude/session-log.md` for the append-only history of which steering-prompt assumptions each of these PRs affected — this index is about verifying *what a PR did*, the session log is about *what it means for the steering prompts*. Different axis, same underlying discipline.

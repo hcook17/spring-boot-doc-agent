@@ -515,7 +515,7 @@ def _raw_query_entries_with_resolved_entity(signals):
             yield entry
 
 
-def _reverify_jpql_lineage_provenance(results, signals, fresh_entity_tables, changed_set):
+def _reverify_jpql_lineage_provenance(results, signals, fresh_entity_tables, changed_set, deleted_set):
     """A JPQL citation's lineage is DERIVED from two inputs, not one: the
     query text (its own file, already handled by the per-file loop that
     produced `results`) and the entity->table mapping (a different file,
@@ -530,10 +530,22 @@ def _reverify_jpql_lineage_provenance(results, signals, fresh_entity_tables, cha
     see spring_signal_scan.py's own JPQL-resolution pass for the same
     reasoning).
 
+    A "changed" input file is not the only way the second input can go
+    stale: DELETING (or moving, which classify_files() reports as a delete
+    of the old path) the entity's file also invalidates the mapping. So the
+    entity-provenance gate fires for changed_set OR deleted_set — a deleted
+    entity file simply has no fresh scan, so it flows into the fresh-is-None
+    -> DRIFTED branch below with a delete-specific detail. Without this, a
+    JPQL query whose entity class file was deleted would come back
+    "unchanged" with silently stale lineage — the exact miss this whole
+    provenance pass exists to prevent, in its deletion variant.
+
     fresh_entity_tables: class_name -> fresh {"table", ...} dict, built as
     a side effect of the main loop's own ast-grep re-run on entity files
     already in changed_set (see _recheck_entities) — reused here rather
-    than triggering a second ast-grep invocation against the same file."""
+    than triggering a second ast-grep invocation against the same file. A
+    deleted entity file is never tier-2 rechecked, so it never appears here,
+    which is exactly why fresh-is-None is the correct deletion signal."""
     results_by_file_line = {(r["file"], r["line"]): r for r in results}
 
     for entry in _raw_query_entries_with_resolved_entity(signals):
@@ -543,26 +555,44 @@ def _reverify_jpql_lineage_provenance(results, signals, fresh_entity_tables, cha
             continue  # defensive: lineage only sets this when the entity WAS found at scan time
 
         entity_file = entity_meta.get("file")
-        if entity_file not in changed_set:
+        entity_file_deleted = entity_file in deleted_set
+        if entity_file not in changed_set and not entity_file_deleted:
             continue  # this citation's second input didn't move — provenance fully unchanged
 
         result = results_by_file_line.get((entry.get("file"), entry.get("line")))
-        if result is None or result["status"] != STATUS_UNCHANGED:
-            # Either no matching result (shouldn't happen — degrade safely,
-            # don't crash) or the query's OWN file already produced a real,
-            # more specific tier-2 verdict (e.g. its text changed) — that
-            # verdict is authoritative; don't overwrite it with a different
-            # DRIFTED detail about the entity instead.
+        if result is None or result["status"] not in (STATUS_UNCHANGED, STATUS_CONFIRMED):
+            # Re-derive the entity-provenance verdict only for citations whose
+            # OWN-file verdict is both silent about lineage AND still live:
+            #   STATUS_UNCHANGED  — query file untouched (tier 1)
+            #   STATUS_CONFIRMED  — query file changed but its text is intact;
+            #                       _recheck_queries() confirms TEXT presence,
+            #                       which says NOTHING about whether the lineage
+            #                       is still accurate, so it must still be checked
+            # Everything else is left exactly as-is:
+            #   STATUS_DRIFTED       — the own file already produced an
+            #                          authoritative negative (its text changed);
+            #                          more specific, don't clobber it
+            #   STATUS_FILE_DELETED  — the query's OWN file is gone; the whole
+            #                          citation is dead, not just its lineage
+            #   *_NO_SIGNATURE / ... — can't tell; don't invent a verdict
+            # (result is None shouldn't happen — every citation gets one — but
+            # degrade safely rather than KeyError if the two ever disagree.)
             continue
 
         fresh = fresh_entity_tables.get(entity)
         if fresh is None:
             result["status"] = STATUS_DRIFTED
             result["tier"] = 2
-            result["detail"] = (
-                f"JPQL lineage for this query was resolved via entity '{entity}', which "
-                f"persistence__entity no longer matches in its file ({entity_file}) — lineage cannot be confirmed"
-            )
+            if entity_file_deleted:
+                result["detail"] = (
+                    f"JPQL lineage for this query was resolved via entity '{entity}', whose "
+                    f"defining file ({entity_file}) was deleted — lineage cannot be confirmed"
+                )
+            else:
+                result["detail"] = (
+                    f"JPQL lineage for this query was resolved via entity '{entity}', which "
+                    f"persistence__entity no longer matches in its file ({entity_file}) — lineage cannot be confirmed"
+                )
         elif fresh.get("table") == entity_meta.get("table"):
             result["status"] = STATUS_CONFIRMED
             result["tier"] = 2
@@ -733,7 +763,7 @@ def check_drift(repo_path, signals, manifest=None):
     # after the per-file loop above finishes, not inside it: it needs
     # fresh_entity_tables fully populated regardless of whether a query's
     # own file or its entity's file happened to sort first.
-    _reverify_jpql_lineage_provenance(results, signals, fresh_entity_tables, changed_set)
+    _reverify_jpql_lineage_provenance(results, signals, fresh_entity_tables, changed_set, deleted_set)
 
     results.sort(key=lambda r: (r["file"] or "", r["line"] or 0, r["source"]))
     status_counts = Counter(r["status"] for r in results)
