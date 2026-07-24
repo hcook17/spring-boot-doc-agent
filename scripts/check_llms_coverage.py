@@ -16,6 +16,21 @@ that gap — mechanical coverage, not content quality (a pr-N.md that exists
 but is thin or wrong is still out of scope here, same boundary
 verify_llms_docs.py draws around its own "Expect:" prose).
 
+GRACE WINDOW FOR THE MOST-RECENTLY-MERGED PR
+A PR that adds a missing pr-N.md is itself a newly-merged PR with no pr-N.md
+of its own — a PR cannot document its own merge commit before that commit
+exists. Enforcing zero-gap coverage literally would mean every single PR
+forever needs an immediate, separate follow-up PR whose only content is
+documenting the PR before it (this happened for real, twice: PR #16 then
+PR #17). To break that regress, the single most-recently-merged PR (by
+`mergedAt`, not PR number — GitHub PR numbers are assigned at creation and
+don't strictly track merge order) is exempt from both checks below. This
+bounds the real requirement to "covered before the *next* PR merges" rather
+than "covered before this PR's own CI run finishes," which is impossible.
+See claude/llms/README.md for the companion convention (write a PR's own
+pr-N.md in the same PR, pinned to its head commit) that makes this
+exemption rarely even necessary in practice.
+
 REQUIRES: `gh` on PATH with GH_TOKEN in the environment to list merged PRs
 non-interactively (same requirement verify_llms_docs.py's `gh pr view` calls
 already have — see .github/workflows/ci.yml).
@@ -41,7 +56,7 @@ FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
 
 def get_merged_prs() -> List[dict]:
     proc = subprocess.run(
-        ["gh", "pr", "list", "--state", "merged", "--json", "number,title", "--limit", "200"],
+        ["gh", "pr", "list", "--state", "merged", "--json", "number,title,mergedAt", "--limit", "200"],
         cwd=str(REPO_ROOT),
         capture_output=True,
         text=True,
@@ -49,6 +64,15 @@ def get_merged_prs() -> List[dict]:
     if proc.returncode != 0:
         raise RuntimeError(f"gh pr list failed: {proc.stderr.strip()}")
     return json.loads(proc.stdout)
+
+
+def most_recently_merged(merged_prs: List[dict]) -> Optional[int]:
+    """Returns the PR number with the latest `mergedAt`, or None if empty.
+    `mergedAt` is zero-padded ISO 8601 (e.g. "2026-07-24T03:38:08Z"), so
+    plain string comparison sorts correctly without needing datetime parsing."""
+    if not merged_prs:
+        return None
+    return max(merged_prs, key=lambda pr: pr["mergedAt"])["number"]
 
 
 def parse_frontmatter(path: Path) -> Dict[str, str]:
@@ -75,12 +99,16 @@ def existing_docs(llms_dir: Path) -> Dict[int, Path]:
 def check_coverage(merged_prs: List[dict], llms_dir: Path) -> List[str]:
     """Pure-ish (only touches disk to read existing docs) so it's unit-testable
     without a live gh call. Returns a list of human-readable issue strings;
-    empty means clean."""
+    empty means clean. The single most-recently-merged PR is exempt from
+    both checks — see the module docstring's "GRACE WINDOW" section."""
     docs = existing_docs(llms_dir)
     issues = []
+    exempt_number = most_recently_merged(merged_prs)
 
     for pr in merged_prs:
         number = pr["number"]
+        if number == exempt_number:
+            continue
         title = pr.get("title", "")
         doc = docs.get(number)
         if doc is None:
@@ -114,9 +142,11 @@ def main() -> int:
         return 1
 
     issues = check_coverage(merged_prs, llms_dir)
+    exempt_number = most_recently_merged(merged_prs)
 
     if not issues:
-        print(f"OK: all {len(merged_prs)} merged PR(s) have an up-to-date claude/llms/pr-N.md.")
+        grace_note = f" (PR #{exempt_number} exempt as the most-recently-merged, per the grace window)" if exempt_number else ""
+        print(f"OK: all {len(merged_prs)} merged PR(s) have an up-to-date claude/llms/pr-N.md{grace_note}.")
         return 0
 
     print(f"claude/llms/ coverage check failed ({len(issues)} issue(s)):", file=sys.stderr)
