@@ -14,6 +14,12 @@ Every command is pinned to a commit SHA (or, for a still-open PR, its head branc
 | [#6](pr-6.md) | License and version update | merged (`08a588e`) |
 | [#7](pr-7.md) | Add CONTRIBUTING.md (write-then-verify rule) and STATUS.md | merged (`bfcb324`) |
 | [#8](pr-8.md) | Add structural tests for the four LLM pipeline stages | merged (`a0acc76`) |
-| [#13](pr-13.md) | Add semantic-pipeline-eval and capacity-preflight skills, plus a maturity assessment | open (`3254d67`) |
+| [#9](pr-9.md) | Add claude/llms/: deterministic-verification index for this repo's PR history | merged (`3454c4c`) |
+| [#10](pr-10.md) | Log PR #9 review findings; scaffold task prompt for repo's first CI job | merged (`19714dd`) |
+| [#11](pr-11.md) | Add this repo's first CI workflow and a claude/llms/ meta-verification script | merged (`6ea8ba5`) |
+| [#12](pr-12.md) | Add a heuristic secret-redaction layer for the doc-generation pipeline | merged (`52e3e87`) |
+| [#13](pr-13.md) | Add semantic-pipeline-eval and capacity-preflight skills, plus a maturity assessment | merged (`e8dbe89a`) |
+| [#14](pr-14.md) | Land two commits stranded after PR #13 merged early | merged (`b8d07f9`) |
+| [#15](pr-15.md) | Pin ast-grep-cli, sqllineage, pathspec via requirements.txt | merged (`9a517e3`) |
 
 Cross-linked from `STATUS.md` and `README.md`. See `claude/session-log.md` for the append-only history of which steering-prompt assumptions each of these PRs affected — this index is about verifying *what a PR did*, the session log is about *what it means for the steering prompts*. Different axis, same underlying discipline.
