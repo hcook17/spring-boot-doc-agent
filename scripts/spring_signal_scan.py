@@ -111,6 +111,20 @@ stage should be careful. Closes the gap CONSTRAINTS.md's "Secret/credential
 leakage" entry describes: Stage 1 (file-summarizer) reads full file
 content directly and had no signal telling it which lines not to
 transcribe into its own output.
+
+NOTE on config key sets (schema_version 5): output now also carries
+`config_key_sets`, a {file: [dotted.key.path, ...]} map for configuration/
+deployment files (see _config_keys.py for the mechanical, no-YAML-
+dependency extraction). Key *names* only, never values — same posture as
+redaction_zones above. This exists for spring_drift_check.py to tell apart
+two very different reasons a config file's content hash might change on
+re-scan: the key set itself changed (added/removed a property — an
+expected, structural evolution) versus the key set staying identical while
+the file's hash still changed (the only way that happens is a *value*
+changed under an unchanged key — worth flagging for review rather than
+treating as routine, in a setup where these files are checked-in
+placeholders and real values are injected by an external service at
+deploy time, per the framing this check was built for).
 """
 
 import argparse
@@ -124,6 +138,7 @@ import sys
 
 from _shared_excludes import DEFAULT_EXCLUDED_DIRS as EXCLUDED_DIRS, load_gitignore_spec
 from _secret_heuristics import scan_text_for_secrets
+from _config_keys import extract_config_keys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RULE_FILE = os.path.join(SCRIPT_DIR, "spring_ast_grep_rules.yml")
@@ -437,22 +452,36 @@ def _extract_query(multi_args):
     return query_kind, query_text
 
 
-def _flag_redaction_zones(full, rel, redaction_zones):
-    """Runs the secret heuristics (see _secret_heuristics.py) against one
-    configuration/deployment file and records any hits under `rel` in
-    `redaction_zones`. Only called for files already classified into the
-    "configuration"/"deployment" buckets below — the same file set, not a
-    second independent walk — and only records line + heuristic name, never
-    the matched value.
+def _process_config_deployment_file(full, rel, redaction_zones, config_key_sets):
+    """Runs both config-file heuristics — _secret_heuristics.py's value
+    scan and _config_keys.py's key-path extraction — against one
+    configuration/deployment file, reading it once rather than twice.
+    Only called for files already classified into the "configuration"/
+    "deployment" buckets below — the same file set, not a second
+    independent walk.
+
+    redaction_zones never carries the matched value, only line + heuristic
+    name (see _secret_heuristics.py). config_key_sets carries key *names*
+    only — those are the config's schema, not a secret in their own right —
+    used by spring_drift_check.py to tell "the config's shape changed"
+    (structural, expected) apart from "the same keys now hold different
+    values" (see _config_keys.py's docstring for why that distinction
+    matters more than value content in a deploy-time-injected-secrets
+    setup).
     """
     try:
         with open(full, "r", encoding="utf-8", errors="ignore") as f:
             text = f.read()
     except OSError:
         return  # same posture as compute_file_signature above: skip, don't abort the scan
+
     hits = scan_text_for_secrets(text)
     if hits:
         redaction_zones[rel] = hits
+
+    keys = extract_config_keys(text, os.path.basename(rel))
+    if keys:
+        config_key_sets[rel] = keys
 
 
 def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
@@ -468,6 +497,7 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
     files_scanned = {"java": 0, "config": 0, "deployment": 0, "other_relevant": 0}
     file_signatures = {}
     redaction_zones = {}
+    config_key_sets = {}
 
     # Pass 1 (plain Python, no parsing): filename-based buckets, plus a
     # java-file count for files_scanned. Unlike the regex-era version this
@@ -499,7 +529,7 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
         if any(p.match(name) for p in CONFIG_NAME_PATTERNS):
             files_scanned["config"] += 1
             buckets["configuration"].append({"file": rel, "match": "config file"})
-            _flag_redaction_zones(full, rel, redaction_zones)
+            _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
             continue
 
         if name in LOGGING_CONFIG_NAMES:
@@ -510,7 +540,7 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
         if name.startswith("Dockerfile") or re.match(r"docker-compose.*\.ya?ml$", name):
             files_scanned["deployment"] += 1
             buckets["deployment"].append({"file": rel, "match": "container/compose file"})
-            _flag_redaction_zones(full, rel, redaction_zones)
+            _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
             continue
 
         if ext in (".yml", ".yaml") and any(
@@ -518,7 +548,7 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
         ):
             files_scanned["deployment"] += 1
             buckets["deployment"].append({"file": rel, "match": "deployment manifest"})
-            _flag_redaction_zones(full, rel, redaction_zones)
+            _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
             continue
 
         if any(hint in rel for hint in MIGRATION_DIR_HINTS):
@@ -603,7 +633,7 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
         bucket.sort(key=lambda e: (e["file"], e.get("line", 0)))
 
     return {
-        "schema_version": 4,
+        "schema_version": 5,
         "repo_path": os.path.abspath(repo_path),
         "files_scanned": files_scanned,
         "entity_table_map": entity_table_map,
@@ -611,6 +641,7 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
         "file_signature_algorithm": "sha256",
         "file_signatures": file_signatures,
         "redaction_zones": redaction_zones,
+        "config_key_sets": config_key_sets,
     }
 
 
@@ -648,7 +679,8 @@ def main():
           f"Entities found: {len(result['entity_table_map'])}. "
           f"Evidence counts: {counts}. "
           f"Redaction zones flagged: {redaction_hit_count} line(s) across "
-          f"{len(result['redaction_zones'])} file(s).")
+          f"{len(result['redaction_zones'])} file(s). "
+          f"Config key sets recorded for {len(result['config_key_sets'])} file(s).")
 
 
 if __name__ == "__main__":
