@@ -1,6 +1,6 @@
 ---
 category: Testability
-status: not started
+status: resolved (2026-07-23) — scripts/test_pipeline_stages.py added, 17/17 passing; see claude/session-log.md and STATUS.md
 ---
 
 # Research + scaffold prompt: testability of the LLM stages
