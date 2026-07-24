@@ -36,3 +36,32 @@ Resolution / workaround: two complementary fixes, neither requiring new tooling:
    - `https://api.github.com/repos/<owner>/<repo>/pulls/<N>/files?per_page=100` — full unified diff (`patch` field) per changed file, plus additions/deletions/status.
    - `https://raw.githubusercontent.com/<owner>/<repo>/<branch-or-sha>/<path>` — full raw file content, for anything whose `patch` is large/omitted by the API too.
 2. **This repo's own `claude/llms/pr-N.md` convention can be written for a still-open PR, not just a merged one** — confirmed directly against `scripts/verify_llms_docs.py` (its parser is agnostic to merge state; it just scans for backtick-fenced `git`/`gh` commands and runs them against whatever ref is embedded) and `claude/llms/README.md` (which already names "a still-open PR, pinned to its head branch" as a supported case). Since the resulting file is a single plain-markdown file, it's *also* fetchable via `raw.githubusercontent.com` without hitting any JS rendering — writing one for an in-flight PR gives a read-only session a complete, curated, non-paginated summary instead of the diff UI, on top of (not instead of) fix 1 above.
+
+---
+
+## 2026-07-24 — `gh api repos/.../pulls/<N>` returns a stale `.head.sha` after a fast push, even though the branch ref itself updated correctly
+Tools/commands involved: `gh` CLI 2.96.0, `gh api repos/<owner>/<repo>/pulls/<N>`, `gh api repos/<owner>/<repo>/compare/<base>...<branch>`, `git ls-remote`
+Status: [Diagnosed — root cause identified, workaround confirmed]
+Symptom: after `git push` reported success (`13553ba..b4b23d3 add-semantic-eval-and-capacity-preflight -> add-semantic-eval-and-capacity-preflight`), both `gh pr view 13 --json commits` and `gh api repos/<owner>/<repo>/pulls/13 --jq '.head.sha'` kept reporting the *previous* commit (`13553ba`) as the PR's head for well over 30 seconds afterward (checked immediately, again after 5s, again after 30s, with a `Cache-Control: no-cache` header on one attempt — all stale). This came right after two earlier pushes to the same PR in the same session where the exact same check had updated correctly within a second or two of pushing, so it wasn't simply "this always lags."
+Diagnostic steps taken (re-runnable):
+    git ls-remote <repo-url> refs/heads/<branch>                              # ground truth: correctly showed the new commit immediately
+    gh api repos/<owner>/<repo>/pulls/<N> --jq '.head.sha'                    # stale — kept the prior commit
+    gh api repos/<owner>/<repo>/pulls/<N>/commits --jq '[.[].sha]'            # also stale — only listed the prior commits
+    gh api repos/<owner>/<repo>/compare/<base>...<branch> --jq '.commits[].sha'  # correct — showed the new commit immediately
+Resolution / workaround: the `pulls/{number}` endpoint's `head.sha`/`commits` fields specifically can lag behind the actual branch ref after a fast push — this is a read-side propagation/caching quirk on GitHub's `pulls` API object, not a failed push and not something wrong with the branch itself. When you need to confirm "did my push actually land" and the `pulls` endpoint looks stale, cross-check against `git ls-remote <url> refs/heads/<branch>` (ground truth) or `gh api repos/.../compare/<base>...<branch>` (also correct, and gives the full commit list) rather than concluding the push failed or retrying it. Root cause (why `pulls` specifically lags while `compare`/`ls-remote` don't) not identified — GitHub's own internals, not something diagnosable from this side. Not confirmed as a persistent pattern; if `pulls`'s `head.sha` lags again after a future push in this repo, note how long it took to catch up here to build a real time-bound expectation.
+
+---
+
+## 2026-07-24 — Continued pushing commits to a PR branch after the PR had already merged; those commits went into the void, not into main
+Tools/commands involved: `git push`, `gh pr create`/`gh pr view`, GitHub's own PR-merge semantics
+Status: [Resolved — recovered via cherry-pick, new PR opened; process gap identified]
+Symptom: PR #13 merged into `main` at commit `13553ba`. Two more commits (`b4b23d3`, `3d6e1d6`) were pushed to that same branch afterward, in the same working session, without checking whether the PR was still open. Both pushes reported success, and `git ls-remote`/`git fetch` correctly showed the branch's tip advancing each time — but none of that indicates whether the *PR* is still open to receive those commits. Since PR #13 was already `MERGED`, pushing more commits to its branch does not reopen the PR or add anything to `main` — they just sit on an orphaned branch, invisible unless something explicitly checks `git merge-base --is-ancestor <commit> origin/main`. The gap was only caught because the user noticed the GitHub UI/`gh pr view` weren't reflecting the latest push (which led into the separate `pulls`-endpoint staleness quirk logged above) — investigating *that* is what surfaced the real problem underneath it.
+Diagnostic steps taken (re-runnable):
+    gh pr view <N> --json state,mergedAt,mergeCommit --jq '{state, mergedAt, mergeCommit: .mergeCommit.oid}'   # confirms MERGED and the exact commit it merged at
+    git log --pretty="%H %P" -1 <merge_commit_sha>              # merge commit's second parent = the branch tip that actually got merged
+    git merge-base --is-ancestor <commit> origin/main && echo "in main" || echo "NOT in main"   # the actual check that should run before/after any push to a PR branch
+    # Repo-wide sweep for the same pattern across every branch:
+    git ls-remote --heads origin
+    gh pr list --state merged --limit 50 --json number,headRefName,mergeCommit
+    for b in <every still-existing branch>; do git merge-base --is-ancestor origin/$b origin/main || echo "$b: NOT in main"; done
+Resolution / workaround: recovered by cherry-picking the two stranded commits onto a fresh branch off current `main` and opening a new PR (#14), rather than trying to reuse or reopen the merged one. The repo-wide sweep above found no other instance of this pattern in this repo's history — isolated to PR #13. **The actual process fix, not just this incident's recovery**: before pushing another commit to an existing PR branch, check `gh pr view <N> --json state` (or `git merge-base --is-ancestor origin/main <branch-tip>` in the other direction — is the branch's base still where you think it is) first — don't assume a branch you were just working on is still an open target just because the local checkout/tracking state looks unchanged.
