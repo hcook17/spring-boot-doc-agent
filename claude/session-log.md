@@ -299,6 +299,8 @@ Assumptions affected:
 
 **Mirror-back manifest — repo → project, for a session with project access.** Only these six exist in the project. Overwrite each project copy from the repo at `main`, or diff first if you suspect the project side was edited directly:
 
+> **[Superseded 2026-07-24 — do not act on this table.]** The mirror-back was executed later the same day, and the diff that preceded it showed this table is wrong in two places: `02` needed no overwrite (already byte-identical), and `05` was two revisions behind rather than one. The `Action` column was inferred from commit counts, which is a proxy, not the fact. See the verified manifest in the entry below.
+
 | Prompt | Repo commits since the initial import (`8bb2404`) | Action |
 |---|---|---|
 | `00-shared-research-standards.md` | `5bd750b`, `e0200df` | Overwrite — two rounds of edits, most recent is the scope correction above |
@@ -311,3 +313,19 @@ Assumptions affected:
 
 `07`–`12` are deliberately absent from this table: they have no project copy, so there is nothing to mirror. Adding them to the project is a separate, optional decision — not a sync obligation.
 Files touched: CLAUDE.md, claude/steering-prompts/00-shared-research-standards.md, claude/session-log.md
+
+---
+
+## 2026-07-24 — Execute the mirror-back, and replace inference with a content diff
+Commit: uncommitted
+Tests: not run (markdown-only). Verified instead by reading all seven project copies back after writing and comparing byte-for-byte against the repo files — `cmp -s` reports MATCH on all seven, `02` included (it needed no write). This is the read-after-write rule `CONTRIBUTING.md` states, applied to `project_write` rather than the device bridge.
+Assumptions affected:
+- `claude/steering-prompts/00-shared-research-standards.md` — "the project copies of all six are probably stale", and "if someone *has* been editing the project copies directly ... the two have forked" — [Resolved — neither held as stated. Every project copy was diffed against *every* historical revision of its repo counterpart. `02` was byte-identical to the current repo file; `06` matched modulo a missing final newline on the repo side; `03` and `04` matched exactly at `c65d89e`. `00`, `01` and `05` matched no revision at all — because the import commit `8bb2404` **rewrote** them (condensed, and re-worded "in this project" → "in this repo"), so those three were never in sync at any point and were two revisions behind, not one. No project copy contains an edit that isn't either an exact ancestor of the repo file or the pre-import original, so nobody has edited the project side since creation: not a fork, and the overwrite was safe.]
+- `claude/steering-prompts/00-shared-research-standards.md` — "Nothing has been observed flowing the other way" — [New info — falsified, and the direction is subtler than either previous version of this paragraph. Timestamps put every project doc's creation *before* the repo commit carrying the same content (`02`/`03`/`04` created 20:33Z, committed in `c65d89e` at 20:41Z; `06` created 21:45Z, committed in `f38e8df` at 22:48Z). So all seven originated in the project and flowed *into* the repo. What has never happened is the return leg — which is what this session performed, for the first time.]
+- `claude/steering-prompts/06-wiredrift-check-task-prompt.md` — `status: not started` — [Resolved — corrected on the fourth flag rather than deferred a fourth time. Verified before editing: `README.md:39` has the "On drift detection" section, `skills/document-spring-repo/SKILL.md:52` has "Optional pre-flight: checking for drift before a full re-run", and `.github/workflows/ci.yml:48` runs `test_spring_drift_check.py` but never the tool itself — so "documented but not CI-triggered" is accurate as written. Also added the missing final newline; it was the only file under `claude/steering-prompts/` without one.]
+- The mirror-back manifest in the preceding entry — [Resolved — executed, and wrong in two rows while it was open. It inferred "needs overwrite" from commit count: `02` had a commit since import but needed no write, and `05` was listed as one revision behind when it was two. Commit count is a proxy for divergence; the diff is the fact. The table is now marked superseded in place rather than edited, so the inference error stays legible.]
+
+**Mirror-back status: done.** All six project copies now match the repo byte-for-byte, verified by read-back. `07`–`12` remain absent from the project by design.
+
+One unresolved naming mismatch, left deliberately: the repo file is `claude/steering-prompts/06-wiredrift-check-task-prompt.md` (no hyphen between "wire" and "drift"); the project doc is `06-wire-drift-check-task-prompt.md`. The project name is the correct spelling, but six repo files reference the repo spelling (`STATUS.md:17`, `claude/llms/pr-3.md:13`, and four lines in this log), so renaming either side is churn that belongs in its own change. Any future mirror must map the two names explicitly or it will create a duplicate project doc.
+Files touched: claude/steering-prompts/00-shared-research-standards.md, claude/steering-prompts/06-wiredrift-check-task-prompt.md, claude/session-log.md
