@@ -70,7 +70,7 @@ Separately, `skills/capacity-preflight/` turns this plugin's stated-but-unverifi
 
 ## Status and contributing
 
-`STATUS.md` at the plugin root is a single, in-place-edited snapshot of what's done vs. pending on this plugin's own scaffolding work, and the next concrete action — read it before picking up any of `claude/steering-prompts/`. `CONTRIBUTING.md` has this repo's write-then-verify rule for anything written through a device bridge, remote tool, or a prior session's unverified claim about repo state. `claude/llms/README.md` indexes this repo's own PR history, one file per PR, each pairing a summary with deterministic `git`/`grep` commands to verify its claims directly instead of trusting the prose.
+`STATUS.md` at the plugin root is a single, in-place-edited snapshot of what's done vs. pending on this plugin's own scaffolding work, and the next concrete action — read it before picking up any of `claude/steering-prompts/`. `CONTRIBUTING.md` has this repo's write-then-verify rule for anything written through a device bridge, remote tool, or a prior session's unverified claim about repo state. `claude/llms/README.md` indexes this repo's own PR history, one file per PR, each pairing a summary with deterministic `git`/`grep` commands to verify its claims directly instead of trusting the prose. `claude/tool-quirks.md` (see `skills/tool-quirks/SKILL.md`) is a separate index for odd behavior in the ambient tools/environment this repo is worked in — `gh`, `git`, MCP tools, Windows/Git-Bash quirks — distinct from this plugin's own document-generation logic.
 
 ## Install (local, not yet published)
 

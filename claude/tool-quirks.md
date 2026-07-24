@@ -1,0 +1,38 @@
+# Tool and environment quirks
+
+Append-only index of odd behavior in the *ambient tools/environment* used to work on this repo (`gh`, `git`, MCP tools, the shell, Windows-specific path handling) — not this plugin's own document-generation logic. See `skills/tool-quirks/SKILL.md` for when to check this before investigating, and when/how to add an entry. Distinct from `claude/session-log.md` (steering-prompt impact) and `claude/llms/` (this repo's own PR-verification commands).
+
+Newest entries at the bottom.
+
+---
+
+## 2026-07-24 — `gh pr create` produced a PR with a truncated title and the raw commit message as its body, instead of the passed `--title`/`--body`
+Tools/commands involved: `gh` CLI 2.96.0, non-TTY Git Bash (`tty` reports "not a tty"), `git push -u origin <branch>` immediately followed by `gh pr create --title ... --body "$(cat <<'EOF' ... EOF)"`
+Status: [Unresolved — needs research]
+Symptom: after `git push -u origin add-semantic-eval-and-capacity-preflight` (which only printed GitHub's standard "create a pull request by visiting: <url>" hint, not an actual creation), a subsequent `gh pr create --title "..." --body "..."` call failed with "a pull request... already exists," pointing at PR #13. `gh pr view 13 --json title,body` showed a title truncated mid-word with a real ellipsis character (`"...matu…"`, not a display artifact) and a body that was just the raw multi-line commit message — neither matched the `--title`/`--body` content that had been passed to any command actually run in this session.
+Diagnostic steps taken (re-runnable):
+    ls -la .git/hooks | grep -v sample          # no non-sample local hooks
+    git config --list --local                   # no custom hooks/push config
+    git config --global --list | grep -i "hook\|push\|pr\b"
+    git config --global core.hooksPath           # unset
+    gh config list                               # no auto-PR-related settings
+    gh alias list                                 # only a `co` alias, unrelated
+    gh api repos/<owner>/<repo>/hooks             # []  — no repo webhooks
+    gh api repos/<owner>/<repo>/installations     # 404 — no GitHub Apps installed
+    gh --version                                  # 2.96.0
+    tty                                            # "not a tty"
+    gh pr list --state merged --limit 5 --json number,title   # PRs #8-#12 in this same repo all have full, correct titles — no truncation, no commit-message-fallback pattern
+Resolution / workaround: fixed the immediate symptom directly — `gh pr edit <number> --title "..." --body "..."` — reconciles the PR's actual stored title/body with what was intended; verified with a follow-up `gh pr view --json title,body` read rather than trusting the edit command's exit code (the specific write-then-verify step that would have caught this originating problem earlier too). Root cause still not identified: no local/global git hooks, no repo webhooks, and no installed GitHub Apps account for it, and the same non-TTY environment produced correctly-titled/bodied PRs in this repo's own prior history (#8-#12), so it isn't simply "this environment always does this." Treat as a one-off until it recurs — if it does, the next occurrence should re-run the checklist above first and add whatever it finds to this entry rather than starting over.
+
+---
+
+## 2026-07-24 — A read-only (no git/gh access) session reviewing a PR via GitHub's web UI got an incompletely-loaded diff, and nearly reported the PR as reviewed anyway
+Tools/commands involved: GitHub web UI "Files changed" tab, a plain HTTP fetch tool (no JS execution), the `.diff`/`.patch` endpoints, a commit page
+Status: [Resolved — workaround identified, and a repo-level mitigation exists]
+Symptom: a Cowork session (no git/gh access — it can only fetch web pages) tried to review PR #13 by fetching its "Files changed" page. That page renders diffs progressively via JavaScript; a plain fetch only gets whatever HTML shell loaded before JS populated the diff hunks. 4 of 12 changed files loaded fully; the other 8 (including the two files most load-bearing for the review) showed unresolved "Loading…" placeholders. The `.diff` endpoint and the commit page were tried as fallbacks and both got blocked (permissions/robots-style rejection on unauthenticated scraping of those specific paths). The session correctly refused to claim the PR was verified off an incomplete page rather than silently treating a partial load as a full one.
+Diagnostic steps taken (re-runnable): none needed beyond noticing the "Loading…" placeholders and the blocked fallback endpoints — the fix here is a different request shape, not further diagnosis.
+Resolution / workaround: two complementary fixes, neither requiring new tooling:
+1. **For any file's full content or diff, use GitHub's REST API instead of the web UI** — plain JSON/text over HTTP, not JS-rendered, so a basic fetch gets the complete content in one shot:
+   - `https://api.github.com/repos/<owner>/<repo>/pulls/<N>/files?per_page=100` — full unified diff (`patch` field) per changed file, plus additions/deletions/status.
+   - `https://raw.githubusercontent.com/<owner>/<repo>/<branch-or-sha>/<path>` — full raw file content, for anything whose `patch` is large/omitted by the API too.
+2. **This repo's own `claude/llms/pr-N.md` convention can be written for a still-open PR, not just a merged one** — confirmed directly against `scripts/verify_llms_docs.py` (its parser is agnostic to merge state; it just scans for backtick-fenced `git`/`gh` commands and runs them against whatever ref is embedded) and `claude/llms/README.md` (which already names "a still-open PR, pinned to its head branch" as a supported case). Since the resulting file is a single plain-markdown file, it's *also* fetchable via `raw.githubusercontent.com` without hitting any JS rendering — writing one for an in-flight PR gives a read-only session a complete, curated, non-paginated summary instead of the diff UI, on top of (not instead of) fix 1 above.
