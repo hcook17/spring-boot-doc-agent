@@ -58,9 +58,15 @@ python3 scripts/test_pipeline_stages.py -v
 
 By default it runs against synthetic sample data shaped like each agent's documented output (no LLM calls — subagents can't be driven from a plain Python process outside a live session). Point `PIPELINE_ARTIFACTS_DIR` at a real completed run's output to additionally validate real generated docs, same opt-in pattern as `test_partition_repo_real_world.py`.
 
+## Semantic evaluation and capacity preflight
+
+`test_pipeline_stages.py` (above) only checks the *shape* of the four LLM stages' output — it never judges whether an `[Evidenced]` claim is actually true, or whether a `[Confirmed]` tag is really backed by a real interview answer. `skills/semantic-pipeline-eval/` adds that judgment layer: run it against a completed pipeline's `PIPELINE_ARTIFACTS_DIR` to sample evidenced claims for truthfulness, flag unmatched `[Confirmed]` tags and Mermaid syntax issues (via `scripts/semantic_eval_helpers.py`'s mechanical pre-pass), and check for cross-doc contradictions — see that skill's `SKILL.md` for the full rubric and its two-lane human sign-off (escalated findings, plus a random confidence spot-check over the judge's own `Supported` verdicts).
+
+Separately, `skills/capacity-preflight/` turns this plugin's stated-but-unverified scale assumptions (chars/N token heuristic, uncapped subagent fan-out, the repo-wide `references` bucket sent to every Stage-1 dispatch) into concrete numbers for one specific target repo before you commit to a full run — `scripts/capacity_preflight.py` imports `partition_repo.py`'s and `spring_signal_scan.py`'s own logic rather than re-estimating from scratch. Use it before pointing the pipeline at a large or unfamiliar repo.
+
 ## Constraints
 
-`CONSTRAINTS.md` at the plugin root is the single place that collects this plugin's real runtime prerequisites, integration gaps, precision tradeoffs, confidentiality rules, and enterprise-readiness gaps (license, CI, RBAC, audit trail, and more) — read it before evaluating this plugin for use beyond your own machine.
+`CONSTRAINTS.md` at the plugin root is the single place that collects this plugin's real runtime prerequisites, integration gaps, precision tradeoffs, confidentiality rules, and enterprise-readiness gaps (license, CI, RBAC, audit trail, and more) — read it before evaluating this plugin for use beyond your own machine. `MATURITY_ASSESSMENT.md` at the plugin root builds on top of it with an overall maturity scorecard, a drift-from-modern-practice analysis, and an adoption gate checklist — read that one specifically before adopting this plugin across an organization.
 
 ## Status and contributing
 

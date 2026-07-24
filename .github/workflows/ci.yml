@@ -57,6 +57,12 @@ jobs:
       - name: test_config_keys.py
         run: python3 scripts/test_config_keys.py -v
 
+      - name: test_semantic_eval_helpers.py
+        run: python3 scripts/test_semantic_eval_helpers.py -v
+
+      - name: test_capacity_preflight.py
+        run: python3 scripts/test_capacity_preflight.py -v
+
       - name: test_verify_llms_docs.py
         run: python3 scripts/test_verify_llms_docs.py -v
 
