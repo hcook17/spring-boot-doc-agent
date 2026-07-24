@@ -34,10 +34,14 @@ from unittest import mock
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 FIXTURE_DIR = os.path.join(SCRIPT_DIR, "test_fixtures", "spring_signals")
 RUN_MANIFEST_PATH = os.path.join(SCRIPT_DIR, "run_manifest.py")
+SCHEMA_PATH = os.path.join(SCRIPT_DIR, "run_manifest.schema.json")
 sys.path.insert(0, SCRIPT_DIR)
 
 import run_manifest  # noqa: E402
 import spring_signal_scan  # noqa: E402
+
+with open(SCHEMA_PATH, encoding="utf-8") as _f:
+    _SCHEMA = json.load(_f)
 
 
 def _fake_completed(returncode=0, stdout="", stderr=""):
@@ -45,17 +49,14 @@ def _fake_completed(returncode=0, stdout="", stderr=""):
 
 
 def validate_manifest_shape(data):
-    """Hand-written structural check against run_manifest.schema.json's
-    documented shape — the equivalent of test_pipeline_stages.py's own
-    structural validators, deliberately not a jsonschema-library-enforced
-    check (no new dependency). Returns a list of problem strings; empty
-    means the shape is valid."""
+    """Structural check against run_manifest.schema.json's documented shape —
+    the equivalent of test_pipeline_stages.py's own structural validators,
+    deliberately not a jsonschema-library-enforced check (no new dependency).
+    Required-key sets are read from the schema file itself (via _SCHEMA)
+    rather than restated here, so the two can't silently diverge. Returns a
+    list of problem strings; empty means the shape is valid."""
     problems = []
-    required_top = {
-        "schema_version", "run_id", "target_repo", "timestamp_start", "timestamp_end",
-        "status", "stages", "file_signatures", "evidence_tag_counts", "interview",
-        "capacity_preflight",
-    }
+    required_top = set(_SCHEMA["required"])
     missing = required_top - data.keys()
     if missing:
         problems.append(f"missing top-level keys: {sorted(missing)}")
@@ -67,12 +68,13 @@ def validate_manifest_shape(data):
         problems.append(f"unrecognized top-level status {data['status']!r}")
 
     tr = data["target_repo"]
-    for key in ("path", "commit_hash", "dirty"):
+    required_target_repo = set(_SCHEMA["properties"]["target_repo"]["required"])
+    for key in required_target_repo:
         if key not in tr:
             problems.append(f"target_repo missing key {key!r}")
 
+    required_stage = set(_SCHEMA["properties"]["stages"]["items"]["required"])
     for i, stage in enumerate(data["stages"]):
-        required_stage = {"name", "status", "start_time_ms", "end_time_ms", "duration_ms", "error", "actual_fanout"}
         stage_missing = required_stage - stage.keys()
         if stage_missing:
             problems.append(f"stage[{i}] missing keys: {sorted(stage_missing)}")
