@@ -27,3 +27,7 @@ Only tag an assumption `[Resolved]` if you're confident the prompt's stated prob
 ### Why this exists, not just what to do
 
 A Claude Code CLI session (this one) has full repo and git access but no access to the Claude project where the canonical steering prompts live. A Cowork session attached to that project has the reverse — it can read/edit the prompts but can't run git commands against this repo directly. `claude/session-log.md` is the one file that crosses that gap: cheap for this session to write (it already has full context of its own change), and small enough for the other session to read directly once it has folder access, without needing the full diff or `.git` history relayed by hand.
+
+## Tool and environment quirks
+
+`claude/tool-quirks.md` is a separate, append-only index from `claude/session-log.md` above — it's about odd behavior in the *ambient tools/environment* this repo is worked in (`gh`, `git`, MCP tools, Windows/Git-Bash-specific quirks), not this plugin's own document-generation logic. See `skills/tool-quirks/SKILL.md` for the full convention. Check it before deep-diving into something that looks like a tool bug; append an entry whenever you diagnose one (resolved, partially diagnosed, or still open) so the next session doesn't redo the investigation.
