@@ -23,7 +23,7 @@ Also search for how other Claude Code plugins document runtime prerequisites and
 
 ## What to scaffold and implement
 
-A single `CONSTRAINTS.md` at the plugin root, structured like `references/doc-taxonomy.md` structures per-file content — one entry per constraint, tagged by kind:
+A single `CONSTRAINTS.md` at the plugin root, structured like `skills/document-spring-repo/references/doc-taxonomy.md` structures per-file content (this plugin's `references/` convention lives per-skill, not at the repo root) — one entry per constraint, tagged by kind:
 
 - **Runtime prerequisite** — `ast-grep` on `PATH`; SQLLineage as a soft dependency (already well-documented in README, just needs cross-linking here).
 - **Integration gap, not a scope cut** — `spring_drift_check.py` exists and works standalone but isn't wired into `SKILL.md`'s pipeline or triggered by CI. State it accurately as "built, not yet integrated" rather than "doesn't exist" — that's a smaller, more honest, and more actionable gap.

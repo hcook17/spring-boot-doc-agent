@@ -167,14 +167,18 @@ class SpringSignalScanTest(unittest.TestCase):
         self.assertEqual(native["lineage"]["source_tables"], ["billing_invoice"])
         self.assertEqual(native["lineage"]["target_tables"], [])
 
-    def test_jpql_query_has_no_lineage_field(self):
-        # JPQL references entity names, not table names, and isn't valid
-        # SQL grammar at all — lineage extraction is never attempted for
-        # it, not attempted-and-failed. The field should be absent
-        # entirely, not present with available: false.
+    def test_jpql_query_resolves_lineage_via_entity_table_map(self):
+        # The fixture's JPQL query ("SELECT i FROM Invoice i WHERE
+        # i.status = :status") is exactly the bounded single-entity case
+        # resolve_jpql_to_lineage() handles: Invoice -> billing_invoice via
+        # entity_table_map (Invoice.java's @Table(name="billing_invoice")),
+        # alias "i." stripped, then fed through the same extract_sql_lineage()
+        # native queries use. Real integration path, not a mocked lookup.
         entries = self._entries_for("raw_queries", "InvoiceRepository.java")
         jpql = next(e for e in entries if e["query_kind"] == "jpql")
-        self.assertNotIn("lineage", jpql)
+        self.assertIn("lineage", jpql)
+        self.assertTrue(jpql["lineage"]["available"], jpql["lineage"].get("reason"))
+        self.assertEqual(jpql["lineage"]["source_tables"], ["billing_invoice"])
 
     # ---- api_surface / security ----
 
@@ -294,6 +298,98 @@ class SqlLineageExtractionTest(unittest.TestCase):
         finally:
             spring_signal_scan._SQLLINEAGE_AVAILABLE = original
         self.assertEqual(result, {"available": False, "reason": "sqllineage not installed"})
+
+
+class JpqlLineageResolutionTest(unittest.TestCase):
+    """Unit-level tests against resolve_jpql_to_lineage() directly, with a
+    synthetic entity_table_map — covers the bounded resolver's happy path
+    plus each explicitly-out-of-scope case named in its own docstring
+    (multi-entity FROM, association traversal, JPQL-only functions, an
+    unresolved entity name). SpringSignalScanTest.test_jpql_query_resolves_
+    lineage_via_entity_table_map covers the same happy path through the
+    real scan()/entity_table_map integration; these are the narrower unit
+    cases that don't need a fixture repo."""
+
+    ENTITY_TABLE_MAP = {
+        "Invoice": {"table": "billing_invoice", "table_name_source": "explicit"},
+        "Customer": {"table": "customer", "table_name_source": "inferred-default-naming"},
+    }
+
+    def test_single_entity_query_resolves(self):
+        result = spring_signal_scan.resolve_jpql_to_lineage(
+            "SELECT i FROM Invoice i WHERE i.status = :status", self.ENTITY_TABLE_MAP
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        self.assertEqual(result["source_tables"], ["billing_invoice"])
+
+    def test_resolved_lineage_records_which_entity_it_used(self):
+        # Drift-check needs this to detect a cross-file dependency: a JPQL
+        # citation's lineage can go stale because the *entity's* file
+        # changed (e.g. @Table renamed), not the query's own file — see
+        # spring_drift_check.py's _query_citations_depending_on_entity().
+        result = spring_signal_scan.resolve_jpql_to_lineage(
+            "SELECT i FROM Invoice i WHERE i.status = :status", self.ENTITY_TABLE_MAP
+        )
+        self.assertEqual(result["resolved_via_entity"], "Invoice")
+
+    def test_unresolved_lineage_has_no_resolved_via_entity(self):
+        result = spring_signal_scan.resolve_jpql_to_lineage(
+            "SELECT i FROM Invoice i JOIN i.customer c WHERE c.active = true", self.ENTITY_TABLE_MAP
+        )
+        self.assertNotIn("resolved_via_entity", result)
+
+    def test_query_with_as_keyword_resolves(self):
+        result = spring_signal_scan.resolve_jpql_to_lineage(
+            "SELECT c FROM Customer AS c WHERE c.active = true", self.ENTITY_TABLE_MAP
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        self.assertEqual(result["source_tables"], ["customer"])
+
+    def test_multi_entity_from_clause_out_of_scope(self):
+        result = spring_signal_scan.resolve_jpql_to_lineage(
+            "SELECT i FROM Invoice i, Customer c WHERE i.customerId = c.id", self.ENTITY_TABLE_MAP
+        )
+        self.assertFalse(result["available"])
+        self.assertIn("out of scope", result["reason"])
+
+    def test_join_clause_out_of_scope(self):
+        result = spring_signal_scan.resolve_jpql_to_lineage(
+            "SELECT i FROM Invoice i JOIN i.customer c WHERE c.active = true", self.ENTITY_TABLE_MAP
+        )
+        self.assertFalse(result["available"])
+        self.assertIn("out of scope", result["reason"])
+
+    def test_association_traversal_out_of_scope(self):
+        result = spring_signal_scan.resolve_jpql_to_lineage(
+            "SELECT i FROM Invoice i WHERE i.customer.name = :name", self.ENTITY_TABLE_MAP
+        )
+        self.assertFalse(result["available"])
+        self.assertIn("association-traversal", result["reason"])
+
+    def test_jpql_only_function_out_of_scope(self):
+        result = spring_signal_scan.resolve_jpql_to_lineage(
+            "SELECT i FROM Invoice i WHERE SIZE(i.lineItems) > 0", self.ENTITY_TABLE_MAP
+        )
+        self.assertFalse(result["available"])
+        self.assertIn("JPQL-only", result["reason"])
+
+    def test_unresolved_entity_name_out_of_scope(self):
+        # Not in entity_table_map at all — e.g. an @Entity(name=...) override
+        # this scanner doesn't currently extract, or a genuinely unscanned
+        # entity. Must degrade, not KeyError.
+        result = spring_signal_scan.resolve_jpql_to_lineage(
+            "SELECT p FROM Payment p WHERE p.status = :status", self.ENTITY_TABLE_MAP
+        )
+        self.assertFalse(result["available"])
+        self.assertIn("not found in entity_table_map", result["reason"])
+
+    def test_no_from_clause_out_of_scope(self):
+        # JPQL bulk UPDATE/DELETE don't use FROM at all — the resolver
+        # should degrade cleanly, not assume a SELECT-shaped query.
+        result = spring_signal_scan.resolve_jpql_to_lineage(
+            "UPDATE Invoice i SET i.status = :status WHERE i.id = :id", self.ENTITY_TABLE_MAP
+        )
+        self.assertFalse(result["available"])
 
 
 class ReferencesBucketTest(unittest.TestCase):
