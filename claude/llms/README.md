@@ -29,5 +29,6 @@ Every command is pinned to a commit SHA (or, for a still-open PR, its head branc
 | [#19](pr-19.md) | CONSTRAINTS.md: add solo-context note; flag coverage-exemption heuristic as provisional | merged (`0d7f727`) |
 | [#20](pr-20.md) | Add claude/llms/pr-18.md (grace window shifted forward as designed) | merged (`99804af`) |
 | #21 | Add claude/llms/pr-19.md (grace window shifted forward again) | merged (`bd66860`) — exempt as most-recently-merged |
+| [#28](pr-28.md) | Sync status docs, fix ast-grep test-killing bug, resolve bounded JPQL lineage | open (`824b3b7`) |
 
 Cross-linked from `STATUS.md` and `README.md`. See `claude/session-log.md` for the append-only history of which steering-prompt assumptions each of these PRs affected — this index is about verifying *what a PR did*, the session log is about *what it means for the steering prompts*. Different axis, same underlying discipline.
