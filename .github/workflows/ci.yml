@@ -25,16 +25,16 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          # No version is pinned anywhere else in this repo (no
-          # requirements.txt/pyproject.toml, confirmed absent — see
-          # CONSTRAINTS.md's "Runtime prerequisites" item 4); 3.11 is a
-          # deliberate, modern default, not an assumption carried over from
-          # elsewhere.
+          # 3.11 is a deliberate, modern default, not an assumption carried
+          # over from elsewhere. Third-party package versions are pinned in
+          # requirements.txt (see CONSTRAINTS.md's "Runtime prerequisites"
+          # item 4); the Python interpreter version itself isn't pinned via
+          # that file, so this stays a hardcoded default.
           python-version: "3.11"
 
       - name: Install Python dependencies
         run: |
-          pip install ast-grep-cli sqllineage pathspec
+          pip install -r requirements.txt
 
       - name: Verify ast-grep is on PATH
         run: ast-grep --version
