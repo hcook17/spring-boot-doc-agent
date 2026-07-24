@@ -26,6 +26,7 @@ Every command is pinned to a commit SHA (or, for a still-open PR, its head branc
 | [#16](pr-16.md) | Add claude/llms/ coverage check; backfill pr-9..15.md; fix stale pr-13.md | merged (`1e6467b`) |
 | [#17](pr-17.md) | Add claude/llms/pr-16.md (closes the recursive coverage gap) | merged (`85290ee`) |
 | [#18](pr-18.md) | Fix infinite-regress bug in claude/llms/ coverage enforcement | merged (`5726135`) |
-| #19 | CONSTRAINTS.md: add solo-context note; flag coverage-exemption heuristic as provisional | merged (`0d7f727`) — exempt as most-recently-merged, no pr-19.md yet |
+| [#19](pr-19.md) | CONSTRAINTS.md: add solo-context note; flag coverage-exemption heuristic as provisional | merged (`0d7f727`) |
+| #20 | Add claude/llms/pr-18.md (grace window shifted forward as designed) | merged (`99804af`) — exempt as most-recently-merged, no pr-20.md yet |
 
 Cross-linked from `STATUS.md` and `README.md`. See `claude/session-log.md` for the append-only history of which steering-prompt assumptions each of these PRs affected — this index is about verifying *what a PR did*, the session log is about *what it means for the steering prompts*. Different axis, same underlying discipline.
