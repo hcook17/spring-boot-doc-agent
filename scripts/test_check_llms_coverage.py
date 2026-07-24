@@ -204,5 +204,17 @@ class CheckCoverageTest(unittest.TestCase):
         self.assertEqual(issues, [])
 
 
+class ExitCodeTest(unittest.TestCase):
+    def test_no_issues_is_always_zero_regardless_of_enforce(self):
+        self.assertEqual(c.exit_code([], enforce=True), 0)
+        self.assertEqual(c.exit_code([], enforce=False), 0)
+
+    def test_issues_fail_when_enforced(self):
+        self.assertEqual(c.exit_code(["something"], enforce=True), 1)
+
+    def test_issues_are_non_blocking_when_not_enforced(self):
+        self.assertEqual(c.exit_code(["something"], enforce=False), 0)
+
+
 if __name__ == "__main__":
     unittest.main()
