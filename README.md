@@ -22,7 +22,7 @@ Every generated file tags its claims as **evidenced in code**, **confirmed in in
 
 ## On the deterministic scan (`spring_signal_scan.py`)
 
-Java structural detection runs on [ast-grep](https://ast-grep.github.io/) (tree-sitter-based AST matching), not regex — see `scripts/spring_ast_grep_rules.yml` for the rule set. It's still source-text analysis, not bytecode — no build step or classpath required, at some cost in precision (it won't resolve inherited annotations or interfaces implemented indirectly). Needs the `ast-grep` binary on `PATH`:
+Java structural detection runs on [ast-grep](https://ast-grep.github.io/) (tree-sitter-based AST matching), not regex — see `scripts/spring_ast_grep_rules.yml` for the rule set. It's still source-text analysis, not bytecode — no build step or classpath required, at some cost in precision (it won't resolve inherited annotations or interfaces implemented indirectly). See `claude/research/source-text-vs-bytecode-analysis.md` for a deeper comparison against compiled-bytecode/ArchUnit-style analysis. Needs the `ast-grep` binary on `PATH`:
 
 ```bash
 cargo install ast-grep       # or: npm install -g @ast-grep/cli
