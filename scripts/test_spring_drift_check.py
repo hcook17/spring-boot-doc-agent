@@ -23,12 +23,14 @@ Requires: ast-grep on PATH (same requirement as test_spring_signal_scan.py).
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 FIXTURE_DIR = os.path.join(SCRIPT_DIR, "test_fixtures", "spring_signals")
+DRIFT_CHECK_PATH = os.path.join(SCRIPT_DIR, "spring_drift_check.py")
 sys.path.insert(0, SCRIPT_DIR)
 
 import spring_signal_scan  # noqa: E402
@@ -281,6 +283,84 @@ class SpringDriftCheckTest(unittest.TestCase):
         report = spring_drift_check.check_drift(self.repo, baseline_missing_sig)
         citation = next(r for r in report["results"] if r["file"] == "Dockerfile")
         self.assertEqual(citation["status"], spring_drift_check.STATUS_UNKNOWN_NO_SIGNATURE)
+
+    # ---- --manifest: run_manifest.json as the tier-1 baseline ----
+
+    def test_no_manifest_baseline_source_is_spring_signals(self):
+        report = self._drift()
+        self.assertEqual(report["file_signatures_baseline"], {"source": "spring_signals.json"})
+
+    def test_manifest_baseline_used_for_tier1_instead_of_signals(self):
+        # A manifest whose file_signatures already reflects the edit below
+        # (i.e. it was "taken after" the edit) must see the file as
+        # unchanged even though spring_signals.json's own baseline predates
+        # the edit and would otherwise flag it.
+        _edit(
+            os.path.join(self.repo, "LegacyAudit.java"),
+            "@Entity\npublic class LegacyAudit {",
+            '@Entity\n@Table(name = "legacy_audit_v2")\npublic class LegacyAudit {',
+        )
+        post_edit_scan = spring_signal_scan.scan(self.repo)
+        manifest = {
+            "run_id": "2026-07-25T00:00:00Z-deadbeef",
+            "target_repo": {"path": self.repo, "commit_hash": "deadbeef", "dirty": False},
+            "file_signatures": post_edit_scan["file_signatures"],
+        }
+
+        report = spring_drift_check.check_drift(self.repo, self.baseline, manifest=manifest)
+
+        self.assertNotIn("LegacyAudit.java", report["file_summary"]["changed"])
+        self.assertEqual(
+            report["file_signatures_baseline"],
+            {"source": "run_manifest.json", "run_id": "2026-07-25T00:00:00Z-deadbeef",
+             "commit_hash": "deadbeef", "dirty": False},
+        )
+
+    def test_manifest_still_requires_signals_for_tier2_evidence(self):
+        # Even with a manifest supplying the tier-1 baseline, tier-2 citation
+        # content (entity/table mapping etc.) must still come from signals —
+        # a manifest alone has no evidence/entity_table_map to check against.
+        manifest = {
+            "run_id": "x", "target_repo": {"commit_hash": None, "dirty": None},
+            "file_signatures": self.baseline["file_signatures"],
+        }
+        report = spring_drift_check.check_drift(self.repo, self.baseline, manifest=manifest)
+        entity_citation = _by_source(report, "entity_table_map.LegacyAudit")
+        self.assertIsNotNone(entity_citation, "tier-2 citations must still come from signals, manifest or no manifest")
+
+    def test_load_manifest_rejects_file_with_no_file_signatures(self):
+        with tempfile.TemporaryDirectory() as d:
+            bad_path = os.path.join(d, "bad_manifest.json")
+            with open(bad_path, "w") as f:
+                json.dump({"run_id": "x"}, f)
+            with self.assertRaises(SystemExit):
+                spring_drift_check.load_manifest(bad_path)
+
+    def test_cli_accepts_manifest_flag_and_reports_its_source(self):
+        with tempfile.TemporaryDirectory() as d:
+            signals_path = os.path.join(d, "spring_signals.json")
+            with open(signals_path, "w") as f:
+                json.dump(self.baseline, f)
+            manifest_path = os.path.join(d, "run_manifest.json")
+            with open(manifest_path, "w") as f:
+                json.dump({
+                    "run_id": "cli-test", "target_repo": {"commit_hash": "cafef00d", "dirty": True},
+                    "file_signatures": self.baseline["file_signatures"],
+                }, f)
+            out_path = os.path.join(d, "drift_report.json")
+
+            result = subprocess.run(
+                [sys.executable, DRIFT_CHECK_PATH, self.repo, signals_path,
+                 "--manifest", manifest_path, "--out", out_path],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("run_manifest.json", result.stdout)
+
+            with open(out_path) as f:
+                report = json.load(f)
+            self.assertEqual(report["file_signatures_baseline"]["source"], "run_manifest.json")
+            self.assertEqual(report["file_signatures_baseline"]["run_id"], "cli-test")
 
 
 if __name__ == "__main__":
