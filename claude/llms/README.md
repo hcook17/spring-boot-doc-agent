@@ -13,6 +13,6 @@ Every command is pinned to a commit SHA (or, for a still-open PR, its head branc
 | [#5](pr-5.md) | Fix README.md merge artifact from PR #3/#4 | merged (`79e0b7d`) |
 | [#6](pr-6.md) | License and version update | merged (`08a588e`) |
 | [#7](pr-7.md) | Add CONTRIBUTING.md (write-then-verify rule) and STATUS.md | merged (`bfcb324`) |
-| [#8](pr-8.md) | Add structural tests for the four LLM pipeline stages | open (`testability-pipeline-stages`) |
+| [#8](pr-8.md) | Add structural tests for the four LLM pipeline stages | merged (`a0acc76`) |
 
 Cross-linked from `STATUS.md` and `README.md`. See `claude/session-log.md` for the append-only history of which steering-prompt assumptions each of these PRs affected — this index is about verifying *what a PR did*, the session log is about *what it means for the steering prompts*. Different axis, same underlying discipline.
