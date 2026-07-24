@@ -121,10 +121,41 @@ writes JSON only. No GitHub Actions / CI wiring — this is a script you run
 by hand, pointing it at a repo and a prior scan. All three were
 deliberately scoped out of this tool; ask before adding any of them here.
 
+OPTIONAL --manifest: WHICH file_signatures BASELINE TO TRUST
+spring_signals.json's own file_signatures (the raw Stage 0 scan) is still
+the default tier-1 baseline and is always sufficient on its own. But a
+document-spring-repo pipeline run's run_manifest.json (scripts/run_manifest.py)
+independently records file_signatures too — either copied from the same
+spring_signals.json, or a fresh re-hash at `finalize` time if the run
+wasn't handed a --signals-file. When both exist and might disagree (e.g.
+several pipeline runs happened against one older spring_signals.json scan,
+or the repo changed between the scan and the run that actually produced
+the currently-published docs), pass --manifest run_manifest.json to use
+its file_signatures as the tier-1 baseline instead of spring_signals.json's.
+spring_signals.json is still required either way, for tier-2 evidence
+(evidence/entity_table_map) that run_manifest.json never carries.
+
+This is a provenance choice, not a "prefer whichever is newer" heuristic:
+run_manifest.json's target_repo.commit_hash is a record of what repo state
+the run that produced the *currently published* docs actually saw, which is
+the thing drift should be measured against — not just "the most recent
+hash available." (Prior art: fiberplane/drift, a doc-rot linter, resolves
+the same kind of multi-baseline ambiguity by preferring an explicitly
+stamped provenance commit over a recency-based fallback; see
+claude/drift-check-manifest-baseline-research-2026-07-25.md for the full
+research this design followed.) No arXiv paper was found addressing
+multi-baseline selection directly for this kind of tool — noted there
+rather than overclaiming precedent.
+
 Usage:
     python3 spring_signal_scan.py <repo_path> --out spring_signals.json
     # ... time passes, repo changes ...
     python3 spring_drift_check.py <repo_path> spring_signals.json --out drift_report.json
+
+    # Or, to measure drift against the specific pipeline run that produced
+    # the currently-published docs, rather than the raw scan:
+    python3 spring_drift_check.py <repo_path> spring_signals.json \\
+        --manifest run_manifest.json --out drift_report.json
 """
 
 import argparse
@@ -169,6 +200,26 @@ def load_signals(path):
             f"or rule_id on evidence entries — both required for drift "
             f"detection. Re-run spring_signal_scan.py against the repo to "
             f"regenerate it, then re-run this tool against the new file.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return data
+
+
+def load_manifest(path):
+    """Load an optional run_manifest.json to use as the tier-1 file_signatures
+    baseline instead of spring_signals.json's own — see the module docstring's
+    "OPTIONAL --manifest" section for why this is a provenance choice, not a
+    recency heuristic. Only file_signatures (plus target_repo, for the report's
+    own provenance metadata) is used from it; run_manifest.json's other fields
+    (stages, evidence_tag_counts, interview, ...) are irrelevant here."""
+    with open(path) as f:
+        data = json.load(f)
+    if "file_signatures" not in data:
+        print(
+            f"error: '{path}' has no 'file_signatures' field — is this a real "
+            f"run_manifest.json (from scripts/run_manifest.py)? Not usable as a "
+            f"tier-1 baseline.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -400,8 +451,23 @@ def tier2_recheck_file(repo_path, file_rel, citations_for_file, ast_grep_path):
     return results
 
 
-def check_drift(repo_path, signals):
-    old_signatures = signals.get("file_signatures", {})
+def check_drift(repo_path, signals, manifest=None):
+    """manifest: optional run_manifest.json dict (see load_manifest()). When
+    given, its file_signatures is the tier-1 baseline instead of signals' own
+    — signals is still required regardless, for tier-2 evidence/entity_table_map
+    that run_manifest.json never carries."""
+    if manifest is not None:
+        old_signatures = manifest.get("file_signatures", {})
+        baseline_provenance = {
+            "source": "run_manifest.json",
+            "run_id": manifest.get("run_id"),
+            "commit_hash": manifest.get("target_repo", {}).get("commit_hash"),
+            "dirty": manifest.get("target_repo", {}).get("dirty"),
+        }
+    else:
+        old_signatures = signals.get("file_signatures", {})
+        baseline_provenance = {"source": "spring_signals.json"}
+
     current_signatures = tier1_scan(repo_path)
     classification = classify_files(old_signatures, current_signatures)
     changed_set = set(classification["changed"])
@@ -470,6 +536,7 @@ def check_drift(repo_path, signals):
     return {
         "repo_path": os.path.abspath(repo_path),
         "prior_scan_repo_path": signals.get("repo_path"),
+        "file_signatures_baseline": baseline_provenance,
         "file_summary": classification,
         "citations_checked": len(results),
         "status_counts": dict(status_counts),
@@ -482,6 +549,13 @@ def main():
     ap.add_argument("repo_path")
     ap.add_argument("signals_path", help="prior spring_signals.json to check for drift (schema_version >= 2)")
     ap.add_argument("--out", default="drift_report.json")
+    ap.add_argument(
+        "--manifest", default=None,
+        help="optional run_manifest.json (scripts/run_manifest.py) whose file_signatures "
+             "is used as the tier-1 baseline instead of signals_path's own — see module "
+             "docstring's 'OPTIONAL --manifest' section. signals_path is still required, "
+             "for tier-2 evidence run_manifest.json doesn't carry.",
+    )
     args = ap.parse_args()
 
     if not os.path.isdir(args.repo_path):
@@ -490,16 +564,21 @@ def main():
     if not os.path.isfile(args.signals_path):
         print(f"error: not a file: {args.signals_path}", file=sys.stderr)
         sys.exit(1)
+    if args.manifest is not None and not os.path.isfile(args.manifest):
+        print(f"error: not a file: {args.manifest}", file=sys.stderr)
+        sys.exit(1)
 
     signals = load_signals(args.signals_path)
-    report = check_drift(args.repo_path, signals)
+    manifest = load_manifest(args.manifest) if args.manifest is not None else None
+    report = check_drift(args.repo_path, signals, manifest=manifest)
 
     with open(args.out, "w") as f:
         json.dump(report, f, indent=2)
 
     fs = report["file_summary"]
     print(
-        f"Wrote {args.out}. Citations checked: {report['citations_checked']}. "
+        f"Wrote {args.out}. Tier-1 baseline: {report['file_signatures_baseline']['source']}. "
+        f"Citations checked: {report['citations_checked']}. "
         f"Status counts: {report['status_counts']}. "
         f"Files: {len(fs['unchanged'])} unchanged, {len(fs['changed'])} changed, "
         f"{len(fs['deleted'])} deleted, {len(fs['added'])} added (added files carry "

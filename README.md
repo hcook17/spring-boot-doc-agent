@@ -42,7 +42,15 @@ Once you have a `spring_signals.json` from a prior scan of a repo, `scripts/spri
 python3 scripts/spring_signal_scan.py <repo_path> --out spring_signals.json
 # ... time passes, repo changes ...
 python3 scripts/spring_drift_check.py <repo_path> spring_signals.json --out drift_report.json
+
+# Or, to measure drift against a specific document-spring-repo pipeline run's
+# run_manifest.json instead of the raw scan (its target_repo.commit_hash is a
+# provenance record of exactly what the currently-published docs saw):
+python3 scripts/spring_drift_check.py <repo_path> spring_signals.json \
+    --manifest run_manifest.json --out drift_report.json
 ```
+
+`spring_signals.json` is required either way — `run_manifest.json` records `file_signatures` (the tier-1 baseline `--manifest` overrides) but never `evidence`/`entity_table_map`, which tier 2 needs regardless of which baseline is used.
 
 Tested via `python3 scripts/test_spring_drift_check.py -v`, a real integration test suite (real `ast-grep` subprocesses against mutated copies of the same fixture repo `test_spring_signal_scan.py` uses) — see `skills/document-spring-repo/SKILL.md`'s Stage 0 for how to use the report as a pre-flight check before deciding whether a full pipeline re-run is warranted.
 
