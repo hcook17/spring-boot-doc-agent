@@ -95,6 +95,16 @@ Never silently overwrite an existing `README.md` at the repo root — if one exi
 
 Tell the user what was written, and — importantly — surface a short summary of what ended up in "Unknown" across all fourteen files, so they can see at a glance what the interview didn't cover and decide whether it's worth a follow-up pass.
 
+### Optional post-run check: confidentiality (secret leakage)
+
+`spring_signals.json`'s `redaction_zones` (see `scripts/_secret_heuristics.py`) tells Stage 1/Stage 4 subagents which config/deployment lines look like they carry a real credential, and both `agents/file-summarizer.md` and `agents/doc-writer.md` are instructed not to transcribe those values. An instruction to a subagent is not a guarantee, though — the same way `spring_drift_check.py` mechanically re-verifies a citation rather than trusting it's still accurate, you can mechanically re-check whether a credential-shaped value actually made it into this run's own output:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check_no_secrets_leaked.py" summaries.json docs/
+```
+
+Exits non-zero and prints `file:line` (never the matched value itself) if it finds one. Heuristic, not exhaustive — see that script's and `_secret_heuristics.py`'s own docstrings for what it does and doesn't catch. Standalone, like `spring_drift_check.py` above: not invoked automatically by this pipeline, and not CI-wired (this repo's CI has no target-repo run to check output from — see `CONSTRAINTS.md`).
+
 ## Testing this pipeline's own output
 
 `scripts/test_pipeline_stages.py` is a mechanical (not LLM-judge) structural test suite for the four LLM stages above — file-summarizer, architect-segment/architect-merge, gap-analyzer, doc-writer — none of which had any test coverage before this file, unlike the deterministic Stage 0 scripts. Run it the same way as the other suites:

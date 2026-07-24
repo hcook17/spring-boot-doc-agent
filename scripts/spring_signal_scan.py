@@ -98,6 +98,19 @@ structure, not bound values. The dialect used is a CLI flag (`--sql-dialect`,
 default "ansi", sqllineage's own generic baseline) since this scanner has
 no way to know the target database; pass the real one (e.g. "mysql",
 "postgres", "oracle") for better accuracy if you know it.
+
+NOTE on redaction zones (schema_version 4): output now also carries
+`redaction_zones`, a {file: [{"line", "heuristic"}, ...]} map of lines in
+configuration/deployment files that look like they carry a real credential
+(see _secret_heuristics.py, same directory, for the detection rules and
+why this is heuristic rather than exhaustive). This never carries the
+matched value itself, only its location and which heuristic fired — the
+scanner stays exactly as clean as it was before (never reads config
+*values* into its own output), it just now also flags *where* a later
+stage should be careful. Closes the gap CONSTRAINTS.md's "Secret/credential
+leakage" entry describes: Stage 1 (file-summarizer) reads full file
+content directly and had no signal telling it which lines not to
+transcribe into its own output.
 """
 
 import argparse
@@ -110,6 +123,7 @@ import subprocess
 import sys
 
 from _shared_excludes import DEFAULT_EXCLUDED_DIRS as EXCLUDED_DIRS, load_gitignore_spec
+from _secret_heuristics import scan_text_for_secrets
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RULE_FILE = os.path.join(SCRIPT_DIR, "spring_ast_grep_rules.yml")
@@ -423,6 +437,24 @@ def _extract_query(multi_args):
     return query_kind, query_text
 
 
+def _flag_redaction_zones(full, rel, redaction_zones):
+    """Runs the secret heuristics (see _secret_heuristics.py) against one
+    configuration/deployment file and records any hits under `rel` in
+    `redaction_zones`. Only called for files already classified into the
+    "configuration"/"deployment" buckets below — the same file set, not a
+    second independent walk — and only records line + heuristic name, never
+    the matched value.
+    """
+    try:
+        with open(full, "r", encoding="utf-8", errors="ignore") as f:
+            text = f.read()
+    except OSError:
+        return  # same posture as compute_file_signature above: skip, don't abort the scan
+    hits = scan_text_for_secrets(text)
+    if hits:
+        redaction_zones[rel] = hits
+
+
 def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
     gitignore_spec = load_gitignore_spec(repo_path) if respect_gitignore else None
 
@@ -435,6 +467,7 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
     entity_table_map = {}
     files_scanned = {"java": 0, "config": 0, "deployment": 0, "other_relevant": 0}
     file_signatures = {}
+    redaction_zones = {}
 
     # Pass 1 (plain Python, no parsing): filename-based buckets, plus a
     # java-file count for files_scanned. Unlike the regex-era version this
@@ -466,6 +499,7 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
         if any(p.match(name) for p in CONFIG_NAME_PATTERNS):
             files_scanned["config"] += 1
             buckets["configuration"].append({"file": rel, "match": "config file"})
+            _flag_redaction_zones(full, rel, redaction_zones)
             continue
 
         if name in LOGGING_CONFIG_NAMES:
@@ -476,6 +510,7 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
         if name.startswith("Dockerfile") or re.match(r"docker-compose.*\.ya?ml$", name):
             files_scanned["deployment"] += 1
             buckets["deployment"].append({"file": rel, "match": "container/compose file"})
+            _flag_redaction_zones(full, rel, redaction_zones)
             continue
 
         if ext in (".yml", ".yaml") and any(
@@ -483,6 +518,7 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
         ):
             files_scanned["deployment"] += 1
             buckets["deployment"].append({"file": rel, "match": "deployment manifest"})
+            _flag_redaction_zones(full, rel, redaction_zones)
             continue
 
         if any(hint in rel for hint in MIGRATION_DIR_HINTS):
@@ -567,13 +603,14 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
         bucket.sort(key=lambda e: (e["file"], e.get("line", 0)))
 
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "repo_path": os.path.abspath(repo_path),
         "files_scanned": files_scanned,
         "entity_table_map": entity_table_map,
         "evidence": buckets,
         "file_signature_algorithm": "sha256",
         "file_signatures": file_signatures,
+        "redaction_zones": redaction_zones,
     }
 
 
@@ -606,9 +643,12 @@ def main():
         json.dump(result, f, indent=2)
 
     counts = {k: len(v) for k, v in result["evidence"].items()}
+    redaction_hit_count = sum(len(hits) for hits in result["redaction_zones"].values())
     print(f"Wrote {args.out}. Files scanned: {result['files_scanned']}. "
           f"Entities found: {len(result['entity_table_map'])}. "
-          f"Evidence counts: {counts}")
+          f"Evidence counts: {counts}. "
+          f"Redaction zones flagged: {redaction_hit_count} line(s) across "
+          f"{len(result['redaction_zones'])} file(s).")
 
 
 if __name__ == "__main__":

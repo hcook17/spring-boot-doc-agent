@@ -64,7 +64,7 @@ Not everything that's technically text in the repository carries the same eviden
 ## 9. configuration.md
 **Purpose**: what's configurable, where, and what the defaults mean.
 **Evidence**: signals.configuration (`@ConfigurationProperties`, `@Value`, `application*.yml/properties` files).
-**Interview-worthy**: which config values differ by environment in ways not visible in the repo (e.g. secrets injected at deploy time, values set only in a platform's config UI). Don't fabricate example values for secrets — say "value supplied at deploy time, not in repo" instead.
+**Interview-worthy**: which config values differ by environment in ways not visible in the repo (e.g. secrets injected at deploy time, values set only in a platform's config UI). Don't fabricate example values for secrets — say "value supplied at deploy time, not in repo" instead. This cuts both ways: also never echo a *real* secret value you find in the repo (e.g. a hardcoded credential in a dev/local profile) — `spring_signals.json`'s `redaction_zones` (see `scripts/_secret_heuristics.py`) flags lines that look like they carry one; write "credential value present, redacted" instead of quoting it, the same way you'd write "not in repo" for a deploy-time-injected one.
 
 ## 10. change_impact.md
 **Purpose**: "if you touch X, check Y" — a map from internal modules/tables/endpoints to what depends on them.
