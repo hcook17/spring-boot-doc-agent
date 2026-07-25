@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
-  "production_functions": 247,
-  "production_functions_annotated": 116,
+  "production_functions": 253,
+  "production_functions_annotated": 122,
   "limits_for_new_functions": {
     "statements": 140,
     "complexity": 34,
@@ -760,6 +760,36 @@
       "statements": 1,
       "complexity": 1,
       "depth": 0
+    },
+    "prompt_contracts.py::_read": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "prompt_contracts.py::_split_list": {
+      "statements": 2,
+      "complexity": 4,
+      "depth": 0
+    },
+    "prompt_contracts.py::doc_files": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "prompt_contracts.py::file_summary_keys": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 1
+    },
+    "prompt_contracts.py::main": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 2
+    },
+    "prompt_contracts.py::spring_roles": {
+      "statements": 7,
+      "complexity": 3,
+      "depth": 1
     },
     "rule_coverage.py::check_non_vacuity": {
       "statements": 13,
@@ -3910,6 +3940,86 @@
       "statements": 19,
       "complexity": 9,
       "depth": 3
+    },
+    "test_prompt_contracts.py::ContractsMatchTheValidatorsTest.test_doc_files_match_the_prompt": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::ContractsMatchTheValidatorsTest.test_file_summary_keys_match_the_prompt": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::ContractsMatchTheValidatorsTest.test_spring_roles_matches_the_prompt": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::ExitCodeTest.test_main_exits_zero_on_the_real_prompts": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::ParsedValuesAreSaneTest.test_every_registered_contract_parses": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_prompt_contracts.py::ParsedValuesAreSaneTest.test_roles_are_lowercase_single_tokens": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_prompt_contracts.py::ParsedValuesAreSaneTest.test_the_fourteen_file_set_has_fourteen_members": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest._edit": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest.setUp": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest.tearDown": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest.test_a_missing_prompt_file_raises": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest.test_a_reworded_role_line_raises_rather_than_returning_empty": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest.test_a_second_json_block_raises": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest.test_adding_a_role_to_the_prompt_is_detected": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest.test_dropping_a_doc_file_from_the_prompt_is_detected": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest.test_renaming_a_json_key_in_the_prompt_is_detected": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
     },
     "test_rule_coverage.py::TestExitCodes.test_a_missing_target_directory_exits_two": {
       "statements": 1,

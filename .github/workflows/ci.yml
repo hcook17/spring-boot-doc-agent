@@ -206,6 +206,16 @@ jobs:
       - name: test_rule_coverage.py
         run: python3 scripts/test_rule_coverage.py -v
 
+      # Reads the Stage-1/2/3 output contracts back out of agents/*.md and
+      # asserts they still equal the constants the validators enforce. Those
+      # constants were hand-copied from the prompts with nothing checking the
+      # copy, so editing a prompt left test_pipeline_stages.py green while
+      # validating the previous contract. Its PromptEditGoesRedTest class
+      # carries the non-vacuity proof in the suite rather than as a ritual
+      # someone performs once and writes down.
+      - name: test_prompt_contracts.py
+        run: python3 scripts/test_prompt_contracts.py -v
+
       # The evidence for _ast_signature.py's default, kept executable. The
       # choice of t2 came from measurements taken in a throwaway script, and a
       # measurement made once in a scratch file decays exactly the way a claim

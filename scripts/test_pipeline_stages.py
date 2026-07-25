@@ -69,9 +69,21 @@ from doc_tag_utils import (  # noqa: E402
 )
 
 # agents/file-summarizer.md step 4's exact enumerated list.
+#
+# These two are copies of what the prompt says, and a copy that nothing reads
+# back is how a validator ends up enforcing a contract the pipeline no longer
+# produces. scripts/test_prompt_contracts.py asserts both still equal what
+# scripts/prompt_contracts.py parses out of agents/file-summarizer.md, so
+# editing the prompt without editing these fails the build.
 VALID_SPRING_ROLES = frozenset({
     "controller", "service", "repository", "entity", "config", "security",
     "messaging-producer", "messaging-consumer", "test", "other",
+})
+
+# Top-level keys of file-summarizer.md's per-file output object.
+FILE_SUMMARY_REQUIRED_KEYS = frozenset({
+    "file", "cluster", "summary", "relationships",
+    "cross_group_relationships", "group_function", "spring_role", "evidence",
 })
 
 
@@ -86,9 +98,7 @@ def validate_file_summarizer_entries(entries):
     object per file, with exactly these keys and spring_role drawn from its
     step-4 enumerated list. Returns a list of (entry_index, reason) for
     anything malformed."""
-    required_keys = {"file", "cluster", "summary", "relationships",
-                      "cross_group_relationships", "group_function", "spring_role",
-                      "evidence"}
+    required_keys = FILE_SUMMARY_REQUIRED_KEYS
     problems = []
     for i, entry in enumerate(entries):
         missing = required_keys - entry.keys()
