@@ -16,6 +16,12 @@ Thumbs.db
 # Target repos under test. This plugin documents *other* people's services, so
 # a checkout of one sitting in the working tree is an input, never content --
 # and this repo is public and MIT-licensed, which makes an accidental `git add
-# -A` of a private service an unringable bell. Ignore by name rather than
-# relying on remembering.
+# -A` of a private service an unringable bell.
+#
+# Name them in .git/info/exclude, NOT here. This file is tracked and public, so
+# an ignore rule naming a client's repository publishes the very thing the rule
+# exists to keep out -- the directory name alone identifies the service. Keep
+# the generic patterns below, and put the actual checkout name in
+# .git/info/exclude, which is per-clone and never pushed.
 /target-repo/
+/target-repos/
