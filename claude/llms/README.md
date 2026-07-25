@@ -40,6 +40,7 @@ Every command is pinned to a commit SHA (or, for a still-open PR, its head branc
 | [#28](pr-28.md) | Sync status docs, fix ast-grep test-killing bug, resolve bounded JPQL lineage | merged (`03c16dd`) |
 | #29 | Fix broken doc references and sweep stale numbers out of the living snapshots | merged (`add3083`) — exempt as most-recently-merged when opened; `pr-29.md` still owed |
 | [#30](pr-30.md) | Fix two JPQL-provenance gate misses in spring_drift_check.py | merged (`a677279`) |
-| [#31](pr-31.md) | Correct the mirror-back scope, annotate the maturation plan, execute the mirror-back | open (`5dc662e`) |
+| [#31](pr-31.md) | Correct the mirror-back scope and annotate the maturation plan's stale items | merged (`6f04332`) |
+| #36 | Execute the mirror-back; correct the manifest's two wrong rows; fix `06`'s stale `status:` | merged (`a62a99c`) — **no `pr-36.md`** |
 
 Cross-linked from `STATUS.md` and `README.md`. See `claude/session-log.md` for the append-only history of which steering-prompt assumptions each of these PRs affected — this index is about verifying *what a PR did*, the session log is about *what it means for the steering prompts*. Different axis, same underlying discipline.
