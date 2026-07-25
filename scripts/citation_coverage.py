@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
 """
-citation_coverage.py — the missing-citation checks, i.e. the failure class
-every other checker in this repo is structurally blind to.
+citation_coverage.py — finds claims in generated docs that carry *no*
+evidence tag at all, the failure class every other checker here cannot see.
+
+Usage:
+    python3 scripts/citation_coverage.py <docs_dir> --target-repo <repo>
+    python3 scripts/citation_coverage.py <docs_dir> --json     # machine-readable
+    python3 scripts/citation_coverage.py <docs_dir> --strict   # exit 1 on findings
+
+Reports two worklists — untagged claims, and tags whose anchor looks weak —
+and narrows where a human should look. It does not judge whether a tagged
+claim is true; that is skills/semantic-pipeline-eval/'s job.
 
 WHY THIS EXISTS AS A THIRD CHECKER
 

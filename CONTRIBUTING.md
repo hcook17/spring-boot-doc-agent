@@ -19,6 +19,71 @@ Same root cause both times — trusting a tool's or a document's *report* of sta
 
 Research note (per `claude/steering-prompts/05-clarity-delivery-trust-research-prompt.md`): a GitHub search for small, well-maintained "write-then-verify" or checksum-confirm utilities turned up nothing genuinely on-point — the closest matches (`teran/checksum`, `nicjansma/checksum-verifier`, and similar) solve a different problem (verifying a *downloaded* file's integrity against a known-good checksum), not "did my own write tool's success response reflect what's actually on disk." Per the shared research standard, finding nothing better than "read the file back after writing it" is itself a valid result — that's the rule stated above, codified as an explicit checklist step rather than left as tribal knowledge.
 
+## Module docstrings: reference first, rationale second
+
+**Rule:** a module docstring opens with one sentence saying what the module *is*, then — for any
+module with a `__main__` entry point — a `Usage:` block within the first 15 lines. Everything else,
+including the full argument for why the module exists, goes *after* that. Comments follow the same
+shape: one line saying what the code does, then the justification.
+
+**Why this rule exists, not just what it says:** the reasoning in this repo's scripts is genuinely
+valuable and is *not* the problem. Measured across `scripts/` on 2026-07-25: 35 module docstrings,
+1,481 lines, mean 42. `spring_drift_check.py` ran to 202 lines with its `Usage:` block at **line
+193**; `spring_signal_scan.py` to 152 lines with no usage block at all. Nine modules had none;
+fourteen buried it past line 20. Someone who just wants to run the thing reads an essay first.
+
+The density itself is deliberate and worth keeping — `.ruff.toml` sets the line limit from this
+repo's own distribution precisely because 38–54% of the larger modules is explanatory prose. **This
+rule deletes no reasoning.** It orders it: the reader gets a hook to hang the argument on before the
+argument arrives. A skimmer reads line one and leaves; a deep reader keeps going and finds
+everything that was there before.
+
+**How to apply it:**
+
+- Order is `what` → `how to run` → `why`. The `WHY THIS EXISTS` heading already used by
+  `check_pipeline_output.py` and `check_code_quality.py` is the right marker for the third part.
+- **Library modules with no CLI are exempt from the `Usage:` requirement** and should not invent one.
+  `doc_tag_utils.py`, `_shared_excludes.py`, `_config_keys.py` and `_secret_heuristics.py` are
+  imported, never run; demanding a usage block from them would be a check pointed at the wrong thing.
+- Lead a comment with what it does, then justify: `# `bare` matches unbackticked repo paths.` before
+  the paragraph explaining which incident made that necessary. The justification is why the comment
+  survives review; the summary line is why anyone can skim past it.
+- This is enforced, not merely encouraged: `scripts/check_code_quality.py` fails when a module with a
+  `__main__` entry point has no `Usage:` block near the top. It ratchets against
+  `scripts/code_quality_baseline.json`, so modules that predate the rule are recorded rather than
+  blocking, and no *new* violation can land.
+
+**On the "near the top" number, and re-deriving it.** `USAGE_WITHIN_LINES = 20` was read off this
+repo's own distribution, which is bimodal: twelve modules state the command by line 18, thirteen bury
+it at line 29 or later, and nothing sits in between. In the threshold-derivation literature's terms
+that is *unsupervised natural-breaks clustering on a single system* — the weakest available basis.
+The canonical unsupervised method (Alves, Ypma & Visser, ICSM 2010) aggregates across a benchmark of
+~100 systems precisely because single-system thresholds are unstable; supervised methods key the
+cut-point to a measured outcome, which needs labels this repo does not have.
+
+So the number is a fact about the current tree, not a constant. **Re-derive it when the tree changes**
+rather than defending it:
+
+```bash
+python - <<'PY'
+import ast, pathlib, re
+U = re.compile(r"^\s*(usage|run with|run)\s*:", re.I)
+pos = []
+for p in sorted(pathlib.Path("scripts").glob("*.py")):
+    doc = ast.get_docstring(ast.parse(p.read_text(encoding="utf-8")))
+    if not doc:
+        continue
+    for i, line in enumerate(doc.splitlines()):
+        if U.match(line):
+            pos.append(i + 1)
+            break
+print(sorted(pos))
+PY
+```
+
+Look for the gap; put the threshold inside it. If the distribution stops being bimodal, this check
+has stopped measuring something real and should be reconsidered rather than retuned.
+
 ## Current status and steering prompts
 
 See `STATUS.md` for a current-state snapshot of this plugin (what's done, what's pending, next concrete action) and `claude/session-log.md` for the append-only history of commits that affect the assumptions in `claude/steering-prompts/`. `CLAUDE.md` explains when a commit needs a session-log entry.

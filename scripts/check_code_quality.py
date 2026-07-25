@@ -58,6 +58,8 @@ Run with:
 import argparse
 import ast
 import json
+import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -68,7 +70,39 @@ DEFAULT_BASELINE = SCRIPT_DIR / "code_quality_baseline.json"
 # 2: "lines" (raw span) replaced by "statements". A v1 baseline compared
 # against v2 measurements would silently pass everything, since every
 # function would look like a new key. Bumped so it is rejected instead.
-SCHEMA_VERSION = 2
+# 3: adds "docstring_violations". A v2 baseline has no such key, so every
+# pre-existing violation would read as new and fail the build on day one.
+SCHEMA_VERSION = 3
+
+# "How do I run this" -- the one part of the docstring contract in
+# CONTRIBUTING.md that is mechanically decidable. Whether a first sentence is
+# a *good* summary is not, so it is not enforced.
+USAGE_RE = re.compile(r"^\s*(usage|run with|run)\s*:", re.IGNORECASE)
+
+# 20 sits in a gap in this repo's own distribution. Measured 2026-07-25, the
+# docstring line at which each runnable module states how to run it:
+#
+#   4 5 8 9 11 13 13 14 15 15 17 18 | 29 36 38 40 44 44 51 58 62 64 78 79 194
+#
+# Twelve modules orient the reader by line 18; thirteen bury it at 29 or
+# beyond; nothing lands between. No compliant module sits near the boundary,
+# so ordinary edits to a good docstring should not trip it.
+#
+# What this number is NOT, stated because it would be easy to over-trust:
+# in the threshold-derivation literature's terms this is *unsupervised*
+# natural-breaks clustering on a single system with n=25 -- the weakest
+# available basis. The canonical unsupervised method (Alves, Ypma & Visser,
+# ICSM 2010) aggregates across a benchmark of ~100 systems precisely because
+# single-system thresholds are unstable, and supervised methods key the
+# cut-point to a measured outcome, which needs labels this repo does not have.
+# The only outcome signal here is n=1: a reader reported the code hard to
+# follow, and the 194-line outlier is what they would hit first. That supports
+# the direction, not the exact cut.
+#
+# So treat it as a fact about the current population, not a constant:
+# RE-DERIVE it when the tree's shape changes rather than defending it. The
+# command that produced the numbers above is in CONTRIBUTING.md.
+USAGE_WITHIN_LINES = 20
 
 # Nodes that introduce a branch in the control-flow graph. BoolOp and
 # comprehension are counted because `a and b or c` and a filtered
@@ -214,6 +248,90 @@ def measure_source(source: str, relpath: str) -> Tuple[Dict[str, Dict[str, int]]
     return functions, total, annotated
 
 
+def has_cli_entry_point(tree: ast.AST) -> bool:
+    """True if the module has a top-level `if __name__ == "__main__":`.
+
+    Walks only the module body, not the whole tree: the guard is meaningful
+    at module level and a string "__main__" appearing anywhere else (a
+    docstring, an error message) must not count."""
+    for node in getattr(tree, "body", []):
+        if not isinstance(node, ast.If):
+            continue
+        test = node.test
+        if not isinstance(test, ast.Compare) or not isinstance(test.left, ast.Name):
+            continue
+        if test.left.id != "__name__":
+            continue
+        if any(isinstance(c, ast.Constant) and c.value == "__main__" for c in test.comparators):
+            return True
+    return False
+
+
+def docstring_violation(source: str, relpath: str) -> Optional[str]:
+    """Why this module's docstring fails the orientation contract, or None.
+
+    The contract is in CONTRIBUTING.md: say what the module is, then how to
+    run it, then why it exists. Only the middle part is mechanically
+    checkable, so that is the only part enforced -- "does a reader find the
+    command near the top" is a decidable question; "is the first sentence a
+    good summary" is not.
+
+    Library modules are exempt by construction. doc_tag_utils.py,
+    _shared_excludes.py, _config_keys.py and _secret_heuristics.py are
+    imported and never run, so demanding a usage block from them would point
+    the check at the wrong thing -- which is its own anti-pattern here."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return None  # reported separately by measure_tree as unparseable
+    if not has_cli_entry_point(tree):
+        return None
+    doc = ast.get_docstring(tree)
+    if not doc:
+        return f"{relpath}: has a __main__ entry point but no module docstring"
+    lines = doc.splitlines()
+    for line in lines[:USAGE_WITHIN_LINES]:
+        if USAGE_RE.match(line):
+            return None
+    where = next(
+        (i + 1 for i, line in enumerate(lines) if USAGE_RE.match(line)), None
+    )
+    if where is None:
+        return (f"{relpath}: runnable module, but its {len(lines)}-line docstring "
+                f"never says how to run it")
+    return (f"{relpath}: 'how to run it' is at docstring line {where}; the contract is "
+            f"within {USAGE_WITHIN_LINES}. Move the Usage block above the rationale.")
+
+
+def python_files(scripts_dir: Path) -> List[Path]:
+    """The *.py files this baseline should describe: the tracked ones.
+
+    Globbing the directory folds whatever happens to be sitting in the working
+    tree into a committed artifact, and that is not a hypothetical.
+    Regenerating this baseline while a concurrent session's untracked work was
+    present captured 93 of its functions and raised the annotation floor to
+    35.4% against a committed tree measuring 22.0% -- a gate that fails on its
+    first CI run, reporting a regression caused entirely by files that were
+    never in the commit.
+
+    Falls back to the glob outside a git checkout, so this still works on an
+    exported tarball. Top-level only: nested paths are fixtures, not modules."""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(scripts_dir), "ls-files", "--", "*.py"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        )
+    except OSError:
+        return sorted(scripts_dir.glob("*.py"))
+    if proc.returncode != 0:
+        return sorted(scripts_dir.glob("*.py"))
+    names = sorted(
+        line.strip() for line in proc.stdout.splitlines()
+        if line.strip().endswith(".py") and "/" not in line.strip()
+    )
+    return [scripts_dir / name for name in names]
+
+
 def measure_tree(scripts_dir: Path) -> Dict[str, object]:
     """Measure every *.py under scripts_dir, sorted for byte-stable output.
 
@@ -224,8 +342,9 @@ def measure_tree(scripts_dir: Path) -> Dict[str, object]:
     total = 0
     annotated = 0
     unparseable: List[str] = []
+    docstring_violations: Dict[str, str] = {}
 
-    for path in sorted(scripts_dir.glob("*.py")):
+    for path in python_files(scripts_dir):
         relpath = path.name
         try:
             source = path.read_text(encoding="utf-8")
@@ -237,6 +356,9 @@ def measure_tree(scripts_dir: Path) -> Dict[str, object]:
         except SyntaxError as exc:
             unparseable.append(f"{relpath}: {exc}")
             continue
+        violation = docstring_violation(source, relpath)
+        if violation is not None:
+            docstring_violations[relpath] = violation
         functions.update(found)
         # Size and complexity are ratcheted over everything, tests included --
         # a test file rots the same way any other file does. Annotation
@@ -265,6 +387,12 @@ def measure_tree(scripts_dir: Path) -> Dict[str, object]:
             "depth": worst_depth,
         },
         "unparseable": sorted(unparseable),
+        # Keyed by module, not by message, and compared on keys alone. The
+        # messages carry line numbers, so comparing them would report a "new"
+        # violation every time an unrelated edit shifted a line. Keyed by
+        # module it also beats a count, which would let one module get fixed
+        # while another broke with no net change.
+        "docstring_violations": dict(sorted(docstring_violations.items())),
         "functions": dict(sorted(functions.items())),
     }
 
@@ -315,6 +443,11 @@ def compare(baseline: Dict[str, object], current: Dict[str, object]) -> List[str
             f"{base_ratio:.1%} ({baseline['production_functions_annotated']}/{baseline['production_functions']}) "
             f"-> {cur_ratio:.1%} ({current['production_functions_annotated']}/{current['production_functions']})"
         )
+
+    base_docs: Dict[str, str] = baseline.get("docstring_violations", {})  # type: ignore[assignment]
+    cur_docs: Dict[str, str] = current.get("docstring_violations", {})  # type: ignore[assignment]
+    for module in sorted(set(cur_docs) - set(base_docs)):
+        issues.append(f"docstring contract: {cur_docs[module]}")
 
     for entry in current.get("unparseable", []):  # type: ignore[union-attr]
         issues.append(f"could not parse {entry}")

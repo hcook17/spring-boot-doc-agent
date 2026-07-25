@@ -1,13 +1,30 @@
 {
-  "schema_version": 2,
-  "production_functions": 164,
-  "production_functions_annotated": 36,
+  "schema_version": 3,
+  "production_functions": 167,
+  "production_functions_annotated": 39,
   "limits_for_new_functions": {
     "statements": 140,
     "complexity": 34,
     "depth": 7
   },
   "unparseable": [],
+  "docstring_violations": {
+    "build_cross_group_edges.py": "build_cross_group_edges.py: 'how to run it' is at docstring line 64; the contract is within 20. Move the Usage block above the rationale.",
+    "capacity_preflight.py": "capacity_preflight.py: 'how to run it' is at docstring line 58; the contract is within 20. Move the Usage block above the rationale.",
+    "check_code_quality.py": "check_code_quality.py: 'how to run it' is at docstring line 51; the contract is within 20. Move the Usage block above the rationale.",
+    "check_llms_coverage.py": "check_llms_coverage.py: 'how to run it' is at docstring line 36; the contract is within 20. Move the Usage block above the rationale.",
+    "check_no_secrets_leaked.py": "check_no_secrets_leaked.py: 'how to run it' is at docstring line 29; the contract is within 20. Move the Usage block above the rationale.",
+    "check_pipeline_output.py": "check_pipeline_output.py: 'how to run it' is at docstring line 40; the contract is within 20. Move the Usage block above the rationale.",
+    "partition_repo.py": "partition_repo.py: 'how to run it' is at docstring line 44; the contract is within 20. Move the Usage block above the rationale.",
+    "run_manifest.py": "run_manifest.py: 'how to run it' is at docstring line 62; the contract is within 20. Move the Usage block above the rationale.",
+    "run_pipeline_local.py": "run_pipeline_local.py: runnable module, but its 61-line docstring never says how to run it",
+    "semantic_eval_helpers.py": "semantic_eval_helpers.py: 'how to run it' is at docstring line 44; the contract is within 20. Move the Usage block above the rationale.",
+    "test_citation_coverage.py": "test_citation_coverage.py: runnable module, but its 6-line docstring never says how to run it",
+    "test_enterprise_kitchen_sink.py": "test_enterprise_kitchen_sink.py: 'how to run it' is at docstring line 78; the contract is within 20. Move the Usage block above the rationale.",
+    "test_partition_repo_real_world.py": "test_partition_repo_real_world.py: runnable module, but its 23-line docstring never says how to run it",
+    "test_pipeline_stages.py": "test_pipeline_stages.py: 'how to run it' is at docstring line 38; the contract is within 20. Move the Usage block above the rationale.",
+    "test_spring_signal_scan.py": "test_spring_signal_scan.py: runnable module, but its 18-line docstring never says how to run it"
+  },
   "functions": {
     "_config_keys.py::_extract_properties_keys": {
       "statements": 9,
@@ -100,8 +117,8 @@
       "depth": 1
     },
     "check_code_quality.py::compare": {
-      "statements": 22,
-      "complexity": 9,
+      "statements": 26,
+      "complexity": 10,
       "depth": 4
     },
     "check_code_quality.py::complexity": {
@@ -109,10 +126,20 @@
       "complexity": 5,
       "depth": 4
     },
+    "check_code_quality.py::docstring_violation": {
+      "statements": 17,
+      "complexity": 9,
+      "depth": 2
+    },
     "check_code_quality.py::exit_code": {
       "statements": 1,
       "complexity": 2,
       "depth": 0
+    },
+    "check_code_quality.py::has_cli_entry_point": {
+      "statements": 11,
+      "complexity": 9,
+      "depth": 2
     },
     "check_code_quality.py::is_annotated": {
       "statements": 9,
@@ -140,14 +167,19 @@
       "depth": 3
     },
     "check_code_quality.py::measure_tree": {
-      "statements": 24,
-      "complexity": 8,
+      "statements": 28,
+      "complexity": 9,
       "depth": 2
     },
     "check_code_quality.py::nesting_depth": {
       "statements": 7,
       "complexity": 4,
       "depth": 2
+    },
+    "check_code_quality.py::python_files": {
+      "statements": 8,
+      "complexity": 7,
+      "depth": 1
     },
     "check_code_quality.py::statement_count": {
       "statements": 13,
@@ -1124,6 +1156,61 @@
       "complexity": 1,
       "depth": 0
     },
+    "test_check_code_quality.py::DocstringContractTest.test_a_baselined_violation_does_not_fail_the_gate": {
+      "statements": 8,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_check_code_quality.py::DocstringContractTest.test_a_main_string_that_is_not_the_guard_does_not_count": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_code_quality.py::DocstringContractTest.test_a_new_violation_fails_the_gate": {
+      "statements": 12,
+      "complexity": 4,
+      "depth": 1
+    },
+    "test_check_code_quality.py::DocstringContractTest.test_library_module_without_a_cli_is_exempt": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_code_quality.py::DocstringContractTest.test_run_with_is_accepted_too": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_code_quality.py::DocstringContractTest.test_runnable_module_with_no_docstring_is_flagged": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_code_quality.py::DocstringContractTest.test_runnable_module_with_no_usage_at_all_is_flagged": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_code_quality.py::DocstringContractTest.test_syntax_error_defers_rather_than_double_reporting": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_code_quality.py::DocstringContractTest.test_usage_buried_below_the_threshold_is_flagged": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_check_code_quality.py::DocstringContractTest.test_usage_near_the_top_passes": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_code_quality.py::DocstringContractTest.test_violations_are_compared_by_module_not_by_message": {
+      "statements": 11,
+      "complexity": 4,
+      "depth": 1
+    },
     "test_check_code_quality.py::NestingDepthTest.test_flat_function_has_depth_zero": {
       "statements": 2,
       "complexity": 1,
@@ -1221,6 +1308,26 @@
     },
     "test_check_code_quality.py::RatchetTest.test_unchanged_tree_passes": {
       "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_check_code_quality.py::TrackedFilesOnlyTest._git": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_code_quality.py::TrackedFilesOnlyTest.test_falls_back_to_glob_outside_a_git_checkout": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_check_code_quality.py::TrackedFilesOnlyTest.test_nested_fixture_python_files_are_not_measured": {
+      "statements": 8,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_check_code_quality.py::TrackedFilesOnlyTest.test_untracked_file_is_not_measured": {
+      "statements": 13,
       "complexity": 2,
       "depth": 1
     },

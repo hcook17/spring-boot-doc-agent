@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
 """
 spring_signal_scan.py — deterministic, AST-based evidence extraction for
-Spring Boot repositories.
+Spring Boot repositories. Stage 0 of the pipeline; writes spring_signals.json.
+
+Usage:
+    python3 scripts/spring_signal_scan.py <repo_path>
+    python3 scripts/spring_signal_scan.py <repo_path> --out spring_signals.json
+    python3 scripts/spring_signal_scan.py <repo_path> --sql-dialect mysql
+    python3 scripts/spring_signal_scan.py <repo_path> --respect-gitignore
+
+Requires the `ast-grep` binary on PATH (see requirements.txt). Exits 1 with an
+install pointer if it is missing.
+
+WHY THIS EXISTS
 
 This exists so the doc-generation pipeline doesn't rely purely on an LLM's
 read of the codebase for facts that are mechanically detectable: which
