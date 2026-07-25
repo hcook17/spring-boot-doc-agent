@@ -94,7 +94,7 @@ python3 -c "import json,glob; json.dump([o for f in sorted(glob.glob('summaries_
 
 **Why the output path matters, and not just for tidiness.** Every subagent in this pipeline used to return its full output as its final message, which meant the orchestrating thread's context — not the per-group token budget — was the real ceiling on how large a repository this pipeline could document. Measured on `spring-petclinic` (49 Java files, the smallest realistic Spring repo, 2 groups): Stage 1 alone returned roughly 218k subagent tokens through the orchestrator, before Stage 2 had dispatched anything. Stage 4's fourteen concurrent doc-writers are several times larger again.
 
-Note this ceiling is invisible to `capacity-preflight`, which measures group count, dispatch fan-out, and the size of the `references` bucket sent *in* — all input quantities. Nothing estimates what comes back. So a run can pass preflight cleanly and still exhaust the orchestrator on return payloads.
+Note this ceiling is invisible to `capacity-preflight`, which measures group count, dispatch fan-out, and the size of the per-group edge slice sent *in* — all input quantities. Nothing estimates what comes back. So a run can pass preflight cleanly and still exhaust the orchestrator on return payloads.
 
 ## Stage 2 — Parallel architecture (segment + merge)
 

@@ -262,8 +262,11 @@ def main() -> int:
         f"{s.get('cut_arcs', 0)} cut arcs "
         f"(exact={s.get('confidence_exact', 0)}, fanout={s.get('confidence_package-fanout', 0)}), "
         f"{s.get('same_package_adjacency_rows', 0)} same-package adjacency rows. "
-        f"{s['rows_shipped']} rows shipped vs {s['broadcast_rows_avoided']} broadcast "
-        f"({s['reduction_factor']}x reduction)."
+        f"{s['rows_shipped']} rows shipped vs {s['broadcast_rows_avoided']} broadcast"
+        # reduction_factor is None when nothing was shipped (a single-group
+        # repo has no cut by definition), and interpolating that printed
+        # "Nonex reduction". The JSON was always correct; only this line lied.
+        + (f" ({s['reduction_factor']}x reduction)." if s.get("reduction_factor") else ".")
     )
     return 0
 
