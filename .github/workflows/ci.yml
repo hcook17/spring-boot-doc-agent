@@ -150,6 +150,16 @@ jobs:
       - name: test_check_repo_claims.py
         run: python3 scripts/test_check_repo_claims.py -v
 
+      # The evidence for _ast_signature.py's default, kept executable. The
+      # choice of t2 came from measurements taken in a throwaway script, and a
+      # measurement made once in a scratch file decays exactly the way a claim
+      # written in prose does -- so each measurement is a test here instead.
+      # Verified non-vacuous by hand: making t2 stop stripping docstrings,
+      # reverting the default to t1, and accepting an unknown level silently
+      # each turn this suite red.
+      - name: test_ast_signature.py
+        run: python3 scripts/test_ast_signature.py -v
+
       # The kitchen-sink suite: the documented command series run as real
       # subprocesses against a deliberately hostile synthetic enterprise repo,
       # plus fault injection that closes the loop to each gate's actual process
