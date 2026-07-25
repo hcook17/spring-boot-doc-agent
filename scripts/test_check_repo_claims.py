@@ -21,6 +21,7 @@ Run with:
 """
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -625,6 +626,53 @@ class TestAffirm(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = self._repo(tmp, body)
             self.assertEqual(crc.apply_affirm(root, ["CONSTRAINTS.md"]), [])
+
+
+class TestPredicateRegistry(unittest.TestCase):
+    """The registry replaced a startswith() chain that duplicated the prefix
+    list. These defend the properties that restructure either preserves or
+    newly makes possible to break."""
+
+    def test_an_unknown_predicate_is_rejected(self):
+        """The closed-vocabulary guarantee, asserted rather than assumed. A
+        document may select among keys this file defines; it can never supply
+        behaviour. That is the exact inverse of the deleted
+        verify_llms_docs.py, where the document supplied the command."""
+        passed, why = crc.evaluate_predicate(REPO_ROOT, "exec_shell:rm -rf /")
+        self.assertFalse(passed)
+        self.assertIn("unknown predicate", why)
+
+    def test_no_predicate_prefix_is_a_prefix_of_another(self):
+        """The invariant the registry creates a need for. Dispatch is
+        first-match, which is unambiguous today only because no prefix
+        shadows another. Add `path_exists_recursive:` and it would silently
+        route to `path_exists:` with the rest of the string as its operand --
+        wrong, and quiet. Currently true; this makes it stay true."""
+        prefixes = list(crc.PREDICATE_HANDLERS)
+        shadowed = [(a, b) for a in prefixes for b in prefixes
+                    if a != b and b.startswith(a)]
+        self.assertEqual(shadowed, [], f"prefix shadowing would misroute: {shadowed}")
+
+    def test_every_registered_handler_is_reachable(self):
+        """A handler in the dict that no predicate can select is dead code
+        that looks live.
+
+        Reachability is the whole property; the verdict is each handler's own
+        business. The first version of this test also asserted the result was
+        False, which is wrong: `path_absent:__no_such_thing__` correctly
+        returns True, because the path really is absent. Asserting a verdict
+        here was testing the handlers rather than the dispatch."""
+        for prefix in crc.PREDICATE_HANDLERS:
+            _, why = crc.evaluate_predicate(REPO_ROOT, f"{prefix}__no_such_thing__")
+            self.assertNotIn("unknown predicate", why,
+                             f"{prefix} fell through to the unknown-predicate branch")
+
+    def test_the_reference_alternation_is_derived_from_the_prefix_list(self):
+        """These were two literal tuples of the same eight strings. Deriving
+        one from the other is what stops them drifting; this fails if someone
+        re-inlines the list."""
+        for prefix in crc.OWN_PATH_PREFIXES:
+            self.assertIn(re.escape(prefix), crc._OWN_PREFIX_ALT)
 
 
 class TestMirrorDebt(unittest.TestCase):

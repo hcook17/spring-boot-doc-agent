@@ -130,23 +130,27 @@ DERIVED_RE = re.compile(
 #
 # The ticked branch is first, so a path inside backticks is consumed there
 # and never double-counted.
-_OWN_PREFIX_ALT = "|".join(re.escape(prefix) for prefix in (
-    "scripts/", "agents/", "skills/", "claude/", ".github/",
-    "baseline-reference/", ".claude/", ".claude-plugin/",
-))
-REFERENCE_RE = re.compile(
-    r"`(?P<ticked>[^`\n]+)`"
-    rf"|(?<![\w`/.-])(?P<bare>(?:{_OWN_PREFIX_ALT})[\w./*?-]*[\w*?])"
-)
-
 # A path is only checked when it starts with one of this repo's own
 # top-level directories, or is a root-level doc. Everything else backs off
 # on purpose: these docs are full of illustrative target-repo paths
 # (src/main/java/..., docs/readme.md, application.yml) that describe some
 # *other* service and must not be resolved against this tree.
+#
+# Declared before REFERENCE_RE because the regex's alternation is *derived*
+# from it. These were two separate literal tuples holding the same eight
+# strings, fourteen lines apart, with nothing keeping them in step -- the
+# defect claude/check-repo-claims-review-2026-07-25.md raised against this
+# file, in the one module whose stated purpose is making "don't write the
+# same fact twice" enforceable. Now they agree by construction.
 OWN_PATH_PREFIXES = (
     "scripts/", "agents/", "skills/", "claude/", ".github/",
     "baseline-reference/", ".claude/", ".claude-plugin/",
+)
+
+_OWN_PREFIX_ALT = "|".join(re.escape(prefix) for prefix in OWN_PATH_PREFIXES)
+REFERENCE_RE = re.compile(
+    r"`(?P<ticked>[^`\n]+)`"
+    rf"|(?<![\w`/.-])(?P<bare>(?:{_OWN_PREFIX_ALT})[\w./*?-]*[\w*?])"
 )
 OWN_ROOT_FILES = frozenset({
     "CLAUDE.md", "CONSTRAINTS.md", "CONTRIBUTING.md", "README.md", "STATUS.md",
@@ -240,7 +244,8 @@ CI_EXEMPT_SUITES: Dict[str, str] = {
         "opt-in; needs a real Spring repo via an env var, absent in CI",
 }
 
-PREDICATE_PREFIXES = ("path_exists:", "path_absent:", "contains:", "unchanged_since:")
+# The predicate vocabulary is defined once, as PREDICATE_HANDLERS beside the
+# handlers themselves; PREDICATE_PREFIXES is derived from it there.
 
 # `unchanged_since:<path>:<level>:<digest>` -- the digest is the second
 # operand of a binary relation, so it rides in the claim rather than in a side
@@ -618,34 +623,43 @@ def parse_frontmatter(text: str) -> Dict[str, object]:
     return fields
 
 
+def _eval_path_exists(root: Path, operand: str) -> Tuple[bool, str]:
+    return (root / operand).exists(), f"{operand} does not exist"
+
+
+def _eval_path_absent(root: Path, operand: str) -> Tuple[bool, str]:
+    return not (root / operand).exists(), f"{operand} exists but was declared absent"
+
+
+def _eval_contains(root: Path, operand: str) -> Tuple[bool, str]:
+    target, _, literal = operand.partition(":")
+    target, literal = target.strip(), literal.strip()
+    if not literal:
+        return False, f"malformed contains: predicate (no literal after {target!r})"
+    path = root / target
+    if not path.is_file():
+        return False, f"{target} does not exist, so it cannot contain {literal!r}"
+    return literal in path.read_text(encoding="utf-8"), \
+        f"{target} does not contain {literal!r}"
+
+
 def evaluate_predicate(root: Path, predicate: str) -> Tuple[bool, str]:
-    """Returns (passed, explanation). The vocabulary is closed for the same
-    reason DERIVATIONS is: a predicate must be decidable by this file, not
-    supplied by the document being checked."""
-    if predicate.startswith("path_exists:"):
-        target = predicate[len("path_exists:"):].strip()
-        return (root / target).exists(), f"{target} does not exist"
-    if predicate.startswith("path_absent:"):
-        target = predicate[len("path_absent:"):].strip()
-        return not (root / target).exists(), f"{target} exists but was declared absent"
-    if predicate.startswith("contains:"):
-        rest = predicate[len("contains:"):]
-        target, _, literal = rest.partition(":")
-        target, literal = target.strip(), literal.strip()
-        if not literal:
-            return False, f"malformed contains: predicate {predicate!r} (no literal)"
-        path = root / target
-        if not path.is_file():
-            return False, f"{target} does not exist, so it cannot contain {literal!r}"
-        found = literal in path.read_text(encoding="utf-8")
-        return found, f"{target} does not contain {literal!r}"
-    if predicate.startswith("unchanged_since:"):
-        return _evaluate_unchanged_since(root, predicate)
+    """Returns (passed, explanation).
+
+    The vocabulary is closed, for the same reason DERIVATIONS is: a predicate
+    must be decidable by this file, not supplied by the document being
+    checked. The registry preserves that exactly -- a document selects among
+    keys that already exist here and can never supply behaviour. That is the
+    precise inverse of the deleted verify_llms_docs.py, where the document
+    supplied the command and CI executed it."""
+    for prefix, handler in PREDICATE_HANDLERS.items():
+        if predicate.startswith(prefix):
+            return handler(root, predicate[len(prefix):].strip())
     return False, (f"unknown predicate {predicate!r}; expected one of "
                    f"{', '.join(PREDICATE_PREFIXES)}")
 
 
-def _evaluate_unchanged_since(root: Path, predicate: str) -> Tuple[bool, str]:
+def _eval_unchanged_since(root: Path, operand: str) -> Tuple[bool, str]:
     """Has the subject moved since this claim was last affirmed?
 
     This does NOT assert the claim is true -- nothing here can judge that. It
@@ -655,10 +669,9 @@ def _evaluate_unchanged_since(root: Path, predicate: str) -> Tuple[bool, str]:
     Never-affirmed is reported separately from failed: an empty digest means
     the claim opted in but nobody has stamped it yet, which is a different
     (and much cheaper) thing to fix than a real mismatch."""
-    rest = predicate[len("unchanged_since:"):].strip()
-    parts = rest.rsplit(":", 2)
+    parts = operand.rsplit(":", 2)
     if len(parts) != 3:
-        return False, (f"malformed {predicate!r}; expected "
+        return False, (f"malformed unchanged_since:{operand!r}; expected "
                        f"unchanged_since:<path>:<level>:<digest>")
     target, level, digest = (part.strip() for part in parts)
     path = root / target
@@ -680,6 +693,29 @@ def _evaluate_unchanged_since(root: Path, predicate: str) -> Tuple[bool, str]:
         return True, ""
     return False, (f"{target} changed since this claim was affirmed (level "
                    f"{level}) — re-read the claim, then run --affirm")
+
+
+# One definition of the vocabulary. The previous version listed these four
+# literals here AND again as startswith() branches, so a fifth predicate added
+# to one and not the other would be either unreachable or missing from the
+# error message. That is the same defect this file's own review note raised
+# against _OWN_PREFIX_ALT/OWN_PATH_PREFIXES -- committed here by adding a
+# fourth predicate to a three-branch chain, in the one file whose purpose is
+# making "don't write the same fact twice" enforceable.
+#
+# Registry, never dispatch-on-input: a document selects among keys defined in
+# this file and can never supply behaviour.
+PREDICATE_HANDLERS: Dict[str, Callable[[Path, str], Tuple[bool, str]]] = {
+    "path_exists:": _eval_path_exists,
+    "path_absent:": _eval_path_absent,
+    "contains:": _eval_contains,
+    "unchanged_since:": _eval_unchanged_since,
+}
+
+# Derived, so it cannot drift from the registry. No prefix may be a proper
+# prefix of another or first-match dispatch below would silently misroute --
+# pinned by a test rather than left to a comment.
+PREDICATE_PREFIXES = tuple(PREDICATE_HANDLERS)
 
 
 class Claim(NamedTuple):
