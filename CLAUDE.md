@@ -15,6 +15,14 @@ Each prompt states specific factual assumptions about the current state of this 
 - If nothing you changed is plausibly relevant to any of the prompts, don't write a log entry — churn here is worse than silence. Most commits (a typo fix, a small test addition) won't touch anything a steering prompt assumed.
 - If something is relevant, append one entry to `claude/session-log.md` (create it from the template below if it doesn't exist yet) in the same commit. Keep it distilled, not a raw diff — the point is that a downstream reviewer (human or another Claude session) can read ten lines instead of parsing a diff.
 
+### The same check covers `CONSTRAINTS.md`
+
+`CONSTRAINTS.md`'s `[Resolved]` / `[Partially resolved]` / `[Flagged, not yet resolved]` entries make the same kind of statement a steering prompt does — a claim about this repo's current state that a later commit can falsify — so check them in the same pass, on the same trigger (`scripts/`, `agents/`, `skills/`). Nothing mechanical checks these claims; this pass is the only thing standing between them and silent drift. Three things worth knowing:
+
+- **Correct the entry in place.** `CONSTRAINTS.md` is a current-state doc, not an append-only log — fix the claim where it stands, keeping the bracket-tag vocabulary above. Only add a `claude/session-log.md` entry if a steering-prompt assumption moved too; a `CONSTRAINTS.md` correction on its own isn't log-worthy.
+- **A claim can drift in either direction.** It can become false, or it can have been written *ahead of* the code and only become true later — a `[Resolved]` written for a fix that was still partial reads as settled when it isn't. Both are worth correcting, and say which happened rather than quietly restating the claim.
+- **Don't hardcode a test count.** These go stale faster than they get read: `MATURITY_ASSESSMENT.md`'s "Eleven `unittest` suites … 194 tests total" is really 14 suites and 313 test methods as of 2026-07-24, and one of the eleven it names was deleted. `CONSTRAINTS.md`'s own drift-check entry already shows the fix — name the command to run instead of a number.
+
 ### Entry format
 
 ```

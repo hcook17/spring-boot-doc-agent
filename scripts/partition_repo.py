@@ -247,14 +247,28 @@ def build_groups(file_tokens, max_tokens, overlap_ratio):
 
             # Zero-progress guard: if the entire just-closed group got
             # carried forward unchanged (carried == current_tokens, i.e.
-            # nothing was dropped) and the same triggering file still
-            # wouldn't fit even against that unchanged carry, retrying
-            # as-is would reproduce the exact same state forever — this is
-            # the exact infinite loop a naive first port of this swap hit.
-            # Force the carry empty instead: better to lose the overlap at
-            # this one seam than to hang.
-            if carried == current_tokens and carried + tok > max_tokens:
-                carry, carried = [], 0
+            # nothing was dropped), the next iteration re-evaluates the same
+            # file against an identical group and reaches an identical
+            # decision — forever. Force the carry empty instead: better to
+            # lose the overlap at this one seam than to hang.
+            #
+            # Both triggers have to be re-checked, not just the hard cap. The
+            # original guard tested only `carried + tok > max_tokens`, which
+            # left the soft-target path looping: a single carried file whose
+            # tokens land in [target_per_group, max_tokens) is large enough to
+            # re-trip the soft target on its own, yet small enough that the
+            # next file still fits under the hard cap — so neither the old
+            # guard nor the hard cap fired, `i` never advanced, and the group
+            # list grew without bound. Reproduced with a 2916-token file at
+            # max_tokens=3000 / target_per_group=2901; see
+            # test_enterprise_kitchen_sink.py's termination test.
+            if carried == current_tokens:
+                re_triggers_hard_cap = carried + tok > max_tokens
+                re_triggers_soft_target = (
+                    len(groups) != num_groups - 1 and carried >= target_per_group
+                )
+                if re_triggers_hard_cap or re_triggers_soft_target:
+                    carry, carried = [], 0
 
             current, current_tokens = list(carry), carried
             continue  # re-evaluate the same file against the new group

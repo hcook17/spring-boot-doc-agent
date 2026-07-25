@@ -548,7 +548,18 @@ def run_ast_grep(ast_grep_path, repo_path, respect_gitignore=False):
         cmd += ["--globs", f"!**/{d}/**"]
     cmd.append(repo_path)
 
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    # encoding= is explicit rather than left to text=True's default, which is
+    # the *locale* codec — cp1252 on a default Windows install. ast-grep emits
+    # UTF-8 JSON that echoes matched source text, and that text lands in every
+    # evidence row's "match" field (see the buckets appends below), so a
+    # locale-decoded read corrupts evidence two different ways: a character
+    # whose UTF-8 bytes are all defined in cp1252 (é, 日, emoji) decodes to
+    # silent mojibake that flows on into cited documentation, and one whose
+    # bytes include 0x81/0x8D/0x8F/0x90/0x9D (Cyrillic 'с' is d1 81) raises
+    # UnicodeDecodeError and takes down the whole scan. errors="replace" so a
+    # genuinely undecodable byte degrades one match instead of the run.
+    proc = subprocess.run(cmd, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
     if proc.returncode != 0:
         print(f"error: ast-grep exited with status {proc.returncode}", file=sys.stderr)
         print(proc.stderr, file=sys.stderr)
@@ -638,7 +649,14 @@ def _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
     setup).
     """
     try:
-        with open(full, "r", encoding="utf-8", errors="ignore") as f:
+        # utf-8-sig, not utf-8: a BOM-prefixed config file is common in
+        # Windows-authored repos, and plain utf-8 decodes the BOM to a literal
+        # ﻿ that survives into the text. ﻿ is not matched by \s, so
+        # the ^\s*-anchored regexes downstream (_config_keys.py's
+        # _YAML_KEY_LINE_RE, _secret_heuristics.py's KEY_VALUE_LINE_RE) fail on
+        # the first line only — silently dropping that file's first config key
+        # and, worse, never flagging a credential sitting on line 1.
+        with open(full, encoding="utf-8-sig", errors="ignore") as f:
             text = f.read()
     except OSError:
         return  # same posture as compute_file_signature above: skip, don't abort the scan
