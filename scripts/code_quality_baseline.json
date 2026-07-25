@@ -4417,6 +4417,101 @@
       "complexity": 1,
       "depth": 0
     },
+    "test_require_hardened_tests.py::CommitDetectionTest.test_does_not_fire_on_a_word_containing_commit": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::CommitDetectionTest.test_does_not_fire_on_other_git_commands": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_require_hardened_tests.py::CommitDetectionTest.test_recognises_a_commit": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_require_hardened_tests.py::DeniesTest.test_a_finding_produces_a_deny_decision": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_require_hardened_tests.py::DeniesTest.test_the_reason_forbids_weakening_the_check": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::DeniesTest.test_the_reason_names_the_skill_to_load": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::FailOpenTest.test_an_internal_error_does_not_block": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_require_hardened_tests.py::FailOpenTest.test_unparseable_input_does_not_block": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_a_new_script_without_a_suite_is_reported": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_a_test_file_is_not_itself_required_to_have_a_test": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_an_exempt_module_is_allowed": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_every_exemption_states_a_reason": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_files_outside_scripts_are_ignored": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::PassesThroughTest.test_a_non_bash_tool_is_untouched": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::PassesThroughTest.test_a_non_commit_command_is_untouched": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::PassesThroughTest.test_the_current_clean_tree_is_allowed": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::UnwiredSuiteTest.test_a_suite_absent_from_ci_is_reported": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::UnwiredSuiteTest.test_a_wired_suite_passes": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::decide": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
     "test_rule_coverage.py::TestExitCodes.test_a_missing_target_directory_exits_two": {
       "statements": 1,
       "complexity": 1,

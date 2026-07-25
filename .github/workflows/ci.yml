@@ -236,6 +236,12 @@ jobs:
       - name: test_mutate.py
         run: python3 scripts/test_mutate.py -v
 
+      # The commit-time gate. Project-scoped rather than plugin-shipped: it
+      # resolves the repo from its own location, so carrying it into another
+      # checkout would have it checking this one.
+      - name: test_require_hardened_tests.py
+        run: python3 scripts/test_require_hardened_tests.py -v
+
       # Mechanises the ritual this repo's standing rule depends on -- break
       # the code, watch the tests go red, restore it -- which was performed by
       # hand, once, with no artifact proving it happened. Every mutation runs

@@ -27,6 +27,19 @@
     "the build if an agent regains Grep or declares Bash without a scoped",
     "entry here."
   ],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/hooks/require_hardened_tests.py\""
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "Bash(python3 scripts/check_repo_claims.py)",
