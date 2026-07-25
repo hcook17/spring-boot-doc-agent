@@ -383,3 +383,22 @@ Two guards written into the agent prompts rather than left implicit, because bot
 
 Files touched: agents/architect-merge.md, agents/architect-segment.md, agents/doc-writer.md, agents/file-summarizer.md, agents/gap-analyzer.md, skills/document-spring-repo/SKILL.md, claude/session-log.md
 
+
+---
+
+## 2026-07-25 — Replace three doc-writer prompt instructions with a mechanical Stage-4 gate
+Commit: uncommitted
+Tests: `test_check_pipeline_output.py` 20/20 (new). `test_pipeline_stages.py` 17/17 after moving `resolve_evidenced_citations()` out of it. Full suite 311 passing, 10 skips. Gate smoke-tested both directions against the real petclinic checkout: a docs dir missing one file and citing a nonexistent path exits **1** and names both failures; a complete, resolvable one exits **0** and prints tag totals.
+Assumptions affected:
+- `agents/doc-writer.md` rule 4 — "write to exactly the path given and nowhere else" — [Resolved — was a prompt instruction, now a check. The target repo is a clean checkout before a run, so `git status --porcelain` afterwards is an exact record of what the fan-out wrote; anything outside the docs directory is a writer that went where it shouldn't, detected without the agent's cooperation. The prompt line stays as guidance, but it is no longer the control.]
+- `claude/llms/README.md`'s "Writing the commands" rules, and this log's own 2026-07-25 entry on deleting `verify_llms_docs.py` — "a convention is the weakest available guard" — [New info — **that reasoning was not applied to my own change.** PR #41 gave five LLM-authored agents `Write` and guarded fourteen concurrent writers sharing one directory with a sentence in a prompt: the same class of control this repo had rejected hours earlier, for the same reason. Caught by the repo owner asking whether the approach deserved re-evaluation, not by me. The inconsistency is the finding; the gate is the fix.]
+- `skills/document-spring-repo/SKILL.md` Stage 4's `ls docs/*.md | wc -l` check (added in #41) — [Resolved — replaced. Counting to fourteen passes the exact failure it was meant to catch: two writers handed the same `output_path` produce fourteen writes with one name duplicated and another missing. `check_file_set()` compares against the taxonomy's name set instead, and `test_duplicate_output_path_shape_is_caught` pins that distinction.]
+- `scripts/test_pipeline_stages.py`'s `resolve_evidenced_citations()` — "opt-in via `PIPELINE_ARTIFACTS_DIR`, skipped otherwise" — [New info — the capability existed and was mentioned once in `SKILL.md`, but nothing ran it as part of a pipeline run. Moved to `doc_tag_utils.py` (where `VALID_DOC_FILES` and `TAG_PATTERNS` already live, and for the same stated reason) so a runtime checker can use it without making a test module a dependency of the pipeline.]
+
+Details: new `scripts/check_pipeline_output.py`, wired into `SKILL.md`'s Output stage as a **gate, not a report** — the wording matters, since this repo already shipped a CI step named as a gate that could not fail. It checks the fourteen files by name, tag well-formedness, citation resolution against the target repo, and write scope via git.
+
+Deliberately out of scope, and stated in the script's own docstring: whether a resolvable citation actually *supports* the sentence attached to it. That needs a model — `skills/semantic-pipeline-eval/`'s job. Same boundary `test_pipeline_stages.py` draws around itself.
+
+Not CI-wired, for the same reason `check_no_secrets_leaked.py` isn't: this repo's CI has no target-repo run to check the output of. Its unit tests are wired.
+
+Files touched: scripts/check_pipeline_output.py, scripts/test_check_pipeline_output.py, scripts/doc_tag_utils.py, scripts/test_pipeline_stages.py, skills/document-spring-repo/SKILL.md, .github/workflows/ci.yml, claude/session-log.md

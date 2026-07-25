@@ -124,8 +124,16 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/document-spring-repo/references/doc-taxonomy.
 Each returns a one-line confirmation with its path and per-tag counts. After all fourteen return, verify the directory before finalizing — a writer that failed to write is otherwise indistinguishable from one that wrote successfully:
 
 ```bash
-ls docs/*.md | wc -l   # expect 14
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check_pipeline_output.py" docs/ --target-repo <repo_path>
 ```
+
+**This is a gate, not a report — do not finalize the run or tell the user it succeeded while it is failing.** It replaces three guarantees that were previously carried only by instructions in `agents/doc-writer.md`, i.e. by asking a subagent nicely:
+
+- **all fourteen taxonomy files exist, by name.** Counting to fourteen is not enough: two writers handed the same `output_path` produce fourteen writes with one name duplicated and another missing, which a count check passes.
+- **no writer went outside `docs/`.** The target repo is a clean checkout before a run, so `git status --porcelain` afterwards is an exact record of what the fan-out actually wrote. This is the structural version of "write to exactly the path given and nowhere else" — it needs no cooperation from the agent. Pass `--no-write-check` if the target repo was already dirty going in.
+- **every `[Evidenced — path:line]` citation resolves** to a real file, with a real line number, in the target repo — and every tag is well-formed.
+
+What it deliberately does not check is whether a resolvable citation actually *supports* the sentence attached to it. That needs a model; see `skills/semantic-pipeline-eval/`.
 
 ## Output
 
