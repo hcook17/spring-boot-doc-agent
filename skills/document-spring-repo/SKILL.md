@@ -39,6 +39,19 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/partition_repo.py" <repo_path> --max-toke
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_manifest.py" end-stage run_manifest.json partition --status complete
 ```
 
+Then resolve cross-group file relationships once, deterministically — it needs both of the above, so it runs after both and belongs to neither:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_cross_group_edges.py" groups.json spring_signals.json --out cross_group_edges.json
+```
+
+This replaces what Stage 1 used to do by broadcasting the whole `references` bucket to every dispatch and asking each subagent to string-match its way to the answer. Two reasons it moved here, and the second is the important one:
+
+- **Cost.** Broadcasting ships `g × |R|` rows, and both `g` and `|R|` grow with repo size — so the volume is quadratic. Measured on a 109-file sample: 1030 rows broadcast, 75 actually load-bearing.
+- **Kind.** It is a join over `package`/`import` text. Nothing about it needs inference, so having a language model do it once per group is both wasteful and less accurate than a hash join. Computed here it becomes a fact with `file:line` provenance — legitimately `[Evidenced — …]` — rather than an LLM guess the tag grammar cannot honestly label.
+
+It also catches a case the prompt-based version explicitly could not: two files in the *same package* that landed in different groups have no `import` between them (Java doesn't require importing your own package), so no amount of import-matching finds them. A package index does.
+
 (Use `--status failed --error "<what went wrong>"` on the matching `end-stage` call instead if a script exits non-zero.)
 
 `spring_signals.json` gives you AST-detected Spring markers (controllers, entities, security annotations, messaging, deployment files, etc.) — via ast-grep, see `scripts/spring_ast_grep_rules.yml` — plus an `entity_table_map` resolving JPA entity classes to table names. `groups.json` gives you the token-bounded, DFS-ordered file groups for Stage 1. Read both before proceeding.
@@ -67,7 +80,9 @@ This re-hashes every file (cheap, tier 1) and, only for files that changed, re-v
 
 Wrap this whole stage in one `start-stage run_manifest.json file_summarize --fanout <num_groups>` / `end-stage ... --status complete` pair — one call before dispatching the group subagents, one after they've all returned, not one pair per group.
 
-For every group in `groups.json`, dispatch a `file-summarizer` subagent — a registered subagent type (`agents/file-summarizer.md`) — in the same turn as its sibling groups, so they run concurrently. Give each one its group's file list (it reads the files itself via its own `Read`/`Grep`/`Glob` access) **and** the relevant slice of `spring_signals.json` (matches whose `file` field falls in that group) so it isn't rediscovering annotations the ast-grep pass already found — it should focus on business meaning, not re-detection. Also give each dispatch the **entire** `references` bucket from `spring_signals.json` — repo-wide, not scoped to that group. This is the one slice that's deliberately passed in full to every dispatch: it's file-summarizer's only way to see cross-group relationships (a controller in one group calling a service in another), since its own group's file list otherwise has no visibility outside itself, and the ~10% DFS overlap between adjacent groups only rescues relationships that happen to straddle two *adjacent* groups. It's cheap — file/line/package-or-import-text triples, not source — so passing all of it to every dispatch should be inexpensive regardless of repo size, but this is worth confirming against a real repo's actual `references` bucket size rather than just assumed. **Give each dispatch an absolute `output_path`** — `summaries_group_<id>.json` in the run's working directory. Each subagent writes its own JSON array there (one object per file: `file`, `cluster`, `summary`, `relationships`, `cross_group_relationships`, `group_function`, `spring_role`) and returns only a one-line confirmation.
+For every group in `groups.json`, dispatch a `file-summarizer` subagent — a registered subagent type (`agents/file-summarizer.md`) — in the same turn as its sibling groups, so they run concurrently. Give each one its group's file list (it reads the files itself via its own `Read`/`Grep`/`Glob` access) **and** the relevant slice of `spring_signals.json` (matches whose `file` field falls in that group) so it isn't rediscovering annotations the ast-grep pass already found — it should focus on business meaning, not re-detection. Also give each dispatch **its own group's entry from `cross_group_edges.json`** — the `outbound` / `inbound` arcs and `same_package_outside` blocks for that group id, and nothing else. These are resolved facts, not hints: treat them the same way as the signal-scan slice, as ground truth to describe rather than a table to search.
+
+Earlier versions of this stage passed the **entire** repo-wide `references` bucket to every dispatch instead, on the reasoning that it was cheap (file/line/import triples, not source) and was the subagent's only window outside its own group. The first real run showed the cost is `g × |R|` with both terms growing in repo size — quadratic — and that the work being paid for was a `package`/`import` string join executed by a language model once per group. Stage 0's `build_cross_group_edges.py` now does that join once, exactly, and ships each group only its boundary. Do not go back to broadcasting the bucket. **Give each dispatch an absolute `output_path`** — `summaries_group_<id>.json` in the run's working directory. Each subagent writes its own JSON array there (one object per file: `file`, `cluster`, `summary`, `relationships`, `cross_group_relationships`, `group_function`, `spring_role`) and returns only a one-line confirmation.
 
 Then concatenate the per-group files into `summaries.json` with a one-liner, rather than pasting arrays through the orchestrator:
 
