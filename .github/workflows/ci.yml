@@ -67,6 +67,9 @@ jobs:
       - name: test_run_manifest.py
         run: python3 scripts/test_run_manifest.py -v
 
+      - name: test_build_cross_group_edges.py
+        run: python3 scripts/test_build_cross_group_edges.py -v
+
       - name: test_check_llms_coverage.py
         run: python3 scripts/test_check_llms_coverage.py -v
 
