@@ -364,3 +364,22 @@ Details: `partition_repo.py` already had a `_relpath()` helper (line ~149) that 
 The failure mode is the notable part: no error, no warning, no empty-output signal. The pipeline completes and produces plausible documentation built on an evidence slice that silently contained nothing. Only a real end-to-end run surfaced it — no unit test covered the *emitted* path format, and the structural suites all pass either way.
 
 Files touched: scripts/partition_repo.py, scripts/test_partition_repo.py, claude/tool-quirks.md, claude/session-log.md
+
+---
+
+## 2026-07-25 — Pipeline subagents had no Write access, so every stage's output round-tripped through the orchestrator's context
+Commit: uncommitted
+Tests: `test_pipeline_stages.py` 17/17 (1 intentional skip) — the structural suite that validates these five agent prompts. Full suite 289 passing, 10 skips. All five frontmatter blocks re-parsed after edit: `name`/`description`/`tools` intact, `tools` now `Read, Grep, Glob, Write` on each.
+Assumptions affected:
+- `skills/document-spring-repo/SKILL.md` Stage 1 — "Collect results into `summaries.json`" — [New info — that collection was happening *through the orchestrating thread's context*, because all five subagents declared `tools: Read, Grep, Glob` with no `Write`. A subagent structurally could not persist its own output, so its entire result had to come back as its final message and be re-serialized by the orchestrator. Measured on the first real run (`spring-petclinic`, 49 Java files, 2 groups): **Stage 1 alone returned ~218k subagent tokens** through the orchestrator before Stage 2 dispatched anything. Stage 4's fourteen concurrent doc-writers, each producing a full markdown document, are several times larger again.]
+- `skills/capacity-preflight/SKILL.md` — "estimated group count and total subagent fan-out across all five stages, estimated size of the repo-wide references bucket attached to every Stage-1 dispatch" — [New info — every quantity preflight measures is an **input** quantity: group count, fan-out, and the references bucket sent *in*. Nothing estimates the **return** payload. So the ceiling that actually caps repository size is the one preflight does not look at, and a run can pass it cleanly (`petclinic`: "2 groups, 20 dispatches, no thresholds crossed") while still exhausting the orchestrator on what comes back. Not fixed here — flagged as the more useful preflight metric than any currently computed.]
+- `claude/10-architecture-maturation-plan.md` — the LLM principles section's "context isolation (siblings share nothing, so anything global must be threaded explicitly — already learned in `architect-merge`)" — [Still accurate, and this is the same principle's other half. Siblings sharing nothing is what makes the fan-out safe; it is also what forced every result back through the one thread that *can* see everything. Giving each sibling a write path preserves the isolation while removing the funnel.]
+
+Details: added `Write` to all five agent frontmatter `tools:` lines, and rewrote each agent's output contract to write to an absolute `output_path` supplied by its dispatch, returning only a one-line confirmation. `SKILL.md`'s four dispatch sections now hand out paths instead of collecting payloads — including passing *paths* to upstream artifacts rather than their contents, since every agent has `Read`.
+
+Two guards written into the agent prompts rather than left implicit, because both failure modes are silent: each agent is told to write to exactly the path given and nowhere else (fourteen doc-writers share one `docs/` directory concurrently, so a duplicated or wrong path destroys a sibling's file with nothing downstream to catch it), and each keeps an inline-output fallback if a dispatch supplies no `output_path`, so an orchestrator that has not been updated degrades to the old behavior rather than losing the output entirely.
+
+`SKILL.md` Stage 4 also gains a post-dispatch `ls docs/*.md | wc -l` check: with writers reporting success by confirmation line rather than by returning content, a writer that failed to write is otherwise indistinguishable from one that succeeded.
+
+Files touched: agents/architect-merge.md, agents/architect-segment.md, agents/doc-writer.md, agents/file-summarizer.md, agents/gap-analyzer.md, skills/document-spring-repo/SKILL.md, claude/session-log.md
+
