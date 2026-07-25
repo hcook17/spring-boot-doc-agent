@@ -46,5 +46,10 @@ Every command is pinned to a commit SHA (or, for a still-open PR, its head branc
 | [#30](pr-30.md) | Fix two JPQL-provenance gate misses in spring_drift_check.py | merged (`a677279`) |
 | [#31](pr-31.md) | Correct the mirror-back scope and annotate the maturation plan's stale items | merged (`6f04332`) |
 | #36 | Execute the mirror-back; correct the manifest's two wrong rows; fix `06`'s stale `status:` | merged (`a62a99c`) — **no `pr-36.md`** |
+| [#47](pr-47.md) | Kitchen-sink suite, a code-quality ratchet, and five real bugs | merged (`1539d0c`) — branch history was rewritten before merge; see the file |
+| [#48](pr-48.md) | Verified testing/security anchors, cited from steering prompt 10 | merged (`8b1138a`) |
+| [#49](pr-49.md) | Order module docstrings reference-first, and enforce it | open (`e54a003`) |
+
+> **#37–#46 have no `pr-N.md`.** They are not listed above either, so the gap is invisible in this table rather than merely undocumented — worth stating here rather than leaving a reader to infer it from the jump between #36 and #47. `python3 scripts/check_llms_coverage.py` prints the authoritative current list; it reports rather than fails, because `ENFORCE = False`.
 
 Cross-linked from `STATUS.md` and `README.md`. See `claude/session-log.md` for the append-only history of which steering-prompt assumptions each of these PRs affected — this index is about verifying *what a PR did*, the session log is about *what it means for the steering prompts*. Different axis, same underlying discipline.
