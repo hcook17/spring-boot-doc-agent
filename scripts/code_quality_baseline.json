@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
-  "production_functions": 217,
-  "production_functions_annotated": 89,
+  "production_functions": 230,
+  "production_functions_annotated": 102,
   "limits_for_new_functions": {
     "statements": 140,
     "complexity": 34,
@@ -306,8 +306,23 @@
       "complexity": 2,
       "depth": 1
     },
-    "check_repo_claims.py::_evaluate_unchanged_since": {
-      "statements": 19,
+    "check_repo_claims.py::_eval_contains": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 1
+    },
+    "check_repo_claims.py::_eval_path_absent": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "check_repo_claims.py::_eval_path_exists": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "check_repo_claims.py::_eval_unchanged_since": {
+      "statements": 18,
       "complexity": 8,
       "depth": 1
     },
@@ -412,8 +427,8 @@
       "depth": 0
     },
     "check_repo_claims.py::evaluate_predicate": {
-      "statements": 20,
-      "complexity": 7,
+      "statements": 4,
+      "complexity": 3,
       "depth": 2
     },
     "check_repo_claims.py::exit_code": {
@@ -614,6 +629,56 @@
     "doc_tag_utils.py::resolve_evidenced_citations": {
       "statements": 13,
       "complexity": 7,
+      "depth": 3
+    },
+    "drift_match_normalizers.py::collapse_ws": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "drift_match_normalizers.py::first_line": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "drift_match_normalizers.py::strip_ws_outside_strings": {
+      "statements": 10,
+      "complexity": 3,
+      "depth": 1
+    },
+    "drift_match_normalizers.py::tokens": {
+      "statements": 4,
+      "complexity": 4,
+      "depth": 1
+    },
+    "java_perturbations.py::add_comment": {
+      "statements": 9,
+      "complexity": 4,
+      "depth": 2
+    },
+    "java_perturbations.py::blank_lines": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "java_perturbations.py::broken_wrap_annotation_args": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "java_perturbations.py::broken_wrap_annotation_args.repl": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "java_perturbations.py::reindent": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 2
+    },
+    "java_perturbations.py::wrap_annotation_args": {
+      "statements": 25,
+      "complexity": 8,
       "depth": 3
     },
     "partition_repo.py::build_groups": {
@@ -2101,6 +2166,26 @@
       "complexity": 1,
       "depth": 0
     },
+    "test_check_repo_claims.py::TestPredicateRegistry.test_an_unknown_predicate_is_rejected": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestPredicateRegistry.test_every_registered_handler_is_reachable": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_check_repo_claims.py::TestPredicateRegistry.test_no_predicate_prefix_is_a_prefix_of_another": {
+      "statements": 3,
+      "complexity": 5,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestPredicateRegistry.test_the_reference_alternation_is_derived_from_the_prefix_list": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
     "test_check_repo_claims.py::TestRealRepo.test_a_long_status_tag_is_not_silently_dropped": {
       "statements": 7,
       "complexity": 2,
@@ -2595,6 +2680,176 @@
       "statements": 2,
       "complexity": 1,
       "depth": 0
+    },
+    "test_drift_normalization.py::Outcome.drifted": {
+      "statements": 1,
+      "complexity": 3,
+      "depth": 0
+    },
+    "test_drift_normalization.py::Outcome.valid": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_drift_normalization.py::Test00HarnessValidityGate.test_a_formatting_only_edit_passes_the_validity_gate": {
+      "statements": 4,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_drift_normalization.py::Test00HarnessValidityGate.test_a_parse_breaking_edit_is_rejected_by_the_validity_gate": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_drift_normalization.py::Test00HarnessValidityGate.test_the_broken_edit_would_have_been_scored_as_checker_failure": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_drift_normalization.py::Test01FormattingMustNotProduceDrift._false_positives": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_drift_normalization.py::Test01FormattingMustNotProduceDrift.test_adding_comments_produces_no_drift": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_drift_normalization.py::Test01FormattingMustNotProduceDrift.test_reindenting_produces_no_drift": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_drift_normalization.py::Test01FormattingMustNotProduceDrift.test_shifting_line_numbers_produces_no_drift": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_drift_normalization.py::Test02TheKnownGap.test_the_known_gap_is_first_line_truncation_not_something_else": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_drift_normalization.py::Test02TheKnownGap.test_wrapping_an_annotation_still_produces_exactly_the_known_drift": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_drift_normalization.py::Test03SemanticChangesMustBeCaught._graded": {
+      "statements": 4,
+      "complexity": 3,
+      "depth": 0
+    },
+    "test_drift_normalization.py::Test03SemanticChangesMustBeCaught._is_expected_to_drift": {
+      "statements": 1,
+      "complexity": 3,
+      "depth": 0
+    },
+    "test_drift_normalization.py::Test03SemanticChangesMustBeCaught.test_a_changed_mapping_and_a_renamed_table_are_both_reported": {
+      "statements": 6,
+      "complexity": 5,
+      "depth": 2
+    },
+    "test_drift_normalization.py::Test03SemanticChangesMustBeCaught.test_untouched_citations_in_the_same_files_are_not_reported": {
+      "statements": 5,
+      "complexity": 4,
+      "depth": 2
+    },
+    "test_drift_normalization.py::Test04NormalizerCandidates._false_positives": {
+      "statements": 6,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_drift_normalization.py::Test04NormalizerCandidates.test_collapsing_whitespace_alone_does_not_help": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_drift_normalization.py::Test04NormalizerCandidates.test_no_candidate_buys_that_by_missing_a_real_change": {
+      "statements": 7,
+      "complexity": 8,
+      "depth": 2
+    },
+    "test_drift_normalization.py::Test04NormalizerCandidates.test_the_status_quo_is_the_row_with_false_positives": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_drift_normalization.py::Test04NormalizerCandidates.test_the_stronger_candidates_reach_zero_false_positives": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_drift_normalization.py::Test05NormalizerProperties.test_every_candidate_is_stable_under_whitespace": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_drift_normalization.py::Test05NormalizerProperties.test_every_candidate_still_separates_a_changed_literal": {
+      "statements": 5,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_drift_normalization.py::Test05NormalizerProperties.test_stripping_whitespace_outside_strings_is_not_injective": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_drift_normalization.py::Test05NormalizerProperties.test_the_token_separator_cannot_occur_in_java_source": {
+      "statements": 6,
+      "complexity": 4,
+      "depth": 3
+    },
+    "test_drift_normalization.py::Test05NormalizerProperties.test_whitespace_inside_a_string_literal_is_preserved": {
+      "statements": 4,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_drift_normalization.py::_apply_to_java": {
+      "statements": 1,
+      "complexity": 7,
+      "depth": 0
+    },
+    "test_drift_normalization.py::_apply_to_java.go": {
+      "statements": 11,
+      "complexity": 7,
+      "depth": 4
+    },
+    "test_drift_normalization.py::_citation_count": {
+      "statements": 1,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_drift_normalization.py::_fixtures_usable": {
+      "statements": 7,
+      "complexity": 3,
+      "depth": 1
+    },
+    "test_drift_normalization.py::_locate_getmapping_line": {
+      "statements": 5,
+      "complexity": 4,
+      "depth": 3
+    },
+    "test_drift_normalization.py::_run_scenario": {
+      "statements": 7,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_drift_normalization.py::_semantic_edits": {
+      "statements": 13,
+      "complexity": 8,
+      "depth": 1
+    },
+    "test_drift_normalization.py::setUpModule": {
+      "statements": 16,
+      "complexity": 5,
+      "depth": 3
+    },
+    "test_drift_normalization.py::tearDownModule": {
+      "statements": 2,
+      "complexity": 3,
+      "depth": 1
     },
     "test_enterprise_kitchen_sink.py::Ch01FaultInjectionTest._gate": {
       "statements": 1,

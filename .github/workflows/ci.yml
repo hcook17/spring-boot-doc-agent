@@ -125,6 +125,14 @@ jobs:
       - name: test_check_llms_coverage.py
         run: python3 scripts/test_check_llms_coverage.py -v
 
+      # Runs the real scanner and the real drift checker over the fixtures and
+      # counts wrong verdicts, rather than asserting per-rule behaviour -- see
+      # its docstring for the non-overlap contract with test_spring_drift_check.
+      # ~10s, the slowest suite here, because every scenario shells out to
+      # ast-grep twice. Skips itself if ast-grep is unavailable.
+      - name: test_drift_normalization.py
+        run: python3 scripts/test_drift_normalization.py -v
+
       # The checker itself isn't CI-wired -- like check_no_secrets_leaked.py,
       # it needs a completed target-repo run to check, and CI has none. Its
       # unit tests do run here.
