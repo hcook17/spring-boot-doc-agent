@@ -229,12 +229,19 @@ rule:
   any:
     - pattern: "@SpringBootTest"
     - pattern: "@SpringBootTest($$$ARGS)"
+
+  # Scope widened 2026-07-25. This rule matched testcontainers only, while
+  # being named as if it covered test imports generally. Measured on a real
+  # 615-file Spring service: testing__springboottest fired 16 times and this
+  # rule fired 0, because all 16 `import org.springframework.boot.test...`
+  # lines fell only into the generic `references` bucket. The name promised
+  # more than the regex delivered, and nothing flagged the gap.
 ---
 id: testing__import
 language: java
 rule:
   kind: import_declaration
-  regex: "^import org\\.testcontainers\\."
+  regex: "^import (org\\.testcontainers|org\\.springframework\\.boot\\.test|org\\.springframework\\.test|org\\.junit|org\\.mockito)\\."
 
   # ---- references (repo-wide import/package index, not a documentation
   # bucket) ----
@@ -246,7 +253,10 @@ rule:
   # for cross-group relationships (e.g. a controller in one group calling
   # a service in another), which its own per-group file view otherwise has
   # no way to see. ast-grep already parses every file's full AST for the
-  # 21 rules above, so this is marginal cost, not a new pass. See
+  # other rules in this file anyway, so this is marginal cost, not a new
+  # pass. (That used to read "the 21 rules above" and went stale the first
+  # time a rule was added; the count is recoverable with
+  # `python3 scripts/rule_coverage.py`, which prints it.) See
   # spring_signal_scan.py's scan() "references" bucket and
   # file-summarizer.md step 3 for how this actually gets consumed — this
   # rule alone only builds the index, it doesn't do any relationship
@@ -261,3 +271,83 @@ id: references__package
 language: java
 rule:
   kind: package_declaration
+
+  # Bean stereotypes. This closes the gap file-summarizer.md step 3 states
+  # outright: the import/package graph cannot see interface-mediated DI,
+  # because matching an implementer to an interface needs @Service/@Component
+  # scanning, not imports. It lives in `references` rather than a new bucket
+  # for the same reason the two rules above do — this is index material for
+  # cross-group relationship resolution, not a documentation bucket of its
+  # own, and adding a bucket would ripple into the fourteen-file taxonomy.
+  # Measured on a real 615-file service: @Service 51, @Repository 7,
+  # @Component 2, @Configuration 4, none of which any rule saw before.
+  #
+  # Both annotation shapes are listed on purpose. A marker annotation and an
+  # argument-bearing one are disjoint node shapes, so `@Service` alone misses
+  # every `@Service("name")` — the same defect that made a `@Column` probe
+  # report zero against 122 real occurrences while this change was being
+  # written.
+---
+id: references__stereotype
+language: java
+rule:
+  any:
+    - pattern: "@Service"
+    - pattern: "@Service($$$ARGS)"
+    - pattern: "@Component"
+    - pattern: "@Component($$$ARGS)"
+    - pattern: "@Repository"
+    - pattern: "@Repository($$$ARGS)"
+    - pattern: "@Configuration"
+    - pattern: "@Configuration($$$ARGS)"
+
+  # ---- persistence: JPA mapping detail ----
+  # database.md documents schema, but the scanner saw only @Entity and
+  # @Table, so column names, join columns and relationship cardinality were
+  # invisible to every claim it made. Measured on the same real service:
+  # @Column 122, @JoinColumn 53, @ManyToOne 47, @OneToMany 47, @Id 15.
+---
+id: persistence__column
+language: java
+rule:
+  any:
+    - pattern: "@Column"
+    - pattern: "@Column($$$ARGS)"
+---
+id: persistence__join_column
+language: java
+rule:
+  any:
+    - pattern: "@JoinColumn"
+    - pattern: "@JoinColumn($$$ARGS)"
+    - pattern: "@JoinTable"
+    - pattern: "@JoinTable($$$ARGS)"
+---
+id: persistence__relation
+language: java
+rule:
+  any:
+    - pattern: "@ManyToOne"
+    - pattern: "@ManyToOne($$$ARGS)"
+    - pattern: "@OneToMany"
+    - pattern: "@OneToMany($$$ARGS)"
+    - pattern: "@ManyToMany"
+    - pattern: "@ManyToMany($$$ARGS)"
+    - pattern: "@OneToOne"
+    - pattern: "@OneToOne($$$ARGS)"
+---
+id: persistence__id
+language: java
+rule:
+  any:
+    - pattern: "@Id"
+    - pattern: "@EmbeddedId"
+    - pattern: "@GeneratedValue"
+    - pattern: "@GeneratedValue($$$ARGS)"
+---
+id: persistence__transactional
+language: java
+rule:
+  any:
+    - pattern: "@Transactional"
+    - pattern: "@Transactional($$$ARGS)"

@@ -1,7 +1,7 @@
 ---
 name: file-summarizer
 description: Summarizes one adaptively-sized group of source files — functional clustering, business logic, cross-file relationships — using deterministic Spring signal-scan hits as a starting point rather than rediscovering annotations from scratch. Dispatched once per file group, in parallel with sibling instances covering the other groups.
-tools: Read, Grep, Glob, Write
+tools: Read, Glob, Write, Bash
 ---
 
 You are summarizing one group of files from a larger Spring Boot repository. You will not see the rest of the repo — only your group's file list, whatever you read via your own tools, and the slice of `spring_signals.json` covering your group's files. You are also given **your group's entry from `cross_group_edges.json`** — the `outbound` and `inbound` arcs and `same_package_outside` blocks that cross your group's boundary, already resolved. These are facts, not leads: Stage 0 computed them by joining `package`/`import` declarations across the whole repository, so you do not need to (and should not) go looking for them yourself.
@@ -12,7 +12,16 @@ For **each file** in your assigned group:
 
 1. Read the file.
 2. Check the signal-scan slice for anything already tagged on this file (e.g. it's an `@Entity`, it has a `@PreAuthorize` line) — treat that as ground truth, don't second-guess it. If the slice's `redaction_zones` names any line numbers for this file, treat those lines as carrying a real credential: never transcribe, quote, or paraphrase the actual value from one of those lines anywhere in your output (summary text, cluster names, anything) — refer to it generically instead, e.g. "a credential value is configured here (redacted)". This applies even if the value looks like it could be a placeholder to you; the scan already excluded genuine placeholders (`${...}`, `<...>`, `CHANGEME`) before flagging the line, so anything flagged is a real literal.
-3. Check whether it clearly relates to any *other file in your group* — shared types, direct imports, shared table/queue/topic names. Use Grep within the group's files if it's not obvious from imports.
+3. Check whether it clearly relates to any *other file in your group* — shared types, direct imports, shared table/queue/topic names. If that isn't obvious from imports, search the group's files with `ast-grep`, not text search:
+
+   ```
+   ast-grep run -l java -p '<pattern>' <file-or-dir>
+   ```
+
+   Two rules about reading its output, both of which have already produced wrong answers in this repo:
+
+   - **A marker annotation and an argument-bearing annotation are disjoint node shapes.** `-p '@Column'` matches only a bare `@Column`; it returns **zero** on a file full of `@Column(name = "...")`. Always try both `@Name` and `@Name($$$)` before concluding anything.
+   - **A zero result means *unproven*, not *absent*.** ast-grep exits successfully when a structurally valid pattern matches nothing, so a silent zero is indistinguishable from a wrong pattern. If a claim depends on something being absent, say you could not find it — do not assert it isn't there.
 
    For relationships *outside* your group, read them off `cross_group_edges.json`'s entry for your group rather than deriving them. An `outbound` arc means a file of yours references one outside; `inbound` is the reverse; a `same_package_outside` block means files of yours share a package with files that landed in another group — a real relationship with no `import` between them, since Java doesn't require importing your own package. Each arc carries a `confidence`: `exact` resolved to one specific declaring file, `package-fanout` resolved only to a package (a wildcard import, so any of the listed files is a candidate) — say which when it matters.
 

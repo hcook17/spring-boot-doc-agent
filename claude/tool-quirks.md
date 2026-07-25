@@ -161,3 +161,54 @@ Diagnostic steps taken (re-runnable):
     git status --porcelain                                        # UU = both-modified, the real signal
     grep -rln '^<<<<<<< \|^>>>>>>> ' --include='*.md' .           # finds markers a tail'd log hid
 Resolution / workaround: use `python3` for everything, which is also what `.github/workflows/ci.yml` invokes, so local runs match CI. Never read `$?` through a pipe — run the command redirected to a file, capture `$?` on the very next line, then inspect the file (`cmd > out.txt 2>&1; rc=$?; tail out.txt`). Note the second failure is the same shape as the `git clone` entry below: the reassuring summary is the part you see, and the error is the part the pipe discarded. `git status --porcelain` showing `UU` is the check that would have caught the stash conflict immediately.
+
+---
+
+## 2026-07-25 — `ast-grep` reports success while matching nothing, and its `markdown` grammar is not a text search
+Tools/commands involved: `ast-grep` 0.44.1 (Windows), `ast-grep run -p`, `-l java`, `-l markdown`
+Status: [Resolved — always try both annotation shapes; never use `-l markdown` as a substitute for text search]
+Symptom: two false readings in one session, both of the shape where the tool exits 0 and the answer is wrong.
+
+1. **A marker annotation and an argument-bearing annotation are disjoint node shapes.** `ast-grep run -l java -p '@Column' <repo>` returned **0** against a corpus holding **122** `@Column(name = "...")`. Nothing errored; the pattern is structurally valid, it simply matches `marker_annotation` and not `annotation`. The same probe reported `@Table` 0 (really 43) and `@Query` 0 (really 198), and those zeros were briefly written up as real findings before being caught. This is the same failure the rule file's own header warns about at `spring_ast_grep_rules.yml:22-31`, met from the query side instead of the rule side.
+
+2. **`-l markdown` matches broad block nodes, not literal text.** `ast-grep run -l markdown -p 'ast-grep' README.md` reported **35** lines; only **8** of those lines contain the string `ast-grep` at all. It is matching containing paragraph/heading nodes, so it is unusable as a prose search and will happily "confirm" text that is not there.
+
+Diagnostic steps taken (re-runnable):
+    # the trap: these two are disjoint, never interchangeable
+    ast-grep run -l java -p '@Column'      <repo> --json=compact   # 0
+    ast-grep run -l java -p '@Column($$$)' <repo> --json=compact   # 122
+    # ground truth for a whole-corpus annotation census, args-agnostic:
+    ast-grep run -l java -p '@$A($$$)' <repo> --json=compact       # all args-bearing
+    ast-grep run -l java -p '@$A'      <repo> --json=compact       # all markers
+    # markdown imprecision, against a file whose real count is known:
+    ast-grep run -l markdown -p 'ast-grep' README.md --json=compact
+
+Resolution / workaround: when querying for an annotation, always run **both** `@Name` and `@Name($$$)` and take the union — a whole-corpus census needs `@$A` and `@$A($$$)` for the same reason. Treat a zero as *unproven*, never as *absent*: ast-grep exits 0 whether the pattern is wrong or the code genuinely lacks the construct, so a silent zero carries no information on its own. For prose, use `Glob` to narrow and `Read` to open; `-l markdown` is not a text searcher. Every rule in `spring_ast_grep_rules.yml` that can take arguments now lists both shapes, and `scripts/rule_coverage.py` fails the build if any rule matches nothing in `scripts/rule_fixtures/`, which is the mechanical guard against writing a rule that can never fire.
+
+---
+
+## 2026-07-25 — Gradle 8.10 fails at configuration with "Unsupported class file major version 70" when launched by JDK 26, and piping it through `tail` reported that failure as success
+Tools/commands involved: Gradle 8.10 (the extracted wrapper dist at `~/.gradle/wrapper/dists/gradle-8.10-bin/.../bin/gradle`), Temurin JDK 26.0.1 as ambient `JAVA_HOME`, Git Bash, `cmd | tail -N`
+Status: [Resolved — root cause identified for both halves]
+Symptom: two distinct problems that compounded, and the second is the one worth remembering.
+
+1. **The real failure.** `gradle <task>` died during configuration with `BUG! exception in phase 'semantic analysis' in source unit '_BuildScript_' | Unsupported class file major version 70`. Major version 70 is Java 26. Gradle 8.10's embedded Groovy cannot parse class files that new, so *any* task fails before reaching the build script's own logic. Note this is a **JDK** incompatibility, not a Gradle-version-vs-project one: the project's `gradle-wrapper.properties` pins 8.10 and 8.10 was what ran. Downgrading Gradle further would not have helped; the ambient `JAVA_HOME` was the wrong component.
+
+2. **What hid it.** The failing runs were invoked as `gradle ... 2>&1 | tail -30`, and the exit code read afterwards was `tail`'s (0), not Gradle's. Two consecutive runs were therefore reported as "exit 0 / baseline green" when Gradle had in fact failed both times and produced no build output at all. The empty log should have been the tell — a successful Gradle run is never silent — but a green exit code is more persuasive than an empty file, which is precisely why this is worth logging.
+
+Diagnostic steps taken (re-runnable):
+
+    java -version                     # 26.0.1 — the launcher JVM, not the toolchain
+    gradle --version                  # confirms "Launcher JVM" separately from "Daemon JVM"
+    ls -d "/c/Program Files/Java/jdk-21"
+
+Resolution / workaround:
+
+- **Set `JAVA_HOME` to a JDK the Gradle version supports before invoking it**, independently of any `java { toolchain { } }` block in the build script. The toolchain governs what compiles the *project*; it does not govern what runs *Gradle*. Here: `export JAVA_HOME="/c/Program Files/Java/jdk-21"` with Gradle 8.10 unchanged.
+- **Never read an exit code through a pipe.** Redirect to a file, capture `$?` on the command itself, then read the file:
+
+        "$GRADLE" <task> --console=plain > "$LOG" 2>&1
+        EXIT=$?; echo "GRADLE_EXIT=$EXIT"; tail -n 170 "$LOG"
+
+  `$?` after a pipeline is the *last* command's status. `set -o pipefail` or `${PIPESTATUS[0]}` also work, but redirect-then-read is harder to get wrong and keeps the full log.
+- Corollary worth stating plainly: an empty output file from a build tool is evidence of failure, not of a quiet success. Treat "green exit code + no output" as a contradiction to investigate rather than a result to report.

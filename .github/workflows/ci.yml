@@ -41,8 +41,36 @@ jobs:
         run: |
           pip install -r requirements-dev.txt
 
-      - name: Verify ast-grep is on PATH
-        run: ast-grep --version
+      # Presence is not enough. This step used to run `ast-grep --version` and
+      # discard the answer, so it passed while the binary that actually
+      # resolved on PATH was a different build from the one requirements.txt
+      # pins -- exactly the shadowing recorded in claude/tool-quirks.md, which
+      # was live on a dev machine while this step was green. The pinned
+      # version is read from requirements.txt rather than written here, so
+      # there is no second number to go stale.
+      - name: Verify ast-grep on PATH matches the pin
+        run: |
+          python3 - <<'PY'
+          import re, shutil, subprocess, sys, pathlib
+          pin = re.search(r"^ast-grep-cli~=(\d+)\.(\d+)\.",
+                          pathlib.Path("requirements.txt").read_text(), re.M)
+          if not pin:
+              sys.exit("requirements.txt does not pin ast-grep-cli")
+          binary = shutil.which("ast-grep")
+          if not binary:
+              sys.exit("ast-grep is not on PATH")
+          out = subprocess.run([binary, "--version"], capture_output=True,
+                               text=True).stdout.strip()
+          got = re.search(r"(\d+)\.(\d+)\.(\d+)", out)
+          if not got:
+              sys.exit(f"could not parse a version from {out!r}")
+          want, have = (pin.group(1), pin.group(2)), (got.group(1), got.group(2))
+          print(f"pin={'.'.join(want)}.x  resolved={out}  at {binary}")
+          if want != have:
+              sys.exit(f"ast-grep on PATH is {out}, but requirements.txt pins "
+                       f"{'.'.join(want)}.x. Two installs are shadowing each "
+                       f"other; run `which -a ast-grep`.")
+          PY
 
       # Lint and import order. Rule selection, the 110-character line length
       # (derived from this repo's own p99.5, not from a style guide), and the
@@ -79,6 +107,16 @@ jobs:
       # whether it is true; that judgment stays in CLAUDE.md's human pass.
       # Pre-existing findings ride scripts/repo_claims_baseline.json, the
       # same ratchet shape as check_code_quality.py.
+      # Every ast-grep rule must be able to match something. Measured against
+      # a real 615-file Spring service, 10 of 23 rules fired and 13 returned
+      # zero -- and nothing here could tell "this codebase has no Kafka" from
+      # "this rule is broken". Only the fixture corpus runs in CI: it is
+      # committed and tiny. The real-corpus ratchet needs a checkout too large
+      # to track, so it runs on a dev machine and commits its baseline, the
+      # same shape check_code_quality.py uses. This step fails the build.
+      - name: rule_coverage.py (rule non-vacuity gate)
+        run: python3 scripts/rule_coverage.py
+
       - name: check_repo_claims.py (state-claim gate)
         run: python3 scripts/check_repo_claims.py
 
@@ -157,6 +195,16 @@ jobs:
       # shell -- the defect that got verify_llms_docs.py deleted.
       - name: test_check_repo_claims.py
         run: python3 scripts/test_check_repo_claims.py -v
+
+      # Runtime half of the structural-search policy. check_repo_claims.py's
+      # check F covers the static half (no agent definition may declare Grep);
+      # this covers the half that static inspection cannot reach -- an agent
+      # that lost the Grep tool but shells out to `grep` through Bash.
+      - name: test_deny_text_search.py
+        run: python3 scripts/test_deny_text_search.py -v
+
+      - name: test_rule_coverage.py
+        run: python3 scripts/test_rule_coverage.py -v
 
       # The evidence for _ast_signature.py's default, kept executable. The
       # choice of t2 came from measurements taken in a throwaway script, and a

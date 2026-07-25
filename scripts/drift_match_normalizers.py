@@ -10,7 +10,8 @@ with no __main__ entry point).
 WHAT THIS IS FOR
 
 spring_signal_scan._first_line_match() is the identity function tier 2 compares
-citations under for the 20 of 23 rules that have no specialized extractor. It
+citations under for every rule that has no specialized extractor -- all of them
+except raw_queries__query, persistence__entity and persistence__repository. It
 keeps the match's FIRST LINE. ast-grep returns the whole match, so when an
 annotation is wrapped across lines the stored identity degrades to
 "@RequestMapping(" -- which compares equal to nothing, and the citation reads

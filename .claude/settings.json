@@ -14,7 +14,18 @@
     "Two entries in the local file name scripts that do not exist:",
     "verify_llms_docs.py, deleted as an RCE vector, and",
     "test_check_session_log.py, which lives only on the parked branch.",
-    "Neither is carried over."
+    "Neither is carried over.",
+    "",
+    "The ast-grep entries below are load-bearing, not convenience. The five",
+    "pipeline agents used to declare 'tools: Read, Grep, Glob, Write'. A",
+    "subagent's tools: field accepts bare tool names only -- it cannot",
+    "express Bash(ast-grep:*) -- so file-summarizer and doc-writer now",
+    "declare bare Bash, and the ONLY thing keeping that grant narrow is the",
+    "allowlist here. Widening it widens fourteen parallel doc-writer",
+    "dispatches at once. The matching deny entries stop the same agents",
+    "reaching for text search instead; scripts/check_repo_claims.py fails",
+    "the build if an agent regains Grep or declares Bash without a scoped",
+    "entry here."
   ],
   "permissions": {
     "allow": [
@@ -22,12 +33,25 @@
       "Bash(python3 scripts/check_repo_claims.py --fix)",
       "Bash(python3 scripts/check_code_quality.py)",
       "Bash(python3 scripts/check_llms_coverage.py)",
+      "Bash(python3 scripts/rule_coverage.py:*)",
       "Bash(python3 -m unittest discover -s scripts -p \"test_*.py\")",
       "Bash(python3 -m ruff check --no-cache scripts/)",
+      "Bash(ast-grep run:*)",
+      "Bash(ast-grep scan:*)",
+      "Bash(ast-grep test:*)",
+      "Bash(ast-grep --version)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
       "Bash(git ls-files:*)"
+    ],
+    "deny": [
+      "Grep",
+      "Bash(grep:*)",
+      "Bash(egrep:*)",
+      "Bash(fgrep:*)",
+      "Bash(rg:*)",
+      "Bash(ripgrep:*)"
     ]
   }
 }

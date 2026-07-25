@@ -20,7 +20,7 @@ verify:
   - contains:README.md:spring_drift_check.py
 ```
 
-Three forms, and no others: `path_exists:<path>`, `path_absent:<path>`, `contains:<path>:<literal>`. An unrecognized predicate fails rather than being skipped. Write them to falsify the status in the direction that actually bites — a `not started` prompt should assert its deliverable is **absent**, which is the exact shape `06` got wrong. That prompt's `status:` read `not started` for a whole window after the work landed and was flagged three separate times in `claude/session-log.md` before anyone edited the field; its own `note:` records this. A predicate would have failed the build the first time.
+<!-- derived: predicate_count -->5<!-- /derived --> forms, and no others: `path_exists:<path>`, `path_absent:<path>`, `contains:<path>:<literal>`, `not_contains:<path>:<literal>`, `unchanged_since:<path>:<level>:<digest>`. An unrecognized predicate fails rather than being skipped. (This sentence read "Three forms" for two separate windows after a fourth and then a fifth landed — hence the derived block. `PREDICATE_PREFIXES` was already derived from the registry in one direction; this closes the other.) Write them to falsify the status in the direction that actually bites — a `not started` prompt should assert its deliverable is **absent**, which is the exact shape `06` got wrong. That prompt's `status:` read `not started` for a whole window after the work landed and was flagged three separate times in `claude/session-log.md` before anyone edited the field; its own `note:` records this. A predicate would have failed the build the first time.
 
 `07`'s `path_absent:scripts/verify_llms_docs.py` is worth understanding as a pattern: it turns "deleted as a security defect — do not re-add it" from a comment into a build failure.
 
@@ -63,6 +63,20 @@ Only tag an assumption `[Resolved]` if you're confident the prompt's stated prob
 ### Why this exists, not just what to do
 
 A Claude Code CLI session (this one) has full repo and git access but no access to the Claude project where the canonical copies of `00`–`06` live. A Cowork session attached to that project has the reverse — it can read/edit the prompts but can't run git commands against this repo directly. `claude/session-log.md` is the one file that crosses that gap: cheap for this session to write (it already has full context of its own change), and small enough for the other session to read directly once it has folder access, without needing the full diff or `.git` history relayed by hand.
+
+## Searching code: ast-grep, never text search
+
+**Agents search structurally.** No agent definition may declare the `Grep` tool, and `grep`/`rg` are denied through `Bash` in `.claude/settings.json`. `scripts/check_repo_claims.py`'s check F fails the build if an agent regains `Grep`, and `hooks/deny_text_search.py` (a `PreToolUse` hook, shipped in `hooks/hooks.json` and verified to fire for subagents as well as the main thread) blocks it at runtime. Two controls because they fail differently: the static one cannot be bypassed but only runs in CI; the runtime one catches an agent shelling out to `grep` through `Bash`, which static inspection cannot see.
+
+The reason is citation correctness, not taste. Text search matches inside strings and comments, which is how a claim ends up carrying an `[Evidenced — path:line]` tag anchored to a line that does not support it.
+
+Three things that have each produced a wrong answer here, in this repo, and are worth reading before writing a pattern:
+
+- **A marker annotation and an argument-bearing annotation are disjoint node shapes.** `-p '@Column'` returns **zero** against a file holding 122 `@Column(name = "...")`. Always try `@Name` *and* `@Name($$$)`. Every rule in `spring_ast_grep_rules.yml` that can take arguments lists both forms for this reason.
+- **A zero result means *unproven*, not *absent*.** ast-grep exits 0 when a structurally valid pattern matches nothing, so a silent zero is indistinguishable from a wrong pattern. Never turn one into a claim that something is not there.
+- **ast-grep is not a prose search tool.** Its `markdown` grammar matches broad block nodes: on `README.md`, `-p 'ast-grep'` reports 35 lines of which 27 contain no such string. For docs and logs, use `Glob` to narrow and `Read` to open. The mandate is about *code*, where citations live.
+
+**Coverage is the invariant the mandate exists to serve**, and it is enforced separately. `scripts/rule_coverage.py` runs the <!-- derived: ast_grep_rule_count -->29<!-- /derived --> rules against the committed corpus in `scripts/rule_fixtures/` and fails if any rule matches nothing — a rule nobody can make fire is not coverage. It also has a backtest mode against a real repository, ratcheted against `scripts/rule_coverage_baseline.json`; that corpus is far too large to track, so it is measured on a dev machine and only the baseline is committed. Adding a rule means adding a fixture that triggers it, in the same commit.
 
 ## Tool and environment quirks
 

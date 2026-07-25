@@ -324,12 +324,30 @@ def derive_pipeline_agent_count(root: Path) -> str:
     return str(len(list((root / "agents").glob("*.md"))))
 
 
+def derive_predicate_count(root: Path) -> str:
+    """CLAUDE.md used to say "three forms, and no others" and was wrong twice:
+    once when unchanged_since: landed, again when not_contains: did. The
+    vocabulary is already derived from the registry in one direction
+    (PREDICATE_PREFIXES); this closes the other."""
+    return str(len(PREDICATE_HANDLERS))
+
+
+def derive_ast_grep_rule_count(root: Path) -> str:
+    rules = (root / "scripts" / "spring_ast_grep_rules.yml")
+    if not rules.is_file():
+        return "0"
+    return str(len(re.findall(r"^id:\s*[a-z0-9_]+__[a-z0-9_]+\s*$",
+                              rules.read_text(encoding="utf-8"), re.MULTILINE)))
+
+
 DERIVATIONS: Dict[str, Callable[[Path], str]] = {
     "test_suite_count": derive_test_suite_count,
     "test_method_count": derive_test_method_count,
     "ci_test_steps": derive_ci_test_steps,
     "steering_prompt_count": derive_steering_prompt_count,
     "pipeline_agent_count": derive_pipeline_agent_count,
+    "predicate_count": derive_predicate_count,
+    "ast_grep_rule_count": derive_ast_grep_rule_count,
 }
 
 
@@ -643,6 +661,26 @@ def _eval_contains(root: Path, operand: str) -> Tuple[bool, str]:
         f"{target} does not contain {literal!r}"
 
 
+def _eval_not_contains(root: Path, operand: str) -> Tuple[bool, str]:
+    """The negation of contains:, for claims of the form "X no longer appears
+    in Y" -- e.g. that an agent definition has not regained the Grep tool.
+
+    A missing file FAILS rather than passing vacuously. The literal is indeed
+    absent from a file that does not exist, but that reading turns a rename
+    into a silent pass, which is the exact direction this repo's own `06`
+    incident went wrong in."""
+    target, _, literal = operand.partition(":")
+    target, literal = target.strip(), literal.strip()
+    if not literal:
+        return False, f"malformed not_contains: predicate (no literal after {target!r})"
+    path = root / target
+    if not path.is_file():
+        return False, (f"{target} does not exist, so the claim that it omits "
+                       f"{literal!r} cannot be checked")
+    return literal not in path.read_text(encoding="utf-8"), \
+        f"{target} still contains {literal!r}"
+
+
 def evaluate_predicate(root: Path, predicate: str) -> Tuple[bool, str]:
     """Returns (passed, explanation).
 
@@ -709,6 +747,7 @@ PREDICATE_HANDLERS: Dict[str, Callable[[Path, str], Tuple[bool, str]]] = {
     "path_exists:": _eval_path_exists,
     "path_absent:": _eval_path_absent,
     "contains:": _eval_contains,
+    "not_contains:": _eval_not_contains,
     "unchanged_since:": _eval_unchanged_since,
 }
 
@@ -1068,6 +1107,88 @@ def check_gate_honesty(root: Path) -> List[Finding]:
 
 
 # --------------------------------------------------------------------------
+# Check F -- agents search structurally, and the Bash grant that lets them
+# stays scoped
+# --------------------------------------------------------------------------
+
+# The tool name an agent must not declare, and the allowlist prefix that keeps
+# a Bash grant from being a general shell. Literals, not configuration: a
+# document may select among behaviours defined here, never supply one.
+FORBIDDEN_AGENT_TOOL = "Grep"
+SCOPED_BASH_PREFIX = "Bash(ast-grep"
+TEXT_SEARCH_DENIES = ("Bash(grep:*)", "Bash(rg:*)")
+
+
+def _agent_definitions(root: Path) -> List[Path]:
+    """Plugin agents live in agents/; a project may also carry .claude/agents/.
+    Both are checked so adding one later does not silently escape the gate."""
+    found: List[Path] = []
+    for folder in (root / "agents", root / ".claude" / "agents"):
+        if folder.is_dir():
+            found.extend(sorted(folder.glob("*.md")))
+    return found
+
+
+def _declared_tools(path: Path) -> List[str]:
+    raw = parse_frontmatter(path.read_text(encoding="utf-8")).get("tools", "")
+    if not isinstance(raw, str):
+        return []
+    return [tool.strip() for tool in raw.split(",") if tool.strip()]
+
+
+def check_agent_search_tooling(root: Path) -> List[Finding]:
+    """Agents must search structurally (ast-grep), not textually.
+
+    Two failure modes, because they are genuinely different. An agent that
+    declares Grep is searching text, which matches inside strings and comments
+    and is how a citation ends up anchored to a line that does not support the
+    claim. An agent that declares Bash without a scoped allowlist entry has a
+    general shell instead -- and a subagent's `tools:` field accepts bare tool
+    names only, so settings.json is the ONLY place that scoping can live."""
+    findings: List[Finding] = []
+    settings_path = root / ".claude" / "settings.json"
+    try:
+        permissions = json.loads(
+            settings_path.read_text(encoding="utf-8")).get("permissions", {})
+    except (OSError, ValueError):
+        permissions = {}
+    allow = [str(entry) for entry in permissions.get("allow", [])]
+    deny = [str(entry) for entry in permissions.get("deny", [])]
+    has_scoped_ast_grep = any(entry.startswith(SCOPED_BASH_PREFIX) for entry in allow)
+
+    for path in _agent_definitions(root):
+        rel = path.relative_to(root).as_posix()
+        tools = _declared_tools(path)
+        if FORBIDDEN_AGENT_TOOL in tools:
+            findings.append(Finding(
+                "F", rel, 1,
+                f"declares the {FORBIDDEN_AGENT_TOOL} tool. Agents search "
+                f"structurally: drop it and use ast-grep via a scoped Bash "
+                f"grant. Text search matches inside strings and comments, "
+                f"which mis-anchors citations.",
+                f"F:grep:{path.name}"))
+        if "Bash" in tools and not has_scoped_ast_grep:
+            findings.append(Finding(
+                "F", rel, 1,
+                f"declares Bash, but .claude/settings.json has no "
+                f"{SCOPED_BASH_PREFIX}...) allow entry. A subagent's tools: "
+                f"field cannot scope Bash, so without that entry this is a "
+                f"general shell granted to every parallel dispatch.",
+                f"F:unscoped-bash:{path.name}"))
+
+    if any("Bash" in _declared_tools(p) for p in _agent_definitions(root)):
+        for required in TEXT_SEARCH_DENIES:
+            if required not in deny:
+                findings.append(Finding(
+                    "F", ".claude/settings.json", 1,
+                    f"an agent declares Bash but {required!r} is not denied. "
+                    f"Removing the Grep tool accomplishes nothing if the same "
+                    f"agent can shell out to text search instead.",
+                    f"F:missing-deny:{required}"))
+    return findings
+
+
+# --------------------------------------------------------------------------
 # Baseline
 # --------------------------------------------------------------------------
 
@@ -1105,14 +1226,16 @@ def accepted_fingerprints(baseline: Optional[Dict[str, object]]) -> Set[str]:
 # --------------------------------------------------------------------------
 
 def collect_all(root: Path) -> Tuple[List[Finding], List[Finding]]:
-    """Returns (hard, baseline_eligible). Checks A, D and E are exact and
-    never ride the baseline: a wrong derived number, an unrun suite, and a
-    mislabelled gate are all unambiguous and all cheap to fix on the spot."""
+    """Returns (hard, baseline_eligible). Checks A, D, E and F are exact and
+    never ride the baseline: a wrong derived number, an unrun suite, a
+    mislabelled gate and an agent granted text search are all unambiguous and
+    all cheap to fix on the spot."""
     markdown = tracked_markdown(root)
     verify_failures, verify_missing = check_verify_predicates(root)
     hard = (check_derived_blocks(root, markdown)
             + check_ci_suite_coverage(root)
             + check_gate_honesty(root)
+            + check_agent_search_tooling(root)
             + verify_failures)
     soft = check_references(root, markdown) + verify_missing
     return hard, soft

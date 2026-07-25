@@ -387,6 +387,94 @@ class TestGateHonesty(TreeCase):
         self.assertEqual(self.run_check(), 0)
 
 
+class TestAgentSearchTooling(TreeCase):
+    """Check F. Each test names the one property it defends, and every one
+    is run in both directions -- the arrangement that passes and the single
+    mutation that must turn it red."""
+
+    SCOPED = ["Bash(ast-grep run:*)"]
+    DENIES = ["Bash(grep:*)", "Bash(rg:*)"]
+
+    def agent(self, name: str, tools: str) -> None:
+        folder = self.dir / "agents"
+        folder.mkdir(exist_ok=True)
+        (folder / name).write_text(
+            f"---\nname: {name[:-3]}\ndescription: d\ntools: {tools}\n---\n\nBody.\n",
+            encoding="utf-8")
+
+    def settings(self, allow: list, deny: list) -> None:
+        folder = self.dir / ".claude"
+        folder.mkdir(exist_ok=True)
+        (folder / "settings.json").write_text(
+            json.dumps({"permissions": {"allow": allow, "deny": deny}}),
+            encoding="utf-8")
+
+    def test_structural_only_agent_passes(self) -> None:
+        self.agent("writer.md", "Read, Glob, Write")
+        self.assertEqual(self.run_check(), 0)
+
+    def test_an_agent_declaring_grep_fails(self) -> None:
+        self.agent("writer.md", "Read, Grep, Glob, Write")
+        self.assertEqual(self.run_check(), 1)
+
+    def test_scoped_bash_grant_passes(self) -> None:
+        self.agent("writer.md", "Read, Glob, Write, Bash")
+        self.settings(self.SCOPED, self.DENIES)
+        self.assertEqual(self.run_check(), 0)
+
+    def test_bash_without_a_scoped_allowlist_entry_fails(self) -> None:
+        """A subagent's tools: field cannot scope Bash, so settings.json is
+        the only thing standing between `Bash` and a general shell."""
+        self.agent("writer.md", "Read, Glob, Write, Bash")
+        self.settings(["Bash(git status:*)"], self.DENIES)
+        self.assertEqual(self.run_check(), 1)
+
+    def test_bash_without_text_search_denies_fails(self) -> None:
+        """Removing the Grep tool buys nothing if the same agent can shell
+        out to grep instead."""
+        self.agent("writer.md", "Read, Glob, Write, Bash")
+        self.settings(self.SCOPED, [])
+        self.assertEqual(self.run_check(), 1)
+
+    def test_a_dot_claude_agent_is_checked_too(self) -> None:
+        folder = self.dir / ".claude" / "agents"
+        folder.mkdir(parents=True)
+        (folder / "local.md").write_text(
+            "---\nname: local\ndescription: d\ntools: Read, Grep\n---\n\nBody.\n",
+            encoding="utf-8")
+        self.assertEqual(self.run_check(), 1)
+
+    def test_grep_in_prose_is_not_a_violation(self) -> None:
+        """The check reads the frontmatter tools: field, not the body. An
+        agent may legitimately mention the word while describing input it
+        was handed -- gap-analyzer.md does exactly that."""
+        self.agent("writer.md", "Read, Glob, Write")
+        (self.dir / "agents" / "writer.md").write_text(
+            "---\nname: writer\ndescription: d\ntools: Read, Glob, Write\n---\n\n"
+            "You are given the TODO/FIXME grep hits from Stage 0.\n",
+            encoding="utf-8")
+        self.assertEqual(self.run_check(), 0)
+
+
+class TestNotContainsPredicate(TreeCase):
+    def test_not_contains_both_directions(self) -> None:
+        self.write("claude/steering-prompts/02-y-research-prompt.md",
+                   "---\nstatus: resolved\n"
+                   "verify:\n  - not_contains:scripts/widget.py:Grep\n---\n\nBody.\n")
+        self.assertEqual(self.run_check(), 0)
+        (self.dir / "scripts" / "widget.py").write_text(
+            "def do_a_thing():\n    return Grep\n", encoding="utf-8")
+        self.assertEqual(self.run_check(), 1)
+
+    def test_not_contains_on_a_missing_file_fails(self) -> None:
+        """Vacuous truth would turn a rename into a silent pass -- the exact
+        direction prompt 06's status went wrong in."""
+        self.write("claude/steering-prompts/02-y-research-prompt.md",
+                   "---\nstatus: resolved\n"
+                   "verify:\n  - not_contains:scripts/gone.py:Grep\n---\n\nBody.\n")
+        self.assertEqual(self.run_check(), 1)
+
+
 class TestBaseline(TreeCase):
     def test_baseline_absorbs_an_existing_finding_but_not_a_new_one(self) -> None:
         self.write("README.md", "See `scripts/nope.py`.\n")
@@ -760,6 +848,31 @@ class TestRealRepo(unittest.TestCase):
             capture_output=True, text=True, encoding="utf-8", errors="replace")
         self.assertEqual(result.returncode, 0,
                          f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+
+    def test_no_real_agent_declares_grep(self) -> None:
+        """The backtest for check F. The fixture tests prove the check can
+        fire; this proves it is aimed at the real tree, where all five agents
+        declared `tools: Read, Grep, Glob, Write` before this change."""
+        agents = crc._agent_definitions(REPO_ROOT)
+        self.assertTrue(agents, "no agent definitions found — check F is aimed at nothing")
+        for path in agents:
+            self.assertNotIn("Grep", crc._declared_tools(path), f"{path.name} declares Grep")
+
+    def test_real_bash_agents_are_scoped_by_settings(self) -> None:
+        """Every agent granted Bash must be narrowed by the committed
+        allowlist, since its own frontmatter cannot express the scope."""
+        settings = json.loads(
+            (REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
+        permissions = settings.get("permissions", {})
+        bash_agents = [p.name for p in crc._agent_definitions(REPO_ROOT)
+                       if "Bash" in crc._declared_tools(p)]
+        if bash_agents:
+            self.assertTrue(
+                any(e.startswith(crc.SCOPED_BASH_PREFIX)
+                    for e in permissions.get("allow", [])),
+                f"{bash_agents} declare Bash with no scoped allow entry")
+            for required in crc.TEXT_SEARCH_DENIES:
+                self.assertIn(required, permissions.get("deny", []))
 
     def test_every_steering_prompt_with_a_status_has_predicates(self) -> None:
         """Scoped to the steering-prompt corpus, which is what this test's
