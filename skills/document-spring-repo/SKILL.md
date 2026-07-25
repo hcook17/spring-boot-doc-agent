@@ -67,9 +67,17 @@ This re-hashes every file (cheap, tier 1) and, only for files that changed, re-v
 
 Wrap this whole stage in one `start-stage run_manifest.json file_summarize --fanout <num_groups>` / `end-stage ... --status complete` pair — one call before dispatching the group subagents, one after they've all returned, not one pair per group.
 
-For every group in `groups.json`, dispatch a `file-summarizer` subagent — a registered subagent type (`agents/file-summarizer.md`) — in the same turn as its sibling groups, so they run concurrently. Give each one its group's file list (it reads the files itself via its own `Read`/`Grep`/`Glob` access) **and** the relevant slice of `spring_signals.json` (matches whose `file` field falls in that group) so it isn't rediscovering annotations the ast-grep pass already found — it should focus on business meaning, not re-detection. Also give each dispatch the **entire** `references` bucket from `spring_signals.json` — repo-wide, not scoped to that group. This is the one slice that's deliberately passed in full to every dispatch: it's file-summarizer's only way to see cross-group relationships (a controller in one group calling a service in another), since its own group's file list otherwise has no visibility outside itself, and the ~10% DFS overlap between adjacent groups only rescues relationships that happen to straddle two *adjacent* groups. It's cheap — file/line/package-or-import-text triples, not source — so passing all of it to every dispatch should be inexpensive regardless of repo size, but this is worth confirming against a real repo's actual `references` bucket size rather than just assumed. Each returns a JSON array, one object per file (`file`, `cluster`, `summary`, `relationships`, `cross_group_relationships`, `group_function`, `spring_role`).
+For every group in `groups.json`, dispatch a `file-summarizer` subagent — a registered subagent type (`agents/file-summarizer.md`) — in the same turn as its sibling groups, so they run concurrently. Give each one its group's file list (it reads the files itself via its own `Read`/`Grep`/`Glob` access) **and** the relevant slice of `spring_signals.json` (matches whose `file` field falls in that group) so it isn't rediscovering annotations the ast-grep pass already found — it should focus on business meaning, not re-detection. Also give each dispatch the **entire** `references` bucket from `spring_signals.json` — repo-wide, not scoped to that group. This is the one slice that's deliberately passed in full to every dispatch: it's file-summarizer's only way to see cross-group relationships (a controller in one group calling a service in another), since its own group's file list otherwise has no visibility outside itself, and the ~10% DFS overlap between adjacent groups only rescues relationships that happen to straddle two *adjacent* groups. It's cheap — file/line/package-or-import-text triples, not source — so passing all of it to every dispatch should be inexpensive regardless of repo size, but this is worth confirming against a real repo's actual `references` bucket size rather than just assumed. **Give each dispatch an absolute `output_path`** — `summaries_group_<id>.json` in the run's working directory. Each subagent writes its own JSON array there (one object per file: `file`, `cluster`, `summary`, `relationships`, `cross_group_relationships`, `group_function`, `spring_role`) and returns only a one-line confirmation.
 
-Collect results into `summaries.json`.
+Then concatenate the per-group files into `summaries.json` with a one-liner, rather than pasting arrays through the orchestrator:
+
+```bash
+python3 -c "import json,glob; json.dump([o for f in sorted(glob.glob('summaries_group_*.json')) for o in json.load(open(f))], open('summaries.json','w'), indent=1)"
+```
+
+**Why the output path matters, and not just for tidiness.** Every subagent in this pipeline used to return its full output as its final message, which meant the orchestrating thread's context — not the per-group token budget — was the real ceiling on how large a repository this pipeline could document. Measured on `spring-petclinic` (49 Java files, the smallest realistic Spring repo, 2 groups): Stage 1 alone returned roughly 218k subagent tokens through the orchestrator, before Stage 2 had dispatched anything. Stage 4's fourteen concurrent doc-writers are several times larger again.
+
+Note this ceiling is invisible to `capacity-preflight`, which measures group count, dispatch fan-out, and the size of the `references` bucket sent *in* — all input quantities. Nothing estimates what comes back. So a run can pass preflight cleanly and still exhaust the orchestrator on return payloads.
 
 ## Stage 2 — Parallel architecture (segment + merge)
 
@@ -77,8 +85,10 @@ Wrap this whole stage — both segment and merge together — in one `start-stag
 
 Same dispatch pattern as Stage 1 and Stage 3 — `architect-segment` and `architect-merge` are registered subagents (`agents/architect-segment.md`, `agents/architect-merge.md`), dispatched by name via the Task tool. Don't read their file text and hand-substitute placeholders — that workaround applied only to an earlier, pre-rewrite draft of these two files and no longer applies.
 
-- **Segment, per group, in parallel:** dispatch an `architect-segment` subagent for every group in `groups.json`, in the same turn so they run concurrently, passing that group's file summaries from Stage 1 as its input.
-- **Merge, once, after all segments return:** dispatch one `architect-merge` subagent, passing all the segment fragments together, plus the repo's existing README/architecture docs if present (omit that part if there's nothing to pass). Deliberately not parallelized — it needs the full set of fragments to resolve cross-segment edges and de-duplicate nodes that fall in the ~10% overlap between adjacent groups.
+Both stages take an absolute `output_path` and return a one-line confirmation, same as Stage 1 — see the "why" note there.
+
+- **Segment, per group, in parallel:** dispatch an `architect-segment` subagent for every group in `groups.json`, in the same turn so they run concurrently. Pass it the **path** to that group's `summaries_group_<id>.json` from Stage 1 (it has `Read`; don't inline the summaries), and an `output_path` of `arch_fragment_<id>.md`.
+- **Merge, once, after all segments return:** dispatch one `architect-merge` subagent with the **paths** to every `arch_fragment_*.md`, an `output_path` of `architecture_merged.md`, and the paths of the repo's existing README/architecture docs if present (omit that part if there's nothing to pass). Deliberately not parallelized — it needs the full set of fragments to resolve cross-segment edges and de-duplicate nodes that fall in the ~10% overlap between adjacent groups.
 
 This produces the diagram that feeds `architecture.md` and grounds several of the other thirteen files. `architect-merge` also cross-checks the merged diagram against any pre-existing README/architecture doc you passed it and flags conflicts in a dedicated "Discrepancies" section after the diagram (its own point 5) — surface that section as-is in `architecture.md` rather than re-deriving the comparison yourself.
 
@@ -86,7 +96,7 @@ This produces the diagram that feeds `architecture.md` and grounds several of th
 
 Wrap this whole stage — gap-analyzer dispatch plus the live interview that follows it — in one `start-stage run_manifest.json gap_analysis_interview --fanout 1` / `end-stage ... --status complete` pair (`--fanout 1` because only the gap-analyzer dispatch is a subagent; the interview itself has zero subagent fan-out, it's the orchestrating thread talking to the user).
 
-Dispatch one `gap-analyzer` subagent (`agents/gap-analyzer.md`) with `spring_signals.json`, `summaries.json`, the merged architecture, and the TODO/FIXME grep hits. It does **not** talk to the user — it returns a structured list of candidate clarifying questions, one per genuine gap, organized by which of the fourteen files each gap blocks. Use `${CLAUDE_PLUGIN_ROOT}/skills/document-spring-repo/references/doc-taxonomy.md`'s "Interview-worthy" notes per file as the standard for what counts as a genuine gap versus something safely inferable.
+Dispatch one `gap-analyzer` subagent (`agents/gap-analyzer.md`) with the **paths** to `spring_signals.json`, `summaries.json` and the merged architecture, plus the TODO/FIXME grep hits, and an `output_path` of `gap_questions.json`. It writes there and returns a one-line confirmation; read the file yourself before starting the interview. It does **not** talk to the user — it returns a structured list of candidate clarifying questions, one per genuine gap, organized by which of the fourteen files each gap blocks. Use `${CLAUDE_PLUGIN_ROOT}/skills/document-spring-repo/references/doc-taxonomy.md`'s "Interview-worthy" notes per file as the standard for what counts as a genuine gap versus something safely inferable.
 
 **Then — in this orchestrating thread, not a subagent** — actually ask the user these questions. Batch them sensibly (don't fire off 40 separate questions one at a time); group by file or by theme, and let the user answer "don't know" or "skip" for any of them. Record every answer, verbatim, with today's date, into `interview_answers.json`. If the user skips a question, write that down as a skip, not as a blank — a doc-writer should treat "asked, unanswered" differently from "never asked."
 
@@ -107,8 +117,15 @@ Wrap this whole stage in one `start-stage run_manifest.json doc_writer --fanout 
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/document-spring-repo/references/doc-taxonomy.md` fully now if you haven't already. For **each of the fourteen files**, dispatch a `doc-writer` subagent (`agents/doc-writer.md`), in the same turn as its thirteen siblings, passing:
 - which of the fourteen files it's writing (so it reads the right section of the taxonomy)
-- the relevant evidence: `spring_signals.json` slice, `summaries.json`, the merged architecture, `interview_answers.json`
+- an absolute **`output_path`** — the actual `docs/<name>.md` it should write. Each writer writes its own file directly; the orchestrator never relays document text. Give every dispatch a distinct path, since fourteen siblings write into one directory concurrently and a duplicated path silently destroys a file
+- the **paths** to the relevant evidence (`spring_signals.json`, `summaries.json`, the merged architecture, `interview_answers.json`) rather than their contents — every doc-writer has `Read`
 - explicit instruction to mark anything neither evidenced nor answered as "Unknown" rather than infer it
+
+Each returns a one-line confirmation with its path and per-tag counts. After all fourteen return, verify the directory before finalizing — a writer that failed to write is otherwise indistinguishable from one that wrote successfully:
+
+```bash
+ls docs/*.md | wc -l   # expect 14
+```
 
 ## Output
 
