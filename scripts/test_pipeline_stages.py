@@ -85,7 +85,8 @@ def validate_file_summarizer_entries(entries):
     step-4 enumerated list. Returns a list of (entry_index, reason) for
     anything malformed."""
     required_keys = {"file", "cluster", "summary", "relationships",
-                      "cross_group_relationships", "group_function", "spring_role"}
+                      "cross_group_relationships", "group_function", "spring_role",
+                      "evidence"}
     problems = []
     for i, entry in enumerate(entries):
         missing = required_keys - entry.keys()
@@ -94,10 +95,73 @@ def validate_file_summarizer_entries(entries):
             continue
         if entry["spring_role"] not in VALID_SPRING_ROLES:
             problems.append((i, f"spring_role {entry['spring_role']!r} not in {sorted(VALID_SPRING_ROLES)}"))
-        for list_field in ("cluster", "relationships", "cross_group_relationships"):
+        for list_field in ("cluster", "relationships", "cross_group_relationships", "evidence"):
             if not isinstance(entry[list_field], list):
                 problems.append((i, f"{list_field} must be a list, got {type(entry[list_field]).__name__}"))
+        if isinstance(entry.get("evidence"), list):
+            problems.extend((i, r) for r in _evidence_problems(entry["evidence"]))
     return problems
+
+
+def _evidence_problems(evidence):
+    """file-summarizer.md step 4's `evidence` field: the line anchors behind a
+    summary's semantic claims, as {"line": int, "what": str}.
+
+    This is the field that lets doc-writer cite anything the ast-grep pass
+    didn't already find. Stage 0 records a line per mechanical hit and Stage 5
+    is required to emit `path:line`, but every carrier between them used to be
+    line-free — so a business-purpose claim reached doc-writer with a path and
+    no line, leaving it to re-read the file, cite the file alone, or invent a
+    number. An empty list is legitimate (a genuinely whole-file summary); a
+    malformed entry is not, which is why the shape is enforced here rather
+    than merely described in the prompt."""
+    reasons = []
+    for j, item in enumerate(evidence):
+        if not isinstance(item, dict):
+            reasons.append(f"evidence[{j}] must be an object, got {type(item).__name__}")
+            continue
+        missing = {"line", "what"} - item.keys()
+        if missing:
+            reasons.append(f"evidence[{j}] missing keys: {sorted(missing)}")
+            continue
+        # bool is a subclass of int; True is not a line number.
+        if not isinstance(item["line"], int) or isinstance(item["line"], bool):
+            reasons.append(f"evidence[{j}].line must be an int, got {type(item['line']).__name__}")
+        elif item["line"] < 1:
+            reasons.append(f"evidence[{j}].line must be >= 1, got {item['line']}")
+        if not isinstance(item["what"], str) or not item["what"].strip():
+            reasons.append(f"evidence[{j}].what must be a non-empty string")
+    return reasons
+
+
+# A path with an extension, optionally with a :line suffix. Deliberately
+# permissive about the path shape (repos differ) and strict about only one
+# thing: that something citable is present at all.
+GAP_EVIDENCE_CITATION_RE = re.compile(r"[\w][\w./-]*\.[A-Za-z0-9]+(?::\d+)?")
+# An elided path -- `src/.../InvoiceService.java`. gap-analyzer.md's own
+# example shipped this shape, so it is the one malformed citation guaranteed
+# to have been modeled for the agent.
+ELIDED_PATH_RE = re.compile(r"/\.\.\.(?:/|\b)")
+
+
+def _gap_evidence_problems(evidence):
+    """gap-analyzer.md requires `evidence` to carry a real, resolvable
+    path:line.
+
+    Why this is enforced at all: a gap question becomes an interview
+    question, which becomes an `interview_answers.json` entry, which a
+    doc-writer turns into a `[Confirmed — interview, <date>]` claim. That is
+    the only tag whose provenance never touches code again, so this field is
+    the single point where the [Confirmed] lane is anchored to a real
+    location. Unconstrained prose here makes every downstream [Confirmed]
+    claim unfalsifiable."""
+    if not isinstance(evidence, str) or not evidence.strip():
+        return ["evidence must be a non-empty string"]
+    if ELIDED_PATH_RE.search(evidence):
+        return ["evidence cites an elided path (`/.../`) — it must resolve"]
+    if not GAP_EVIDENCE_CITATION_RE.search(evidence):
+        return ["evidence carries no file citation — gap-analyzer.md requires a resolvable path/File.java:line"]
+    return []
 
 
 def validate_gap_analyzer_questions(questions, max_questions=40):
@@ -117,6 +181,8 @@ def validate_gap_analyzer_questions(questions, max_questions=40):
         if missing:
             problems.append((i, f"missing keys: {sorted(missing)}"))
             continue
+        for reason in _gap_evidence_problems(q["evidence"]):
+            problems.append((i, reason))
         if q["blocks_file"] not in VALID_DOC_FILES:
             problems.append((i, f"blocks_file {q['blocks_file']!r} not one of the fourteen output files"))
         if not seen_files_order or seen_files_order[-1] != q["blocks_file"]:
@@ -224,35 +290,84 @@ class FileSummarizerShapeTest(unittest.TestCase):
             "summary": "Handles invoice retrieval and creation.",
             "relationships": ["Invoice.java"], "cross_group_relationships": [],
             "group_function": "Invoice billing API", "spring_role": "controller",
+            "evidence": [{"line": 42, "what": "creates invoices from the POST handler"}],
         }]
         self.assertEqual(validate_file_summarizer_entries(entries), [])
 
     def test_missing_key_flagged(self):
         entries = [{"file": "X.java", "cluster": [], "summary": "s",
-                    "relationships": [], "group_function": "", "spring_role": "other"}]
+                    "relationships": [], "group_function": "", "spring_role": "other",
+                    "evidence": []}]
         problems = validate_file_summarizer_entries(entries)
         self.assertEqual(len(problems), 1)
         self.assertIn("cross_group_relationships", problems[0][1])
 
     def test_invalid_spring_role_flagged(self):
         entries = [{"file": "X.java", "cluster": [], "summary": "s", "relationships": [],
-                    "cross_group_relationships": [], "group_function": "", "spring_role": "controllerish"}]
+                    "cross_group_relationships": [], "group_function": "",
+                    "spring_role": "controllerish", "evidence": []}]
         problems = validate_file_summarizer_entries(entries)
         self.assertEqual(len(problems), 1)
         self.assertIn("spring_role", problems[0][1])
+
+    def _entry(self, **overrides):
+        entry = {"file": "X.java", "cluster": [], "summary": "s", "relationships": [],
+                 "cross_group_relationships": [], "group_function": "",
+                 "spring_role": "other", "evidence": []}
+        entry.update(overrides)
+        return entry
+
+    def test_missing_evidence_key_flagged(self):
+        """The whole point of the field: a summarizer that silently stops
+        emitting it drops every semantic line anchor in the run."""
+        entry = self._entry()
+        del entry["evidence"]
+        problems = validate_file_summarizer_entries([entry])
+        self.assertEqual(len(problems), 1)
+        self.assertIn("evidence", problems[0][1])
+
+    def test_empty_evidence_list_is_legitimate(self):
+        """A genuinely whole-file summary has no single anchor. Requiring a
+        non-empty list would just buy back invented line numbers."""
+        self.assertEqual(validate_file_summarizer_entries([self._entry()]), [])
+
+    def test_evidence_must_be_a_list(self):
+        problems = validate_file_summarizer_entries([self._entry(evidence={"line": 1, "what": "x"})])
+        self.assertTrue(any("must be a list" in p[1] for p in problems))
+
+    def test_evidence_entry_missing_line_flagged(self):
+        problems = validate_file_summarizer_entries([self._entry(evidence=[{"what": "x"}])])
+        self.assertTrue(any("missing keys" in p[1] for p in problems))
+
+    def test_evidence_line_must_be_an_int(self):
+        problems = validate_file_summarizer_entries([self._entry(evidence=[{"line": "42", "what": "x"}])])
+        self.assertTrue(any("must be an int" in p[1] for p in problems))
+
+    def test_evidence_line_bool_rejected(self):
+        """bool subclasses int; True is not a line number."""
+        problems = validate_file_summarizer_entries([self._entry(evidence=[{"line": True, "what": "x"}])])
+        self.assertTrue(any("must be an int" in p[1] for p in problems))
+
+    def test_evidence_line_must_be_positive(self):
+        problems = validate_file_summarizer_entries([self._entry(evidence=[{"line": 0, "what": "x"}])])
+        self.assertTrue(any(">= 1" in p[1] for p in problems))
+
+    def test_evidence_what_must_be_non_empty(self):
+        problems = validate_file_summarizer_entries([self._entry(evidence=[{"line": 5, "what": "  "}])])
+        self.assertTrue(any("non-empty string" in p[1] for p in problems))
 
 
 class GapAnalyzerShapeTest(unittest.TestCase):
     def test_valid_bounded_list_passes(self):
         questions = [
-            {"blocks_file": "database", "topic": "write ownership", "question": "q1", "evidence": "e1"},
-            {"blocks_file": "database", "topic": "write ownership 2", "question": "q2", "evidence": "e2"},
-            {"blocks_file": "authorization", "topic": "endpoint", "question": "q3", "evidence": "e3"},
+            {"blocks_file": "database", "topic": "write ownership", "question": "q1", "evidence": "src/main/java/A.java:10 is the only writer"},
+            {"blocks_file": "database", "topic": "write ownership 2", "question": "q2", "evidence": "src/main/java/B.java:20 has no guard"},
+            {"blocks_file": "authorization", "topic": "endpoint", "question": "q3", "evidence": "src/main/java/C.java:30 is unmapped"},
         ]
         self.assertEqual(validate_gap_analyzer_questions(questions), [])
 
     def test_invalid_blocks_file_flagged(self):
-        questions = [{"blocks_file": "faq", "topic": "t", "question": "q", "evidence": "e"}]
+        questions = [{"blocks_file": "faq", "topic": "t", "question": "q", "evidence": "src/main/java/A.java:10 is the only writer"}]
         problems = validate_gap_analyzer_questions(questions)
         self.assertEqual(len(problems), 1)
         self.assertIn("not one of the fourteen", problems[0][1])
@@ -263,16 +378,44 @@ class GapAnalyzerShapeTest(unittest.TestCase):
         # blocks_file that reappears after another file's questions have
         # already started is the mechanical signature of that rule breaking.
         questions = [
-            {"blocks_file": "database", "topic": "t1", "question": "q1", "evidence": "e1"},
-            {"blocks_file": "authorization", "topic": "t2", "question": "q2", "evidence": "e2"},
-            {"blocks_file": "database", "topic": "t3", "question": "q3", "evidence": "e3"},
+            {"blocks_file": "database", "topic": "t1", "question": "q1", "evidence": "src/main/java/A.java:10 is the only writer"},
+            {"blocks_file": "authorization", "topic": "t2", "question": "q2", "evidence": "src/main/java/B.java:20 has no guard"},
+            {"blocks_file": "database", "topic": "t3", "question": "q3", "evidence": "src/main/java/C.java:30 is unmapped"},
         ]
         problems = validate_gap_analyzer_questions(questions)
         self.assertEqual(len(problems), 1)
         self.assertIn("non-contiguously", problems[0][1])
 
+    def test_elided_path_in_evidence_flagged(self):
+        """gap-analyzer.md's own example used to ship `(src/.../Foo.java)`,
+        so this malformed shape was actively modeled for the agent."""
+        questions = [{"blocks_file": "database", "topic": "t", "question": "q",
+                      "evidence": "InvoiceService.markPaid (src/.../InvoiceService.java) is the only writer"}]
+        problems = validate_gap_analyzer_questions(questions)
+        self.assertTrue(any("elided path" in p[1] for p in problems))
+
+    def test_evidence_without_any_citation_flagged(self):
+        """Unconstrained prose here leaves every downstream
+        [Confirmed — interview, <date>] claim unanchored to any location."""
+        questions = [{"blocks_file": "database", "topic": "t", "question": "q",
+                      "evidence": "this table looks like it has one writer"}]
+        problems = validate_gap_analyzer_questions(questions)
+        self.assertTrue(any("no file citation" in p[1] for p in problems))
+
+    def test_evidence_with_path_and_line_passes(self):
+        questions = [{"blocks_file": "database", "topic": "t", "question": "q",
+                      "evidence": "src/main/java/com/example/InvoiceService.java:88 is the only write path"}]
+        self.assertEqual(validate_gap_analyzer_questions(questions), [])
+
+    def test_evidence_with_bare_path_passes(self):
+        """A path without a line is weaker but still resolvable; the taxonomy
+        allows whole-file citations, so this is not the failure being caught."""
+        questions = [{"blocks_file": "database", "topic": "t", "question": "q",
+                      "evidence": "declared in src/main/resources/schema.sql"}]
+        self.assertEqual(validate_gap_analyzer_questions(questions), [])
+
     def test_padded_list_exceeds_sanity_ceiling(self):
-        questions = [{"blocks_file": "database", "topic": f"t{i}", "question": f"q{i}", "evidence": f"e{i}"}
+        questions = [{"blocks_file": "database", "topic": f"t{i}", "question": f"q{i}", "evidence": f"src/main/java/A{i}.java:10 is the only writer"}
                      for i in range(41)]
         problems = validate_gap_analyzer_questions(questions, max_questions=40)
         self.assertTrue(any("sanity ceiling" in p[1] for p in problems))

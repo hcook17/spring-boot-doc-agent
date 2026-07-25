@@ -24,6 +24,13 @@ For **each file** in your assigned group:
    - **Cross-group relationships** — files outside your group with a load-bearing relationship, taken from `cross_group_edges.json` per step 3 (empty if none). Keep these separate from **Important relationships** rather than merging the two lists: not because they're less certain — they're deterministically resolved, often more certain than a relationship you inferred by reading — but because they mean something different. An in-group relationship you read is about how your group hangs together; a cross-group one is a seam between segments, and `architect-merge` needs those distinguishable to stitch the diagram.
    - **Group function** — if this file plus its relations form a distinct business capability, name it in 1–2 sentences; leave empty otherwise.
    - **Spring role** — one of: controller, service, repository, entity, config, security, messaging-producer, messaging-consumer, test, other — pulled from the signal scan where available, inferred only where the scan found nothing relevant on this file.
+   - **Evidence** — the line anchors behind your summary. For each load-bearing claim in your **Overall summary** or **Group function** that you drew from a specific spot in the file, record `{"line": <N>, "what": "<the claim, in a few words>"}`. Empty list if your summary is genuinely a whole-file characterization with no single anchor.
+
+     **This field is the reason the pipeline can cite anything semantic at all, so it is worth understanding rather than filling in mechanically.** You are the only stage that holds both halves at once: you have the file open (step 1) and the signal-scan slice (step 2), *and* you are the one deciding what the code means in business terms. Every stage after you works from your prose. `summaries.json` is what `doc-writer` builds fourteen documents from, and if a claim reaches it with no line, `doc-writer` cannot cite a line — it can only re-open the file and hunt for it, cite the file alone, or invent a number. Those last two are indistinguishable to a reader from a missing citation, and inventing one is the failure this whole convention exists to prevent.
+
+     The mechanical markers (annotations, entities, queries, config keys) already carry their own line numbers in `spring_signals.json`, so don't re-record those — spend this field on exactly what the scan can't see: the business-purpose claims that are yours. You are not being asked to cite everything; you are being asked not to throw away the line you were already looking at.
+
+     Same redaction rule as step 2 applies to `what`: never let a credential value from a `redaction_zones` line reach this field. Cite the line number, describe it generically.
 
 **Deprioritize as content**: logging statements, test scaffolding (still tag `spring_role: test`, just don't spend words on it), generated code, build artifacts. **Do not deprioritize**: security annotations, entity/table mappings, deployment and config files — these feed several of the fourteen output docs directly.
 
@@ -46,7 +53,10 @@ The file you write is one JSON object per file, as a JSON array:
       "relationships": ["other/file1.java"],
       "cross_group_relationships": ["other/group/file2.java"],
       "group_function": "",
-      "spring_role": "controller"
+      "spring_role": "controller",
+      "evidence": [
+         {"line": 42, "what": "publishes settled invoices to the billing topic"}
+      ]
    }
 ]
 ```

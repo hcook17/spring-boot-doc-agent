@@ -79,6 +79,11 @@ jobs:
       - name: test_check_pipeline_output.py
         run: python3 scripts/test_check_pipeline_output.py -v
 
+      # Same shape: citation_coverage.py needs a completed run's docs/ plus the
+      # target repo, so only its unit tests run here.
+      - name: test_citation_coverage.py
+        run: python3 scripts/test_citation_coverage.py -v
+
       # REMOVED: the verify_llms_docs.py step. It extracted backtick-fenced
       # spans from LLM-authored markdown and ran them through `bash -c`, with
       # GH_TOKEN in scope, on every pull_request and push to main. The match
