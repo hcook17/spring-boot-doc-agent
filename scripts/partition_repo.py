@@ -302,7 +302,14 @@ def main():
     file_tokens = []
     skipped = []
     for full in all_files:
-        rel = os.path.relpath(full, repo_path)
+        # Normalize to forward slashes, as spring_signal_scan.py does for every
+        # path it emits. These two files' outputs are joined by path on Windows
+        # -- Stage 1 slices spring_signals.json's evidence by which group each
+        # `file` falls in -- so a raw os.path.relpath() here yields backslashes
+        # that match nothing, and every subagent silently receives an empty
+        # evidence slice instead of a failure. Same bug already fixed once in
+        # spring_drift_check.py's tier1_scan(); see claude/session-log.md.
+        rel = os.path.relpath(full, repo_path).replace("\\", "/")
         tokens, reason = estimate_tokens(full, args.max_file_bytes)
         if reason:
             skipped.append({"file": rel, "reason": reason})
