@@ -5,8 +5,8 @@ One entry per output file. For each: what it's for, which evidence sources feed 
 Evidence sources referenced below:
 - **signals** = `spring_signals.json` (deterministic AST scan via ast-grep — see `scripts/spring_signal_scan.py`)
 - **summaries** = the merged output of Stage 1 (`file-summarizer` subagents)
-- **arch** = the merged Mermaid diagram from Stage 3 (`architect-merge`)
-- **interview** = answers collected by the orchestrator directly from the user in Stage 4
+- **arch** = the merged Mermaid diagram from Stage 2 (`architect-merge`)
+- **interview** = answers collected by the orchestrator directly from the user in Stage 3
 
 ## What counts as "code evidence"
 
