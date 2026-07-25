@@ -128,3 +128,38 @@ Neighbouring prior art, already surveyed — reuse rather than rediscover: Datal
 extensional/intensional predicates, Glean raw vs derived predicates, SCIP `Relationship`, Datomic's
 assert/retract dimension. See `claude/10-architecture-maturation-plan.md` §1.6 and the prior-art
 investigation.
+
+---
+
+## 6. Testing and security anchors in play
+
+Same contract as §5: these are surveyed and verified — cite them, do not re-derive them. Full
+research, including what was checked versus assumed, is in
+`claude/testing-security-anchors-2026-07-25.md`. Only Tier A items appear here.
+
+**Security — Ross Anderson, *Security Engineering* 3e (Wiley, 2020, 29 chapters).** The security
+analogue of DDIA, and for the same practical reason DDIA earned its place: **the full text is free
+online** at `cl.cam.ac.uk/~rja14/book.html`, so a claim can be checked rather than paraphrased.
+
+**Reliability + security — *Building Secure & Reliable Systems* (Adkins et al.), free at
+`sre.google/books`.** Use when the question is how a control degrades, not whether it exists.
+
+**OWASP Top 10 for LLM Applications** — the only anchor that names this repo's own history.
+*Insecure Output Handling* is the deleted `verify_llms_docs.py` (LLM-authored markdown to `bash -c`);
+*Excessive Agency* is the subagents' `Write` grant and the write-scope gate; *Prompt Injection* is
+Stage 1 reading an untrusted target repo into agent prompts. **Cite the category names, never the
+`LLMxx` numbers** — the 2025 edition renumbers and the pin is unresolved. See the research doc.
+
+**Testing — Meszaros, *xUnit Test Patterns* (Addison-Wesley, 2007): 68 patterns, 18 test smells.**
+Bibliographically Tier A; the free `xunitpatterns.com` catalogue is Tier B and unverified here.
+
+**Empirical, Tier A (`arxiv.org/abs/1704.08412`):** across 82,447 projects, only 17% had test cases,
+and pattern adoption was "an ad-hoc decision by individual developers." It does **not** cite Meszaros
+— do not claim it validates his catalogue.
+
+**The standing implication for review.** This project's rule that *a gate that cannot be shown to
+fail is not a gate* is currently satisfied by hand: an author breaks the code, watches tests go red,
+restores it, and writes down what happened. That is mutation testing performed manually, once, with
+no artifact proving it occurred. When weighing a proposed test-quality control, `mutmut` is the
+mechanised form of the ritual this repo already performs — judge proposals against it rather than
+against nothing.
