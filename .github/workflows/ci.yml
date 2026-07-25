@@ -233,6 +233,22 @@ jobs:
       - name: test_metamorphic.py
         run: python3 scripts/test_metamorphic.py -v
 
+      - name: test_mutate.py
+        run: python3 scripts/test_mutate.py -v
+
+      # Mechanises the ritual this repo's standing rule depends on -- break
+      # the code, watch the tests go red, restore it -- which was performed by
+      # hand, once, with no artifact proving it happened. Every mutation runs
+      # against a copy of the tracked tree, never the working tree, and only
+      # the one suite each mutator names.
+      #
+      # Non-blocking on purpose: a survivor count needs to be watched before
+      # anyone can defend a threshold, the same reasoning recorded on
+      # check_code_quality.py's USAGE_WITHIN_LINES. ENFORCE = False in the
+      # script, so check_gate_honesty requires "non-blocking" in this name.
+      - name: mutate.py (mutation score; reports, non-blocking)
+        run: python3 scripts/mutate.py
+
       # The evidence for _ast_signature.py's default, kept executable. The
       # choice of t2 came from measurements taken in a throwaway script, and a
       # measurement made once in a scratch file decays exactly the way a claim

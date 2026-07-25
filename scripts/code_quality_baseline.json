@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
-  "production_functions": 267,
-  "production_functions_annotated": 136,
+  "production_functions": 278,
+  "production_functions_annotated": 147,
   "limits_for_new_functions": {
     "statements": 140,
     "complexity": 34,
@@ -716,6 +716,61 @@
       "statements": 25,
       "complexity": 8,
       "depth": 3
+    },
+    "mutate.py::_apply_literal": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
+    "mutate.py::_apply_structural": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 1
+    },
+    "mutate.py::apply_mutation": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 1
+    },
+    "mutate.py::evaluate": {
+      "statements": 9,
+      "complexity": 3,
+      "depth": 1
+    },
+    "mutate.py::load_baseline": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 1
+    },
+    "mutate.py::main": {
+      "statements": 19,
+      "complexity": 9,
+      "depth": 1
+    },
+    "mutate.py::materialize": {
+      "statements": 7,
+      "complexity": 3,
+      "depth": 2
+    },
+    "mutate.py::report": {
+      "statements": 15,
+      "complexity": 15,
+      "depth": 2
+    },
+    "mutate.py::run_suite": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "mutate.py::tracked_files": {
+      "statements": 4,
+      "complexity": 4,
+      "depth": 1
+    },
+    "mutate.py::write_baseline": {
+      "statements": 2,
+      "complexity": 3,
+      "depth": 0
     },
     "partition_repo.py::build_groups": {
       "statements": 31,
@@ -3781,6 +3836,156 @@
       "statements": 1,
       "complexity": 1,
       "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest._mutator": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest.setUp": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest.tearDown": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest.test_a_missing_anchor_is_an_error_not_a_silent_noop": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest.test_a_missing_file_is_an_error": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest.test_a_structural_pattern_that_matches_nothing_is_an_error": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest.test_a_structural_rewrite_survives_reindentation": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest.test_applies_the_replacement": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest.test_only_the_first_occurrence_is_replaced": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::BaselineTest.setUp": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::BaselineTest.tearDown": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::BaselineTest.test_a_missing_baseline_accepts_nothing": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::BaselineTest.test_a_stale_schema_version_is_ignored_not_trusted": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::BaselineTest.test_round_trip": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::RegistryAnchorsTest.test_a_mutation_actually_changes_the_text": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_mutate.py::RegistryAnchorsTest.test_every_mutator_anchor_exists": {
+      "statements": 8,
+      "complexity": 5,
+      "depth": 3
+    },
+    "test_mutate.py::RegistryAnchorsTest.test_every_mutator_names_a_real_suite": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_mutate.py::RegistryAnchorsTest.test_every_mutator_states_why": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_mutate.py::RegistryAnchorsTest.test_literal_mutators_state_why_they_are_not_structural": {
+      "statements": 2,
+      "complexity": 3,
+      "depth": 0
+    },
+    "test_mutate.py::RegistryAnchorsTest.test_mutator_names_are_unique": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_mutate.py::ReportTest._outcomes": {
+      "statements": 1,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_mutate.py::ReportTest.test_a_baselined_survivor_is_accepted": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ReportTest.test_a_new_survivor_is_a_nonzero_result": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ReportTest.test_all_killed_is_zero": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ReportTest.test_an_unapplied_mutator_is_nonzero_even_if_baselined": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::SandboxIsolationTest._tracked_diff": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::SandboxIsolationTest.test_a_run_leaves_the_tracked_tree_untouched": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_mutate.py::SandboxIsolationTest.test_materialize_copies_only_tracked_files": {
+      "statements": 7,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_mutate.py::SurvivorDetectionTest.test_a_mutation_no_suite_catches_is_reported_as_survived": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_mutate.py::SurvivorDetectionTest.test_a_real_mutation_is_reported_as_killed": {
+      "statements": 4,
+      "complexity": 4,
+      "depth": 1
     },
     "test_partition_repo.py::BuildGroupsTest.test_empty_input": {
       "statements": 1,
