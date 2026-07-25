@@ -99,7 +99,14 @@ def _load_or_build_groups(repo_path, max_tokens, overlap, groups_file):
     )
     file_tokens = []
     for full in all_files:
-        rel = os.path.relpath(full, repo_path)
+        # Via partition_repo's shared helper, not an inline .replace(). This
+        # was the third site of the same bug -- partition_repo.relpath_posix()
+        # carries the full history -- and it became load-bearing when this
+        # function started feeding its groups to build_report(), which joins
+        # them by path against spring_signals.json's forward-slash paths. On
+        # Windows that join matched nothing and the preflight silently
+        # under-reported the fan-out it exists to estimate.
+        rel = partition_repo.relpath_posix(full, repo_path)
         tokens, reason = partition_repo.estimate_tokens(full, 2_000_000)
         if reason:
             continue
@@ -295,7 +302,7 @@ def main():
         # Order matters here in a way it did not before: the join consumes
         # the partition, so groups_data must be built first.
         edges = _load_or_build_edges(repo_path, args.signals_file, groups_data, args.edges_file)
-    except spring_signal_scan.AstGrepNotFoundError as e:
+    except spring_signal_scan.AstGrepError as e:
         print(e, file=sys.stderr)
         sys.exit(1)
 

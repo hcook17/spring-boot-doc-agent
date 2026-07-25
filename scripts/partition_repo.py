@@ -133,6 +133,30 @@ def estimate_tokens(path, max_file_bytes):
     return max(1, len(text) // divisor), None
 
 
+def to_posix(path: str) -> str:
+    """Backslashes to forward slashes. Trivial, and deliberately its own
+    named function rather than an inline .replace() repeated at each site.
+
+    Every artifact this pipeline writes keys on relative paths, and separate
+    scripts' outputs are then joined by those paths -- groups.json against
+    spring_signals.json, spring_signals.json against a doc's [Evidenced —
+    path:line] citation. A backslash on one side of that join and a forward
+    slash on the other matches nothing and raises no error; the consumer just
+    receives an empty slice. That failure has now been found and fixed three
+    separate times (spring_drift_check.py's tier1_scan(), partition_repo's own
+    main(), and capacity_preflight.py's compute_preflight() on 2026-07-25),
+    which is the signal that the fix belonged in one named place rather than
+    in a comment telling the next author to remember."""
+    return path.replace("\\", "/")
+
+
+def relpath_posix(full: str, root: str) -> str:
+    """os.path.relpath, normalized. The pairing above is the whole point:
+    os.path.relpath is the thing that introduces the platform separator, so
+    the normalization belongs immediately next to it."""
+    return to_posix(os.path.relpath(full, root))
+
+
 def dfs_file_list(repo_path, excluded_dirs, excluded_exts, excluded_files, gitignore_spec=None):
     """Depth-first, deterministically-ordered walk of the repo, yielding
     relative file paths. Directories and files are sorted at each level so
@@ -316,14 +340,13 @@ def main():
     file_tokens = []
     skipped = []
     for full in all_files:
-        # Normalize to forward slashes, as spring_signal_scan.py does for every
-        # path it emits. These two files' outputs are joined by path on Windows
-        # -- Stage 1 slices spring_signals.json's evidence by which group each
-        # `file` falls in -- so a raw os.path.relpath() here yields backslashes
-        # that match nothing, and every subagent silently receives an empty
-        # evidence slice instead of a failure. Same bug already fixed once in
-        # spring_drift_check.py's tier1_scan(); see claude/session-log.md.
-        rel = os.path.relpath(full, repo_path).replace("\\", "/")
+        # Forward slashes, as spring_signal_scan.py does for every path it
+        # emits: Stage 1 slices spring_signals.json's evidence by which group
+        # each `file` falls in, so a raw os.path.relpath() here yields
+        # backslashes that match nothing and every subagent silently receives
+        # an empty evidence slice instead of a failure. The reasoning and the
+        # full three-site history now live on relpath_posix() above.
+        rel = relpath_posix(full, repo_path)
         tokens, reason = estimate_tokens(full, args.max_file_bytes)
         if reason:
             skipped.append({"file": rel, "reason": reason})

@@ -236,5 +236,61 @@ class GenuineDelegationTest(unittest.TestCase):
         self.assertEqual(via_preflight["stats"], direct["stats"])
 
 
+class PathSeparatorTest(unittest.TestCase):
+    """compute_preflight() emitted os-native relative paths while everything
+    it is joined against emits forward slashes -- the third occurrence of a
+    bug already fixed in spring_drift_check.tier1_scan() and in
+    partition_repo.main().
+
+    Note on what runs where, stated rather than left implicit: the assertions
+    that merely look for a backslash are only *non-vacuous on Windows*, since
+    os.path.relpath never produces one on POSIX. That is exactly why the
+    normalization was extracted into partition_repo.to_posix() -- the first
+    test below feeds it a backslash-bearing string directly and therefore
+    fails on the pre-fix code on every platform, CI included."""
+
+    def test_to_posix_rewrites_separators_on_every_platform(self):
+        self.assertEqual(partition_repo.to_posix(r"src\main\java\Foo.java"),
+                         "src/main/java/Foo.java")
+
+    def test_to_posix_leaves_forward_slashes_alone(self):
+        self.assertEqual(partition_repo.to_posix("src/main/java/Foo.java"),
+                         "src/main/java/Foo.java")
+
+    def test_relpath_posix_never_returns_a_backslash(self):
+        nested = os.path.join(FIXTURE_DIR, "src", "main")
+        self.assertNotIn("\\", partition_repo.relpath_posix(nested, FIXTURE_DIR))
+
+    def test_preflight_group_files_carry_no_backslashes(self):
+        groups = capacity_preflight._load_or_build_groups(
+            FIXTURE_DIR, max_tokens=120000, overlap=0.10, groups_file=None,
+        )
+        offenders = [f for g in groups["groups"] for f in g["files"] if "\\" in f]
+        self.assertEqual(offenders, [], f"backslash-bearing paths: {offenders[:5]}")
+
+    def test_preflight_paths_match_the_scanner_they_are_joined_against(self):
+        """The invariant that actually matters. capacity_preflight's group
+        file lists are joined by path against spring_signals.json inside
+        build_report(); if the two sides spell the same file differently the
+        join silently yields nothing, which is how this stayed invisible."""
+        import spring_signal_scan
+        scanned = spring_signal_scan.scan(FIXTURE_DIR)
+        scanned_files = {row["file"] for rows in scanned["evidence"].values()
+                         for row in rows if isinstance(row, dict) and "file" in row}
+
+        groups = capacity_preflight._load_or_build_groups(
+            FIXTURE_DIR, max_tokens=120000, overlap=0.10, groups_file=None,
+        )
+        grouped_files = {f for g in groups["groups"] for f in g["files"]}
+
+        # Every file the scanner produced evidence for must be spelled
+        # identically on the partitioner's side. A separator mismatch makes
+        # this intersection empty rather than raising.
+        self.assertTrue(scanned_files, "fixture produced no evidence rows at all")
+        self.assertTrue(scanned_files & grouped_files,
+                        "no scanned file matched any grouped file -- the join "
+                        "these two artifacts depend on produces nothing")
+
+
 if __name__ == "__main__":
     unittest.main()

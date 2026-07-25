@@ -490,7 +490,24 @@ def compute_file_signature(path):
     return h.hexdigest()
 
 
-class AstGrepNotFoundError(RuntimeError):
+class AstGrepError(RuntimeError):
+    """Any ast-grep invocation failure that must not kill the process.
+
+    Added 2026-07-25. The reasoning in AstGrepNotFoundError below was always
+    general -- SystemExit raised under setUpClass takes down the whole test
+    process -- but the original fix converted only find_ast_grep(), leaving
+    run_ast_grep()'s two sys.exit(1) calls to reproduce the identical failure
+    whenever ast-grep is *present but fails*: a malformed rule file, an
+    out-of-range --globs argument, or output this script cannot parse as
+    JSON. scan() is called from setUpClass in three suites, so that path had
+    the same silent-process-death behavior the earlier fix was written to
+    remove.
+
+    AstGrepNotFoundError subclasses this, so `except AstGrepNotFoundError`
+    at any existing call site keeps its exact previous meaning."""
+
+
+class AstGrepNotFoundError(AstGrepError):
     """Raised by find_ast_grep() when the binary isn't on PATH.
 
     A plain Exception subclass on purpose, not a sys.exit(1) call directly:
@@ -562,14 +579,13 @@ def run_ast_grep(ast_grep_path, repo_path, respect_gitignore=False):
     proc = subprocess.run(cmd, capture_output=True, text=True,
                           encoding="utf-8", errors="replace")
     if proc.returncode != 0:
-        print(f"error: ast-grep exited with status {proc.returncode}", file=sys.stderr)
-        print(proc.stderr, file=sys.stderr)
-        sys.exit(1)
+        raise AstGrepError(
+            f"error: ast-grep exited with status {proc.returncode}\n{proc.stderr}"
+        )
     try:
         return json.loads(proc.stdout) if proc.stdout.strip() else []
     except json.JSONDecodeError as e:
-        print(f"error: could not parse ast-grep output as JSON: {e}", file=sys.stderr)
-        sys.exit(1)
+        raise AstGrepError(f"error: could not parse ast-grep output as JSON: {e}") from e
 
 
 def _first_line_match(text):
@@ -887,7 +903,9 @@ def main():
 
     try:
         result = scan(args.repo_path, sql_dialect=args.sql_dialect, respect_gitignore=args.respect_gitignore)
-    except AstGrepNotFoundError as e:
+    except AstGrepError as e:
+        # Base class, so this covers both "binary missing" and "binary ran and
+        # failed". Same stderr text and exit code as before either way.
         print(e, file=sys.stderr)
         sys.exit(1)
     with open(args.out, "w") as f:

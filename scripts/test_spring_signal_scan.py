@@ -541,5 +541,90 @@ class RespectGitignoreOptInTest(unittest.TestCase):
         self.assertNotIn("Scratch", result["entity_table_map"])
 
 
+
+
+class AstGrepFailureIsAnExceptionTest(unittest.TestCase):
+    """run_ast_grep() used to call sys.exit(1) on a failing ast-grep.
+
+    That is the identical defect AstGrepNotFoundError was introduced to fix
+    in find_ast_grep(), left in place at two sites because the original fix
+    converted only the "binary missing" path. SystemExit derives from
+    BaseException, and unittest's _handleClassSetUp catches only Exception --
+    so a sys.exit() raised under setUpClass (which is where three suites call
+    scan()) kills the whole test process with no "Ran N tests" line, instead
+    of being reported as one class's setUpClass error.
+
+    These tests pin the property that actually matters: an ordinary
+    `except Exception` must catch it. Asserting the exception type alone
+    would not -- SystemExit would satisfy an assertRaises(BaseException) just
+    as well, which is precisely how this went unnoticed the first time.
+    """
+
+    class _FakeProc:
+        def __init__(self, returncode=0, stdout="", stderr=""):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    def _run_with(self, proc, monkey):
+        original = spring_signal_scan.subprocess.run
+        spring_signal_scan.subprocess.run = lambda *a, **k: proc
+        try:
+            return monkey()
+        finally:
+            spring_signal_scan.subprocess.run = original
+
+    def test_nonzero_exit_raises_ast_grep_error(self):
+        proc = self._FakeProc(returncode=2, stderr="bad rule file")
+        with self.assertRaises(spring_signal_scan.AstGrepError):
+            self._run_with(proc, lambda: spring_signal_scan.run_ast_grep("ast-grep", "."))
+
+    def test_unparseable_output_raises_ast_grep_error(self):
+        proc = self._FakeProc(returncode=0, stdout="not json at all")
+        with self.assertRaises(spring_signal_scan.AstGrepError):
+            self._run_with(proc, lambda: spring_signal_scan.run_ast_grep("ast-grep", "."))
+
+    def test_nonzero_exit_is_catchable_as_a_plain_exception(self):
+        """The regression witness. Against the pre-fix code this fails by
+        the SystemExit propagating straight through the `except Exception`."""
+        proc = self._FakeProc(returncode=2, stderr="bad rule file")
+        caught = None
+        try:
+            self._run_with(proc, lambda: spring_signal_scan.run_ast_grep("ast-grep", "."))
+        except Exception as exc:  # noqa: BLE001 -- catching broadly is the point
+            caught = exc
+        self.assertIsNotNone(
+            caught, "run_ast_grep raised something `except Exception` cannot catch")
+        self.assertNotIsInstance(caught, SystemExit)
+
+    def test_unparseable_output_is_catchable_as_a_plain_exception(self):
+        proc = self._FakeProc(returncode=0, stdout="{{{")
+        caught = None
+        try:
+            self._run_with(proc, lambda: spring_signal_scan.run_ast_grep("ast-grep", "."))
+        except Exception as exc:  # noqa: BLE001 -- catching broadly is the point
+            caught = exc
+        self.assertIsNotNone(caught)
+        self.assertNotIsInstance(caught, SystemExit)
+
+    def test_the_failure_message_still_names_ast_grep_and_the_status(self):
+        """CLI behavior is meant to be unchanged: main() prints the exception
+        and exits 1, so the text a user sees must still carry the detail that
+        used to be printed directly."""
+        proc = self._FakeProc(returncode=3, stderr="rule parse failed")
+        with self.assertRaises(spring_signal_scan.AstGrepError) as ctx:
+            self._run_with(proc, lambda: spring_signal_scan.run_ast_grep("ast-grep", "."))
+        message = str(ctx.exception)
+        self.assertIn("ast-grep", message)
+        self.assertIn("3", message)
+        self.assertIn("rule parse failed", message)
+
+    def test_not_found_error_is_still_an_ast_grep_error(self):
+        """Subclassing keeps every existing `except AstGrepNotFoundError`
+        call site meaning exactly what it meant before."""
+        self.assertTrue(issubclass(spring_signal_scan.AstGrepNotFoundError,
+                                   spring_signal_scan.AstGrepError))
+
+
 if __name__ == "__main__":
     unittest.main()
