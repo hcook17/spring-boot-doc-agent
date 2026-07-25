@@ -16,6 +16,7 @@ skills/document-spring-repo/references/doc-taxonomy.md's "General rule
 across all fourteen", five numbered forms, verbatim.
 """
 
+import os
 import re
 
 # The fourteen documentation files this pipeline produces — the doc-writer
@@ -65,3 +66,31 @@ def find_malformed_tags(text):
 
 def count_tags_by_kind(text):
     return {kind: len(pattern.findall(text)) for kind, pattern in TAG_PATTERNS.items()}
+
+
+def resolve_evidenced_citations(text, repo_root):
+    """For every well-formed [Evidenced — path[:line]] tag, confirm the path
+    exists under repo_root and, if a line number was cited, that the file
+    actually has that many lines. Returns a list of (citation_text, reason)
+    for anything that fails to resolve — empty list means everything
+    resolved. This is the mechanical equivalent of FActScore-style claim
+    verification (arXiv:2305.14251), applied to file/line citations instead
+    of natural-language atomic facts.
+
+    Lives here rather than in test_pipeline_stages.py because
+    check_pipeline_output.py gates a real run's output with it, and a
+    runtime checker importing from a test module would make that test file
+    a dependency of the pipeline itself."""
+    failures = []
+    for m in TAG_PATTERNS["evidenced"].finditer(text):
+        relpath, line = m.group(1), m.group(2)
+        abspath = os.path.join(repo_root, relpath)
+        if not os.path.isfile(abspath):
+            failures.append((m.group(0), f"{relpath} does not exist under {repo_root}"))
+            continue
+        if line is not None:
+            with open(abspath, encoding="utf-8") as f:
+                line_count = sum(1 for _ in f)
+            if int(line) > line_count:
+                failures.append((m.group(0), f"{relpath} has {line_count} lines, citation points past the end"))
+    return failures

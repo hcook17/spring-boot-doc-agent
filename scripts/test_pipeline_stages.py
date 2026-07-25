@@ -63,7 +63,7 @@ sys.path.insert(0, SCRIPT_DIR)
 # directly) is unchanged.
 from doc_tag_utils import (  # noqa: E402
     VALID_DOC_FILES, TAG_PATTERNS, TAG_WORD_SPAN,
-    find_malformed_tags, count_tags_by_kind,
+    find_malformed_tags, count_tags_by_kind, resolve_evidenced_citations,
 )
 
 # agents/file-summarizer.md step 4's exact enumerated list.
@@ -73,27 +73,10 @@ VALID_SPRING_ROLES = frozenset({
 })
 
 
-def resolve_evidenced_citations(text, repo_root):
-    """For every well-formed [Evidenced — path[:line]] tag, confirm the path
-    exists under repo_root and, if a line number was cited, that the file
-    actually has that many lines. Returns a list of (citation_text, reason)
-    for anything that fails to resolve — empty list means everything
-    resolved. This is the mechanical equivalent of FActScore-style claim
-    verification (arXiv:2305.14251), applied to file/line citations instead
-    of natural-language atomic facts."""
-    failures = []
-    for m in TAG_PATTERNS["evidenced"].finditer(text):
-        relpath, line = m.group(1), m.group(2)
-        abspath = os.path.join(repo_root, relpath)
-        if not os.path.isfile(abspath):
-            failures.append((m.group(0), f"{relpath} does not exist under {repo_root}"))
-            continue
-        if line is not None:
-            with open(abspath, encoding="utf-8") as f:
-                line_count = sum(1 for _ in f)
-            if int(line) > line_count:
-                failures.append((m.group(0), f"{relpath} has {line_count} lines, citation points past the end"))
-    return failures
+# resolve_evidenced_citations moved to doc_tag_utils.py (imported below),
+# for the same reason VALID_DOC_FILES did: check_pipeline_output.py needs it
+# to gate a real run's output, and a checker importing from a test module
+# would make the test file a runtime dependency of the pipeline.
 
 
 def validate_file_summarizer_entries(entries):

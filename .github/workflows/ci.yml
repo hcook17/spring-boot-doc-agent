@@ -70,6 +70,12 @@ jobs:
       - name: test_check_llms_coverage.py
         run: python3 scripts/test_check_llms_coverage.py -v
 
+      # The checker itself isn't CI-wired -- like check_no_secrets_leaked.py,
+      # it needs a completed target-repo run to check, and CI has none. Its
+      # unit tests do run here.
+      - name: test_check_pipeline_output.py
+        run: python3 scripts/test_check_pipeline_output.py -v
+
       # REMOVED: the verify_llms_docs.py step. It extracted backtick-fenced
       # spans from LLM-authored markdown and ran them through `bash -c`, with
       # GH_TOKEN in scope, on every pull_request and push to main. The match
