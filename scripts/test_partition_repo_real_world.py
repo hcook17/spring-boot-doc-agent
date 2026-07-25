@@ -128,7 +128,7 @@ class RealRepoTest(unittest.TestCase):
         if dense_sample is None:
             self.skipTest("no dense-extension (yml/json/properties/xml/toml) files in this fixture")
         full = os.path.join(REAL_FIXTURE_DIR, dense_sample)
-        with open(full, "r", encoding="utf-8", errors="ignore") as f:
+        with open(full, encoding="utf-8", errors="ignore") as f:
             text = f.read()
         expected = max(1, len(text) // partition_repo.CHARS_PER_TOKEN_DENSE)
         actual = dict(self.file_tokens)[dense_sample]

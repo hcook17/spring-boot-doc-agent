@@ -163,9 +163,10 @@ import shutil
 import subprocess
 import sys
 
-from _shared_excludes import DEFAULT_EXCLUDED_DIRS as EXCLUDED_DIRS, load_gitignore_spec
-from _secret_heuristics import scan_text_for_secrets
 from _config_keys import extract_config_keys
+from _secret_heuristics import scan_text_for_secrets
+from _shared_excludes import DEFAULT_EXCLUDED_DIRS as EXCLUDED_DIRS
+from _shared_excludes import load_gitignore_spec
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RULE_FILE = os.path.join(SCRIPT_DIR, "spring_ast_grep_rules.yml")
@@ -489,7 +490,24 @@ def compute_file_signature(path):
     return h.hexdigest()
 
 
-class AstGrepNotFoundError(RuntimeError):
+class AstGrepError(RuntimeError):
+    """Any ast-grep invocation failure that must not kill the process.
+
+    Added 2026-07-25. The reasoning in AstGrepNotFoundError below was always
+    general -- SystemExit raised under setUpClass takes down the whole test
+    process -- but the original fix converted only find_ast_grep(), leaving
+    run_ast_grep()'s two sys.exit(1) calls to reproduce the identical failure
+    whenever ast-grep is *present but fails*: a malformed rule file, an
+    out-of-range --globs argument, or output this script cannot parse as
+    JSON. scan() is called from setUpClass in three suites, so that path had
+    the same silent-process-death behavior the earlier fix was written to
+    remove.
+
+    AstGrepNotFoundError subclasses this, so `except AstGrepNotFoundError`
+    at any existing call site keeps its exact previous meaning."""
+
+
+class AstGrepNotFoundError(AstGrepError):
     """Raised by find_ast_grep() when the binary isn't on PATH.
 
     A plain Exception subclass on purpose, not a sys.exit(1) call directly:
@@ -548,16 +566,26 @@ def run_ast_grep(ast_grep_path, repo_path, respect_gitignore=False):
         cmd += ["--globs", f"!**/{d}/**"]
     cmd.append(repo_path)
 
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    # encoding= is explicit rather than left to text=True's default, which is
+    # the *locale* codec — cp1252 on a default Windows install. ast-grep emits
+    # UTF-8 JSON that echoes matched source text, and that text lands in every
+    # evidence row's "match" field (see the buckets appends below), so a
+    # locale-decoded read corrupts evidence two different ways: a character
+    # whose UTF-8 bytes are all defined in cp1252 (é, 日, emoji) decodes to
+    # silent mojibake that flows on into cited documentation, and one whose
+    # bytes include 0x81/0x8D/0x8F/0x90/0x9D (Cyrillic 'с' is d1 81) raises
+    # UnicodeDecodeError and takes down the whole scan. errors="replace" so a
+    # genuinely undecodable byte degrades one match instead of the run.
+    proc = subprocess.run(cmd, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
     if proc.returncode != 0:
-        print(f"error: ast-grep exited with status {proc.returncode}", file=sys.stderr)
-        print(proc.stderr, file=sys.stderr)
-        sys.exit(1)
+        raise AstGrepError(
+            f"error: ast-grep exited with status {proc.returncode}\n{proc.stderr}"
+        )
     try:
         return json.loads(proc.stdout) if proc.stdout.strip() else []
     except json.JSONDecodeError as e:
-        print(f"error: could not parse ast-grep output as JSON: {e}", file=sys.stderr)
-        sys.exit(1)
+        raise AstGrepError(f"error: could not parse ast-grep output as JSON: {e}") from e
 
 
 def _first_line_match(text):
@@ -638,7 +666,14 @@ def _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
     setup).
     """
     try:
-        with open(full, "r", encoding="utf-8", errors="ignore") as f:
+        # utf-8-sig, not utf-8: a BOM-prefixed config file is common in
+        # Windows-authored repos, and plain utf-8 decodes the BOM to a literal
+        # ﻿ that survives into the text. ﻿ is not matched by \s, so
+        # the ^\s*-anchored regexes downstream (_config_keys.py's
+        # _YAML_KEY_LINE_RE, _secret_heuristics.py's KEY_VALUE_LINE_RE) fail on
+        # the first line only — silently dropping that file's first config key
+        # and, worse, never flagging a credential sitting on line 1.
+        with open(full, encoding="utf-8-sig", errors="ignore") as f:
             text = f.read()
     except OSError:
         return  # same posture as compute_file_signature above: skip, don't abort the scan
@@ -757,7 +792,17 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
             # bucket entry, the two can't be tied back together.
             map_entry["rule_id"] = rule_id
             map_entry["match"] = match_str
-            entity_table_map[class_name] = map_entry
+            # This map is keyed by simple class name alone, so two @Entity
+            # classes in different packages collide. Plain last-write-wins
+            # would hand the collision to ast-grep's match order, which isn't
+            # stable across runs (see the threading note below) — the same
+            # input tree could report a different `table` for the same key on
+            # a re-scan. Resolve on lowest file path instead: it depends only
+            # on the input, and drift-check re-verification of this citation
+            # then has a fixed target rather than a coin flip.
+            prior = entity_table_map.get(class_name)
+            if prior is None or map_entry["file"] < prior["file"]:
+                entity_table_map[class_name] = map_entry
             buckets["persistence"].append({
                 "file": rel, "line": line, "match": match_str,
                 "rule_id": rule_id, "class_name": class_name,
@@ -810,6 +855,15 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
     for bucket in buckets.values():
         bucket.sort(key=lambda e: (e["file"], e.get("line", 0)))
 
+    # entity_table_map is populated inside that same match loop, so its key
+    # order follows the same unstable ast-grep match order the buckets are
+    # sorted to escape. Sorting it matters for a reason the buckets' comment
+    # doesn't state: compute_file_signature() and every downstream hash read
+    # raw bytes, so an unsorted map means identical scans of an unchanged repo
+    # serialize to different bytes, and a hash of spring_signals.json can't be
+    # used to assert anything.
+    entity_table_map = dict(sorted(entity_table_map.items()))
+
     return {
         "schema_version": 6,
         "repo_path": os.path.abspath(repo_path),
@@ -849,7 +903,9 @@ def main():
 
     try:
         result = scan(args.repo_path, sql_dialect=args.sql_dialect, respect_gitignore=args.respect_gitignore)
-    except AstGrepNotFoundError as e:
+    except AstGrepError as e:
+        # Base class, so this covers both "binary missing" and "binary ran and
+        # failed". Same stderr text and exit code as before either way.
         print(e, file=sys.stderr)
         sys.exit(1)
     with open(args.out, "w") as f:

@@ -133,6 +133,30 @@ def estimate_tokens(path, max_file_bytes):
     return max(1, len(text) // divisor), None
 
 
+def to_posix(path: str) -> str:
+    """Backslashes to forward slashes. Trivial, and deliberately its own
+    named function rather than an inline .replace() repeated at each site.
+
+    Every artifact this pipeline writes keys on relative paths, and separate
+    scripts' outputs are then joined by those paths -- groups.json against
+    spring_signals.json, spring_signals.json against a doc's [Evidenced —
+    path:line] citation. A backslash on one side of that join and a forward
+    slash on the other matches nothing and raises no error; the consumer just
+    receives an empty slice. That failure has now been found and fixed three
+    separate times (spring_drift_check.py's tier1_scan(), partition_repo's own
+    main(), and capacity_preflight.py's compute_preflight() on 2026-07-25),
+    which is the signal that the fix belonged in one named place rather than
+    in a comment telling the next author to remember."""
+    return path.replace("\\", "/")
+
+
+def relpath_posix(full: str, root: str) -> str:
+    """os.path.relpath, normalized. The pairing above is the whole point:
+    os.path.relpath is the thing that introduces the platform separator, so
+    the normalization belongs immediately next to it."""
+    return to_posix(os.path.relpath(full, root))
+
+
 def dfs_file_list(repo_path, excluded_dirs, excluded_exts, excluded_files, gitignore_spec=None):
     """Depth-first, deterministically-ordered walk of the repo, yielding
     relative file paths. Directories and files are sorted at each level so
@@ -247,14 +271,28 @@ def build_groups(file_tokens, max_tokens, overlap_ratio):
 
             # Zero-progress guard: if the entire just-closed group got
             # carried forward unchanged (carried == current_tokens, i.e.
-            # nothing was dropped) and the same triggering file still
-            # wouldn't fit even against that unchanged carry, retrying
-            # as-is would reproduce the exact same state forever — this is
-            # the exact infinite loop a naive first port of this swap hit.
-            # Force the carry empty instead: better to lose the overlap at
-            # this one seam than to hang.
-            if carried == current_tokens and carried + tok > max_tokens:
-                carry, carried = [], 0
+            # nothing was dropped), the next iteration re-evaluates the same
+            # file against an identical group and reaches an identical
+            # decision — forever. Force the carry empty instead: better to
+            # lose the overlap at this one seam than to hang.
+            #
+            # Both triggers have to be re-checked, not just the hard cap. The
+            # original guard tested only `carried + tok > max_tokens`, which
+            # left the soft-target path looping: a single carried file whose
+            # tokens land in [target_per_group, max_tokens) is large enough to
+            # re-trip the soft target on its own, yet small enough that the
+            # next file still fits under the hard cap — so neither the old
+            # guard nor the hard cap fired, `i` never advanced, and the group
+            # list grew without bound. Reproduced with a 2916-token file at
+            # max_tokens=3000 / target_per_group=2901; see
+            # test_enterprise_kitchen_sink.py's termination test.
+            if carried == current_tokens:
+                re_triggers_hard_cap = carried + tok > max_tokens
+                re_triggers_soft_target = (
+                    len(groups) != num_groups - 1 and carried >= target_per_group
+                )
+                if re_triggers_hard_cap or re_triggers_soft_target:
+                    carry, carried = [], 0
 
             current, current_tokens = list(carry), carried
             continue  # re-evaluate the same file against the new group
@@ -302,14 +340,13 @@ def main():
     file_tokens = []
     skipped = []
     for full in all_files:
-        # Normalize to forward slashes, as spring_signal_scan.py does for every
-        # path it emits. These two files' outputs are joined by path on Windows
-        # -- Stage 1 slices spring_signals.json's evidence by which group each
-        # `file` falls in -- so a raw os.path.relpath() here yields backslashes
-        # that match nothing, and every subagent silently receives an empty
-        # evidence slice instead of a failure. Same bug already fixed once in
-        # spring_drift_check.py's tier1_scan(); see claude/session-log.md.
-        rel = os.path.relpath(full, repo_path).replace("\\", "/")
+        # Forward slashes, as spring_signal_scan.py does for every path it
+        # emits: Stage 1 slices spring_signals.json's evidence by which group
+        # each `file` falls in, so a raw os.path.relpath() here yields
+        # backslashes that match nothing and every subagent silently receives
+        # an empty evidence slice instead of a failure. The reasoning and the
+        # full three-site history now live on relpath_posix() above.
+        rel = relpath_posix(full, repo_path)
         tokens, reason = estimate_tokens(full, args.max_file_bytes)
         if reason:
             skipped.append({"file": rel, "reason": reason})

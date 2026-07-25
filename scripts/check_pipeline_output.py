@@ -44,7 +44,6 @@ Run with:
 """
 
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -54,7 +53,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from doc_tag_utils import (  # noqa: E402
-    VALID_DOC_FILES, find_malformed_tags, count_tags_by_kind,
+    VALID_DOC_FILES,
+    count_tags_by_kind,
+    find_malformed_tags,
     resolve_evidenced_citations,
 )
 

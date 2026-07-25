@@ -62,8 +62,10 @@ sys.path.insert(0, SCRIPT_DIR)
 # of this file (and its own tests, which assert against these names
 # directly) is unchanged.
 from doc_tag_utils import (  # noqa: E402
-    VALID_DOC_FILES, TAG_PATTERNS, TAG_WORD_SPAN,
-    find_malformed_tags, count_tags_by_kind, resolve_evidenced_citations,
+    VALID_DOC_FILES,
+    count_tags_by_kind,
+    find_malformed_tags,
+    resolve_evidenced_citations,
 )
 
 # agents/file-summarizer.md step 4's exact enumerated list.

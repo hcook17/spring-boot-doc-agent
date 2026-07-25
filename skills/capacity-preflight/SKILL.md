@@ -1,13 +1,13 @@
 ---
 name: capacity-preflight
-description: Run before the document-spring-repo pipeline against a large or unfamiliar target repo to estimate cost and surface scale risk before committing to a full run — estimated group count and total subagent fan-out across all five stages, estimated size of the repo-wide references bucket attached to every Stage-1 dispatch, and warnings if any of these cross reasonable thresholds. Reuses partition_repo.py's and spring_signal_scan.py's own output rather than re-estimating from scratch. Use whenever pointing document-spring-repo at a repo you haven't run it against before, or one you suspect is large (monorepo, hundreds of files) — the full pipeline has no built-in warning today if group count or fan-out is large enough to hit practical concurrency or context limits.
+description: Run before the document-spring-repo pipeline against a large or unfamiliar target repo to estimate cost and surface scale risk before committing to a full run — estimated group count and total subagent fan-out across all five stages, estimated size of the per-group `cross_group_edges.json` slice each Stage-1 dispatch carries, and warnings if any of these cross reasonable thresholds. Reuses partition_repo.py's, spring_signal_scan.py's and build_cross_group_edges.py's own output rather than re-estimating from scratch. Use whenever pointing document-spring-repo at a repo you haven't run it against before, or one you suspect is large (monorepo, hundreds of files) — the full pipeline has no built-in warning today if group count or fan-out is large enough to hit practical concurrency or context limits.
 ---
 
 # Capacity preflight
 
 ## Why this exists
 
-`CONSTRAINTS.md` and `skills/document-spring-repo/SKILL.md` already name several scale assumptions nobody has load-tested against a real large repo: token counts are a chars/N heuristic, not Claude's real tokenizer; `build_groups()` picks a planning-target group count, not a hard cap; and the repo-wide `references` bucket is attached, in full, to *every* Stage-1 dispatch — SKILL.md's own text calls this "worth confirming against a real repo's actual size rather than just assumed." This skill turns those from prose warnings into a concrete number for *this specific* target repo, before you commit to a full five-stage run.
+`CONSTRAINTS.md` and `skills/document-spring-repo/SKILL.md` already name several scale assumptions nobody has load-tested against a real large repo: token counts are a chars/N heuristic, not Claude's real tokenizer; `build_groups()` picks a planning-target group count, not a hard cap; and each Stage-1 dispatch carries its group's slice of `cross_group_edges.json` on top of the group's own files. (Through 2026-07-24 this last one read "the repo-wide `references` bucket is attached, in full, to *every* Stage-1 dispatch" — true until commit `abd3ade` replaced the broadcast with a partitioned join, after which this skill kept measuring a cost the pipeline no longer paid, overstating it ~21x on the first real repo it was pointed at.) This skill turns those from prose warnings into a concrete number for *this specific* target repo, before you commit to a full five-stage run.
 
 ## Step 1 — run Stage 0's own scripts
 
@@ -32,7 +32,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/capacity_preflight.py" <repo_path> \
 
 - **group count** — `groups.json`'s own `num_groups`
 - **total subagent fan-out** across all five stages: Stage 1 (`file-summarizer`, one per group) + Stage 2 (`architect-segment` one per group, plus `architect-merge` always 1) + Stage 3 (`gap-analyzer`, always exactly 1 — the interview itself is the orchestrating thread, not a subagent dispatch, so it isn't counted) + Stage 4 (`doc-writer`, always exactly 14) = `2*num_groups + 16`
-- **references-bucket cost**: the size of `spring_signals.json`'s `references` bucket, estimated in tokens via `partition_repo.py`'s own chars/N estimator, multiplied by `num_groups` — the concrete number for "total tokens spent repo-wide across all Stage-1 dispatches just for this one shared bucket."
+- **Stage-1 slice cost**: the size of each group's `cross_group_edges.json` slice, estimated in tokens via `partition_repo.py`'s own chars/N estimator. Reported as a distribution — `max`, `mean`, `total`, and per-group — because the max is what bounds risk (a context window is breached by one dispatch, not by a sum) while the total is what the old broadcast product was trying to approximate.
 
 ## Step 3 — threshold checks
 
@@ -40,13 +40,13 @@ The script warns (does not block) if any of the following, all **stated, tunable
 
 - group count exceeds `--group-warn-threshold` (default 15) — rationale: untested territory for practical Task-tool dispatch concurrency in a single turn
 - total fan-out exceeds `--fanout-warn-threshold` (default 40) — same rationale, compounded across stages
-- references-bucket-tokens-times-groups exceeds `--references-tokens-warn-threshold` (default 500,000) — the specific number SKILL.md flags as unverified
+- the *largest single* Stage-1 slice exceeds `--slice-tokens-warn-threshold` (default 30,000 — a quarter of the default 120,000 per-group budget, and a stated guess with one real-repo data point behind it, not a calibrated ceiling)
 
 Every threshold is a CLI flag, not a hidden constant — override any of them if you have better information about this specific repo or environment.
 
 ## Output
 
-The script prints a short summary and, if `--out` was given, writes the same data as JSON. Present it to the user as a question, not a verdict: *"this repo would produce N groups and M total subagent dispatches, with an estimated K tokens on the shared references bucket alone — proceed with the full run, split the repo with a smaller `--max-tokens`, or adjust thresholds?"* This skill has no authority to refuse the user's own request — it surfaces the number, it doesn't gate the run.
+The script prints a short summary and, if `--out` was given, writes the same data as JSON. Present it to the user as a question, not a verdict: *"this repo would produce N groups and M total subagent dispatches, with a largest single Stage-1 edge slice of ~K tokens — proceed with the full run, split the repo with a smaller `--max-tokens`, or adjust thresholds?"* This skill has no authority to refuse the user's own request — it surfaces the number, it doesn't gate the run.
 
 ## What this deliberately does not do
 

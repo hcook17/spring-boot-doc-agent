@@ -20,6 +20,7 @@ Requires: ast-grep on PATH (see spring_signal_scan.py's error message for
 install instructions if this fails with "ast-grep binary is not on PATH").
 """
 
+import json
 import os
 import shutil
 import subprocess
@@ -205,6 +206,75 @@ class SpringSignalScanTest(unittest.TestCase):
         for bucket, entries in self.evidence.items():
             keys = [(e["file"], e.get("line", 0)) for e in entries]
             self.assertEqual(keys, sorted(keys), f"evidence[{bucket}] is not sorted")
+
+    def test_entity_table_map_is_sorted_for_determinism(self):
+        # entity_table_map is built inside the same ast-grep match loop as the
+        # evidence buckets above, and for a long time was the one structure in
+        # scan()'s output that never got sorted on the way out.
+        keys = list(self.result["entity_table_map"].keys())
+        self.assertEqual(keys, sorted(keys), "entity_table_map keys are not sorted")
+
+
+class ScanDeterminismTest(unittest.TestCase):
+    """Same input tree must produce byte-identical output.
+
+    Everything downstream of the scanner hashes raw bytes —
+    compute_file_signature(), run_manifest.json's file_signatures, and any
+    future assertion that a run is reproducible. So 'the content is equal' is
+    not the property that matters here; 'the serialization is equal' is. These
+    tests assert the stronger one.
+    """
+
+    def test_two_scans_of_the_same_tree_serialize_identically(self):
+        # Measured caveat, recorded so nobody reads more into a green result
+        # here than it earns: when this was run against the unfixed scanner
+        # (entity_table_map emitted in ast-grep match order), this test still
+        # PASSED, while the ordering invariants above failed. Two scans inside
+        # one process happened to see the same match order, so back-to-back
+        # comparison did not expose the very defect it was written for.
+        #
+        # Keep it as a broad regression net for nondeterminism that does vary
+        # per call, but the explicit sortedness assertions are the detectors
+        # that actually work. A probe that only re-runs and diffs is weaker
+        # than an invariant that names the property.
+        first = spring_signal_scan.scan(FIXTURE_DIR)
+        second = spring_signal_scan.scan(FIXTURE_DIR)
+        self.assertEqual(
+            json.dumps(first, indent=2, sort_keys=False),
+            json.dumps(second, indent=2, sort_keys=False),
+            "two scans of an unchanged tree produced different bytes",
+        )
+
+    def test_duplicate_class_name_resolves_to_lowest_file_path(self):
+        # entity_table_map is keyed by simple class name, so two @Entity
+        # classes in different packages collide. Before the fix, the winner
+        # was whichever match ast-grep happened to emit last — unstable across
+        # runs on identical input.
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        for pkg, table in (("pkg_a", "a_user"), ("pkg_b", "b_user")):
+            pkg_dir = os.path.join(tmp, pkg)
+            os.makedirs(pkg_dir)
+            with open(os.path.join(pkg_dir, "User.java"), "w", encoding="utf-8") as fh:
+                fh.write(
+                    f"package com.example.{pkg};\n\n"
+                    "import jakarta.persistence.*;\n\n"
+                    "@Entity\n"
+                    f'@Table(name = "{table}")\n'
+                    "public class User {\n"
+                    "    @Id\n"
+                    "    private Long id;\n"
+                    "}\n"
+                )
+
+        entry = spring_signal_scan.scan(tmp)["entity_table_map"]["User"]
+        self.assertEqual(entry["table"], "a_user")
+        self.assertTrue(entry["file"].startswith("pkg_a"), entry["file"])
+
+        # And it stays that way — the point is stability, not the specific
+        # winner.
+        again = spring_signal_scan.scan(tmp)["entity_table_map"]["User"]
+        self.assertEqual(entry, again)
 
 
 class SqlLineageExtractionTest(unittest.TestCase):
@@ -469,6 +539,91 @@ class RespectGitignoreOptInTest(unittest.TestCase):
         result = spring_signal_scan.scan(self.tmpdir, respect_gitignore=True)
         self.assertEqual(result["files_scanned"]["java"], 0)
         self.assertNotIn("Scratch", result["entity_table_map"])
+
+
+
+
+class AstGrepFailureIsAnExceptionTest(unittest.TestCase):
+    """run_ast_grep() used to call sys.exit(1) on a failing ast-grep.
+
+    That is the identical defect AstGrepNotFoundError was introduced to fix
+    in find_ast_grep(), left in place at two sites because the original fix
+    converted only the "binary missing" path. SystemExit derives from
+    BaseException, and unittest's _handleClassSetUp catches only Exception --
+    so a sys.exit() raised under setUpClass (which is where three suites call
+    scan()) kills the whole test process with no "Ran N tests" line, instead
+    of being reported as one class's setUpClass error.
+
+    These tests pin the property that actually matters: an ordinary
+    `except Exception` must catch it. Asserting the exception type alone
+    would not -- SystemExit would satisfy an assertRaises(BaseException) just
+    as well, which is precisely how this went unnoticed the first time.
+    """
+
+    class _FakeProc:
+        def __init__(self, returncode=0, stdout="", stderr=""):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    def _run_with(self, proc, monkey):
+        original = spring_signal_scan.subprocess.run
+        spring_signal_scan.subprocess.run = lambda *a, **k: proc
+        try:
+            return monkey()
+        finally:
+            spring_signal_scan.subprocess.run = original
+
+    def test_nonzero_exit_raises_ast_grep_error(self):
+        proc = self._FakeProc(returncode=2, stderr="bad rule file")
+        with self.assertRaises(spring_signal_scan.AstGrepError):
+            self._run_with(proc, lambda: spring_signal_scan.run_ast_grep("ast-grep", "."))
+
+    def test_unparseable_output_raises_ast_grep_error(self):
+        proc = self._FakeProc(returncode=0, stdout="not json at all")
+        with self.assertRaises(spring_signal_scan.AstGrepError):
+            self._run_with(proc, lambda: spring_signal_scan.run_ast_grep("ast-grep", "."))
+
+    def test_nonzero_exit_is_catchable_as_a_plain_exception(self):
+        """The regression witness. Against the pre-fix code this fails by
+        the SystemExit propagating straight through the `except Exception`."""
+        proc = self._FakeProc(returncode=2, stderr="bad rule file")
+        caught = None
+        try:
+            self._run_with(proc, lambda: spring_signal_scan.run_ast_grep("ast-grep", "."))
+        except Exception as exc:  # noqa: BLE001 -- catching broadly is the point
+            caught = exc
+        self.assertIsNotNone(
+            caught, "run_ast_grep raised something `except Exception` cannot catch")
+        self.assertNotIsInstance(caught, SystemExit)
+
+    def test_unparseable_output_is_catchable_as_a_plain_exception(self):
+        proc = self._FakeProc(returncode=0, stdout="{{{")
+        caught = None
+        try:
+            self._run_with(proc, lambda: spring_signal_scan.run_ast_grep("ast-grep", "."))
+        except Exception as exc:  # noqa: BLE001 -- catching broadly is the point
+            caught = exc
+        self.assertIsNotNone(caught)
+        self.assertNotIsInstance(caught, SystemExit)
+
+    def test_the_failure_message_still_names_ast_grep_and_the_status(self):
+        """CLI behavior is meant to be unchanged: main() prints the exception
+        and exits 1, so the text a user sees must still carry the detail that
+        used to be printed directly."""
+        proc = self._FakeProc(returncode=3, stderr="rule parse failed")
+        with self.assertRaises(spring_signal_scan.AstGrepError) as ctx:
+            self._run_with(proc, lambda: spring_signal_scan.run_ast_grep("ast-grep", "."))
+        message = str(ctx.exception)
+        self.assertIn("ast-grep", message)
+        self.assertIn("3", message)
+        self.assertIn("rule parse failed", message)
+
+    def test_not_found_error_is_still_an_ast_grep_error(self):
+        """Subclassing keeps every existing `except AstGrepNotFoundError`
+        call site meaning exactly what it meant before."""
+        self.assertTrue(issubclass(spring_signal_scan.AstGrepNotFoundError,
+                                   spring_signal_scan.AstGrepError))
 
 
 if __name__ == "__main__":

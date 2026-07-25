@@ -91,7 +91,7 @@ Resolution / workaround: not a repo bug — `spring_signal_scan.py`'s `find_ast_
 
 ## 2026-07-25 — `EnterWorktree` fails with "Command 'git' not found or is in an unsafe location" on this Windows machine, even though Git Bash's own `git` works fine
 Tools/commands involved: `EnterWorktree` (Claude Code harness tool), Windows-native PATH resolution, Git Bash `PATH`
-Status: [Partially diagnosed — root cause narrowed, not fixed]
+Status: [Resolved — the underlying `PATH` defect was fixed 2026-07-24 at user scope; see the "Git `PATH` entry pointed at the install root" entry at the bottom of this file. The diagnosis below was correct and is what made the fix a two-minute job.]
 Symptom: `EnterWorktree` (both `name:` and `path:` forms) failed every time in this session with `Command 'git' not found or is in an unsafe location (current directory)`, even though `git worktree add` run directly via the Bash tool (Git Bash / mingw64) worked perfectly, and `git --version` via Bash resolved to `2.55.0.windows.3` with no ownership/safe-directory issues.
 Diagnostic steps taken (re-runnable):
     which git; git --version                          # via Bash tool -- works, resolves to mingw64 git
@@ -112,3 +112,36 @@ Diagnostic steps taken (re-runnable):
     git -C <dest> status --porcelain | head            # every file shows as 'D ' (staged delete)
     find <dest> -name '*.java' | wc -l                 # compare against the project's known file count
 Resolution / workaround: Windows `MAX_PATH` is 260 characters. The scratchpad root alone is ~150, and Java projects add deep package directories (`src/test/java/org/springframework/samples/petclinic/...`), so the total crosses the limit for the deepest files only — which is why the failure is partial rather than total, and why it looks like a successful clone. **Clone to a short path** (`C:/Users/<u>/AppData/Local/Temp/<short>/`) rather than into the deep scratchpad. Enabling `core.longpaths true` also works but mutates the user's global git config, so prefer the short path in a session that did not ask for that. Two general lessons: never `tail` a `git clone`, since its errors are printed before its reassuring summary; and verify a fresh clone by file count against a known expectation, not by whether the directory exists. Any target-repo tooling in this project should treat "clone succeeded" as unverified until `git ls-files` is non-empty and `git status` is clean.
+
+---
+
+## 2026-07-24 — The Windows `PATH` entry for Git pointed at the install root instead of `\cmd`, so `git` was invisible to every non-Git-Bash tool on this machine (now fixed at user scope)
+Tools/commands involved: `ultraplan` / Claude Code on the web (`git bundle create --all`), `EnterWorktree`, PowerShell `Get-Command git`, the Windows machine/user `PATH`
+Status: [Resolved at user scope — machine-scope entry is still wrong; see below]
+Symptom: handing a plan off to `ultraplan` failed with `session creation failed — Failed to create git bundle (git bundle create --all failed (127): Command 'git' not found or is in an unsafe location (current directory))`. This is the **third** manifestation of one root cause: the `EnterWorktree` entry above (2026-07-25) is the same defect, and its diagnosis was already correct and already recorded the exact check that confirms it.
+
+Two things made this look contradictory rather than obvious, and both are the reason it went un-fixed twice:
+1. **Git worked perfectly all session** via the Bash tool. Git Bash / mingw64 constructs its own POSIX `PATH` and never consults the Windows one, so dozens of successful `git` calls tell you nothing about whether a native process can find `git`.
+2. **The error message's "or is in an unsafe location (current directory)" clause is a red herring.** It is a generic fallback in that error string. There was no stray `git`/`git.exe` in the working directory — verified. The real signal is the bare `127`, which is simply "command not found."
+
+Root cause: the machine `PATH` contained `C:\Program Files\Git` — the **install root**, one directory too high. That folder holds `git-bash.exe` and `git-cmd.exe` but **no `git.exe`**; the real binary is at `C:\Program Files\Git\cmd\git.exe` (and `...\bin\git.exe`). So native `PATH` resolution finds nothing.
+Diagnostic steps taken (re-runnable):
+    Get-Command git -ErrorAction SilentlyContinue                      # NOT FOUND -- the whole diagnosis in one line
+    $env:PATH -split ';' | Where-Object { $_ -match 'Git' }            # shows "C:\Program Files\Git" (the trap: it LOOKS present)
+    Test-Path "C:\Program Files\Git\git.exe"                           # False -- confirms the entry is one level too high
+    Test-Path "C:\Program Files\Git\cmd\git.exe"                       # True  -- where it actually lives
+    Get-ChildItem "C:\Users\...\<repo>" -Filter "git*" -File           # rules out the "unsafe location (current directory)" clause
+    [Environment]::GetEnvironmentVariable("PATH","Machine") -split ';' | Where-Object { $_ -match 'Git' }   # which scope owns the bad entry
+Resolution / workaround: appended `C:\Program Files\Git\cmd` to the **user** `PATH`:
+
+    $cur   = [Environment]::GetEnvironmentVariable("PATH","User")
+    $parts = $cur -split ';' | Where-Object { $_ -ne '' }
+    [Environment]::SetEnvironmentVariable("PATH", (($parts + "C:\Program Files\Git\cmd") -join ';'), "User")
+
+Four things worth knowing before repeating this:
+- **Use `[Environment]::SetEnvironmentVariable`, not `setx`.** `setx` truncates the value at 1024 characters, which silently corrupts a long `PATH`.
+- **Print the old value first as a backup.** The rewrite above also collapses any empty `;;` entries (this `PATH` had one), so it is not a pure append — capture the original before writing.
+- **A restart of the calling process is mandatory.** A running process cannot refresh its own inherited environment, so the current Claude Code session keeps seeing the old `PATH` no matter what. Verify instead by re-deriving what a *new* process would see: iterate `Machine;User` and `Test-Path (Join-Path $dir "git.exe")`. That confirmed `C:\Program Files\Git\cmd\git.exe`, `git version 2.55.0.windows.3`.
+- **The machine-scope entry is still wrong.** Fixing it needs elevation. Until then `git` remains unresolvable for services and other user accounts — user scope only covers processes running as this user.
+
+General lesson, and the reason this cost time three separate times: a `PATH` entry that *looks* present is not the same as a resolvable binary. When a native tool reports `127`/"not found" for something Git Bash runs fine, check whether the `PATH` entry points at the directory actually containing the `.exe` — not merely at something with the right name.

@@ -216,7 +216,6 @@ sys.path.insert(0, SCRIPT_DIR)
 import spring_signal_scan  # noqa: E402
 from _config_keys import extract_config_keys  # noqa: E402
 
-
 # Every citation ends up with exactly one of these — nothing is ever
 # silently dropped from the report.
 STATUS_UNCHANGED = "unchanged"
@@ -617,7 +616,7 @@ def _recheck_config_keys(repo_path, file_rel, old_keys):
     """
     full_path = os.path.join(repo_path, file_rel)
     try:
-        with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(full_path, encoding="utf-8", errors="ignore") as f:
             text = f.read()
     except OSError:
         return None
@@ -807,7 +806,7 @@ def main():
     manifest = load_manifest(args.manifest) if args.manifest is not None else None
     try:
         report = check_drift(args.repo_path, signals, manifest=manifest)
-    except spring_signal_scan.AstGrepNotFoundError as e:
+    except spring_signal_scan.AstGrepError as e:
         print(e, file=sys.stderr)
         sys.exit(1)
 
