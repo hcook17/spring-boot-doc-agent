@@ -757,7 +757,17 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
             # bucket entry, the two can't be tied back together.
             map_entry["rule_id"] = rule_id
             map_entry["match"] = match_str
-            entity_table_map[class_name] = map_entry
+            # This map is keyed by simple class name alone, so two @Entity
+            # classes in different packages collide. Plain last-write-wins
+            # would hand the collision to ast-grep's match order, which isn't
+            # stable across runs (see the threading note below) — the same
+            # input tree could report a different `table` for the same key on
+            # a re-scan. Resolve on lowest file path instead: it depends only
+            # on the input, and drift-check re-verification of this citation
+            # then has a fixed target rather than a coin flip.
+            prior = entity_table_map.get(class_name)
+            if prior is None or map_entry["file"] < prior["file"]:
+                entity_table_map[class_name] = map_entry
             buckets["persistence"].append({
                 "file": rel, "line": line, "match": match_str,
                 "rule_id": rule_id, "class_name": class_name,
@@ -809,6 +819,15 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
     # each bucket so the output — and any diff of it — is deterministic.
     for bucket in buckets.values():
         bucket.sort(key=lambda e: (e["file"], e.get("line", 0)))
+
+    # entity_table_map is populated inside that same match loop, so its key
+    # order follows the same unstable ast-grep match order the buckets are
+    # sorted to escape. Sorting it matters for a reason the buckets' comment
+    # doesn't state: compute_file_signature() and every downstream hash read
+    # raw bytes, so an unsorted map means identical scans of an unchanged repo
+    # serialize to different bytes, and a hash of spring_signals.json can't be
+    # used to assert anything.
+    entity_table_map = dict(sorted(entity_table_map.items()))
 
     return {
         "schema_version": 6,

@@ -12,3 +12,10 @@ __pycache__/
 # OS cruft
 .DS_Store
 Thumbs.db
+
+# Target repos under test. This plugin documents *other* people's services, so
+# a checkout of one sitting in the working tree is an input, never content --
+# and this repo is public and MIT-licensed, which makes an accidental `git add
+# -A` of a private service an unringable bell. Ignore by name rather than
+# relying on remembering.
+/target-repo/

@@ -20,6 +20,7 @@ Requires: ast-grep on PATH (see spring_signal_scan.py's error message for
 install instructions if this fails with "ast-grep binary is not on PATH").
 """
 
+import json
 import os
 import shutil
 import subprocess
@@ -205,6 +206,75 @@ class SpringSignalScanTest(unittest.TestCase):
         for bucket, entries in self.evidence.items():
             keys = [(e["file"], e.get("line", 0)) for e in entries]
             self.assertEqual(keys, sorted(keys), f"evidence[{bucket}] is not sorted")
+
+    def test_entity_table_map_is_sorted_for_determinism(self):
+        # entity_table_map is built inside the same ast-grep match loop as the
+        # evidence buckets above, and for a long time was the one structure in
+        # scan()'s output that never got sorted on the way out.
+        keys = list(self.result["entity_table_map"].keys())
+        self.assertEqual(keys, sorted(keys), "entity_table_map keys are not sorted")
+
+
+class ScanDeterminismTest(unittest.TestCase):
+    """Same input tree must produce byte-identical output.
+
+    Everything downstream of the scanner hashes raw bytes —
+    compute_file_signature(), run_manifest.json's file_signatures, and any
+    future assertion that a run is reproducible. So 'the content is equal' is
+    not the property that matters here; 'the serialization is equal' is. These
+    tests assert the stronger one.
+    """
+
+    def test_two_scans_of_the_same_tree_serialize_identically(self):
+        # Measured caveat, recorded so nobody reads more into a green result
+        # here than it earns: when this was run against the unfixed scanner
+        # (entity_table_map emitted in ast-grep match order), this test still
+        # PASSED, while the ordering invariants above failed. Two scans inside
+        # one process happened to see the same match order, so back-to-back
+        # comparison did not expose the very defect it was written for.
+        #
+        # Keep it as a broad regression net for nondeterminism that does vary
+        # per call, but the explicit sortedness assertions are the detectors
+        # that actually work. A probe that only re-runs and diffs is weaker
+        # than an invariant that names the property.
+        first = spring_signal_scan.scan(FIXTURE_DIR)
+        second = spring_signal_scan.scan(FIXTURE_DIR)
+        self.assertEqual(
+            json.dumps(first, indent=2, sort_keys=False),
+            json.dumps(second, indent=2, sort_keys=False),
+            "two scans of an unchanged tree produced different bytes",
+        )
+
+    def test_duplicate_class_name_resolves_to_lowest_file_path(self):
+        # entity_table_map is keyed by simple class name, so two @Entity
+        # classes in different packages collide. Before the fix, the winner
+        # was whichever match ast-grep happened to emit last — unstable across
+        # runs on identical input.
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        for pkg, table in (("pkg_a", "a_user"), ("pkg_b", "b_user")):
+            pkg_dir = os.path.join(tmp, pkg)
+            os.makedirs(pkg_dir)
+            with open(os.path.join(pkg_dir, "User.java"), "w", encoding="utf-8") as fh:
+                fh.write(
+                    f"package com.example.{pkg};\n\n"
+                    "import jakarta.persistence.*;\n\n"
+                    "@Entity\n"
+                    f'@Table(name = "{table}")\n'
+                    "public class User {\n"
+                    "    @Id\n"
+                    "    private Long id;\n"
+                    "}\n"
+                )
+
+        entry = spring_signal_scan.scan(tmp)["entity_table_map"]["User"]
+        self.assertEqual(entry["table"], "a_user")
+        self.assertTrue(entry["file"].startswith("pkg_a"), entry["file"])
+
+        # And it stays that way — the point is stability, not the specific
+        # winner.
+        again = spring_signal_scan.scan(tmp)["entity_table_map"]["User"]
+        self.assertEqual(entry, again)
 
 
 class SqlLineageExtractionTest(unittest.TestCase):
