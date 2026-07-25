@@ -471,6 +471,237 @@ class TestBacktest(unittest.TestCase):
         self.assertGreaterEqual(found, 1)
 
 
+class TestUnchangedSince(unittest.TestCase):
+    """The stability predicate. It does not assert a claim is true -- nothing
+    here can judge that -- it asserts nobody has re-read the claim since the
+    thing it describes moved."""
+
+    SUBJECT = 'def f(x):\n    """Docs."""\n    return x + 1\n'
+
+    def _repo(self, tmp):
+        root = Path(tmp)
+        (root / "scripts").mkdir()
+        (root / "scripts" / "sub.py").write_text(self.SUBJECT, encoding="utf-8")
+        return root
+
+    def _pred(self, root, level="t2", digest=None):
+        if digest is None:
+            digest = crc._ast_signature.signature(root / "scripts/sub.py", level).split(":")[1]
+        return f"unchanged_since:scripts/sub.py:{level}:{digest}"
+
+    def test_a_matching_signature_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            self.assertTrue(crc.evaluate_predicate(root, self._pred(root))[0])
+
+    def test_never_affirmed_is_reported_differently_from_changed(self):
+        """These are different problems with different fixes -- one needs a
+        stamp, the other needs a human to re-read a claim. Collapsing them
+        into one message would train people to run --affirm reflexively,
+        which defeats the predicate."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            _, unaffirmed = crc.evaluate_predicate(root, self._pred(root, digest=""))
+            _, changed = crc.evaluate_predicate(root, self._pred(root, digest="0" * 64))
+            self.assertIn("never been affirmed", unaffirmed)
+            self.assertIn("changed since", changed)
+            self.assertNotEqual(unaffirmed, changed)
+
+    def test_an_unknown_level_fails_rather_than_falling_back(self):
+        """Falling back to a different relation would compare two
+        incomparable digests and report the answer confidently."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            passed, why = crc.evaluate_predicate(root, self._pred(root, level="t9",
+                                                                 digest="0" * 64))
+            self.assertFalse(passed)
+            self.assertIn("unknown signature level", why)
+
+    def test_a_missing_subject_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            passed, why = crc.evaluate_predicate(
+                root, "unchanged_since:scripts/gone.py:t2:" + "0" * 64)
+            self.assertFalse(passed)
+            self.assertIn("does not exist", why)
+
+    def test_a_malformed_predicate_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            self.assertFalse(crc.evaluate_predicate(
+                root, "unchanged_since:scripts/sub.py")[0])
+
+    def test_reformatting_the_subject_does_not_trip_t2(self):
+        """The end-to-end form of the property that decides adoption. If this
+        fails, `ruff format` breaks every claim in the repo at once."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            predicate = self._pred(root)
+            (root / "scripts" / "sub.py").write_text(
+                'def f(x):\n    """Docs."""\n    return x+1\n', encoding="utf-8")
+            self.assertTrue(crc.evaluate_predicate(root, predicate)[0])
+
+    def test_a_docstring_edit_does_not_trip_t2_but_does_trip_t1(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            t2_pred = self._pred(root, "t2")
+            t1_pred = self._pred(root, "t1")
+            (root / "scripts" / "sub.py").write_text(
+                'def f(x):\n    """Different prose."""\n    return x + 1\n', encoding="utf-8")
+            self.assertTrue(crc.evaluate_predicate(root, t2_pred)[0])
+            self.assertFalse(crc.evaluate_predicate(root, t1_pred)[0])
+
+    def test_a_behaviour_change_trips_t2(self):
+        """Non-vacuity: a predicate that never fails detects nothing, and
+        every other test in this class would still pass."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            predicate = self._pred(root)
+            (root / "scripts" / "sub.py").write_text(
+                'def f(x):\n    """Docs."""\n    return x + 2\n', encoding="utf-8")
+            self.assertFalse(crc.evaluate_predicate(root, predicate)[0])
+
+
+class TestAffirm(unittest.TestCase):
+    """--affirm is what makes the predicate usable. Without it a claim can
+    only be re-affirmed by hand-computing a digest, and an unusable check is
+    an ignored one."""
+
+    def _repo(self, tmp, doc_body):
+        root = Path(tmp)
+        (root / "scripts").mkdir()
+        (root / "scripts" / "sub.py").write_text(
+            'def f(x):\n    """Docs."""\n    return x + 1\n', encoding="utf-8")
+        (root / "CONSTRAINTS.md").write_text(doc_body, encoding="utf-8")
+        return root
+
+    def test_affirm_round_trip(self):
+        """affirm -> clean; mutate -> fails; affirm -> clean. The operational
+        loop, which is what decides whether anyone adopts this."""
+        body = ("**[Resolved]** a claim. "
+                "<!-- verify: unchanged_since:scripts/sub.py:t2: -->\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp, body)
+
+            def claim_passes():
+                claims = crc.extract_bracket_tag_claims(root, root / "CONSTRAINTS.md")
+                return crc.evaluate_predicate(root, claims[0].predicates[0])[0]
+
+            self.assertFalse(claim_passes(), "unaffirmed claim should not pass")
+            self.assertEqual(crc.apply_affirm(root, ["CONSTRAINTS.md"]), ["CONSTRAINTS.md"])
+            self.assertTrue(claim_passes(), "affirm did not stamp a usable digest")
+
+            (root / "scripts" / "sub.py").write_text(
+                'def f(x):\n    """Docs."""\n    return x + 99\n', encoding="utf-8")
+            self.assertFalse(claim_passes(), "a behaviour change should trip it")
+
+            crc.apply_affirm(root, ["CONSTRAINTS.md"])
+            self.assertTrue(claim_passes(), "re-affirming did not clear it")
+
+    def test_affirm_does_not_rewrite_inside_a_code_fence(self):
+        """A fenced example documents the syntax. Rewriting the sample in
+        CLAUDE.md that explains this feature would be a small, funny
+        disaster -- the same guard apply_fix already carries."""
+        body = ("```\n"
+                "<!-- verify: unchanged_since:scripts/sub.py:t2: -->\n"
+                "```\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp, body)
+            self.assertEqual(crc.apply_affirm(root, ["CONSTRAINTS.md"]), [])
+            self.assertIn("unchanged_since:scripts/sub.py:t2: -->",
+                          (root / "CONSTRAINTS.md").read_text(encoding="utf-8"))
+
+    def test_affirm_leaves_an_unknown_level_alone(self):
+        """It must keep failing the check rather than being rewritten to
+        something plausible -- silently repairing a claim nobody can evaluate
+        is the same class of bug as a gate that cannot fail."""
+        body = "**[Resolved]** x. <!-- verify: unchanged_since:scripts/sub.py:t9: -->\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp, body)
+            self.assertEqual(crc.apply_affirm(root, ["CONSTRAINTS.md"]), [])
+
+    def test_affirm_leaves_a_missing_subject_alone(self):
+        body = "**[Resolved]** x. <!-- verify: unchanged_since:scripts/gone.py:t2: -->\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp, body)
+            self.assertEqual(crc.apply_affirm(root, ["CONSTRAINTS.md"]), [])
+
+
+class TestMirrorDebt(unittest.TestCase):
+    """Prompts 00-06 have a canonical copy in the Claude project; editing one
+    creates an obligation no CLI session can discharge. This turns that
+    obligation from a paragraph someone has to read into a counted number."""
+
+    def _repo(self, tmp):
+        root = Path(tmp)
+        prompts = root / "claude" / "steering-prompts"
+        prompts.mkdir(parents=True)
+        for name in ["00-a.md", "01-b.md", "06-c.md", "07-not-mirrored.md",
+                     "13-also-not.md"]:
+            (prompts / name).write_text(f"# {name}\n", encoding="utf-8")
+        return root
+
+    def test_an_unrecorded_prompt_counts_as_debt(self):
+        """Absent state must not read as clean. A checker whose default is
+        'everything is fine' reports best when it knows least."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            self.assertEqual(len(crc.mirror_debt(root)), 3)
+
+    def test_recording_clears_the_debt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            crc.write_mirror_state(root)
+            self.assertEqual(crc.mirror_debt(root), [])
+
+    def test_editing_a_mirrored_prompt_reopens_its_debt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            crc.write_mirror_state(root)
+            edited = root / "claude" / "steering-prompts" / "01-b.md"
+            edited.write_text("# 01-b.md\n\nstatus changed\n", encoding="utf-8")
+            self.assertEqual(crc.mirror_debt(root),
+                             ["claude/steering-prompts/01-b.md"])
+
+    def test_prompts_above_06_are_not_tracked(self):
+        """07+ were authored in this repo and exist nowhere else, so they
+        carry no mirror obligation. Counting them would inflate the debt with
+        work nobody owes."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            crc.write_mirror_state(root)
+            (root / "claude" / "steering-prompts" / "07-not-mirrored.md").write_text(
+                "# heavily edited\n", encoding="utf-8")
+            self.assertEqual(crc.mirror_debt(root), [])
+
+    def test_affirming_claims_does_not_clear_mirror_debt(self):
+        """The hazard this design exists to avoid. Affirming means "I re-read
+        this claim"; mirroring means "I copied this file to the project."
+        Sharing one verb would let a routine --affirm silently clear real
+        mirror debt, making the number lowest exactly when someone had been
+        most casual."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            crc.write_mirror_state(root)
+            prompt = root / "claude" / "steering-prompts" / "01-b.md"
+            prompt.write_text("# 01-b.md\n\nedited\n", encoding="utf-8")
+            self.assertEqual(len(crc.mirror_debt(root)), 1)
+
+            crc.apply_affirm(root, ["claude/steering-prompts/01-b.md"])
+            self.assertEqual(len(crc.mirror_debt(root)), 1,
+                             "--affirm must not clear mirror debt")
+
+    def test_the_state_file_says_what_it_cannot_prove(self):
+        """It records debt, not sync -- nothing here can see the project copy.
+        A reader who mistakes it for proof of sync would trust it exactly
+        where it is weakest."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            crc.write_mirror_state(root)
+            payload = json.loads((root / crc.MIRROR_STATE).read_text(encoding="utf-8"))
+            self.assertIn("cannot see the project", payload["$comment"])
+
+
 class TestRealRepo(unittest.TestCase):
     """Against the actual tree. These are the assertions that would notice
     the checker having quietly stopped looking at anything."""

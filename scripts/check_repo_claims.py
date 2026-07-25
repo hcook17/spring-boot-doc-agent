@@ -99,6 +99,10 @@ import sys
 from pathlib import Path
 from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Set, Tuple
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import _ast_signature  # noqa: E402
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 DEFAULT_BASELINE = SCRIPT_DIR / "repo_claims_baseline.json"
@@ -236,7 +240,15 @@ CI_EXEMPT_SUITES: Dict[str, str] = {
         "opt-in; needs a real Spring repo via an env var, absent in CI",
 }
 
-PREDICATE_PREFIXES = ("path_exists:", "path_absent:", "contains:")
+PREDICATE_PREFIXES = ("path_exists:", "path_absent:", "contains:", "unchanged_since:")
+
+# `unchanged_since:<path>:<level>:<digest>` -- the digest is the second
+# operand of a binary relation, so it rides in the claim rather than in a side
+# store. That keeps a claim self-contained ("this was true against exactly
+# this version") and means a fresh clone can evaluate it with no extra state,
+# which is also where in-toto puts the subject digest.
+UNCHANGED_SINCE_RE = re.compile(
+    r"(unchanged_since:)(?P<path>[^\s:]+):(?P<level>[a-z0-9]+):(?P<digest>[0-9a-f]*)")
 
 
 def fenced_spans(text: str) -> List[Tuple[int, int]]:
@@ -369,6 +381,48 @@ def check_derived_blocks(root: Path, paths: Sequence[str]) -> List[Finding]:
                     f"{actual!r} -- run --fix",
                     fingerprint))
     return findings
+
+
+def apply_affirm(root: Path, paths: Sequence[str]) -> List[str]:
+    """Stamp every `unchanged_since:` predicate with its subject's current
+    signature. Returns the paths actually changed.
+
+    Without this the predicate is unusable: a claim can only be re-affirmed by
+    hand-computing a digest, which nobody will do, and an unusable check is an
+    ignored check. `--fix` exists for derived blocks for the same reason.
+
+    Deliberately unconditional -- it stamps what is true now, it does not ask
+    whether the claim is still *correct*. That judgement is the human's, and
+    the point of running this is that they have just made it."""
+    changed: List[str] = []
+    for rel in paths:
+        target = root / rel
+        text = target.read_text(encoding="utf-8")
+        spans = fenced_spans(text)
+
+        def replace(match: "re.Match[str]",
+                    spans: Sequence[Tuple[int, int]] = spans,
+                    root: Path = root) -> str:
+            # Same late-binding guard as apply_fix: this closure is defined
+            # in a loop, which is the B023 class of bug.
+            if in_fence(spans, match.start()):
+                return match.group(0)
+            subject = root / match.group("path")
+            if not subject.exists():
+                return match.group(0)
+            try:
+                current = _ast_signature.signature(subject, match.group("level"))
+            except (ValueError, SyntaxError):
+                # A bad level or an unparseable subject must keep failing the
+                # check rather than being rewritten to something plausible.
+                return match.group(0)
+            return f"unchanged_since:{match.group('path')}:{current}"
+
+        updated = UNCHANGED_SINCE_RE.sub(replace, text)
+        if updated != text:
+            target.write_text(updated, encoding="utf-8", newline="")
+            changed.append(rel)
+    return changed
 
 
 def apply_fix(root: Path, paths: Sequence[str]) -> List[str]:
@@ -585,8 +639,47 @@ def evaluate_predicate(root: Path, predicate: str) -> Tuple[bool, str]:
             return False, f"{target} does not exist, so it cannot contain {literal!r}"
         found = literal in path.read_text(encoding="utf-8")
         return found, f"{target} does not contain {literal!r}"
+    if predicate.startswith("unchanged_since:"):
+        return _evaluate_unchanged_since(root, predicate)
     return False, (f"unknown predicate {predicate!r}; expected one of "
                    f"{', '.join(PREDICATE_PREFIXES)}")
+
+
+def _evaluate_unchanged_since(root: Path, predicate: str) -> Tuple[bool, str]:
+    """Has the subject moved since this claim was last affirmed?
+
+    This does NOT assert the claim is true -- nothing here can judge that. It
+    asserts that nobody has re-read the claim since the thing it describes
+    changed, which is a staleness signal and is honest about being one.
+
+    Never-affirmed is reported separately from failed: an empty digest means
+    the claim opted in but nobody has stamped it yet, which is a different
+    (and much cheaper) thing to fix than a real mismatch."""
+    rest = predicate[len("unchanged_since:"):].strip()
+    parts = rest.rsplit(":", 2)
+    if len(parts) != 3:
+        return False, (f"malformed {predicate!r}; expected "
+                       f"unchanged_since:<path>:<level>:<digest>")
+    target, level, digest = (part.strip() for part in parts)
+    path = root / target
+    if not path.exists():
+        return False, f"{target} does not exist, so it cannot be unchanged"
+    if not digest:
+        return False, (f"{target} has never been affirmed at level {level}; "
+                       f"run --affirm to stamp its current signature")
+    try:
+        current = _ast_signature.signature(path, level)
+    except ValueError as exc:
+        # An unknown level is a failure, never a silent pass: falling back to
+        # a different relation would compare two incomparable digests and
+        # report the answer confidently.
+        return False, str(exc)
+    except SyntaxError as exc:
+        return False, f"{target} does not parse, so it cannot be fingerprinted: {exc}"
+    if current == f"{level}:{digest}":
+        return True, ""
+    return False, (f"{target} changed since this claim was affirmed (level "
+                   f"{level}) — re-read the claim, then run --affirm")
 
 
 class Claim(NamedTuple):
@@ -694,6 +787,61 @@ def collect_claims(root: Path) -> List[Claim]:
     return claims
 
 
+# Prompts 00-06 have a canonical copy in the Claude project; 07+ do not.
+# Editing one of the first seven creates an obligation to copy the change
+# back, and this session cannot discharge it -- a CLI session has git and no
+# project access, a Cowork session has the reverse. That obligation has been
+# carried in prose in claude/session-log.md, which means it is only as
+# reliable as someone reading the log.
+MIRRORED_PROMPT_GLOB = "claude/steering-prompts/0[0-6]-*.md"
+MIRROR_STATE = Path("claude") / "steering-prompts" / "mirror-state.json"
+
+
+def mirror_debt(root: Path) -> List[str]:
+    """Mirrored prompts edited since they were last copied to the project.
+
+    Deliberately NOT wired to unchanged_since:/--affirm, though the mechanism
+    is the same. Affirming means "I re-read this claim"; mirroring means "I
+    copied this file to the Claude project." Those are different acts, and
+    sharing one verb would let a routine --affirm silently clear real mirror
+    debt -- the reported number would then be lowest exactly when someone had
+    been most casual.
+
+    Measures debt, it does not confirm sync: nothing here can see the project
+    copy. A prompt absent from the state file has never been recorded, which
+    is reported as debt rather than assumed clean."""
+    state: Dict[str, str] = {}
+    state_path = root / MIRROR_STATE
+    if state_path.is_file():
+        state = json.loads(state_path.read_text(encoding="utf-8")).get("mirrored", {})
+    stale: List[str] = []
+    for path in sorted(root.glob(MIRRORED_PROMPT_GLOB)):
+        rel = path.relative_to(root).as_posix()
+        if state.get(rel) != _ast_signature.signature(path, "raw"):
+            stale.append(rel)
+    return stale
+
+
+def write_mirror_state(root: Path) -> int:
+    """Record every mirrored prompt's current signature. Run this *after*
+    copying the changes into the Claude project, never instead of it."""
+    recorded = {
+        path.relative_to(root).as_posix(): _ast_signature.signature(path, "raw")
+        for path in sorted(root.glob(MIRRORED_PROMPT_GLOB))
+    }
+    payload = {
+        "$comment": ("Signatures of the steering prompts that have a canonical copy "
+                     "in the Claude project, as of the last time they were mirrored "
+                     "back. Regenerate with check_repo_claims.py --mirrored AFTER "
+                     "copying the changes across. This records debt; it cannot see "
+                     "the project and does not confirm the copies match."),
+        "mirrored": recorded,
+    }
+    (root / MIRROR_STATE).write_text(
+        json.dumps(payload, indent=2, sort_keys=False) + "\n", encoding="utf-8", newline="\n")
+    return len(recorded)
+
+
 CLAIM_DATE_RE = re.compile(r"(20\d{2}-\d{2}-\d{2})")
 
 # Everything that ends a status word. Statuses are written freehand -- a
@@ -784,6 +932,18 @@ def format_metrics(metrics: ClaimMetrics) -> str:
         "by status:",
     ]
     lines += [f"  {count:>3}  {status}" for status, count in metrics.by_status]
+    return "\n".join(lines)
+
+
+def format_mirror_debt(stale: Sequence[str], total: int) -> str:
+    """Reported, never gated. Nothing here can see the project copy, so this
+    is a prompt to go and check, not a verdict that anything is wrong."""
+    if not stale:
+        return f"mirror debt          0 of {total} mirrored prompts edited since last sync"
+    lines = [f"mirror debt          {len(stale)} of {total} edited since last mirrored "
+             f"to the Claude project:"]
+    lines += [f"  {rel}" for rel in stale]
+    lines.append("  -> copy these across, then run --mirrored to record it")
     return "\n".join(lines)
 
 
@@ -942,6 +1102,40 @@ def report(hard: Sequence[Finding], new_soft: Sequence[Finding],
           file=sys.stderr)
 
 
+def run_action_mode(args: argparse.Namespace, root: Path) -> Optional[int]:
+    """Handle the flags that *do* something and exit, rather than checking.
+
+    Returns an exit code when one applied, or None to fall through to the
+    check. Split out of main() because main() grew to 49 statements as these
+    accumulated and the ratchet said so -- which is the ratchet working, so
+    the answer was to shrink it rather than re-baseline."""
+    if args.mirrored:
+        count = write_mirror_state(root)
+        print(f"mirror state recorded for {count} prompt(s). This says they were "
+              f"copied to the Claude project — it cannot verify that they were.")
+        return 0
+    if args.metrics:
+        # Exits 0 regardless: measurements, not verdicts. Gating on a number
+        # before anyone has watched it move is how a threshold gets picked
+        # that nobody can defend.
+        print(format_metrics(claim_metrics(root)))
+        print()
+        print(format_mirror_debt(mirror_debt(root),
+                                 len(list(root.glob(MIRRORED_PROMPT_GLOB)))))
+        return 0
+    if args.affirm:
+        changed = apply_affirm(root, tracked_markdown(root))
+        print(f"unchanged_since: signatures stamped in {len(changed)} file(s)"
+              + (": " + ", ".join(changed) if changed else ""))
+        return 0
+    if args.fix:
+        changed = apply_fix(root, tracked_markdown(root))
+        print(f"derived blocks rewritten in {len(changed)} file(s)"
+              + (": " + ", ".join(changed) if changed else ""))
+        return 0
+    return None
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     parser.add_argument("--root", default=str(REPO_ROOT),
@@ -952,6 +1146,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         help="rewrite derived blocks to their recomputed values")
     parser.add_argument("--update", action="store_true",
                         help="re-baseline instead of checking")
+    parser.add_argument("--affirm", action="store_true",
+                        help="stamp every unchanged_since: predicate with its "
+                             "subject's current signature (do this after re-reading "
+                             "the claim, not instead of it)")
+    parser.add_argument("--mirrored", action="store_true",
+                        help="record that prompts 00-06 have been copied back to the "
+                             "Claude project (run AFTER copying, not instead of it)")
     parser.add_argument("--metrics", action="store_true",
                         help="report claim-store metrics and exit without checking")
     args = parser.parse_args(argv)
@@ -961,18 +1162,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(f"error: {root} is not a git repository", file=sys.stderr)
         return 2
 
-    if args.metrics:
-        # Exits 0 regardless: these are measurements, not verdicts. Gating on
-        # a number before anyone has watched it move is how a threshold gets
-        # picked that nobody can defend.
-        print(format_metrics(claim_metrics(root)))
-        return 0
-
-    if args.fix:
-        changed = apply_fix(root, tracked_markdown(root))
-        print(f"derived blocks rewritten in {len(changed)} file(s)"
-              + (": " + ", ".join(changed) if changed else ""))
-        return 0
+    handled = run_action_mode(args, root)
+    if handled is not None:
+        return handled
 
     hard, soft = collect_all(root)
 
