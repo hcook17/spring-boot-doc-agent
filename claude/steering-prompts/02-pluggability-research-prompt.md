@@ -1,6 +1,9 @@
 ---
 category: Pluggability
 status: partially resolved (2026-07-23) — references/ already moved, verified directly against the repo
+verify:
+  - path_exists:skills/document-spring-repo/references/doc-taxonomy.md
+  - path_absent:references
 ---
 
 # Research + scaffold prompt: formal contracts between pipeline stages

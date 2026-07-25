@@ -2,26 +2,48 @@
 
 ## Steering prompts and the session log
 
-`claude/steering-prompts/` contains thirteen numbered prompts. **`00`–`06` are mirrored from this project's attached Claude project ("Plugin For Asynchronous Documentation Creation") and have a canonical copy there; `07`–`12` were authored in this repo and exist nowhere else** (confirmed 2026-07-24 — the project's folder holds `00`–`06` only). Edits to `00`–`06` need mirroring back; edits to `07`–`12` do not. They fall into three groups:
+`claude/steering-prompts/` contains <!-- derived: steering_prompt_count -->14<!-- /derived --> numbered prompts. **`00`–`06` are mirrored from this project's attached Claude project ("Plugin For Asynchronous Documentation Creation") and have a canonical copy there; `07` and up were authored in this repo and exist nowhere else** (confirmed 2026-07-24 — the project's folder holds `00`–`06` only). Edits to `00`–`06` need mirroring back; edits to `07` and up do not. They fall into three groups:
 
 - **`00`–`05` — research/scaffold prompts.** `00` shared standards, then one per improvement category: testability, pluggability, constraints, analytics-logging, clarity/delivery-trust.
 - **`06`–`09` — implementation task prompts.** Wire drift-check, CI scaffold, dependency pinning, tool-quirks indexing. These carry a `status:` frontmatter field that is edited in place as the task lands; the body is left as historical record rather than rewritten.
 - **`10`–`12` — the review layer.** Review persona and evidence tiers, the DFS/BFS context-traversal protocol, and the paste-able review-session launcher. Read these when the session is a review or a design-weighing pass rather than a build.
+- **`13` and up — research prompts authored after the three groups above were named.** `13` is code quality/expressiveness. Numbered ranges in this file are the kind of claim that goes stale the moment a prompt is added, which is why the count above is a `derived:` block and these ranges are open-ended.
 
 Each prompt states specific factual assumptions about the current state of this repo (e.g., "no test exists for the LLM stages," "the confidentiality rule only lives in a handoff doc"). Commits to this repo can make those assumptions stale.
 
-**Before your final commit in any session that touches `scripts/`, `agents/`, or `skills/`:** read the prompt files, and check whether anything you just changed resolves, contradicts, or otherwise affects a stated assumption in any of them. In practice `00`–`09` are the ones that carry repo-state assumptions; `10`–`12` describe method and rarely go stale from a code change.
+**Every prompt carrying a `status:` also carries a `verify:` list** — decidable predicates that `scripts/check_repo_claims.py` evaluates on every CI run, so a status contradicting the repo fails the build instead of waiting to be noticed:
+
+```
+status: resolved (2026-07-23, PR #3)
+verify:
+  - contains:skills/document-spring-repo/SKILL.md:spring_drift_check.py
+  - contains:README.md:spring_drift_check.py
+```
+
+Three forms, and no others: `path_exists:<path>`, `path_absent:<path>`, `contains:<path>:<literal>`. An unrecognized predicate fails rather than being skipped. Write them to falsify the status in the direction that actually bites — a `not started` prompt should assert its deliverable is **absent**, which is the exact shape `06` got wrong. That prompt's `status:` read `not started` for a whole window after the work landed and was flagged three separate times in `claude/session-log.md` before anyone edited the field; its own `note:` records this. A predicate would have failed the build the first time.
+
+`07`'s `path_absent:scripts/verify_llms_docs.py` is worth understanding as a pattern: it turns "deleted as a security defect — do not re-add it" from a comment into a build failure.
+
+**Before your final commit in any session that touches `scripts/`, `agents/`, or `skills/`:** run `python3 scripts/check_repo_claims.py` first — it mechanically resolves every prompt's `verify:` predicates, every `derived:` count, and every backticked repo path in the current-state docs, which is the part of this pass that used to depend on someone remembering. Then read the prompt files and check whether anything you just changed resolves, contradicts, or otherwise affects a stated assumption in any of them. In practice `00`–`09` and `13` carry repo-state assumptions; `10`–`12` describe method and rarely go stale from a code change.
+
+The checker is the floor, not the ceiling: it decides whether a claim is *well-formed and resolvable*, never whether it is *true*. A `[Resolved]` tag pointing at a file that exists still passes while being wrong about what the file does. That judgment is what the rest of this pass is for. See `.claude/skills/verify-state-claims/SKILL.md`.
 
 - If nothing you changed is plausibly relevant to any of the prompts, don't write a log entry — churn here is worse than silence. Most commits (a typo fix, a small test addition) won't touch anything a steering prompt assumed.
 - If something is relevant, append one entry to `claude/session-log.md` (create it from the template below if it doesn't exist yet) in the same commit. Keep it distilled, not a raw diff — the point is that a downstream reviewer (human or another Claude session) can read ten lines instead of parsing a diff.
 
 ### The same check covers `CONSTRAINTS.md`
 
-`CONSTRAINTS.md`'s `[Resolved]` / `[Partially resolved]` / `[Flagged, not yet resolved]` entries make the same kind of statement a steering prompt does — a claim about this repo's current state that a later commit can falsify — so check them in the same pass, on the same trigger (`scripts/`, `agents/`, `skills/`). Nothing mechanical checks these claims; this pass is the only thing standing between them and silent drift. Three things worth knowing:
+`CONSTRAINTS.md`'s `[Resolved]` / `[Partially resolved]` / `[Flagged, not yet resolved]` entries make the same kind of statement a steering prompt does — a claim about this repo's current state that a later commit can falsify — so check them in the same pass, on the same trigger (`scripts/`, `agents/`, `skills/`). `check_repo_claims.py` covers the mechanical half: a `CONSTRAINTS.md` entry citing a path or `symbol()` that no longer exists now fails CI, which is how this file managed to cite a deleted script in two places at once. What it cannot decide is whether a surviving path still supports the claim attached to it, so this pass remains the only thing standing between *that* and silent drift. Three things worth knowing:
 
 - **Correct the entry in place.** `CONSTRAINTS.md` is a current-state doc, not an append-only log — fix the claim where it stands, keeping the bracket-tag vocabulary above. Only add a `claude/session-log.md` entry if a steering-prompt assumption moved too; a `CONSTRAINTS.md` correction on its own isn't log-worthy.
 - **A claim can drift in either direction.** It can become false, or it can have been written *ahead of* the code and only become true later — a `[Resolved]` written for a fix that was still partial reads as settled when it isn't. Both are worth correcting, and say which happened rather than quietly restating the claim.
-- **Don't hardcode a test count.** These go stale faster than they get read: `MATURITY_ASSESSMENT.md`'s "Eleven `unittest` suites … 194 tests total" is really 14 suites and 313 test methods as of 2026-07-24, and one of the eleven it names was deleted. `CONSTRAINTS.md`'s own drift-check entry already shows the fix — name the command to run instead of a number.
+- **Don't hardcode a count.** They go stale faster than they get read, and this bullet is the proof: it used to carry three wrong numbers of its own, quoting a `MATURITY_ASSESSMENT.md` sentence that had already been corrected and stamping its replacement "as of" a date it was wrong on. Two fixes, in order of preference. Name the command that recomputes it, which `MATURITY_ASSESSMENT.md` and `CONSTRAINTS.md`'s drift-check entry both now do. Or, when a number genuinely has to appear in prose, wrap it in a derived block:
+
+    ```
+    the workflow runs <!-- derived: ci_test_steps -->N<!-- /derived --> suites
+    ```
+
+  `scripts/check_repo_claims.py` recomputes each one and fails CI on a mismatch; `--fix` rewrites them. Add the key to that script's `DERIVATIONS` dict first — markdown can only *select* a derivation, never define one, which is what keeps this from becoming the markdown-to-shell hazard that got `verify_llms_docs.py` deleted. Blocks inside a fenced example, like the one above, are ignored.
 
 ### Entry format
 

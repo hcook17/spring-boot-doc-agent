@@ -3,6 +3,9 @@ category: Wire spring_drift_check.py into the workflow (not a research prompt �
 status: resolved (2026-07-23, PR #3) — steps 3–4 landed: `spring_drift_check.py` is documented as an optional pre-flight check in `skills/document-spring-repo/SKILL.md` ("Optional pre-flight: checking for drift before a full re-run") and in `README.md`'s "On drift detection" section. Still standalone and not CI-triggered — CI runs `test_spring_drift_check.py`, not the tool itself — which both files state explicitly, and which is deliberate scope rather than a gap. See `STATUS.md`.
 related: 03-constraints-research-prompt.md (Integration gap item), 04-analytics-logging-research-prompt.md (re-scoped item 1)
 note: this field read `not started` from PR #3 until 2026-07-24 — stale for the whole of that window, and flagged three separate times in `claude/session-log.md` before anyone corrected it. Both copies (repo and Claude project) carried the stale value.
+verify:
+  - contains:skills/document-spring-repo/SKILL.md:spring_drift_check.py
+  - contains:README.md:spring_drift_check.py
 ---
 
 # Task prompt: document and wire in the existing drift-check tool

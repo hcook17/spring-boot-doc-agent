@@ -1,6 +1,9 @@
 ---
 category: Tool-quirks indexing and retrieval
 status: not started
+verify:
+  - path_exists:claude/tool-quirks.md
+  - path_absent:claude/tool-quirks
 ---
 
 # Research + scaffold prompt: categorizing and indexing claude/tool-quirks.md for efficient routing and retrieval

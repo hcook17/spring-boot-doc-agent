@@ -1,6 +1,23 @@
 #!/usr/bin/env python3
 """
-spring_drift_check.py — two-tier drift detection for spring_signals.json.
+spring_drift_check.py — two-tier drift detection for spring_signals.json:
+which evidence citations from a prior scan no longer match the repo.
+
+Usage:
+    python3 spring_signal_scan.py <repo_path> --out spring_signals.json
+    # ... time passes, repo changes ...
+    python3 spring_drift_check.py <repo_path> spring_signals.json --out drift_report.json
+
+    # Or, to measure drift against the specific pipeline run that produced
+    # the currently-published docs, rather than the raw scan:
+    python3 spring_drift_check.py <repo_path> spring_signals.json \\
+        --manifest run_manifest.json --out drift_report.json
+
+Tier 1 compares content hashes to find changed files; tier 2 re-runs targeted
+ast-grep queries against those files to decide whether the citation itself
+actually moved. No LLM calls anywhere in this file.
+
+WHY THIS EXISTS
 
 Standalone tool: takes a repo path and a prior spring_signals.json (the
 output of spring_signal_scan.py's scan(), schema_version >= 2) and reports

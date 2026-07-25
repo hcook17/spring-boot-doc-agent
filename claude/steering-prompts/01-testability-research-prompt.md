@@ -1,6 +1,9 @@
 ---
 category: Testability
-status: partially resolved (2026-07-23; semantic layer added 2026-07-23) — scripts/test_pipeline_stages.py covers mechanical/structural checks (17/17 passing); skills/semantic-pipeline-eval/ now scaffolds the "narrow LLM-as-judge for genuinely qualitative judgments" this prompt originally deferred (see its own "What to scaffold" section below) — but it's a manually-invoked skill, not a CI-integrated check, so this prompt's full original scope (mechanical + judgment, both automated) still isn't entirely closed. See claude/session-log.md and STATUS.md.
+status: partially resolved (2026-07-23; semantic layer added 2026-07-23) — scripts/test_pipeline_stages.py covers mechanical/structural checks (for the current count run `python3 scripts/test_pipeline_stages.py`; this field said "17/17 passing" until 2026-07-25, when the suite was actually at 29 — the hardcoded-count failure CLAUDE.md warns about, corrected here); skills/semantic-pipeline-eval/ now scaffolds the "narrow LLM-as-judge for genuinely qualitative judgments" this prompt originally deferred (see its own "What to scaffold" section below) — but it's a manually-invoked skill, not a CI-integrated check, so this prompt's full original scope (mechanical + judgment, both automated) still isn't entirely closed. See claude/session-log.md and STATUS.md.
+verify:
+  - path_exists:scripts/test_pipeline_stages.py
+  - path_exists:skills/semantic-pipeline-eval/SKILL.md
 ---
 
 # Research + scaffold prompt: testability of the LLM stages

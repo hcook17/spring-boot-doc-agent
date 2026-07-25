@@ -1,0 +1,33 @@
+{
+  "$comment": [
+    "Committed, shared project settings. Until now .claude/ held only a",
+    "settings.local.json that this machine's global gitignore excludes, so",
+    "nothing here was versioned or shared.",
+    "",
+    "Scope is deliberately narrow: this repo's own deterministic, read-only",
+    "checkers and test suites, so a session can run the gates without a",
+    "prompt for each one. It does not carry the broad wildcards the local",
+    "file accumulated (git push, gh api, bare python) -- those are a",
+    "convenience for one machine, not a property of the project, and an",
+    "allowlist that permits everything documents nothing.",
+    "",
+    "Two entries in the local file name scripts that do not exist:",
+    "verify_llms_docs.py, deleted as an RCE vector, and",
+    "test_check_session_log.py, which lives only on the parked branch.",
+    "Neither is carried over."
+  ],
+  "permissions": {
+    "allow": [
+      "Bash(python3 scripts/check_repo_claims.py)",
+      "Bash(python3 scripts/check_repo_claims.py --fix)",
+      "Bash(python3 scripts/check_code_quality.py)",
+      "Bash(python3 scripts/check_llms_coverage.py)",
+      "Bash(python3 -m unittest discover -s scripts -p \"test_*.py\")",
+      "Bash(python3 -m ruff check --no-cache scripts/)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git ls-files:*)"
+    ]
+  }
+}

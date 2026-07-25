@@ -67,6 +67,31 @@ jobs:
       - name: check_code_quality.py (ratchet)
         run: python3 scripts/check_code_quality.py
 
+      # Reads this repo's claims about itself back: every steering prompt's
+      # verify: predicates, every derived: count, every backticked repo path
+      # and symbol() in the current-state docs, that every test suite is
+      # actually wired here, and that no step is named as a gate it cannot
+      # be. Blocks, with no ENFORCE toggle -- it is local, deterministic,
+      # needs no network and makes zero LLM calls, so it has none of the
+      # excuses check_llms_coverage.py has.
+      #
+      # It decides whether a claim is well-formed and resolvable, never
+      # whether it is true; that judgment stays in CLAUDE.md's human pass.
+      # Pre-existing findings ride scripts/repo_claims_baseline.json, the
+      # same ratchet shape as check_code_quality.py.
+      - name: check_repo_claims.py (state-claim gate)
+        run: python3 scripts/check_repo_claims.py
+
+      # Measurements, not a verdict -- this step cannot fail, and is named so
+      # that reads as true at a glance rather than looking like enforcement.
+      # It prints how many claims this repo makes about itself, how many carry
+      # a verify: predicate that could contradict them, and the spread of
+      # status words. Gating on any of those before someone has watched them
+      # move is how a threshold gets picked that nobody can defend -- the same
+      # reasoning recorded on check_code_quality.py's USAGE_WITHIN_LINES.
+      - name: claim metrics (reports; never fails)
+        run: python3 scripts/check_repo_claims.py --metrics
+
       - name: test_spring_signal_scan.py
         run: python3 scripts/test_spring_signal_scan.py -v
 
@@ -117,6 +142,23 @@ jobs:
       # working one at the green checkmark.
       - name: test_check_code_quality.py
         run: python3 scripts/test_check_code_quality.py -v
+
+      # Same posture as the suite above: most of these tests exist to prove
+      # each check reaches a non-zero exit code on an injected defect, plus
+      # a regression class pinning that markdown content can never reach a
+      # shell -- the defect that got verify_llms_docs.py deleted.
+      - name: test_check_repo_claims.py
+        run: python3 scripts/test_check_repo_claims.py -v
+
+      # The evidence for _ast_signature.py's default, kept executable. The
+      # choice of t2 came from measurements taken in a throwaway script, and a
+      # measurement made once in a scratch file decays exactly the way a claim
+      # written in prose does -- so each measurement is a test here instead.
+      # Verified non-vacuous by hand: making t2 stop stripping docstrings,
+      # reverting the default to t1, and accepting an unknown level silently
+      # each turn this suite red.
+      - name: test_ast_signature.py
+        run: python3 scripts/test_ast_signature.py -v
 
       # The kitchen-sink suite: the documented command series run as real
       # subprocesses against a deliberately hostile synthetic enterprise repo,

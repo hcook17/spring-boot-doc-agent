@@ -2,6 +2,10 @@
 category: Code quality / expressiveness — naming, function size, information hiding, domain language
 status: partially resolved (2026-07-24) — the mechanical layer landed (`ruff` + `scripts/check_code_quality.py`'s committed per-function baseline, both CI-wired and blocking), and the two live defects the measurement pass surfaced are fixed. The expressiveness work itself — one stage vocabulary, single-owner tag grammar, a glossary, typed cross-stage artifacts — is scoped below and NOT done. See `claude/session-log.md`'s two 2026-07-24 entries.
 authored: in this repo, not mirrored from the Claude project — no sync obligation (see `00-shared-research-standards.md`'s `07`–`12` rule)
+verify:
+  - path_exists:.ruff.toml
+  - path_exists:scripts/check_code_quality.py
+  - path_exists:scripts/code_quality_baseline.json
 ---
 
 # Research + scaffold prompt: code quality and expressiveness
