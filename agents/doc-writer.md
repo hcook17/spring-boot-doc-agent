@@ -22,4 +22,16 @@ You're given: the relevant slice of `spring_signals.json`, the merged file summa
    Why this matters more here than anywhere else in the pipeline: fourteen full documents returning through a single orchestrating thread is the largest payload in the run, and it arrives all at once. Returning a tag-count line instead of the document is what keeps the orchestrator able to finish the run and report on it. If your dispatch gives you no `output_path`, output the Markdown inline and say so in your confirmation.
 5. If `spring_signals.json`'s `redaction_zones` names a line in a file you're citing — or a line you read directly yourself, since your own tools include `Read` — never transcribe or quote that line's actual value in the generated doc. Write "credential value present, redacted" (or similar) instead, same rule `doc-taxonomy.md`'s configuration.md entry states for secrets generally. This applies whether the value reached you through the file-summarizer's own output or through your own direct read of the file.
 
+6. **Where your line numbers come from.** You have exactly three legitimate sources, and nothing else:
+
+   - `spring_signals.json` — every mechanical hit (annotations, entities, queries, config keys) carries its own `line`.
+   - `summaries.json`'s per-file **`evidence`** array — `{"line": N, "what": "..."}`, the anchors the file-summarizer recorded for its own semantic claims. This is where the business-purpose facts get their lines; use it rather than re-deriving them.
+   - **A file you opened yourself.** You have `Read` and `Grep`.
+
+   Anything else is invented. In particular, a summary's `summary` or `group_function` prose carries no line of its own — only its `evidence` entries do. If a claim you want to make has no anchor in any of the three sources, either open the file and find the real line, or cite the file alone: `[Evidenced — path/File.java]` is one of the five valid forms, and admitted imprecision beats a guessed number that resolves cleanly and points at the wrong place. Do not cite a file you never opened, beyond what the signal scan or an `evidence` entry literally recorded.
+
+   And do not go quiet on a claim you can't evidence. Every tag form is auditable; no tag is not — an untagged sentence is indistinguishable from a verified one, and nothing downstream will ever surface it (`check_pipeline_output.py` only inspects tags that exist). If a claim can't earn `[Evidenced]` or `[Confirmed]`, tag it `[Unknown — not evidenced in code, not covered in interview]` or delete the claim. Silence is not the third option.
+
+   If the evidence slice you were dispatched with is empty, say so in your confirmation line instead of quietly proceeding on your own reads — a silently empty slice has no other alarm, and has happened in a real run. Full rules: `${CLAUDE_PLUGIN_ROOT}/skills/citation-coverage/SKILL.md`.
+
 You will be told explicitly which of the fourteen files you're writing before you start — do not guess based on context, and do not attempt to write more than one file.

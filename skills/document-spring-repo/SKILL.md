@@ -82,7 +82,9 @@ Wrap this whole stage in one `start-stage run_manifest.json file_summarize --fan
 
 For every group in `groups.json`, dispatch a `file-summarizer` subagent — a registered subagent type (`agents/file-summarizer.md`) — in the same turn as its sibling groups, so they run concurrently. Give each one its group's file list (it reads the files itself via its own `Read`/`Grep`/`Glob` access) **and** the relevant slice of `spring_signals.json` (matches whose `file` field falls in that group) so it isn't rediscovering annotations the ast-grep pass already found — it should focus on business meaning, not re-detection. Also give each dispatch **its own group's entry from `cross_group_edges.json`** — the `outbound` / `inbound` arcs and `same_package_outside` blocks for that group id, and nothing else. These are resolved facts, not hints: treat them the same way as the signal-scan slice, as ground truth to describe rather than a table to search.
 
-Earlier versions of this stage passed the **entire** repo-wide `references` bucket to every dispatch instead, on the reasoning that it was cheap (file/line/import triples, not source) and was the subagent's only window outside its own group. The first real run showed the cost is `g × |R|` with both terms growing in repo size — quadratic — and that the work being paid for was a `package`/`import` string join executed by a language model once per group. Stage 0's `build_cross_group_edges.py` now does that join once, exactly, and ships each group only its boundary. Do not go back to broadcasting the bucket. **Give each dispatch an absolute `output_path`** — `summaries_group_<id>.json` in the run's working directory. Each subagent writes its own JSON array there (one object per file: `file`, `cluster`, `summary`, `relationships`, `cross_group_relationships`, `group_function`, `spring_role`) and returns only a one-line confirmation.
+Earlier versions of this stage passed the **entire** repo-wide `references` bucket to every dispatch instead, on the reasoning that it was cheap (file/line/import triples, not source) and was the subagent's only window outside its own group. The first real run showed the cost is `g × |R|` with both terms growing in repo size — quadratic — and that the work being paid for was a `package`/`import` string join executed by a language model once per group. Stage 0's `build_cross_group_edges.py` now does that join once, exactly, and ships each group only its boundary. Do not go back to broadcasting the bucket. **Give each dispatch an absolute `output_path`** — `summaries_group_<id>.json` in the run's working directory. Each subagent writes its own JSON array there (one object per file: `file`, `cluster`, `summary`, `relationships`, `cross_group_relationships`, `group_function`, `spring_role`, `evidence`) and returns only a one-line confirmation.
+
+`evidence` is the array of `{"line": N, "what": "..."}` anchors behind that file's summary, and it is the reason Stage 4 can cite anything the ast-grep pass didn't already find. Stage 0 records a line per mechanical hit and Stage 4 is required to emit `path:line`, but Stages 1–3 were all line-free by schema — so a business-purpose claim used to reach `doc-writer` with a path and no line, leaving it to re-read the file, cite the file alone, or invent a number. Stage 1 is the only stage holding both the open file and the semantic claim, which is why the anchor is recorded here and nowhere else. `test_pipeline_stages.py` enforces the shape.
 
 Then concatenate the per-group files into `summaries.json` with a one-liner, rather than pasting arrays through the orchestrator:
 
@@ -191,6 +193,20 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check_no_secrets_leaked.py" summaries.jso
 ```
 
 Exits non-zero and prints `file:line` (never the matched value itself) if it finds one. Heuristic, not exhaustive — see that script's and `_secret_heuristics.py`'s own docstrings for what it does and doesn't catch. Standalone, like `spring_drift_check.py` above: not invoked automatically by this pipeline, and not CI-wired (this repo's CI has no target-repo run to check output from — see `CONSTRAINTS.md`).
+
+### Optional post-run check: citation coverage (missing and mis-anchored citations)
+
+`check_pipeline_output.py` above gates tag *shape* and citation *resolvability*, and both of those checks iterate over tags that are **already present** — `find_malformed_tags()` only matches bracket spans starting with a recognized tag word, and `resolve_evidenced_citations()` only iterates `[Evidenced]` matches. A sentence carrying no tag at all matches neither, so it isn't reported as failing; it's invisible to the gate. `skills/semantic-pipeline-eval/` has the same blind spot from the other side — it samples claims that already carry a tag.
+
+That leaves an omitted citation as the one defect nothing in the pipeline reports:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/citation_coverage.py" docs/ --target-repo <repo_path>
+```
+
+Reports sentences that name a concrete repo artifact but carry no tag, and `[Evidenced — path:line]` citations whose claim names symbols that appear nowhere in the cited file (candidate fabricated citation) or in the file but far from the cited line (imprecise anchor). Heuristic worklists, so it exits 0 by default — `--strict` makes findings non-zero. Pass `--target-repo`: without it the anchor check can't run, and the script says so rather than returning clean and silent.
+
+See `skills/citation-coverage/SKILL.md` for the authoring rules that reduce these findings in the first place — the checker is the backstop, not the fix.
 
 ## Testing this pipeline's own output
 

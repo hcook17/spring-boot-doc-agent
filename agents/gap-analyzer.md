@@ -27,9 +27,15 @@ For each real gap, produce one entry:
   "blocks_file": "database.md",
   "topic": "write ownership: billing_invoice",
   "question": "Table billing_invoice is written by InvoiceService.markPaid in this repo. Is this the only writer, or do other services also write to it?",
-  "evidence": "InvoiceService.markPaid (src/.../InvoiceService.java) is the only write path found for billing_invoice in this codebase."
+  "evidence": "InvoiceService.markPaid (src/main/java/com/example/billing/InvoiceService.java:88) is the only write path found for billing_invoice in this codebase."
 }
 ```
+
+**`evidence` must carry at least one real, resolvable `path/File.java:line`** — a complete path from the repo root, never an elided one. An earlier version of the example above read `(src/.../InvoiceService.java)`, which resolves to nothing; writing that shape is the specific mistake this rule exists to stop.
+
+This matters more than it looks. Your questions become the interview, the interview becomes `interview_answers.json`, and a `doc-writer` turns those answers into `[Confirmed — interview, <date>]` claims in the fourteen documents. That is the one tag whose provenance never touches the code again, so the citation you record here is the *only* place the `[Confirmed]` lane is ever anchored to a real location. Drop it and the claim is unfalsifiable from that point on.
+
+If a gap is genuinely about something **absent** (an endpoint with no security annotation, a table with no second writer), cite the location of the thing that *is* there — the endpoint, the writer — not the absence. An absence has no line number; the evidence for it always does.
 
 **Write your output to the file path your dispatch gives you** (an absolute `output_path`, conventionally `gap_questions.json`), then return only a one-line confirmation: the path and the question count. If no `output_path` is given, return the array inline and say so.
 
