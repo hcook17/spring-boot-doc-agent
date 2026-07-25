@@ -16,8 +16,10 @@ Run with:
     python3 scripts/test_partition_repo.py -v
 """
 
+import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -234,6 +236,58 @@ class RespectGitignoreOptInTest(unittest.TestCase):
         spec = load_gitignore_spec(self.tmpdir)
         self.assertIsNotNone(spec, "pathspec must be installed for this test to be meaningful")
         self.assertEqual(self._relpaths(gitignore_spec=spec), {".gitignore", "kept.txt"})
+
+
+class EmittedPathSeparatorTest(unittest.TestCase):
+    """groups.json's `files` are joined by path against spring_signals.json's
+    `file` fields -- Stage 1 slices the evidence by which group each cited file
+    falls in. spring_signal_scan.py normalizes every path it emits to forward
+    slashes, so partition_repo.py must too.
+
+    Regression: it did not. `main()` used a raw os.path.relpath(), so on Windows
+    every nested path came out with backslashes and matched nothing. The failure
+    was silent -- Stage 1 subagents received an empty evidence slice rather than
+    an error, quietly defeating the "don't rediscover what ast-grep already
+    found" design. Caught only by a real end-to-end run against spring-petclinic,
+    where 54 of 55 cited files matched no group.
+
+    Third instance of this same bug class in this repo; see spring_drift_check.py's
+    tier1_scan() and claude/session-log.md."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        nested = os.path.join(self.tmpdir, "src", "main", "java", "com", "example")
+        os.makedirs(nested)
+        with open(os.path.join(nested, "Thing.java"), "w") as f:
+            f.write("class Thing {}\n")
+        with open(os.path.join(self.tmpdir, "root.txt"), "w") as f:
+            f.write("root\n")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _run_partition(self):
+        out = os.path.join(self.tmpdir, "groups.json")
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "partition_repo.py")
+        subprocess.run(
+            [sys.executable, script, self.tmpdir, "--out", out],
+            check=True, capture_output=True, text=True,
+        )
+        with open(out) as f:
+            return json.load(f)
+
+    def test_emitted_paths_use_forward_slashes(self):
+        data = self._run_partition()
+        emitted = [f for g in data["groups"] for f in g["files"]]
+        self.assertTrue(emitted, "partition produced no files")
+        offenders = [f for f in emitted if "\\" in f]
+        self.assertEqual(offenders, [], f"backslashes in emitted paths: {offenders}")
+
+    def test_nested_path_matches_signal_scan_style_key(self):
+        # The exact join Stage 1 performs, on the shape that actually broke.
+        data = self._run_partition()
+        emitted = {f for g in data["groups"] for f in g["files"]}
+        self.assertIn("src/main/java/com/example/Thing.java", emitted)
 
 
 if __name__ == "__main__":
