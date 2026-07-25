@@ -5,7 +5,7 @@ actually fire.
 Not covered by sibling suites. test_spring_signal_scan.py pins what the
 scanner *produces* for a handful of buckets; it names 2 of the 23 rule ids and
 has never asserted that the other 21 are capable of matching anything at all.
-That gap is the whole reason this file exists: on a real 615-file Spring
+That gap is the whole reason this file exists: on a real production Spring
 service, 13 rules returned zero and nothing could say whether they were broken
 or simply unexercised.
 

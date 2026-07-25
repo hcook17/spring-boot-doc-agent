@@ -232,7 +232,7 @@ rule:
 
   # Scope widened 2026-07-25. This rule matched testcontainers only, while
   # being named as if it covered test imports generally. Measured on a real
-  # 615-file Spring service: testing__springboottest fired 16 times and this
+  # production Spring service: testing__springboottest fired 16 times and this
   # rule fired 0, because all 16 `import org.springframework.boot.test...`
   # lines fell only into the generic `references` bucket. The name promised
   # more than the regex delivered, and nothing flagged the gap.
@@ -279,7 +279,7 @@ rule:
   # for the same reason the two rules above do — this is index material for
   # cross-group relationship resolution, not a documentation bucket of its
   # own, and adding a bucket would ripple into the fourteen-file taxonomy.
-  # Measured on a real 615-file service: @Service 51, @Repository 7,
+  # Measured on a real production service: @Service 51, @Repository 7,
   # @Component 2, @Configuration 4, none of which any rule saw before.
   #
   # Both annotation shapes are listed on purpose. A marker annotation and an

@@ -70,6 +70,27 @@ PLACEHOLDER_VALUE_RE = re.compile(
 # cover YAML and .properties both.
 KEY_VALUE_LINE_RE = re.compile(r"^\s*[\"']?([\w.\-]+)[\"']?\s*[:=]\s*(.+?)\s*$")
 
+# One matching pair of surrounding quotes, which the line regex above strips
+# from the KEY but not from the VALUE.
+QUOTED_VALUE_RE = re.compile(r"^([\"'])(.*)\1$", re.DOTALL)
+
+
+def _unquote(value):
+    """Strip one matching pair of surrounding quotes.
+
+    Without this, PLACEHOLDER_VALUE_RE anchors against the quote characters
+    and never matches: `password=${DB_PASS}` is correctly treated as an
+    indirection, while `password="${DB_PASS}"` -- the same indirection, in
+    the quoting style Gradle and YAML both use -- is reported as a literal
+    credential. Found in a real build script, where every `password` line was
+    a quoted `${...}` and every one of them was flagged.
+
+    This only ever makes the placeholder test MORE likely to match. A genuine
+    quoted secret still fails it (`"hunter2"` -> `hunter2`, not a
+    placeholder) and is still reported, so unquoting cannot hide a leak."""
+    match = QUOTED_VALUE_RE.match(value.strip())
+    return match.group(2).strip() if match else value
+
 # Patterns that are unambiguous enough to flag regardless of the key name
 # they're assigned to.
 HIGH_CONFIDENCE_PATTERNS = {
@@ -93,7 +114,7 @@ def scan_text_for_secrets(text):
         kv = KEY_VALUE_LINE_RE.match(line)
         if kv:
             key, value = kv.group(1), kv.group(2)
-            if SECRET_KEY_NAME_RE.search(key) and not PLACEHOLDER_VALUE_RE.match(value):
+            if SECRET_KEY_NAME_RE.search(key) and not PLACEHOLDER_VALUE_RE.match(_unquote(value)):
                 hits.append({"line": i, "heuristic": f"key-name:{key.lower()}"})
 
     return hits

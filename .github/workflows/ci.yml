@@ -107,8 +107,11 @@ jobs:
       # whether it is true; that judgment stays in CLAUDE.md's human pass.
       # Pre-existing findings ride scripts/repo_claims_baseline.json, the
       # same ratchet shape as check_code_quality.py.
+      - name: check_repo_claims.py (state-claim gate)
+        run: python3 scripts/check_repo_claims.py
+
       # Every ast-grep rule must be able to match something. Measured against
-      # a real 615-file Spring service, 10 of 23 rules fired and 13 returned
+      # a real production Spring service, 10 of 23 rules fired and 13 returned
       # zero -- and nothing here could tell "this codebase has no Kafka" from
       # "this rule is broken". Only the fixture corpus runs in CI: it is
       # committed and tiny. The real-corpus ratchet needs a checkout too large
@@ -116,9 +119,6 @@ jobs:
       # same shape check_code_quality.py uses. This step fails the build.
       - name: rule_coverage.py (rule non-vacuity gate)
         run: python3 scripts/rule_coverage.py
-
-      - name: check_repo_claims.py (state-claim gate)
-        run: python3 scripts/check_repo_claims.py
 
       # Measurements, not a verdict -- this step cannot fail, and is named so
       # that reads as true at a glance rather than looking like enforcement.

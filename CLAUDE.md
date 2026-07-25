@@ -70,10 +70,11 @@ A Claude Code CLI session (this one) has full repo and git access but no access 
 
 The reason is citation correctness, not taste. Text search matches inside strings and comments, which is how a claim ends up carrying an `[Evidenced — path:line]` tag anchored to a line that does not support it.
 
-Three things that have each produced a wrong answer here, in this repo, and are worth reading before writing a pattern:
+Each of the following has produced a wrong answer here, in this repo, and is worth reading before writing a pattern (no count, deliberately — the list grows, and the sentence that used to carry one was wrong within a day of being written):
 
 - **A marker annotation and an argument-bearing annotation are disjoint node shapes.** `-p '@Column'` returns **zero** against a file holding 122 `@Column(name = "...")`. Always try `@Name` *and* `@Name($$$)`. Every rule in `spring_ast_grep_rules.yml` that can take arguments lists both forms for this reason.
 - **A zero result means *unproven*, not *absent*.** ast-grep exits 0 when a structurally valid pattern matches nothing, so a silent zero is indistinguishable from a wrong pattern. Never turn one into a claim that something is not there.
+- **The mandate binds where ast-grep has a grammar.** It has none for Groovy (`-l groovy` fails outright), so Gradle build scripts are classified by filename in `spring_signal_scan.py` and carry no structural signals at all. Kotlin and Scala it does support. Check before designing around a language: `echo x | ast-grep run --stdin -l <lang> -p x`.
 - **ast-grep is not a prose search tool.** Its `markdown` grammar matches broad block nodes: on `README.md`, `-p 'ast-grep'` reports 35 lines of which 27 contain no such string. For docs and logs, use `Glob` to narrow and `Read` to open. The mandate is about *code*, where citations live.
 
 **Coverage is the invariant the mandate exists to serve**, and it is enforced separately. `scripts/rule_coverage.py` runs the <!-- derived: ast_grep_rule_count -->29<!-- /derived --> rules against the committed corpus in `scripts/rule_fixtures/` and fails if any rule matches nothing — a rule nobody can make fire is not coverage. It also has a backtest mode against a real repository, ratcheted against `scripts/rule_coverage_baseline.json`; that corpus is far too large to track, so it is measured on a dev machine and only the baseline is committed. Adding a rule means adding a fixture that triggers it, in the same commit.

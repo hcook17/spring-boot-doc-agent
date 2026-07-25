@@ -212,3 +212,59 @@ Resolution / workaround:
 
   `$?` after a pipeline is the *last* command's status. `set -o pipefail` or `${PIPESTATUS[0]}` also work, but redirect-then-read is harder to get wrong and keeps the full log.
 - Corollary worth stating plainly: an empty output file from a build tool is evidence of failure, not of a quiet success. Treat "green exit code + no output" as a contradiction to investigate rather than a result to report.
+
+---
+
+## 2026-07-25 - ast-grep silently has no Groovy grammar, and the failure only shows at query time
+Tools/commands involved: `ast-grep` 0.44.1, `--lang`
+Status: [Resolved - probe the language before designing around it]
+Symptom: a plan to cover Gradle build scripts structurally was drafted before checking whether the language was supported at all. It is not: `ast-grep run -l groovy` exits with `invalid value 'groovy' for '--lang <LANG>': groovy is not supported!`. Kotlin and Scala both are, so "it is a JVM language, it will be there" is exactly the wrong prior. There is no capability list in `--help`; it points at a docs URL.
+Diagnostic steps taken (re-runnable):
+    # one line, no network, answers it for any language:
+    echo 'x' | ast-grep run --stdin -l groovy -p 'x'    # error: groovy is not supported!
+    echo 'x' | ast-grep run --stdin -l kotlin -p 'x'    # STDIN:1:x
+    echo 'x' | ast-grep run --stdin -l scala  -p 'x'    # STDIN:1:x
+    echo 'x' | ast-grep run --stdin -l markdown -p 'x'  # supported, but see the entry above
+Resolution / workaround: run the probe above before planning any rule work in a new language. Where the grammar is missing there is no partial mode to fall back on - `.gradle` files are handled by filename classification in `spring_signal_scan.py` (`BUILD_EXTS`, `_is_build_file`) and get visibility plus secret redaction, never structural signals. Recorded in `CONSTRAINTS.md` item 11 so the limit is stated rather than rediscovered.
+
+---
+
+## 2026-07-25 — Python `subprocess` cannot run Gradle's extension-less launcher on Windows: "[WinError 193] %1 is not a valid Win32 application"
+Tools/commands involved: Python 3.14 `subprocess.run`, Gradle 8.10 distribution `bin/` directory, Git Bash
+Status: [Resolved — root cause identified]
+Symptom: a mutation-proof harness shelling out to Gradle died immediately with `OSError: [WinError 193] %1 is not a valid Win32 application`. The exact same launcher path runs fine when invoked from Git Bash, which makes it look like a path or permissions problem rather than what it is.
+Cause: Gradle ships **two** launchers side by side in `bin/` — `gradle` (a POSIX shell script, no extension) and `gradle.bat`. Git Bash happily executes the shell script; Python's `subprocess` on Windows goes through `CreateProcess`, which requires a real PE executable or a file whose extension is associated with an interpreter. An extension-less shell script is neither, so it fails before the process ever starts. Nothing about the error message points at the launcher choice.
+A second, related trap in the same call: `JAVA_HOME` passed in Git Bash form (`/c/Users/...`) is meaningless to the Windows JVM launcher. It must be a native path (`C:\Users\...`). This one fails later and more confusingly than the first.
+Diagnostic steps taken (re-runnable):
+
+    ls "<gradle-dist>/bin"          # shows BOTH `gradle` and `gradle.bat`
+
+Resolution / workaround: when launching Gradle (or any similarly dual-packaged tool) from Python on Windows, resolve the `.bat` sibling and normalise any path handed to the child process:
+
+    launcher = Path(gradle)
+    if os.name == "nt" and launcher.suffix == "":
+        bat = launcher.with_suffix(".bat")
+        if bat.is_file():
+            launcher = bat
+    env["JAVA_HOME"] = str(Path(java_home).resolve())
+
+Generalises beyond Gradle: the same shape applies to `mvn`/`mvn.cmd`, `npm`/`npm.cmd`, and any tool distributing a POSIX script next to a Windows batch wrapper. If a command works from the shell and fails from `subprocess` with WinError 193, check for a `.bat`/`.cmd` sibling first rather than debugging paths.
+
+---
+
+## 2026-07-25 — Bare `hasProperty('x')` inside a Gradle task block silently returns false, so a `-Px` flag does nothing
+Tools/commands involved: Gradle 8.10, Groovy DSL, a `task foo(type: Test) { ... }` configuration block, `-PsomeFlag` on the command line
+Status: [Resolved — root cause identified]
+Symptom: a task read an opt-in flag as `systemProperty 'my.flag', hasProperty('updateBaseline') ? 'true' : 'false'`. Passing `-PupdateBaseline` had **no effect at all** — the system property arrived as `'false'` every time, and the guarded behaviour never ran. Nothing warns, nothing fails; the flag is simply inert, which makes it look like the *consumer* of the property is broken rather than the producer.
+Cause: `hasProperty` is defined on `groovy.lang.GroovyObject`, so **every** Groovy object has it, including the `Test` task being configured. Inside the task block the delegate is the task, so `hasProperty('updateBaseline')` asks *the task* whether it has a property of that name — it does not — and returns false. The project's `-P` properties are never consulted.
+The confusing part is that the sibling call in the same block works: `findProperty('classesDir')` resolves correctly, because `Task` does **not** define `findProperty`, so Groovy's method dispatch falls through to the enclosing `Project`. Two lines that look symmetrical behave differently, and only one of them is wrong.
+Diagnostic steps taken (re-runnable): pass the flag and print what the test actually receives, rather than trusting the build script:
+
+    println "updateBaseline seen by task: " + project.hasProperty('updateBaseline')
+    println "bare hasProperty:            " + hasProperty('updateBaseline')
+
+Resolution / workaround: **always qualify with `project.`** when reading command-line properties inside a task configuration block:
+
+    systemProperty 'my.flag', project.hasProperty('updateBaseline') ? 'true' : 'false'
+
+Generalises to `property()`, `getProperty()` and anything else `GroovyObject` also defines. Rule of thumb: inside a task block, qualify any property lookup you intend to hit the project, and prefer `project.findProperty('x') != null` over `hasProperty` if you want one consistent idiom that cannot silently bind to the wrong receiver.

@@ -183,9 +183,48 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RULE_FILE = os.path.join(SCRIPT_DIR, "spring_ast_grep_rules.yml")
 
 JAVA_EXT = {".java"}
+
+# Build scripts. Filename-based by necessity, not by preference: ast-grep has
+# no Groovy grammar at all (`-l groovy` -> "groovy is not supported!"), so a
+# .gradle file cannot be parsed structurally the way every .java rule in
+# spring_ast_grep_rules.yml is. Kotlin and Scala it does support, but a
+# build.gradle.kts is still classified here by name rather than parsed,
+# because what matters about a build script for the docs is that it IS one.
+#
+# Closed literal sets, like every other classifier in this file: a filename
+# selects among behaviours defined here and can never supply one.
+#
+# Before this existed these files fell through every branch below -- read by
+# file-summarizer (partition_repo.py does not exclude them) but carrying no
+# bucket, no signals, and, worst of the three, no secret redaction.
+BUILD_FILE_NAMES = {"pom.xml", "build.xml"}
+BUILD_EXTS = {".gradle", ".groovy"}
+
+
+def _is_build_file(name, ext):
+    """`.kts` alone is any Kotlin script, so it is matched on the compound
+    suffix instead -- a settings.gradle.kts is a build file, a scratch.kts is
+    not, and treating the second as one would put arbitrary Kotlin into
+    operations.md."""
+    return (name in BUILD_FILE_NAMES
+            or ext in BUILD_EXTS
+            or name.endswith(".gradle.kts"))
+
+
 CONFIG_NAME_PATTERNS = [
     re.compile(r"^application(-[\w.]+)?\.(ya?ml|properties)$"),
     re.compile(r"^bootstrap(-[\w.]+)?\.(ya?ml|properties)$"),
+    # Build-adjacent property files, named explicitly rather than matching
+    # every *.properties. The motivating case is real: build.gradle's own
+    # comment records that gradle.properties carries `_password` entries, and
+    # gradle.properties matched none of the patterns above -- so the one
+    # credential-bearing file the build script points at was the one the
+    # redaction path never saw. A blanket *.properties rule would have caught
+    # it too, at the cost of sweeping every build artifact into
+    # configuration.md; a closed list stays reviewable.
+    re.compile(r"^gradle\.properties$"),
+    re.compile(r"^gradle-wrapper\.properties$"),
+    re.compile(r"^build\.properties$"),
 ]
 LOGGING_CONFIG_NAMES = {"logback.xml", "logback-spring.xml", "log4j2.xml", "log4j2-spring.xml"}
 MIGRATION_DIR_HINTS = ("db/migration", "db/changelog", "migrations")
@@ -698,6 +737,64 @@ def _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
         config_key_sets[rel] = keys
 
 
+def _classify_non_java_file(full, rel, name, ext, buckets, files_scanned,
+                            redaction_zones, config_key_sets):
+    """File the one non-Java file at `rel` into its bucket, if any.
+
+    Extracted from scan()'s pass-1 loop rather than left inline. scan() was
+    already the second-most-complex function in this repo (30, against a
+    ceiling of 34 for new functions) and adding the build-script branch
+    pushed it over the committed ratchet in code_quality_baseline.json. The
+    ratchet is the reason this is a function: raising the ceiling with
+    --update would have hidden the growth instead of removing it.
+
+    First match wins, so order is meaningful. CONFIG_NAME_PATTERNS is tried
+    before _is_build_file because gradle.properties is both build-adjacent
+    and genuinely a config file, and configuration.md is where a reader
+    looks for it. Everything that can carry a credential goes through
+    _process_config_deployment_file for redaction; the two that cannot
+    (logging config, migration scripts) deliberately do not.
+    """
+    if any(p.match(name) for p in CONFIG_NAME_PATTERNS):
+        files_scanned["config"] += 1
+        buckets["configuration"].append({"file": rel, "match": "config file"})
+        _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
+        return
+
+    if _is_build_file(name, ext):
+        # `deployment` (-> operations.md) rather than a new bucket: this is
+        # how the service is built and shipped, which is what that bucket
+        # already means for Dockerfiles and k8s manifests. A new bucket
+        # would ripple into the fourteen-file taxonomy for no gain.
+        files_scanned["deployment"] += 1
+        buckets["deployment"].append({"file": rel, "match": "build script"})
+        _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
+        return
+
+    if name in LOGGING_CONFIG_NAMES:
+        files_scanned["other_relevant"] += 1
+        buckets["observability"].append({"file": rel, "match": "logging config file"})
+        return
+
+    if name.startswith("Dockerfile") or re.match(r"docker-compose.*\.ya?ml$", name):
+        files_scanned["deployment"] += 1
+        buckets["deployment"].append({"file": rel, "match": "container/compose file"})
+        _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
+        return
+
+    if ext in (".yml", ".yaml") and any(
+        seg in rel.split("/") for seg in ("k8s", "helm", "charts", "deploy", "deployment", ".github")
+    ):
+        files_scanned["deployment"] += 1
+        buckets["deployment"].append({"file": rel, "match": "deployment manifest"})
+        _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
+        return
+
+    if any(hint in rel for hint in MIGRATION_DIR_HINTS):
+        files_scanned["other_relevant"] += 1
+        buckets["persistence"].append({"file": rel, "match": "migration script"})
+
+
 def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
     gitignore_spec = load_gitignore_spec(repo_path) if respect_gitignore else None
 
@@ -740,35 +837,8 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
             files_scanned["java"] += 1
             continue
 
-        if any(p.match(name) for p in CONFIG_NAME_PATTERNS):
-            files_scanned["config"] += 1
-            buckets["configuration"].append({"file": rel, "match": "config file"})
-            _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
-            continue
-
-        if name in LOGGING_CONFIG_NAMES:
-            files_scanned["other_relevant"] += 1
-            buckets["observability"].append({"file": rel, "match": "logging config file"})
-            continue
-
-        if name.startswith("Dockerfile") or re.match(r"docker-compose.*\.ya?ml$", name):
-            files_scanned["deployment"] += 1
-            buckets["deployment"].append({"file": rel, "match": "container/compose file"})
-            _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
-            continue
-
-        if ext in (".yml", ".yaml") and any(
-            seg in rel.split("/") for seg in ("k8s", "helm", "charts", "deploy", "deployment", ".github")
-        ):
-            files_scanned["deployment"] += 1
-            buckets["deployment"].append({"file": rel, "match": "deployment manifest"})
-            _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
-            continue
-
-        if any(hint in rel for hint in MIGRATION_DIR_HINTS):
-            files_scanned["other_relevant"] += 1
-            buckets["persistence"].append({"file": rel, "match": "migration script"})
-            continue
+        _classify_non_java_file(full, rel, name, ext, buckets, files_scanned,
+                                redaction_zones, config_key_sets)
 
     # Pass 2: everything Java-structural, via ast-grep.
     ast_grep_path = find_ast_grep()

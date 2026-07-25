@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
-  "production_functions": 230,
-  "production_functions_annotated": 102,
+  "production_functions": 247,
+  "production_functions_annotated": 116,
   "limits_for_new_functions": {
     "statements": 140,
     "complexity": 34,
@@ -65,6 +65,11 @@
       "statements": 7,
       "complexity": 4,
       "depth": 2
+    },
+    "_secret_heuristics.py::_unquote": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 0
     },
     "_secret_heuristics.py::scan_text_for_secrets": {
       "statements": 11,
@@ -301,12 +306,27 @@
       "complexity": 3,
       "depth": 2
     },
+    "check_repo_claims.py::_agent_definitions": {
+      "statements": 5,
+      "complexity": 3,
+      "depth": 2
+    },
     "check_repo_claims.py::_ci_run_lines": {
       "statements": 4,
       "complexity": 2,
       "depth": 1
     },
+    "check_repo_claims.py::_declared_tools": {
+      "statements": 4,
+      "complexity": 4,
+      "depth": 1
+    },
     "check_repo_claims.py::_eval_contains": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 1
+    },
+    "check_repo_claims.py::_eval_not_contains": {
       "statements": 8,
       "complexity": 3,
       "depth": 1
@@ -356,6 +376,11 @@
       "complexity": 3,
       "depth": 1
     },
+    "check_repo_claims.py::check_agent_search_tooling": {
+      "statements": 21,
+      "complexity": 13,
+      "depth": 3
+    },
     "check_repo_claims.py::check_ci_suite_coverage": {
       "statements": 12,
       "complexity": 5,
@@ -401,12 +426,22 @@
       "complexity": 5,
       "depth": 3
     },
+    "check_repo_claims.py::derive_ast_grep_rule_count": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
     "check_repo_claims.py::derive_ci_test_steps": {
       "statements": 3,
       "complexity": 4,
       "depth": 0
     },
     "check_repo_claims.py::derive_pipeline_agent_count": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "check_repo_claims.py::derive_predicate_count": {
       "statements": 1,
       "complexity": 1,
       "depth": 0
@@ -723,6 +758,46 @@
     },
     "partition_repo.py::to_posix": {
       "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "rule_coverage.py::check_non_vacuity": {
+      "statements": 13,
+      "complexity": 7,
+      "depth": 2
+    },
+    "rule_coverage.py::check_ratchet": {
+      "statements": 14,
+      "complexity": 7,
+      "depth": 2
+    },
+    "rule_coverage.py::hit_counts": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 2
+    },
+    "rule_coverage.py::load_baseline": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "rule_coverage.py::main": {
+      "statements": 32,
+      "complexity": 8,
+      "depth": 3
+    },
+    "rule_coverage.py::report": {
+      "statements": 7,
+      "complexity": 6,
+      "depth": 1
+    },
+    "rule_coverage.py::rule_ids": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "rule_coverage.py::write_baseline": {
+      "statements": 2,
       "complexity": 1,
       "depth": 0
     },
@@ -1096,6 +1171,11 @@
       "complexity": 7,
       "depth": 4
     },
+    "spring_signal_scan.py::_classify_non_java_file": {
+      "statements": 27,
+      "complexity": 12,
+      "depth": 1
+    },
     "spring_signal_scan.py::_clean_table_name": {
       "statements": 4,
       "complexity": 2,
@@ -1120,6 +1200,11 @@
       "statements": 3,
       "complexity": 2,
       "depth": 1
+    },
+    "spring_signal_scan.py::_is_build_file": {
+      "statements": 1,
+      "complexity": 3,
+      "depth": 0
     },
     "spring_signal_scan.py::_normalize_bind_params": {
       "statements": 3,
@@ -1167,8 +1252,8 @@
       "depth": 1
     },
     "spring_signal_scan.py::scan": {
-      "statements": 89,
-      "complexity": 30,
+      "statements": 67,
+      "complexity": 20,
       "depth": 4
     },
     "spring_signal_scan.py::to_snake_case": {
@@ -1981,6 +2066,51 @@
       "complexity": 1,
       "depth": 0
     },
+    "test_check_repo_claims.py::TestAgentSearchTooling.agent": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.settings": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_a_dot_claude_agent_is_checked_too": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_an_agent_declaring_grep_fails": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_bash_without_a_scoped_allowlist_entry_fails": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_bash_without_text_search_denies_fails": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_grep_in_prose_is_not_a_violation": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_scoped_bash_grant_passes": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_structural_only_agent_passes": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
     "test_check_repo_claims.py::TestBacktest._flag_count": {
       "statements": 7,
       "complexity": 3,
@@ -2166,6 +2296,16 @@
       "complexity": 1,
       "depth": 0
     },
+    "test_check_repo_claims.py::TestNotContainsPredicate.test_not_contains_both_directions": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestNotContainsPredicate.test_not_contains_on_a_missing_file_fails": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
     "test_check_repo_claims.py::TestPredicateRegistry.test_an_unknown_predicate_is_rejected": {
       "statements": 3,
       "complexity": 1,
@@ -2221,10 +2361,20 @@
       "complexity": 4,
       "depth": 0
     },
+    "test_check_repo_claims.py::TestRealRepo.test_no_real_agent_declares_grep": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
     "test_check_repo_claims.py::TestRealRepo.test_predicates_attach_to_the_claim_that_declares_them": {
       "statements": 6,
       "complexity": 2,
       "depth": 1
+    },
+    "test_check_repo_claims.py::TestRealRepo.test_real_bash_agents_are_scoped_by_settings": {
+      "statements": 7,
+      "complexity": 6,
+      "depth": 2
     },
     "test_check_repo_claims.py::TestRealRepo.test_real_repo_passes": {
       "statements": 2,
@@ -2678,6 +2828,66 @@
     },
     "test_config_keys.py::YamlKeyExtractionTest.test_yaml_result_is_deduplicated_and_sorted": {
       "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_text_search.py::TestAstGrepIsNeverBlocked.test_ast_grep_is_never_blocked": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_deny_text_search.py::TestDenialExplainsTheAlternative.test_reason_names_ast_grep_and_both_traps": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_text_search.py::TestFailOpen.test_missing_command_key_does_not_block": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_text_search.py::TestFailOpen.test_unparseable_payload_does_not_block": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_text_search.py::TestGrepTool.test_grep_tool_is_denied": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_text_search.py::TestGrepTool.test_unrelated_tools_pass": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_deny_text_search.py::TestHeredocBodiesAreData.test_a_real_grep_after_a_heredoc_is_still_caught": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_text_search.py::TestHeredocBodiesAreData.test_an_unquoted_heredoc_tag_is_handled": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_text_search.py::TestHeredocBodiesAreData.test_prose_beginning_with_grep_inside_a_heredoc_is_not_a_command": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_text_search.py::TestTextSearchIsBlocked.test_each_form_is_blocked": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_deny_text_search.py::TestTextSearchIsBlocked.test_unrelated_bash_passes": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_deny_text_search.py::denies": {
+      "statements": 1,
       "complexity": 1,
       "depth": 0
     },
@@ -3701,6 +3911,86 @@
       "complexity": 9,
       "depth": 3
     },
+    "test_rule_coverage.py::TestExitCodes.test_a_missing_target_directory_exits_two": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestExitCodes.test_fixture_mode_exits_zero": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestNonVacuity.test_a_missing_fixture_corpus_fails_rather_than_passing": {
+      "statements": 5,
+      "complexity": 1,
+      "depth": 1
+    },
+    "test_rule_coverage.py::TestNonVacuity.test_a_rule_with_no_fixture_is_caught": {
+      "statements": 6,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_rule_coverage.py::TestNonVacuity.test_an_exemption_must_state_a_reason": {
+      "statements": 6,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_rule_coverage.py::TestNonVacuity.test_every_real_rule_fires_on_the_fixture_corpus": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRatchet.baseline": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRatchet.setUp": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRatchet.tearDown": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRatchet.test_a_missing_baseline_is_not_a_failure": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRatchet.test_a_rule_dropping_to_zero_is_a_regression": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRatchet.test_a_rule_that_was_already_zero_is_not_a_regression": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRatchet.test_a_stale_schema_version_is_rejected": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRatchet.test_rising_counts_pass": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRuleIdParsing.test_a_nested_id_is_not_mistaken_for_a_rule": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_rule_coverage.py::TestRuleIdParsing.test_the_real_rule_file_yields_rules": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
     "test_run_manifest.py::AtomicWriteTest.test_interrupted_write_leaves_prior_file_intact": {
       "statements": 9,
       "complexity": 6,
@@ -3921,6 +4211,16 @@
       "complexity": 2,
       "depth": 0
     },
+    "test_secret_heuristics.py::ScanTextForSecretsTest.test_a_quoted_real_secret_is_STILL_flagged": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_secret_heuristics.py::ScanTextForSecretsTest.test_does_not_flag_a_QUOTED_placeholder": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
     "test_secret_heuristics.py::ScanTextForSecretsTest.test_does_not_flag_angle_bracket_template_value": {
       "statements": 1,
       "complexity": 1,
@@ -3965,6 +4265,11 @@
       "statements": 4,
       "complexity": 2,
       "depth": 1
+    },
+    "test_secret_heuristics.py::ScanTextForSecretsTest.test_unbalanced_or_inner_quotes_do_not_unquote": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
     },
     "test_semantic_eval_helpers.py::MermaidSyntaxTest.test_all_endpoints_labeled_no_undefined_ref": {
       "statements": 4,
@@ -4350,6 +4655,56 @@
       "statements": 3,
       "complexity": 2,
       "depth": 1
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest._matches": {
+      "statements": 1,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest._write": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest.setUp": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest.tearDown": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest.test_a_credential_in_gradle_properties_is_redacted": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest.test_a_plain_kts_script_is_not_a_build_file": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest.test_a_quoted_placeholder_in_a_build_script_is_not_redacted": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest.test_build_output_directories_stay_excluded": {
+      "statements": 4,
+      "complexity": 5,
+      "depth": 0
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest.test_build_scripts_land_in_deployment": {
+      "statements": 5,
+      "complexity": 3,
+      "depth": 1
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest.test_gradle_properties_is_treated_as_config": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
     },
     "test_spring_signal_scan.py::JpqlLineageResolutionTest.test_association_traversal_out_of_scope": {
       "statements": 3,

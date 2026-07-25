@@ -12,7 +12,7 @@ can run in CI.
 **Non-vacuity** (no argument) runs the rule set against scripts/rule_fixtures/,
 a committed corpus small enough to live in the repo, and fails if any rule
 matches nothing. This is the invariant that was missing. Measured against a
-real 615-file Spring service, 10 of 23 rules fired and 13 returned zero -- and
+real production Spring service, 10 of 23 rules fired and 13 returned zero -- and
 nothing in the repo could distinguish "this codebase has no Kafka" from "this
 rule is broken". A rule that cannot fire on a fixture written to trigger it is
 broken, unambiguously, and that is decidable here with no external corpus.
