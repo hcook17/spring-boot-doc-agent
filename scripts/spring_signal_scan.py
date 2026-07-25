@@ -163,9 +163,10 @@ import shutil
 import subprocess
 import sys
 
-from _shared_excludes import DEFAULT_EXCLUDED_DIRS as EXCLUDED_DIRS, load_gitignore_spec
-from _secret_heuristics import scan_text_for_secrets
 from _config_keys import extract_config_keys
+from _secret_heuristics import scan_text_for_secrets
+from _shared_excludes import DEFAULT_EXCLUDED_DIRS as EXCLUDED_DIRS
+from _shared_excludes import load_gitignore_spec
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RULE_FILE = os.path.join(SCRIPT_DIR, "spring_ast_grep_rules.yml")

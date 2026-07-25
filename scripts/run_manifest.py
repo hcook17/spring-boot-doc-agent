@@ -85,8 +85,8 @@ from datetime import datetime, timezone
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
-import spring_signal_scan  # noqa: E402
 import doc_tag_utils  # noqa: E402
+import spring_signal_scan  # noqa: E402
 
 # ML Metadata's Execution.last_known_state enum vocabulary, reused verbatim
 # rather than inventing a bespoke one (see the research doc's design notes).

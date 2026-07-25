@@ -37,8 +37,35 @@ jobs:
         run: |
           pip install -r requirements.txt
 
+      - name: Install development dependencies
+        run: |
+          pip install -r requirements-dev.txt
+
       - name: Verify ast-grep is on PATH
         run: ast-grep --version
+
+      # Lint and import order. Rule selection, the 110-character line length
+      # (derived from this repo's own p99.5, not from a style guide), and the
+      # two deliberately-deferred rule families with their counts all live in
+      # .ruff.toml. This step fails the build.
+      - name: ruff check (lint)
+        run: python3 -m ruff check --no-cache scripts/
+
+      # NOT wired, deliberately: `ruff format --check`. Measured 2026-07-24 --
+      # 29 of 33 files in scripts/ would be reformatted. Adopting the
+      # formatter means one mechanical commit touching nearly every file,
+      # which would bury every subsequent diff and blame line, so it is its
+      # own decision with its own .git-blame-ignore-revs entry rather than a
+      # side effect of adding a linter. Stated here with the number rather
+      # than left as an unexplained absence.
+
+      # The monotonic ratchet on function size, complexity, nesting depth, and
+      # type-annotation coverage, compared against the committed
+      # scripts/code_quality_baseline.json. Fails only on regression -- it
+      # never asks for a refactor, only that these numbers not grow. Regenerate
+      # deliberately with `--update` when something genuinely improves.
+      - name: check_code_quality.py (ratchet)
+        run: python3 scripts/check_code_quality.py
 
       - name: test_spring_signal_scan.py
         run: python3 scripts/test_spring_signal_scan.py -v
@@ -83,6 +110,13 @@ jobs:
       # target repo, so only its unit tests run here.
       - name: test_citation_coverage.py
         run: python3 scripts/test_citation_coverage.py -v
+
+      # Covers the ratchet itself. Most of these tests exist for non-vacuity:
+      # they assert each failure mode reaches a non-zero exit code, because a
+      # ratchet that silently passes everything is indistinguishable from a
+      # working one at the green checkmark.
+      - name: test_check_code_quality.py
+        run: python3 scripts/test_check_code_quality.py -v
 
       # The kitchen-sink suite: the documented command series run as real
       # subprocesses against a deliberately hostile synthetic enterprise repo,

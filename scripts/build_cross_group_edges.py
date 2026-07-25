@@ -73,7 +73,7 @@ import collections
 import json
 import re
 import sys
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 SCHEMA_VERSION = 1
 

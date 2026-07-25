@@ -33,8 +33,8 @@ FIXTURE_DIR = os.path.join(SCRIPT_DIR, "test_fixtures", "spring_signals")
 DRIFT_CHECK_PATH = os.path.join(SCRIPT_DIR, "spring_drift_check.py")
 sys.path.insert(0, SCRIPT_DIR)
 
-import spring_signal_scan  # noqa: E402
 import spring_drift_check  # noqa: E402
+import spring_signal_scan  # noqa: E402
 
 
 def _make_scratch_copy():

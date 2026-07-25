@@ -65,7 +65,7 @@ def check(paths):
     findings = {}
     for path in iter_files(paths):
         try:
-            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(path, encoding="utf-8", errors="ignore") as f:
                 text = f.read()
         except OSError as e:
             print(f"warning: could not read '{path}': {e}", file=sys.stderr)

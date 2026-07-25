@@ -1,0 +1,56 @@
+# ruff configuration. Pinned via requirements-dev.txt (ruff~=0.16.0).
+#
+# This file owns lint and import order. It does NOT own function size or
+# complexity: scripts/check_code_quality.py owns those, because the useful
+# control here is a committed per-function baseline that can only improve,
+# and ruff has no equivalent. C901 is deliberately NOT selected -- two tools
+# reporting "complexity" with two different counting rules is how a number
+# gets copied between them and quietly means nothing.
+
+# Derived from this repo's own distribution, not from a style guide: p99 of
+# all lines in scripts/ is 105 characters and p99.5 is 110. This codebase
+# carries unusually heavy explanatory prose (38-54% of lines in the larger
+# modules are comment or docstring), and that is a deliberate property worth
+# keeping rather than reflowing to 79.
+line-length = 110
+
+[lint]
+select = [
+    "F",    # pyflakes -- real defects: unused imports, undefined names
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "I",    # import sorting
+    "B",    # flake8-bugbear -- likely bugs, not style
+    "UP",   # pyupgrade
+]
+
+ignore = [
+    # --- Deferred, with counts, rather than silently dropped ---------------
+    # Each of these is a real finding this repo intends to close. They are
+    # listed here so the backlog is legible, per this project's rule that any
+    # bound applied must be stated in the output rather than left implicit.
+
+    # 509 occurrences. Nearly all are prose comment lines, not code. Enabling
+    # this at line-length 110 still leaves 58 violations, and rewrapping 58
+    # comment blocks across ~15 files is churn that would bury the rest of
+    # this change. Close it in its own commit, then delete this line.
+    "E501",
+
+    # 52 + 10 + 4 occurrences. Dict/List/Optional -> dict/list/X | None.
+    # Correct, and safe on the CI interpreter (3.11), but it edits exactly
+    # the three fully-annotated modules (build_cross_group_edges.py,
+    # check_llms_coverage.py, check_pipeline_output.py) that PR 4 will touch
+    # anyway when it introduces typed cross-stage artifacts. Doing it twice
+    # is worse than doing it once, there.
+    "UP006",
+    "UP035",
+    "UP045",
+]
+
+[lint.per-file-ignores]
+# The sys.path.insert(0, SCRIPT_DIR) bootstrap that lets these scripts import
+# their siblings without a package. Imports genuinely cannot precede it, and
+# the repo already marks the import side with `# noqa: E402`; this covers the
+# module-level statements that sit above the imports for the same reason.
+"scripts/check_llms_coverage.py" = ["E402"]
+"scripts/*.py" = ["E402"]

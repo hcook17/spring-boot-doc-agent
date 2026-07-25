@@ -23,7 +23,6 @@ sys.path.insert(0, SCRIPT_DIR)
 
 import semantic_eval_helpers  # noqa: E402
 
-
 ANSWERED_ENTRY = {
     "blocks_file": "database", "topic": "write ownership: billing_invoice",
     "question": "Is InvoiceService.markPaid the only writer of billing_invoice?",
