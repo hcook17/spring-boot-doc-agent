@@ -82,6 +82,16 @@ jobs:
       - name: check_repo_claims.py (state-claim gate)
         run: python3 scripts/check_repo_claims.py
 
+      # Measurements, not a verdict -- this step cannot fail, and is named so
+      # that reads as true at a glance rather than looking like enforcement.
+      # It prints how many claims this repo makes about itself, how many carry
+      # a verify: predicate that could contradict them, and the spread of
+      # status words. Gating on any of those before someone has watched them
+      # move is how a threshold gets picked that nobody can defend -- the same
+      # reasoning recorded on check_code_quality.py's USAGE_WITHIN_LINES.
+      - name: claim metrics (reports; never fails)
+        run: python3 scripts/check_repo_claims.py --metrics
+
       - name: test_spring_signal_scan.py
         run: python3 scripts/test_spring_signal_scan.py -v
 

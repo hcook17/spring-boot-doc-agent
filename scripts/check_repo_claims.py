@@ -3,6 +3,17 @@
 check_repo_claims.py — makes a stale claim about this repo's own state
 impossible to commit, rather than recorded after the fact.
 
+Usage:
+    python3 scripts/check_repo_claims.py
+    python3 scripts/check_repo_claims.py --fix       # rewrite derived blocks
+    python3 scripts/check_repo_claims.py --update    # re-baseline
+    python3 scripts/check_repo_claims.py --metrics   # measure, never gate
+
+Five checks: derived blocks recompute, verify: predicates hold, references
+resolve, every test suite is wired into CI, and no CI step is named as a gate
+it cannot fail. Claims are read from a registry of corpora (CLAIM_CORPORA) --
+steering-prompt frontmatter and CONSTRAINTS.md's bracket tags today.
+
 WHY THIS EXISTS
 This repo does not have a record-keeping problem. Its record is unusually
 good: an append-only claude/session-log.md, a claude/tool-quirks.md index,
@@ -77,11 +88,6 @@ burst. This script is local, deterministic, needs no network, and makes
 zero LLM calls, so it blocks from day one. A step named as a gate that
 cannot fail is worse than no gate — which is precisely what check E exists
 to keep true of everything else in ci.yml.
-
-Run with:
-    python3 scripts/check_repo_claims.py
-    python3 scripts/check_repo_claims.py --fix       # rewrite derived blocks
-    python3 scripts/check_repo_claims.py --update    # re-baseline
 """
 
 import argparse
@@ -583,31 +589,224 @@ def evaluate_predicate(root: Path, predicate: str) -> Tuple[bool, str]:
                    f"{', '.join(PREDICATE_PREFIXES)}")
 
 
+class Claim(NamedTuple):
+    """One assertion this repo makes about its own current state.
+
+    The grain matters and is deliberately one row per *claim*, not per file:
+    every ratio below divides by this, and mixing file-level and claim-level
+    denominators produces numbers that look reasonable and mean nothing."""
+    corpus: str
+    path: str
+    line: int
+    status: str
+    predicates: Tuple[str, ...]
+    key: str
+
+
+# Inline opt-in for prose that has no frontmatter to put a verify: list in.
+# An HTML comment renders as nothing, so a claim can carry its own predicates
+# without changing how the document reads -- the same trick the derived:
+# blocks already use, and the reason CONSTRAINTS.md needs no migration to
+# join this check. Semicolon-separated so one claim can carry several.
+INLINE_VERIFY_RE = re.compile(r"<!--\s*verify:\s*(.+?)\s*-->", re.DOTALL)
+
+# A CONSTRAINTS.md entry opens with a bolded bracket tag: **[Resolved]**,
+# **[Partially resolved, 2026-07-24]**, **[Flagged, not yet resolved]**.
+#
+# Bounded by "no newline", not by a character count. A 60-char cap looked
+# reasonable and silently dropped three claims -- the long "[New info — the
+# wording above ran ahead of the code...]" corrections, which are the most
+# interesting entries in the file precisely because they record a claim that
+# had already gone wrong. A checker that quietly omits the hardest cases
+# reports a better number than the truth, which is this project's own
+# "silent truncation reading as completeness" anti-pattern. The newline bound
+# is the real one: a tag is a single line, and forbidding newlines stops the
+# match running away across the document without inventing a length.
+BRACKET_TAG_RE = re.compile(r"\*\*\[([A-Za-z][^\]\n]*)\]\*\*")
+
+
+def extract_frontmatter_claims(root: Path, path: Path) -> List[Claim]:
+    """A steering prompt's `status:` is the claim; its `verify:` list is what
+    would falsify it."""
+    rel = path.relative_to(root).as_posix()
+    fields = parse_frontmatter(path.read_text(encoding="utf-8"))
+    if "status" not in fields:
+        return []
+    predicates = fields.get("verify")
+    listed = tuple(predicates) if isinstance(predicates, list) else ()
+    status = str(fields.get("status", "?"))
+    return [Claim("steering-prompts", rel, 1, status, listed, f"{rel}")]
+
+
+def extract_bracket_tag_claims(root: Path, path: Path) -> List[Claim]:
+    """Every `**[Status]**` entry in a current-state doc is a claim.
+
+    Read-only adoption: this parses what CONSTRAINTS.md already writes, so
+    the file needs no migration to be covered. A claim opts in to being
+    checked by adding an inline `<!-- verify: ... -->`; until it does it is
+    counted as unfalsifiable, which is the honest description of a status
+    word nothing can contradict.
+
+    A claim's predicates are those appearing between its own tag and the next
+    one, so predicates attach to the entry that declares them."""
+    text = path.read_text(encoding="utf-8")
+    rel = path.relative_to(root).as_posix()
+    spans = fenced_spans(text)
+
+    def fenced(pos: int) -> bool:
+        return any(start <= pos < end for start, end in spans)
+
+    tags = [m for m in BRACKET_TAG_RE.finditer(text) if not fenced(m.start())]
+    claims: List[Claim] = []
+    for index, match in enumerate(tags):
+        end = tags[index + 1].start() if index + 1 < len(tags) else len(text)
+        body = text[match.end():end]
+        predicates = tuple(
+            part.strip()
+            for found in INLINE_VERIFY_RE.finditer(body)
+            for part in found.group(1).split(";")
+            if part.strip()
+        )
+        status = match.group(1).split(",")[0].strip()
+        line = text.count("\n", 0, match.start()) + 1
+        # Keyed on status + ordinal rather than line: the fingerprint must
+        # survive a paragraph moving, for the same reason Finding's does.
+        claims.append(Claim("constraints", rel, line, status, predicates,
+                            f"{rel}#{index}:{status}"))
+    return claims
+
+
+CLAIM_CORPORA: Tuple[Tuple[str, str, object], ...] = (
+    ("steering-prompts", "claude/steering-prompts/[0-9][0-9]-*.md",
+     extract_frontmatter_claims),
+    ("constraints", "CONSTRAINTS.md", extract_bracket_tag_claims),
+)
+
+
+def collect_claims(root: Path) -> List[Claim]:
+    """Every claim in every registered corpus. Adding a corpus is a row in
+    CLAIM_CORPORA, not a new function in the check below."""
+    claims: List[Claim] = []
+    for _name, pattern, extract in CLAIM_CORPORA:
+        for path in sorted(root.glob(pattern)):
+            if path.is_file():
+                claims.extend(extract(root, path))  # type: ignore[operator]
+    return claims
+
+
+CLAIM_DATE_RE = re.compile(r"(20\d{2}-\d{2}-\d{2})")
+
+# Everything that ends a status word. Statuses are written freehand -- a
+# steering prompt's begins "[Resolved — CI part; ...", a CONSTRAINTS.md tag
+# "Partially resolved, 2026-07-24" -- so the bucket is the leading phrase up
+# to the first separator. Without this the counts split "Resolved" across
+# "[Resolved", "Resolved (2026-07-23" and "resolved", which is noise that
+# hides the very sprawl the metric exists to show.
+STATUS_SEPARATORS = re.compile(r"[—(,;:]")
+
+
+def normalize_status(status: str) -> str:
+    """The bucket a freehand status belongs to. Case-folded leading phrase,
+    with punctuation and any date removed.
+
+    The date is stripped *before* splitting: "Corrected 2026-07-24" and
+    "Reopened 2026-07-25" are the same kind of claim as an undated
+    "Corrected", and bucketing them apart would report the vocabulary as
+    wider than it is -- which is the opposite of this metric's job."""
+    cleaned = CLAIM_DATE_RE.sub("", status).strip().lstrip("[*").strip()
+    head = STATUS_SEPARATORS.split(cleaned, 1)[0].strip()
+    return head.lower()[:40] or "(none)"
+
+
+class ClaimMetrics(NamedTuple):
+    """Counts over the claim store. Reported, deliberately not gated.
+
+    A ratio nobody has looked at is not a threshold anybody can defend --
+    the same lesson check_code_quality.py's USAGE_WITHIN_LINES records. Print
+    these for a while, then ratchet against a measured baseline if it earns
+    it."""
+    total: int
+    falsifiable: int
+    predicates: int
+    failing: int
+    by_status: Tuple[Tuple[str, int], ...]
+    dated: int
+    oldest: str
+
+
+def claim_metrics(root: Path) -> ClaimMetrics:
+    """Measure the claim store at one row per claim.
+
+    The grain is the whole point: divide by claims, never by files. A file
+    carrying nine claims and a file carrying one are not comparable units,
+    and a ratio that mixes them reads as precise while meaning nothing."""
+    claims = collect_claims(root)
+    counts: Dict[str, int] = {}
+    dates: List[str] = []
+    predicates = 0
+    failing = 0
+    for claim in claims:
+        status = normalize_status(claim.status)
+        counts[status] = counts.get(status, 0) + 1
+        found = CLAIM_DATE_RE.search(claim.status)
+        if found:
+            dates.append(found.group(1))
+        for predicate in claim.predicates:
+            predicates += 1
+            passed, _ = evaluate_predicate(root, predicate)
+            if not passed:
+                failing += 1
+    return ClaimMetrics(
+        total=len(claims),
+        falsifiable=sum(1 for c in claims if c.predicates),
+        predicates=predicates,
+        failing=failing,
+        # Sorted for byte-stable output: this gets printed into CI logs that
+        # get diffed, and an unstable dict order makes every run look changed.
+        by_status=tuple(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))),
+        dated=len(dates),
+        oldest=min(dates) if dates else "-",
+    )
+
+
+def format_metrics(metrics: ClaimMetrics) -> str:
+    """Human-readable, and honest about the denominator of every ratio."""
+    total = metrics.total or 1
+    unfalsifiable = metrics.total - metrics.falsifiable
+    lines = [
+        f"claims                {metrics.total}",
+        f"  falsifiable         {metrics.falsifiable} "
+        f"({100 * metrics.falsifiable // total}% carry a verify: predicate)",
+        f"  unfalsifiable       {unfalsifiable} "
+        f"({100 * unfalsifiable // total}% assert something nothing can contradict)",
+        f"predicates evaluated  {metrics.predicates}, failing {metrics.failing}",
+        f"claims carrying a date {metrics.dated}, oldest {metrics.oldest}",
+        "by status:",
+    ]
+    lines += [f"  {count:>3}  {status}" for status, count in metrics.by_status]
+    return "\n".join(lines)
+
+
 def check_verify_predicates(root: Path) -> Tuple[List[Finding], List[Finding]]:
     """Returns (failures, missing). Missing verify: blocks are reported
-    separately because they ride the baseline -- a prompt with no predicate
+    separately because they ride the baseline -- a claim with no predicate
     is an unchecked claim, not yet a wrong one."""
     failures: List[Finding] = []
     missing: List[Finding] = []
-    prompt_dir = root / "claude" / "steering-prompts"
-    for path in sorted(prompt_dir.glob("[0-9][0-9]-*.md")):
-        rel = path.relative_to(root).as_posix()
-        fields = parse_frontmatter(path.read_text(encoding="utf-8"))
-        predicates = fields.get("verify")
-        if not isinstance(predicates, list) or not predicates:
-            if "status" in fields:
-                missing.append(Finding(
-                    "C", rel, 1,
-                    "declares a status: with no verify: predicates, so nothing "
-                    "checks it", f"C-missing:{rel}"))
+    for claim in collect_claims(root):
+        if not claim.predicates:
+            missing.append(Finding(
+                "C", claim.path, claim.line,
+                "declares a status with no verify: predicates, so nothing "
+                "checks it", f"C-missing:{claim.key}"))
             continue
-        for predicate in predicates:
+        for predicate in claim.predicates:
             passed, explanation = evaluate_predicate(root, predicate)
             if not passed:
                 failures.append(Finding(
-                    "C", rel, 1,
-                    f"status {fields.get('status', '?')!r} is contradicted: "
-                    f"{explanation}", f"C:{rel}:{predicate}"))
+                    "C", claim.path, claim.line,
+                    f"status {claim.status!r} is contradicted: {explanation}",
+                    f"C:{claim.key}:{predicate}"))
     return failures, missing
 
 
@@ -753,12 +952,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         help="rewrite derived blocks to their recomputed values")
     parser.add_argument("--update", action="store_true",
                         help="re-baseline instead of checking")
+    parser.add_argument("--metrics", action="store_true",
+                        help="report claim-store metrics and exit without checking")
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
     if not (root / ".git").exists():
         print(f"error: {root} is not a git repository", file=sys.stderr)
         return 2
+
+    if args.metrics:
+        # Exits 0 regardless: these are measurements, not verdicts. Gating on
+        # a number before anyone has watched it move is how a threshold gets
+        # picked that nobody can defend.
+        print(format_metrics(claim_metrics(root)))
+        return 0
 
     if args.fix:
         changed = apply_fix(root, tracked_markdown(root))
