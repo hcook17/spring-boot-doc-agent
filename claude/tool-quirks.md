@@ -268,3 +268,18 @@ Resolution / workaround: **always qualify with `project.`** when reading command
     systemProperty 'my.flag', project.hasProperty('updateBaseline') ? 'true' : 'false'
 
 Generalises to `property()`, `getProperty()` and anything else `GroovyObject` also defines. Rule of thumb: inside a task block, qualify any property lookup you intend to hit the project, and prefer `project.findProperty('x') != null` over `hasProperty` if you want one consistent idiom that cannot silently bind to the wrong receiver.
+
+---
+
+## 2026-07-25 - `ast-grep --update-all` exits 1 when its pattern matches nothing, same as when it fails
+Tools/commands involved: `ast-grep run -p ... -r ... --update-all`, `ast-grep` 0.44.1
+Status: [Resolved - decide on whether the file moved, never on the exit code]
+Symptom: a mutation harness used `ast-grep --rewrite` to locate what to break, and reported "ast-grep failed" for a pattern that was simply absent. The docstring asserting the opposite ("exits 0 whether or not the pattern matched") was written from the search-mode behaviour and was false for rewrite mode; a test disproved it minutes later.
+Diagnostic steps taken (re-runnable):
+    printf 'x = 1
+' > probe.py
+    ast-grep run -l python -p 'absent($A)' -r 'other($A)' --update-all probe.py; echo "exit=$?"   # exit=1, no output
+    printf 'foo(1)
+' > probe2.py
+    ast-grep run -l python -p 'foo($A)' -r 'bar($A)' --update-all probe2.py; echo "exit=$?"       # "Applied 1 changes", exit=0
+Resolution / workaround: exit 1 means "matched nothing" OR "genuinely failed" and the two are indistinguishable from the status alone, so do not branch on it. Read the file before and after and decide on whether it moved; that is unambiguous and stays correct if the exit-code behaviour changes in a later release. Note the search mode (`ast-grep run` without `--update-all`) does exit 0 on no matches - the two modes differ, which is what made the wrong assumption plausible.
