@@ -1,6 +1,9 @@
 ---
 category: Clarity / trust in delivery and handoff state
 status: mostly resolved (2026-07-23) — CONTRIBUTING.md (write-then-verify rule) and STATUS.md (single living status doc) added; item 3's "helper" scaffolded as a documented checklist rule, not automated tooling — see STATUS.md's "Pending" section for the PostToolUse-hook follow-up if automation is wanted later
+verify:
+  - path_exists:CONTRIBUTING.md
+  - path_exists:STATUS.md
 ---
 
 # Research + scaffold prompt: write-then-verify discipline and a single living status doc

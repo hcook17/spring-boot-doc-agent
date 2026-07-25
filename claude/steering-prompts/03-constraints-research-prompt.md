@@ -1,6 +1,9 @@
 ---
 category: Constraints (make them legible in one place)
 status: premise partially stale (2026-07-23) — drift detection already exists, verified directly against the repo
+verify:
+  - path_exists:CONSTRAINTS.md
+  - path_exists:scripts/spring_drift_check.py
 ---
 
 # Research + scaffold prompt: a single constraints/limitations file for the plugin itself

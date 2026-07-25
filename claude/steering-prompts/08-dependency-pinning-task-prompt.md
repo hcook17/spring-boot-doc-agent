@@ -2,6 +2,11 @@
 category: Dependency pinning (not a research prompt — implementation task)
 status: [Resolved — 2026-07-25] `requirements.txt` added at plugin root pinning `ast-grep-cli~=0.45.0`, `sqllineage~=1.5.8`, `pathspec~=1.1.1`; `.github/workflows/ci.yml` updated to `pip install -r requirements.txt`. See `CONSTRAINTS.md` "Runtime prerequisites" item 4 and `claude/session-log.md`'s 2026-07-25 pinning entry.
 related: CONSTRAINTS.md "Runtime prerequisites" items 1-4, MATURITY_ASSESSMENT.md "Dependency reproducibility" scorecard row and adoption gate checklist, .github/workflows/ci.yml
+verify:
+  - contains:requirements.txt:ast-grep-cli
+  - contains:requirements.txt:sqllineage
+  - contains:requirements.txt:pathspec
+  - contains:.github/workflows/ci.yml:requirements.txt
 ---
 
 # Task prompt: pin this plugin's three unpinned third-party dependencies

@@ -67,6 +67,21 @@ jobs:
       - name: check_code_quality.py (ratchet)
         run: python3 scripts/check_code_quality.py
 
+      # Reads this repo's claims about itself back: every steering prompt's
+      # verify: predicates, every derived: count, every backticked repo path
+      # and symbol() in the current-state docs, that every test suite is
+      # actually wired here, and that no step is named as a gate it cannot
+      # be. Blocks, with no ENFORCE toggle -- it is local, deterministic,
+      # needs no network and makes zero LLM calls, so it has none of the
+      # excuses check_llms_coverage.py has.
+      #
+      # It decides whether a claim is well-formed and resolvable, never
+      # whether it is true; that judgment stays in CLAUDE.md's human pass.
+      # Pre-existing findings ride scripts/repo_claims_baseline.json, the
+      # same ratchet shape as check_code_quality.py.
+      - name: check_repo_claims.py (state-claim gate)
+        run: python3 scripts/check_repo_claims.py
+
       - name: test_spring_signal_scan.py
         run: python3 scripts/test_spring_signal_scan.py -v
 
@@ -117,6 +132,13 @@ jobs:
       # working one at the green checkmark.
       - name: test_check_code_quality.py
         run: python3 scripts/test_check_code_quality.py -v
+
+      # Same posture as the suite above: most of these tests exist to prove
+      # each check reaches a non-zero exit code on an injected defect, plus
+      # a regression class pinning that markdown content can never reach a
+      # shell -- the defect that got verify_llms_docs.py deleted.
+      - name: test_check_repo_claims.py
+        run: python3 scripts/test_check_repo_claims.py -v
 
       # The kitchen-sink suite: the documented command series run as real
       # subprocesses against a deliberately hostile synthetic enterprise repo,

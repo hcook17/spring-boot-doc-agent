@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "$comment": "Findings present when check_repo_claims.py was adopted. The gate fails only on findings NOT listed here, the same ratchet code_quality_baseline.json uses. Shrinking this file is always correct; growing it needs a reason in the PR that does it.",
+  "accepted": []
+}

@@ -145,3 +145,19 @@ Four things worth knowing before repeating this:
 - **The machine-scope entry is still wrong.** Fixing it needs elevation. Until then `git` remains unresolvable for services and other user accounts — user scope only covers processes running as this user.
 
 General lesson, and the reason this cost time three separate times: a `PATH` entry that *looks* present is not the same as a resolvable binary. When a native tool reports `127`/"not found" for something Git Bash runs fine, check whether the `PATH` entry points at the directory actually containing the `.exe` — not merely at something with the right name.
+
+---
+
+## 2026-07-25 — `python` and `python3` are different interpreters here, and `$?` after a pipe reports the wrong command's status
+Tools/commands involved: Git Bash on Windows, `python` (3.14.6, `C:\Python314\python.exe`) vs `python3` (has the pinned `ruff` 0.16.0), `cmd | tail` followed by `echo "exit=$?"`
+Status: [Resolved — use `python3` to match CI, and capture `$?` before piping]
+Symptom: two independent false "success" readings in one session, both of the same shape this repo's write-then-verify rule exists for.
+1. `python -m ruff check scripts/` printed `No module named ruff` — but the surrounding `echo "ruff exit=$?"` reported `0`, so the lint step read as passing when it had not run at all. `python3 -m ruff --version` works and reports `0.16.0`, the version pinned in `requirements-dev.txt`. Same class as the `ast-grep` PATH-shadowing entry above, one layer up: it is the *interpreter* that differs, not the tool.
+2. `python scripts/check_repo_claims.py 2>&1 | head -60; echo "exit=$?"` reports **`head`'s** exit status, not the script's. This was hit twice — once reporting a failing gate as `exit=0`, and once reporting a *conflicted* `git stash apply` as `exit=0`, which left unresolved merge markers sitting in two files while the output above them looked clean.
+Diagnostic steps taken (re-runnable):
+    python -c "import sys; print(sys.executable, sys.version)"   # 3.14.6, no ruff
+    python3 -m ruff --version                                     # 0.16.0
+    which -a python python3
+    git status --porcelain                                        # UU = both-modified, the real signal
+    grep -rln '^<<<<<<< \|^>>>>>>> ' --include='*.md' .           # finds markers a tail'd log hid
+Resolution / workaround: use `python3` for everything, which is also what `.github/workflows/ci.yml` invokes, so local runs match CI. Never read `$?` through a pipe — run the command redirected to a file, capture `$?` on the very next line, then inspect the file (`cmd > out.txt 2>&1; rc=$?; tail out.txt`). Note the second failure is the same shape as the `git clone` entry below: the reassuring summary is the part you see, and the error is the part the pipe discarded. `git status --porcelain` showing `UU` is the check that would have caught the stash conflict immediately.
