@@ -634,3 +634,23 @@ Measured across 14 modules here, `t1` and `t2` agree on **zero**. So a stored di
 Two things caught me while doing it, both worth recording. `check_repo_claims.py`'s check D failed the build because `test_ast_signature.py` existed but was not wired into `ci.yml` — rule 9 of the skill enforced on its author within minutes of writing it. And the annotation-coverage floor moved 37.9% → 39.0%, re-baselined so the gain cannot silently regress.
 
 Files touched: scripts/_ast_signature.py, scripts/test_ast_signature.py, skills/directional-tests/SKILL.md, .github/workflows/ci.yml, scripts/code_quality_baseline.json, claude/steering-prompts/01-testability-research-prompt.md, claude/steering-prompts/04-analytics-logging-research-prompt.md, claude/session-log.md
+
+## 2026-07-25 — Measure tier 2's false-positive rate before adding anything to it
+
+Commit: uncommitted at time of writing
+Tests: `test_drift_normalization.py` 19/19 (new, CI-wired, ~10s); full suite green; `check_code_quality.py` and `check_repo_claims.py` both exit 0
+Assumptions affected:
+- `claude/steering-prompts/06-wiredrift-check-task-prompt.md` — "resolved (2026-07-23, PR #3) — `spring_drift_check.py` is documented as an optional pre-flight check" — [Still accurate] — wiring is unchanged. What is new is that the tool's *precision* now has a number attached rather than being assumed from its design.
+- `claude/steering-prompts/04-analytics-logging-research-prompt.md` — "drift detection already built" — [Still accurate] — this measures the thing that prompt declared built; it does not move the build/wire claim either way.
+
+**The question was whether to add a Rust/tree-sitter fingerprint to `spring_drift_check`, whose subjects really are Java files** — the one place the previous session's withdrawn `astsig` proposal might have had an honest home. Measured instead of argued.
+
+**Result: the ceiling on any better fingerprint is 2 wrong verdicts in 208, and a stdlib tokenizer already reaches it.** Comments, reindentation and inserted blank lines each produce zero false positives; only annotations wrapped across lines trip tier 2, only in `api_surface__mapping`. The cause is not a missing parser — ast-grep already returns the whole match and `_first_line_match()` keeps `splitlines()[0]`, reducing `@RequestMapping(\n "/api/invoices"\n)` to `@RequestMapping(`, which compares equal to nothing. The structural information is in hand and being discarded on the Python side, which is exactly why no parser can beat a tokenizer here: both start from the same string.
+
+**The instrument was wrong first, and that is the transferable part.** The first run said 7/208 across five rules. The perturbation had rewritten annotation-looking text inside comments, broken a doc comment's closing quote, and left the files unparseable — ast-grep then returned nothing and every citation read as drift. It was measuring the harness, in the direction that would have justified the work under evaluation, and it was caught only by opening the files. So the harness now carries a validity gate (a formatting-only edit must leave the same citation count discoverable by a fresh scan) and **the broken perturbation is kept as a test input**, with `Test00HarnessValidityGate` asserting the gate rejects it. Non-vacuity proved by four injections, including a no-op control; 4/4 behaved as required.
+
+**The fix is deliberately not in this change.** `_first_line_match()` decides both what tier 2 *compares* and what `spring_signals.json` *stores* as human-readable `match` evidence a doc-writer reads. A token sequence joined by `\x1f` is a fine identity and unreadable evidence; separating the two jobs changes the stored schema. `CONSTRAINTS.md` "Known precision tradeoffs" item 9, flagged not resolved.
+
+**Rust, answered:** no for the fingerprint. One real case remains, in the test lane rather than the shipped path — the validity gate is a proxy (count unchanged) where a direct AST-equivalence oracle would need a Java parser, and `ast-grep` cannot stand in: verified on 0.44.1 that a whole file cannot be a pattern (`Multiple AST nodes are detected`) and `--debug-query` dumps only the query's tree. Stated in the research doc, not acted on, and it should carry its own measurement first — the 2/208 figure is bounded by the four perturbations one person thought to write, not by the checker.
+
+Files touched: scripts/java_perturbations.py, scripts/drift_match_normalizers.py, scripts/test_drift_normalization.py, .github/workflows/ci.yml, scripts/code_quality_baseline.json, CONSTRAINTS.md, claude/drift-normalization-measurement-2026-07-25.md, claude/session-log.md
