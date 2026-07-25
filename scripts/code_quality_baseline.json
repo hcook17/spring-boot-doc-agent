@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
-  "production_functions": 253,
-  "production_functions_annotated": 122,
+  "production_functions": 267,
+  "production_functions_annotated": 136,
   "limits_for_new_functions": {
     "statements": 140,
     "complexity": 34,
@@ -21,6 +21,7 @@
     "semantic_eval_helpers.py": "semantic_eval_helpers.py: 'how to run it' is at docstring line 44; the contract is within 20. Move the Usage block above the rationale.",
     "test_citation_coverage.py": "test_citation_coverage.py: runnable module, but its 6-line docstring never says how to run it",
     "test_enterprise_kitchen_sink.py": "test_enterprise_kitchen_sink.py: 'how to run it' is at docstring line 78; the contract is within 20. Move the Usage block above the rationale.",
+    "test_metamorphic.py": "test_metamorphic.py: 'how to run it' is at docstring line 32; the contract is within 20. Move the Usage block above the rationale.",
     "test_partition_repo_real_world.py": "test_partition_repo_real_world.py: runnable module, but its 23-line docstring never says how to run it",
     "test_pipeline_stages.py": "test_pipeline_stages.py: 'how to run it' is at docstring line 38; the contract is within 20. Move the Usage block above the rationale.",
     "test_spring_signal_scan.py": "test_spring_signal_scan.py: runnable module, but its 18-line docstring never says how to run it"
@@ -1120,6 +1121,76 @@
       "statements": 23,
       "complexity": 10,
       "depth": 3
+    },
+    "set_delta.py::Delta.is_empty": {
+      "statements": 1,
+      "complexity": 2,
+      "depth": 0
+    },
+    "set_delta.py::Residue.describe": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 0
+    },
+    "set_delta.py::Residue.is_empty": {
+      "statements": 1,
+      "complexity": 2,
+      "depth": 0
+    },
+    "set_delta.py::check_scaling": {
+      "statements": 7,
+      "complexity": 3,
+      "depth": 2
+    },
+    "set_delta.py::classify": {
+      "statements": 1,
+      "complexity": 5,
+      "depth": 0
+    },
+    "set_delta.py::compare": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "set_delta.py::confined_to": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "set_delta.py::confined_to_rules": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "set_delta.py::counts_by_rule": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "set_delta.py::delta": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "set_delta.py::grows_only": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "set_delta.py::main": {
+      "statements": 21,
+      "complexity": 5,
+      "depth": 1
+    },
+    "set_delta.py::signals_set": {
+      "statements": 12,
+      "complexity": 6,
+      "depth": 2
+    },
+    "set_delta.py::unchanged": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
     },
     "spring_drift_check.py::_raw_query_entries_with_resolved_entity": {
       "statements": 4,
@@ -3591,6 +3662,126 @@
       "complexity": 3,
       "depth": 1
     },
+    "test_metamorphic.py::AppendOnlyGrowthTest.test_adding_files_only_grows_the_set": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::BuildFileTypeTest.test_a_gradle_file_contributes_no_structural_rule": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::BuildFileTypeTest.test_adding_a_gradle_file_moves_only_itself": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::BuildFileTypeTest.test_adding_a_properties_file_moves_only_itself": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::BulkRenameTest.test_renaming_every_file_confines_movement_to_those_names": {
+      "statements": 7,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::ChurnIsIdempotentTest.test_repeated_reindent_is_stable": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_metamorphic.py::CorpusCase.assertRelation": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::CorpusCase.variant": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::DuplicationScalesTest.test_duplicating_the_corpus_doubles_every_rule_count": {
+      "statements": 7,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::EncodingAndLineEndingsTest.test_a_utf8_bom_changes_nothing": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::EncodingAndLineEndingsTest.test_crlf_line_endings_change_nothing": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::FormattingIsMeaningPreservingTest._apply": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::FormattingIsMeaningPreservingTest.test_each_formatting_transform_changes_nothing": {
+      "statements": 5,
+      "complexity": 4,
+      "depth": 2
+    },
+    "test_metamorphic.py::FormattingIsMeaningPreservingTest.test_wrapping_annotation_args_still_moves_the_set": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::HarnessIsNotVacuousTest.test_a_real_semantic_edit_is_reported_under_unchanged": {
+      "statements": 5,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::HarnessIsNotVacuousTest.test_the_reference_corpus_is_not_empty": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::IrrelevantFileTypesTest.test_a_unicode_filename_is_handled": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::IrrelevantFileTypesTest.test_an_empty_file_adds_nothing": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::IrrelevantFileTypesTest.test_unparseable_java_does_not_disturb_its_siblings": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::MassDeletionTest.test_deleting_files_removes_only_their_members": {
+      "statements": 5,
+      "complexity": 3,
+      "depth": 1
+    },
+    "test_metamorphic.py::RescanDeterminismTest.test_two_scans_of_the_same_tree_agree": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::SingleEditLocalityTest.test_one_file_edited_moves_only_that_file": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::setUpModule": {
+      "statements": 7,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::tearDownModule": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
     "test_partition_repo.py::BuildGroupsTest.test_empty_input": {
       "statements": 1,
       "complexity": 1,
@@ -4473,6 +4664,101 @@
     },
     "test_semantic_eval_helpers.py::UnmatchedConfirmedTagsTest.test_unrelated_claim_flagged": {
       "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ConfinedToRulesTest.test_another_rule_moving_is_residue": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ConfinedToRulesTest.test_the_named_rule_may_move": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ConfinedToTest.test_an_empty_file_list_permits_nothing": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ConfinedToTest.test_movement_inside_the_named_files_is_expected": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ConfinedToTest.test_movement_outside_them_is_residue": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::DeltaTest.test_addition_and_removal_are_separated": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::DeltaTest.test_delta_is_directional": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::DeltaTest.test_identical_sets_have_an_empty_delta": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::GrowsOnlyTest.test_a_removal_is_a_regression": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::GrowsOnlyTest.test_additions_are_expected": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::RelationsAreNotVacuousTest.test_every_registered_relation_rejects_something": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_set_delta.py::ResidueDescriptionTest.test_describe_names_file_rule_and_direction": {
+      "statements": 5,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ScalingTest.test_a_short_count_is_reported_with_both_numbers": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_set_delta.py::ScalingTest.test_counts_are_per_rule_not_per_set": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ScalingTest.test_exact_doubling_passes": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::UnchangedRelationTest.test_an_empty_delta_leaves_no_residue": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::UnchangedRelationTest.test_permits_nothing": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ValidityGateTest.test_a_failed_scan_raises_rather_than_reporting_an_empty_set": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_set_delta.py::s": {
+      "statements": 1,
       "complexity": 1,
       "depth": 0
     },

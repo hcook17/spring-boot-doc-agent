@@ -216,6 +216,23 @@ jobs:
       - name: test_prompt_contracts.py
         run: python3 scripts/test_prompt_contracts.py -v
 
+      # The expectation algebra over the evidence set, and the metamorphic
+      # relations it exists to express. set_delta.py answers "was this change
+      # the one we predicted?", which spring_drift_check.py cannot: it reports
+      # that a citation moved, never whether the movement was expected. The
+      # residue -- not the size of the delta -- is what fails, so a change that
+      # legitimately adds a rule passes while a reformat that quietly moves a
+      # member does not.
+      - name: test_set_delta.py
+        run: python3 scripts/test_set_delta.py -v
+
+      # Metamorphic relations across input type and velocity. Closes two
+      # bounds test_drift_normalization states it does not cover ("Only Java
+      # is perturbed", "No encoding or line-ending perturbation"), and asserts
+      # idempotence and locality, which no other suite here names.
+      - name: test_metamorphic.py
+        run: python3 scripts/test_metamorphic.py -v
+
       # The evidence for _ast_signature.py's default, kept executable. The
       # choice of t2 came from measurements taken in a throwaway script, and a
       # measurement made once in a scratch file decays exactly the way a claim
