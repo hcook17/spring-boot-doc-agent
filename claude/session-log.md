@@ -718,3 +718,18 @@ Assumptions affected:
 - `scripts/stage0_oracle_compare.py` — added one docstring line in FAIRNESS section: "For Arm C (semgrep), scripts/spring_semgrep_rules.yml is valid --semgrep-rules input."
 
 Files touched: scripts/check_no_client_identifiers.py, scripts/test_check_no_client_identifiers.py, scripts/test_stage0_oracle_compare.py, .github/workflows/ci.yml, scripts/stage0_oracle_compare.py, CONSTRAINTS.md, CLAUDE.md, claude/session-log.md
+
+## 2026-07-27 — Stage 0 accuracy follow-ups: multi-hyphen profiles, contested entity_table_map, measured on in-tree mid-size checkout
+Commit: 62bc3ed
+Tests: 	est_spring_signal_scan.py 58/58; 	est_stage0_oracle_compare.py NativeVsMultipass+AssignCause 5/5; 	est_enterprise_kitchen_sink.py RealEnterpriseRepoTest+Ch03+multi-segment 13/13 (1 expectedFailure); check_repo_claims.py OK; check_code_quality.py OK after deliberate --update for one fixture-write statement.
+Assumptions affected:
+- CONSTRAINTS.md Known precision item 7 (multi-segment profiles skipped / credential blind spot) — [Resolved — CONFIG_NAME_PATTERNS widened to include hyphenated profile segments; kitchen-sink + RealEnterpriseRepoTest pin recognition / config_key_sets membership.]
+- CONSTRAINTS.md Known precision item 2 (simple-name entity_table_map collision yields arbitrary winner / wrong JPQL lineage) — [Resolved for H1 — status: contested + candidates list; 
+esolve_jpql_to_lineage refuses rather than guessing. Full FQCN/fact-tuple key still Phase 1.]
+- CONSTRAINTS.md Known precision item 6 (partition carry_forward cascade) — [New info — same cascade reproduced on the in-tree mid-size Spring checkout at default token budget; RealEnterpriseRepoTest.test_overlap_is_adjacent_only now expectedFailure.]
+- claude/10-architecture-maturation-plan.md H1 (detect collision; refuse JPQL; warn) — [Resolved — shipped as contested sentinel without schema rewrite.]
+- claude/steering-prompts/03-constraints-research-prompt.md — precision tradeoffs remain current-state in CONSTRAINTS.md — [Still accurate — entries corrected in place with verify predicates.]
+Live measurement (gitexcluded in-tree mid-size Spring checkout; aggregates only, no identifiers):
+- Rescan: java=629, config=16, deployment=5; entities=53; contested=0; multi-hyphen application* stems on disk=0 (fix vacuous here); config_key_sets=15; redaction zone files=5; evidence bucket totals unchanged vs prior spring_signals.json (DELTA config/entities = 0).
+- Oracle fixture (NativeVsMultipassTest / ssign_cause): direct extends -> no miss (UNCLASSIFIED); ia_intermediate_only -> INTERMEDIATE_BASE_INHERITANCE -> STRUCTURAL; EVIDENTIARY rates require a bytecode oracle JSON not present in-tree — not measured this session.
+Files touched: scripts/spring_signal_scan.py, scripts/test_spring_signal_scan.py, scripts/test_enterprise_kitchen_sink.py, scripts/code_quality_baseline.json, scripts/repo_claims_baseline.json, CONSTRAINTS.md, claude/session-log.md

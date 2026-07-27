@@ -245,11 +245,12 @@ class ScanDeterminismTest(unittest.TestCase):
             "two scans of an unchanged tree produced different bytes",
         )
 
-    def test_duplicate_class_name_resolves_to_lowest_file_path(self):
+    def test_duplicate_class_name_is_contested_with_lowest_path_identity(self):
         # entity_table_map is keyed by simple class name, so two @Entity
-        # classes in different packages collide. Before the fix, the winner
-        # was whichever match ast-grep happened to emit last — unstable across
-        # runs on identical input.
+        # classes in different packages collide. Citation-identity fields
+        # stay on the lowest file path (deterministic); status=contested
+        # plus candidates list make the ambiguity visible, and JPQL lineage
+        # refuses rather than guessing either table.
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp, True)
         for pkg, table in (("pkg_a", "a_user"), ("pkg_b", "b_user")):
@@ -267,14 +268,27 @@ class ScanDeterminismTest(unittest.TestCase):
                     "}\n"
                 )
 
-        entry = spring_signal_scan.scan(tmp)["entity_table_map"]["User"]
+        result = spring_signal_scan.scan(tmp)
+        entry = result["entity_table_map"]["User"]
         self.assertEqual(entry["table"], "a_user")
         self.assertTrue(entry["file"].startswith("pkg_a"), entry["file"])
+        self.assertEqual(entry["status"], "contested")
+        self.assertEqual(
+            {(c["file"], c["table"]) for c in entry["candidates"]},
+            {("pkg_a/User.java", "a_user"), ("pkg_b/User.java", "b_user")},
+        )
 
         # And it stays that way — the point is stability, not the specific
-        # winner.
+        # winner of the identity fields.
         again = spring_signal_scan.scan(tmp)["entity_table_map"]["User"]
         self.assertEqual(entry, again)
+
+        # Contested map entry must refuse lineage rather than guess a table.
+        lineage = spring_signal_scan.resolve_jpql_to_lineage(
+            "SELECT u FROM User u", result["entity_table_map"]
+        )
+        self.assertFalse(lineage["available"])
+        self.assertIn("contested", lineage["reason"])
 
 
 class SqlLineageExtractionTest(unittest.TestCase):
@@ -452,6 +466,28 @@ class JpqlLineageResolutionTest(unittest.TestCase):
         )
         self.assertFalse(result["available"])
         self.assertIn("not found in entity_table_map", result["reason"])
+
+    def test_contested_entity_name_refuses_lineage(self):
+        contested_map = {
+            "Invoice": {
+                "file": "a/Invoice.java",
+                "table": "a_invoice",
+                "table_name_source": "explicit",
+                "status": "contested",
+                "candidates": [
+                    {"file": "a/Invoice.java", "table": "a_invoice",
+                     "table_name_source": "explicit"},
+                    {"file": "b/Invoice.java", "table": "b_invoice",
+                     "table_name_source": "explicit"},
+                ],
+            }
+        }
+        result = spring_signal_scan.resolve_jpql_to_lineage(
+            "SELECT i FROM Invoice i WHERE i.status = :status", contested_map
+        )
+        self.assertFalse(result["available"])
+        self.assertIn("contested", result["reason"])
+        self.assertIn("2 candidates", result["reason"])
 
     def test_no_from_clause_out_of_scope(self):
         # JPQL bulk UPDATE/DELETE don't use FROM at all — the resolver

@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
-  "production_functions": 279,
-  "production_functions_annotated": 148,
+  "production_functions": 312,
+  "production_functions_annotated": 179,
   "limits_for_new_functions": {
     "statements": 140,
     "complexity": 34,
@@ -250,6 +250,21 @@
     "check_llms_coverage.py::parse_frontmatter": {
       "statements": 9,
       "complexity": 4,
+      "depth": 2
+    },
+    "check_no_client_identifiers.py::_denylist_pass": {
+      "statements": 13,
+      "complexity": 10,
+      "depth": 2
+    },
+    "check_no_client_identifiers.py::_walk": {
+      "statements": 27,
+      "complexity": 20,
+      "depth": 6
+    },
+    "check_no_client_identifiers.py::main": {
+      "statements": 28,
+      "complexity": 7,
       "depth": 2
     },
     "check_no_secrets_leaked.py::check": {
@@ -1182,6 +1197,61 @@
       "complexity": 10,
       "depth": 3
     },
+    "semgrep_rule_coverage.py::_normalize_check_id": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "semgrep_rule_coverage.py::check_non_vacuity": {
+      "statements": 13,
+      "complexity": 7,
+      "depth": 2
+    },
+    "semgrep_rule_coverage.py::check_ratchet": {
+      "statements": 14,
+      "complexity": 7,
+      "depth": 2
+    },
+    "semgrep_rule_coverage.py::find_semgrep": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "semgrep_rule_coverage.py::hit_counts": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 2
+    },
+    "semgrep_rule_coverage.py::load_baseline": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "semgrep_rule_coverage.py::main": {
+      "statements": 32,
+      "complexity": 8,
+      "depth": 3
+    },
+    "semgrep_rule_coverage.py::report": {
+      "statements": 7,
+      "complexity": 6,
+      "depth": 1
+    },
+    "semgrep_rule_coverage.py::rule_ids": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "semgrep_rule_coverage.py::run_semgrep": {
+      "statements": 9,
+      "complexity": 3,
+      "depth": 1
+    },
+    "semgrep_rule_coverage.py::write_baseline": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
     "set_delta.py::Delta.is_empty": {
       "statements": 1,
       "complexity": 2,
@@ -1342,6 +1412,11 @@
       "complexity": 2,
       "depth": 1
     },
+    "spring_signal_scan.py::_entity_map_lineage_gate": {
+      "statements": 6,
+      "complexity": 4,
+      "depth": 1
+    },
     "spring_signal_scan.py::_extract_entity": {
       "statements": 12,
       "complexity": 7,
@@ -1356,6 +1431,11 @@
       "statements": 9,
       "complexity": 3,
       "depth": 1
+    },
+    "spring_signal_scan.py::_finalize_entity_table_map": {
+      "statements": 13,
+      "complexity": 6,
+      "depth": 2
     },
     "spring_signal_scan.py::_first_line_match": {
       "statements": 3,
@@ -1413,13 +1493,98 @@
       "depth": 1
     },
     "spring_signal_scan.py::scan": {
-      "statements": 67,
-      "complexity": 20,
+      "statements": 66,
+      "complexity": 18,
       "depth": 4
     },
     "spring_signal_scan.py::to_snake_case": {
       "statements": 9,
       "complexity": 5,
+      "depth": 2
+    },
+    "stage0_oracle_compare.py::SharedInputs.compute_digest": {
+      "statements": 6,
+      "complexity": 2,
+      "depth": 1
+    },
+    "stage0_oracle_compare.py::assign_cause": {
+      "statements": 10,
+      "complexity": 6,
+      "depth": 1
+    },
+    "stage0_oracle_compare.py::build_interface_graph": {
+      "statements": 18,
+      "complexity": 6,
+      "depth": 2
+    },
+    "stage0_oracle_compare.py::compare_q1": {
+      "statements": 10,
+      "complexity": 4,
+      "depth": 2
+    },
+    "stage0_oracle_compare.py::extract_stage0_rule": {
+      "statements": 8,
+      "complexity": 4,
+      "depth": 2
+    },
+    "stage0_oracle_compare.py::fqcn_for": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "stage0_oracle_compare.py::list_java_files": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "stage0_oracle_compare.py::load_salt": {
+      "statements": 7,
+      "complexity": 3,
+      "depth": 1
+    },
+    "stage0_oracle_compare.py::main": {
+      "statements": 82,
+      "complexity": 22,
+      "depth": 4
+    },
+    "stage0_oracle_compare.py::parse_supertypes": {
+      "statements": 26,
+      "complexity": 11,
+      "depth": 4
+    },
+    "stage0_oracle_compare.py::print_table": {
+      "statements": 14,
+      "complexity": 7,
+      "depth": 1
+    },
+    "stage0_oracle_compare.py::pseudonym": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "stage0_oracle_compare.py::reaches_spring_data": {
+      "statements": 12,
+      "complexity": 6,
+      "depth": 4
+    },
+    "stage0_oracle_compare.py::run_astgrep": {
+      "statements": 10,
+      "complexity": 5,
+      "depth": 2
+    },
+    "stage0_oracle_compare.py::run_semgrep": {
+      "statements": 7,
+      "complexity": 4,
+      "depth": 1
+    },
+    "stage0_oracle_compare.py::summarise": {
+      "statements": 6,
+      "complexity": 8,
+      "depth": 1
+    },
+    "stage0_oracle_compare.py::validate_rows": {
+      "statements": 10,
+      "complexity": 4,
       "depth": 2
     },
     "test_ast_signature.py::LevelIsPartOfTheDataTest.test_a_bare_digest_cannot_be_interpreted": {
@@ -2061,6 +2226,251 @@
       "statements": 3,
       "complexity": 1,
       "depth": 0
+    },
+    "test_check_no_client_identifiers.py::CliExitCodeTest.test_a_clean_aggregate_exits_zero": {
+      "statements": 6,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_check_no_client_identifiers.py::CliExitCodeTest.test_a_missing_file_exits_one": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_check_no_client_identifiers.py::CliExitCodeTest.test_a_violation_exits_one": {
+      "statements": 6,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_check_no_client_identifiers.py::CliExitCodeTest.test_invalid_json_exits_one": {
+      "statements": 6,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_check_no_client_identifiers.py::CliExitCodeTest.test_usage_error_exits_two": {
+      "statements": 4,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_check_no_client_identifiers.py::DenylistPassTest.test_a_name_absent_from_the_payload_is_not_flagged": {
+      "statements": 8,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_check_no_client_identifiers.py::DenylistPassTest.test_a_name_from_the_checkout_is_caught": {
+      "statements": 9,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_check_no_client_identifiers.py::DenylistPassTest.test_short_names_are_not_flagged": {
+      "statements": 8,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_check_no_client_identifiers.py::GeneratedKeyPatternTest.test_a_valid_delta_by_cause_key_has_no_finding": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::GeneratedKeyPatternTest.test_a_valid_verdict_by_cause_key_has_no_finding": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::GeneratedKeyPatternTest.test_an_invalid_delta_by_cause_key_is_a_finding": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::GeneratedKeyPatternTest.test_an_invalid_verdict_by_cause_key_is_a_finding": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::MinimalValidAggregateTest.test_a_minimal_valid_aggregate_has_no_findings": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::PatternedStringValueTest.test_a_package_shaped_fake_digest_is_still_a_finding": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::PatternedStringValueTest.test_a_valid_entity_pseudonym_has_no_finding": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::PatternedStringValueTest.test_a_valid_shared_input_digest_has_no_finding": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::PatternedStringValueTest.test_an_invalid_entity_pseudonym_is_a_finding": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::PatternedStringValueTest.test_an_invalid_shared_input_digest_is_a_finding": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::ProseFieldTest.test_prose_containing_a_package_shaped_token_is_a_finding": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::ProseFieldTest.test_prose_with_no_package_shaped_token_has_no_finding": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::StringValueVocabularyTest.test_a_string_value_outside_the_vocabulary_is_a_finding": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::StringValueVocabularyTest.test_allowed_arm_values_have_no_finding": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::StringValueVocabularyTest.test_allowed_engine_values_have_no_finding": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_check_no_client_identifiers.py::StringValueVocabularyTest.test_allowed_evidence_tier_values_have_no_finding": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::StringValueVocabularyTest.test_allowed_producer_values_have_no_finding": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::UnknownKeyTest.test_an_unknown_nested_key_is_a_finding": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::UnknownKeyTest.test_an_unknown_top_level_key_is_a_finding": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::findings": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_no_client_identifiers.py::run_main": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_check_pipe_exit_code.py::BuildToolPipedIntoMaskingFilterTest.test_every_build_tool_piped_into_every_masking_filter_is_risky": {
+      "statements": 4,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_check_pipe_exit_code.py::DenialMessageTest.test_a_risky_command_produces_a_deny_decision": {
+      "statements": 7,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::DenialMessageTest.test_a_safe_command_produces_no_output": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::EscapeHatchTest.test_escape_hatch_is_case_insensitive": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::EscapeHatchTest.test_pipefail_suppresses_it": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::EscapeHatchTest.test_pipestatus_suppresses_it": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::FailSafeTest.test_missing_command_key_does_not_block": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::FailSafeTest.test_missing_tool_input_key_does_not_block": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::FailSafeTest.test_unparseable_json_does_not_block": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_check_pipe_exit_code.py::HeredocBodiesAreDataTest.test_a_real_risky_command_after_a_heredoc_is_still_caught": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::HeredocBodiesAreDataTest.test_an_unquoted_heredoc_tag_is_handled": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::HeredocBodiesAreDataTest.test_prose_quoting_the_bug_inside_a_heredoc_is_not_risky": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::NotRiskyTest.test_build_tool_piped_into_a_non_masking_command_is_not_risky": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::NotRiskyTest.test_build_tool_with_no_masking_filter_is_not_risky": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::NotRiskyTest.test_empty_command_is_not_risky": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::NotRiskyTest.test_masking_filter_with_no_build_tool_is_not_risky": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::PythonUnittestRegressionTest.test_bare_python_m_unittest_is_risky": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::PythonUnittestRegressionTest.test_python_m_unittest_discover_piped_into_tail_is_risky": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::denies": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_pipe_exit_code.py::run_hook": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
     },
     "test_check_pipeline_output.py::ExitCodeTest.test_clean_is_zero": {
       "statements": 1,
@@ -3002,6 +3412,66 @@
       "complexity": 1,
       "depth": 0
     },
+    "test_deny_raw_network.py::TestBareGitIsNeverBlocked.test_bare_git_subcommands_pass": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_deny_raw_network.py::TestDenialExplainsTheAlternative.test_reason_names_webfetch": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_raw_network.py::TestFailOpen.test_missing_command_key_does_not_block": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_raw_network.py::TestFailOpen.test_unparseable_payload_does_not_block": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_raw_network.py::TestGitCloneIsTwoWords.test_git_alone_is_not_treated_as_clone": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_raw_network.py::TestGitCloneIsTwoWords.test_git_clone_is_blocked": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_raw_network.py::TestHeredocBodiesAreData.test_a_real_curl_after_a_heredoc_is_still_caught": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_raw_network.py::TestHeredocBodiesAreData.test_prose_mentioning_curl_inside_a_heredoc_is_not_a_command": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_raw_network.py::TestNetworkToolsBlocked.test_each_form_is_blocked": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_deny_raw_network.py::TestUnrelatedToolsPass.test_unrelated_bash_passes": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_deny_raw_network.py::TestUnrelatedToolsPass.test_webfetch_and_other_tools_pass": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_deny_raw_network.py::denies": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
     "test_deny_text_search.py::TestAstGrepIsNeverBlocked.test_ast_grep_is_never_blocked": {
       "statements": 2,
       "complexity": 2,
@@ -3272,10 +3742,10 @@
       "complexity": 3,
       "depth": 2
     },
-    "test_enterprise_kitchen_sink.py::Ch03DerivedIndexTest.test_non_unique_key_collision_is_resolved_deterministically": {
-      "statements": 3,
-      "complexity": 3,
-      "depth": 0
+    "test_enterprise_kitchen_sink.py::Ch03DerivedIndexTest.test_non_unique_key_collision_is_contested_and_deterministic": {
+      "statements": 11,
+      "complexity": 9,
+      "depth": 1
     },
     "test_enterprise_kitchen_sink.py::Ch03DerivedIndexTest.test_two_entities_in_one_file_resolve_to_their_own_tables": {
       "statements": 6,
@@ -3312,9 +3782,9 @@
       "complexity": 1,
       "depth": 0
     },
-    "test_enterprise_kitchen_sink.py::Ch04EncodingTest.test_multi_segment_profile_names_are_not_recognized_as_config": {
-      "statements": 4,
-      "complexity": 3,
+    "test_enterprise_kitchen_sink.py::Ch04EncodingTest.test_multi_segment_profile_names_are_recognized_as_config": {
+      "statements": 9,
+      "complexity": 4,
       "depth": 0
     },
     "test_enterprise_kitchen_sink.py::Ch04EncodingTest.test_non_ascii_source_is_neither_dropped_nor_mangled": {
@@ -3607,6 +4077,11 @@
       "complexity": 1,
       "depth": 0
     },
+    "test_enterprise_kitchen_sink.py::RealEnterpriseRepoTest.test_contested_entity_keys_are_well_formed": {
+      "statements": 11,
+      "complexity": 8,
+      "depth": 2
+    },
     "test_enterprise_kitchen_sink.py::RealEnterpriseRepoTest.test_entity_index_keys_are_sorted": {
       "statements": 2,
       "complexity": 1,
@@ -3621,6 +4096,11 @@
       "statements": 7,
       "complexity": 1,
       "depth": 0
+    },
+    "test_enterprise_kitchen_sink.py::RealEnterpriseRepoTest.test_multi_hyphen_application_profiles_reach_config_key_sets": {
+      "statements": 13,
+      "complexity": 11,
+      "depth": 3
     },
     "test_enterprise_kitchen_sink.py::RealEnterpriseRepoTest.test_no_excluded_directory_leaked": {
       "statements": 4,
@@ -3698,7 +4178,7 @@
       "depth": 1
     },
     "test_enterprise_kitchen_sink.py::build_enterprise_repo": {
-      "statements": 49,
+      "statements": 50,
       "complexity": 3,
       "depth": 1
     },
@@ -5037,6 +5517,101 @@
       "complexity": 1,
       "depth": 0
     },
+    "test_semgrep_rule_coverage.py::TestCheckIdNormalization.test_an_unprefixed_id_is_left_alone": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_semgrep_rule_coverage.py::TestCheckIdNormalization.test_long_absolute_path_prefix_is_stripped": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_semgrep_rule_coverage.py::TestCheckIdNormalization.test_short_prefix_is_stripped": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_semgrep_rule_coverage.py::TestExitCodes.test_a_missing_target_directory_exits_two": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_semgrep_rule_coverage.py::TestExitCodes.test_fixture_mode_exits_zero_or_two_without_semgrep": {
+      "statements": 6,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_semgrep_rule_coverage.py::TestNonVacuity.test_a_missing_fixture_corpus_fails_rather_than_passing": {
+      "statements": 5,
+      "complexity": 1,
+      "depth": 1
+    },
+    "test_semgrep_rule_coverage.py::TestNonVacuity.test_a_rule_with_no_fixture_is_caught": {
+      "statements": 10,
+      "complexity": 3,
+      "depth": 1
+    },
+    "test_semgrep_rule_coverage.py::TestNonVacuity.test_an_exemption_must_state_a_reason": {
+      "statements": 10,
+      "complexity": 3,
+      "depth": 1
+    },
+    "test_semgrep_rule_coverage.py::TestNonVacuity.test_every_real_rule_fires_on_the_fixture_corpus": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_semgrep_rule_coverage.py::TestRatchet.baseline": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_semgrep_rule_coverage.py::TestRatchet.setUp": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_semgrep_rule_coverage.py::TestRatchet.tearDown": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_semgrep_rule_coverage.py::TestRatchet.test_a_missing_baseline_is_not_a_failure": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_semgrep_rule_coverage.py::TestRatchet.test_a_rule_dropping_to_zero_is_a_regression": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_semgrep_rule_coverage.py::TestRatchet.test_a_rule_that_was_already_zero_is_not_a_regression": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_semgrep_rule_coverage.py::TestRatchet.test_a_stale_schema_version_is_rejected": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_semgrep_rule_coverage.py::TestRatchet.test_rising_counts_pass": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_semgrep_rule_coverage.py::TestRuleIdParsing.test_a_nested_id_is_not_mistaken_for_a_rule": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_semgrep_rule_coverage.py::TestRuleIdParsing.test_the_real_rule_file_yields_rules": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
     "test_set_delta.py::ConfinedToRulesTest.test_another_rule_moving_is_residue": {
       "statements": 2,
       "complexity": 1,
@@ -5477,6 +6052,11 @@
       "complexity": 1,
       "depth": 0
     },
+    "test_spring_signal_scan.py::JpqlLineageResolutionTest.test_contested_entity_name_refuses_lineage": {
+      "statements": 5,
+      "complexity": 1,
+      "depth": 0
+    },
     "test_spring_signal_scan.py::JpqlLineageResolutionTest.test_join_clause_out_of_scope": {
       "statements": 3,
       "complexity": 1,
@@ -5557,9 +6137,9 @@
       "complexity": 1,
       "depth": 0
     },
-    "test_spring_signal_scan.py::ScanDeterminismTest.test_duplicate_class_name_resolves_to_lowest_file_path": {
-      "statements": 12,
-      "complexity": 3,
+    "test_spring_signal_scan.py::ScanDeterminismTest.test_duplicate_class_name_is_contested_with_lowest_path_identity": {
+      "statements": 18,
+      "complexity": 4,
       "depth": 2
     },
     "test_spring_signal_scan.py::ScanDeterminismTest.test_two_scans_of_the_same_tree_serialize_identically": {
@@ -5726,6 +6306,126 @@
       "statements": 3,
       "complexity": 1,
       "depth": 0
+    },
+    "test_stage0_oracle_compare.py::AssignCauseTest.test_direct_match_has_no_cause": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::AssignCauseTest.test_does_not_match_scan_list_is_structural": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::AssignCauseTest.test_mutually_exclusive_bucket_violation_raises": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::AssignCauseTest.test_via_intermediate_only_is_structural": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::ContractViolationTest.test_missing_pseudonym_salt_raises": {
+      "statements": 5,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_stage0_oracle_compare.py::ContractViolationTest.test_missing_rule_id_in_rules_file_raises": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_stage0_oracle_compare.py::ContractViolationTest.test_missing_stage0_rules_raises": {
+      "statements": 5,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_stage0_oracle_compare.py::ContractViolationTest.test_short_pseudonym_salt_raises": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_stage0_oracle_compare.py::IntegrationWithGateTest.setUp": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::IntegrationWithGateTest.tearDown": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::IntegrationWithGateTest.test_valid_report_passes_redaction_gate": {
+      "statements": 5,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::NativeVsMultipassTest.setUp": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::NativeVsMultipassTest.tearDown": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::NativeVsMultipassTest.test_native_matches_direct_extends_and_misses_transitive": {
+      "statements": 9,
+      "complexity": 3,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::OracleFixture.__init__": {
+      "statements": 5,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::OracleFixture.oracle_row": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::OracleFixture.pseudonym": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::OracleFixture.write_java_file": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::OracleFixture.write_oracle_json": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::ValidateRowsTest.test_complete_row_passes": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::ValidateRowsTest.test_invalid_cause_is_flagged": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::ValidateRowsTest.test_missing_required_field_is_flagged": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::ValidateRowsTest.test_multiple_rows_are_checked": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_stage0_oracle_compare.py::skip_if_no_astgrep": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
     }
   }
 }

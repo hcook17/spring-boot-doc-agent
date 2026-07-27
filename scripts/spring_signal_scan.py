@@ -78,7 +78,15 @@ first-match-in-the-whole-file regexes. The original regex version picked
 the first "class X" and the first "@Table(name=...)" anywhere in the file,
 which silently mismatched NAME to TABLE in any file with more than one
 entity. That's fixed here as a side effect of the ast-grep rewrite, not a
-separate change.
+separate change. The map is still keyed by simple class name, so two
+@Entity classes in different packages collide: the lowest file path wins
+the citation-identity fields (file/table/rule_id/match) for determinism,
+and when more than one candidate exists the entry carries
+`status: "contested"` plus a `candidates` list. Contested keys make
+`resolve_jpql_to_lineage()` return available=false rather than guessing
+a table (maturation-plan H1). The winner's table remains for drift-check
+identity only — do not treat it as the unique mapping when status is
+contested.
 
 NOTE on drift detection (schema_version 2): scan()'s output now also
 carries `file_signatures` (a sha256 content hash per file walked by
@@ -212,8 +220,11 @@ def _is_build_file(name, ext):
 
 
 CONFIG_NAME_PATTERNS = [
-    re.compile(r"^application(-[\w.]+)?\.(ya?ml|properties)$"),
-    re.compile(r"^bootstrap(-[\w.]+)?\.(ya?ml|properties)$"),
+    # Profile segment allows hyphens so multi-segment Spring profiles
+    # (application-dev-local.yml) are ingested — [\w.]+ alone misses them and
+    # skips redaction_zones / config_key_sets for credential-bearing files.
+    re.compile(r"^application(-[\w.-]+)?\.(ya?ml|properties)$"),
+    re.compile(r"^bootstrap(-[\w.-]+)?\.(ya?ml|properties)$"),
     # Build-adjacent property files, named explicitly rather than matching
     # every *.properties. The motivating case is real: build.gradle's own
     # comment records that gradle.properties carries `_password` entries, and
@@ -373,6 +384,10 @@ def resolve_jpql_to_lineage(jpql_text, entity_table_map, dialect="ansi"):
         legitimately won't resolve — a correct "not found", not a wrong
         resolution, since this scanner doesn't currently extract the
         `name=` argument of @Entity separately from @Table's.
+      - Contested simple-name collisions: when two+ @Entity classes in
+        different packages share a simple name, entity_table_map marks
+        the key `status: "contested"` and this function refuses rather
+        than picking either candidate's table.
       - Polymorphic FROM (naming a superclass/interface — inherently
         multi-table under JOINED/TABLE_PER_CLASS inheritance).
       - Embedded/composite keys (`@EmbeddedId`/`@IdClass` field paths like
@@ -420,12 +435,8 @@ def resolve_jpql_to_lineage(jpql_text, entity_table_map, dialect="ansi"):
         }
 
     map_entry = entity_table_map.get(entity_name)
-    if map_entry is None:
-        return {
-            "available": False,
-            "reason": f"entity '{entity_name}' not found in entity_table_map — unresolved rather than "
-                      "guessed (possibly an @Entity(name=...) override this scanner doesn't capture)",
-        }
+    if (gated := _entity_map_lineage_gate(entity_name, map_entry)) is not None:
+        return gated
 
     rewritten = jpql_text[:from_match.start()] + f"FROM {map_entry['table']}" + jpql_text[from_match.end():]
     alias_prefix_re = re.compile(r"\b" + re.escape(alias) + r"\.")
@@ -795,6 +806,67 @@ def _classify_non_java_file(full, rel, name, ext, buckets, files_scanned,
         buckets["persistence"].append({"file": rel, "match": "migration script"})
 
 
+def _finalize_entity_table_map(entity_candidates):
+    """Collapse per-simple-name candidate lists into entity_table_map.
+
+    Keyed by simple class name alone, so two @Entity classes in different
+    packages collide. Lowest file path wins citation-identity fields
+    (file/table/rule_id/match) for drift-check stability; when more than one
+    candidate exists the entry is status=contested with a candidates list so
+    JPQL lineage can refuse rather than guess (maturation-plan H1).
+    """
+    entity_table_map = {}
+    for class_name, candidates in entity_candidates.items():
+        by_file = {}
+        for cand in candidates:
+            by_file.setdefault(cand["file"], cand)
+        ordered = sorted(by_file.values(), key=lambda e: e["file"])
+        winner = dict(ordered[0])
+        if len(ordered) > 1:
+            winner["status"] = "contested"
+            winner["candidates"] = [
+                {
+                    "file": c["file"],
+                    "table": c["table"],
+                    "table_name_source": c["table_name_source"],
+                }
+                for c in ordered
+            ]
+            print(
+                f"warning: entity_table_map key '{class_name}' is contested — "
+                f"{len(ordered)} @Entity classes share this simple name across packages; "
+                f"JPQL lineage for this name will be unavailable rather than guessed. "
+                f"Files: {', '.join(c['file'] for c in ordered)}",
+                file=sys.stderr,
+            )
+        entity_table_map[class_name] = winner
+    return entity_table_map
+
+
+def _entity_map_lineage_gate(entity_name, map_entry):
+    """Return an unavailable lineage dict when the map cannot safely resolve
+    entity_name, else None (caller may rewrite). Covers missing keys and
+    contested simple-name collisions (maturation-plan H1)."""
+    if map_entry is None:
+        return {
+            "available": False,
+            "reason": (
+                f"entity '{entity_name}' not found in entity_table_map — unresolved rather than "
+                "guessed (possibly an @Entity(name=...) override this scanner doesn't capture)"
+            ),
+        }
+    if map_entry.get("status") != "contested":
+        return None
+    n = len(map_entry.get("candidates") or [])
+    return {
+        "available": False,
+        "reason": (
+            f"entity '{entity_name}' is contested — ambiguous simple name across packages "
+            f"({n} candidates); refusing to guess a table"
+        ),
+    }
+
+
 def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
     gitignore_spec = load_gitignore_spec(repo_path) if respect_gitignore else None
 
@@ -804,7 +876,9 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
         "configuration": [], "error_handling": [], "observability": [],
         "deployment": [], "testing": [], "references": [],
     }
-    entity_table_map = {}
+    # class_name -> list of map entries (same simple name across packages
+    # collides; finalized into entity_table_map after the match loop).
+    entity_candidates = {}
     files_scanned = {"java": 0, "config": 0, "deployment": 0, "other_relevant": 0}
     file_signatures = {}
     redaction_zones = {}
@@ -873,17 +947,10 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
             # bucket entry, the two can't be tied back together.
             map_entry["rule_id"] = rule_id
             map_entry["match"] = match_str
-            # This map is keyed by simple class name alone, so two @Entity
-            # classes in different packages collide. Plain last-write-wins
-            # would hand the collision to ast-grep's match order, which isn't
-            # stable across runs (see the threading note below) — the same
-            # input tree could report a different `table` for the same key on
-            # a re-scan. Resolve on lowest file path instead: it depends only
-            # on the input, and drift-check re-verification of this citation
-            # then has a fixed target rather than a coin flip.
-            prior = entity_table_map.get(class_name)
-            if prior is None or map_entry["file"] < prior["file"]:
-                entity_table_map[class_name] = map_entry
+            # Collect every candidate under the simple class name; finalize
+            # into entity_table_map after the match loop (lowest-path winner
+            # for citation identity, status=contested when packages collide).
+            entity_candidates.setdefault(class_name, []).append(map_entry)
             buckets["persistence"].append({
                 "file": rel, "line": line, "match": match_str,
                 "rule_id": rule_id, "class_name": class_name,
@@ -919,6 +986,10 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
 
         buckets[bucket].append(entry)
 
+    # Finalize entity_table_map from collected candidates (see
+    # _finalize_entity_table_map for collision / contested semantics).
+    entity_table_map = _finalize_entity_table_map(entity_candidates)
+
     # JPQL lineage resolution happens in its own pass, after the match loop
     # above finishes, not inline alongside the native-query branch: it needs
     # entity_table_map fully populated, and ast-grep's match order (see the
@@ -936,13 +1007,9 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
     for bucket in buckets.values():
         bucket.sort(key=lambda e: (e["file"], e.get("line", 0)))
 
-    # entity_table_map is populated inside that same match loop, so its key
-    # order follows the same unstable ast-grep match order the buckets are
-    # sorted to escape. Sorting it matters for a reason the buckets' comment
-    # doesn't state: compute_file_signature() and every downstream hash read
-    # raw bytes, so an unsorted map means identical scans of an unchanged repo
-    # serialize to different bytes, and a hash of spring_signals.json can't be
-    # used to assert anything.
+    # entity_table_map key order must be sorted for the same reason: every
+    # downstream hash reads raw bytes, so an unsorted map means identical
+    # scans of an unchanged repo serialize to different bytes.
     entity_table_map = dict(sorted(entity_table_map.items()))
 
     return {
