@@ -733,3 +733,15 @@ Live measurement (gitexcluded in-tree mid-size Spring checkout; aggregates only,
 - Rescan: java=629, config=16, deployment=5; entities=53; contested=0; multi-hyphen application* stems on disk=0 (fix vacuous here); config_key_sets=15; redaction zone files=5; evidence bucket totals unchanged vs prior spring_signals.json (DELTA config/entities = 0).
 - Oracle fixture (NativeVsMultipassTest / ssign_cause): direct extends -> no miss (UNCLASSIFIED); ia_intermediate_only -> INTERMEDIATE_BASE_INHERITANCE -> STRUCTURAL; EVIDENTIARY rates require a bytecode oracle JSON not present in-tree — not measured this session.
 Files touched: scripts/spring_signal_scan.py, scripts/test_spring_signal_scan.py, scripts/test_enterprise_kitchen_sink.py, scripts/code_quality_baseline.json, scripts/repo_claims_baseline.json, CONSTRAINTS.md, claude/session-log.md
+
+---
+
+## 2026-07-27 — Build-file structural signals (Gradle/Groovy/Maven/version catalogs) close CONSTRAINTS §11
+Commit: f0be9de
+Tests: scripts/test_build_signal_extract.py 12/12; scripts/test_spring_signal_scan.py BuildFileClassificationTest 6/6; scripts/test_spring_drift_check.py 41/41; scripts/test_enterprise_kitchen_sink.py Ch04EncodingTest 17/17; check_repo_claims.py OK; check_code_quality.py OK after deliberate --update.
+Assumptions affected:
+- `claude/steering-prompts/03-constraints-research-prompt.md` — build-file heuristics now a real signal source, not just filename classification — [Resolved — `scripts/_build_signal_extract.py` added, wired into `spring_signal_scan.py`, with five `deployment__build_*` rule ids and drift tier-2 re-verification.]
+- `CONSTRAINTS.md` §11 — "Gradle build scripts get filename-level classification only" — [Resolved — now **Partially resolved**: deterministic plugin/dependency/module/toolchain/catalog extraction; dynamic Groovy and full task graph remain out of scope.]
+- `skills/document-spring-repo/references/doc-taxonomy.md` — operations.md / local_development.md now prefer `deployment__build_*` rows over an agent's own reading of build scripts. — [Resolved — evidence section updated.]
+- `agents/file-summarizer.md` — build `rule_id` rows treated as ground truth like other Stage 0 hits. — [Resolved — step 2 example updated.]
+Files touched: scripts/_build_signal_extract.py, scripts/spring_signal_scan.py, scripts/spring_drift_check.py, scripts/test_build_signal_extract.py, scripts/test_spring_signal_scan.py, scripts/test_enterprise_kitchen_sink.py, .github/workflows/ci.yml, CONSTRAINTS.md, skills/document-spring-repo/references/doc-taxonomy.md, agents/file-summarizer.md, claude/session-log.md, scripts/code_quality_baseline.json, scripts/repo_claims_baseline.json
