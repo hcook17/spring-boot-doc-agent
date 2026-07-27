@@ -2,7 +2,7 @@
 
 ## Steering prompts and the session log
 
-`claude/steering-prompts/` contains <!-- derived: steering_prompt_count -->14<!-- /derived --> numbered prompts. **`00`–`06` are mirrored from this project's attached Claude project ("Plugin For Asynchronous Documentation Creation") and have a canonical copy there; `07` and up were authored in this repo and exist nowhere else** (confirmed 2026-07-24 — the project's folder holds `00`–`06` only). Edits to `00`–`06` need mirroring back; edits to `07` and up do not. They fall into three groups:
+`claude/steering-prompts/` contains <!-- derived: steering_prompt_count -->15<!-- /derived --> numbered prompts. **`00`–`06` are mirrored from this project's attached Claude project ("Plugin For Asynchronous Documentation Creation") and have a canonical copy there; `07` and up were authored in this repo and exist nowhere else** (confirmed 2026-07-24 — the project's folder holds `00`–`06` only). Edits to `00`–`06` need mirroring back; edits to `07` and up do not. They fall into three groups:
 
 - **`00`–`05` — research/scaffold prompts.** `00` shared standards, then one per improvement category: testability, pluggability, constraints, analytics-logging, clarity/delivery-trust.
 - **`06`–`09` — implementation task prompts.** Wire drift-check, CI scaffold, dependency pinning, tool-quirks indexing. These carry a `status:` frontmatter field that is edited in place as the task lands; the body is left as historical record rather than rewritten.
@@ -78,6 +78,10 @@ Each of the following has produced a wrong answer here, in this repo, and is wor
 - **ast-grep is not a prose search tool.** Its `markdown` grammar matches broad block nodes: on `README.md`, `-p 'ast-grep'` reports 35 lines of which 27 contain no such string. For docs and logs, use `Glob` to narrow and `Read` to open. The mandate is about *code*, where citations live.
 
 **Coverage is the invariant the mandate exists to serve**, and it is enforced separately. `scripts/rule_coverage.py` runs the <!-- derived: ast_grep_rule_count -->29<!-- /derived --> rules against the committed corpus in `scripts/rule_fixtures/` and fails if any rule matches nothing — a rule nobody can make fire is not coverage. It also has a backtest mode against a real repository, ratcheted against `scripts/rule_coverage_baseline.json`; that corpus is far too large to track, so it is measured on a dev machine and only the baseline is committed. Adding a rule means adding a fixture that triggers it, in the same commit.
+
+## Check F also gates network egress
+
+Check F (in `scripts/check_repo_claims.py`, alongside the structural-search mandate above) also denies raw network egress for any agent granted `Bash` tool access. The instant an agent declares `Bash`, `curl`/`wget`/`git clone` are denied the same way `grep`/`rg` already are. `software-architect-and-testing` is the only agent with both `Bash` and `WebFetch`; without this gate, it could reach arXiv/GitHub/deepwiki.com via raw shell commands instead of `WebFetch`, bypassing the tiered external-research discipline its own prompt establishes. Two-part enforcement: `scripts/check_repo_claims.py`'s static check (run in CI) fails the build if any Bash-granted agent is missing the `curl`/`wget`/`git-clone` deny entries in `.claude/settings.json`; `hooks/deny_raw_network.py` (a `PreToolUse` hook, wired in `hooks/hooks.json`) covers the runtime half by actually blocking a raw shell command. Same split as `hooks/deny_text_search.py` and check F's text-search half — the static one cannot be bypassed but only runs in CI; the runtime one catches what static inspection cannot reach.
 
 ## Tool and environment quirks
 

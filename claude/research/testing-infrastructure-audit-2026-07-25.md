@@ -1,0 +1,9 @@
+# Testing/Verification Infrastructure Audit — spring-boot-doc-agent Date: 2026-07-25
+
+## 1–2. Scripts inventory + test coverage (combined, since almost every script has a paired test)
+
+`scripts/` has 28 non-test `.py` files and 26 `test_*.py` files (25 run in CI, 1 opt-in). Grouped by role:
+### Stage 0 / core deterministic pipeline
+| Script | Purpose | Test coverage |
+|---|---|---|
+| `spring_signal_scan.py` | AST-based evidence extraction (Stage 0), drives ast-grep via                             `spring_ast_grep_rules.yml` | `test_spring_signal_scan.py` — real integration test, shells out to real ast-grep |    | `partition_repo.py` | Adaptive token-bounded DFS grouping | `test_partition_repo.py` + opt-in                      `test_partition_repo_real_world.py` (env-var gated, real repo) |                                                     | `build_cross_group_edges.py` | Deterministic cross-group import join (replaced an LLM-inferred broadcast) |        `test_build_cross_group_edges.py` |                                                                                  | `spring_drift_check.py` | Two-tier drift re-verification of a prior scan | `test_spring_drift_check.py`            (integration) + `test_drift_normalization.py` (false-positive rate measurement) + `test_metamorphic.py` |            | `capacity_preflight.py` | Pre-run scale estimate | `test_capacity_preflight.py` |                                  | `run_manifest.py` | Per-run telemetry CLI | `test_run_manifest.py` |                                               | `run_pipeline_local.py` | Runs the whole pipeline locally with mocked LLM stages | No same-named test file, but    exercised — `test_enterprise_kitchen_sink.py` imports its mock functions directly and runs it as a real subprocess   end-to-end (docstring calls this "the only coverage `run_pipeline_local.py` has") |         

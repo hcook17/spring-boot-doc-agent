@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Structural (mechanical) tests for the four LLM pipeline stages —
-file-summarizer, architect-segment/architect-merge, gap-analyzer, doc-writer
-— none of which had any test coverage before this file. Only the two
-deterministic scripts (spring_signal_scan.py, partition_repo.py) and
-spring_drift_check.py had tests; a prompt regression in any of the five
-agents/*.md files was previously invisible except by a human reading
-generated output and noticing something's wrong.
+Structural (mechanical) tests for the LLM pipeline stages —
+file-summarizer, architect-segment/architect-merge, gap-analyzer,
+software-architect-and-testing, doc-writer — none of which had any test
+coverage before this file. Only the two deterministic scripts
+(spring_signal_scan.py, partition_repo.py) and spring_drift_check.py had
+tests; a prompt regression in any of the six agents/*.md files was
+previously invisible except by a human reading generated output and
+noticing something's wrong.
 
 Per claude/steering-prompts/01-testability-research-prompt.md: this suite
 is mechanical wherever possible, not LLM-as-judge. It does not invoke any
@@ -204,6 +205,59 @@ def validate_gap_analyzer_questions(questions, max_questions=40):
     if len(questions) > max_questions:
         problems.append((None, f"{len(questions)} questions exceeds sanity ceiling of {max_questions} — "
                                 f"gap-analyzer.md says not to pad the list"))
+    return problems
+
+
+VALID_REVIEW_LENSES = frozenset({"ddia", "testing"})
+VALID_REVIEW_SEVERITIES = frozenset({"informational", "worth-flagging"})
+VALID_RESEARCH_TIERS = frozenset({"A", "B", "C"})
+VALID_RESEARCH_VERDICTS = frozenset({"CONFIRMED", "PLAUSIBLE", "REFUTED", "UNRESOLVED"})
+
+
+def validate_architecture_testing_review_findings(findings, max_findings=60):
+    """agents/software-architect-and-testing.md's documented output: a JSON
+    array of {lens, concept, claim, evidence, external_research, severity}.
+    Every finding needs a real evidence anchor the same way a file-summarizer
+    entry does — the DDIA/Effective-Software-Testing concept is attributed
+    prose, never a substitute for one. external_research is optional and, when
+    present, its sources must never claim Tier C is sufficient on its own
+    (claude/steering-prompts/10-review-persona-and-standards.md §2: "Tier C
+    may never appear as a citation") — this is the mechanical half of that
+    rule; the agent file states it, this suite is what would catch a
+    regression that quietly violated it."""
+    problems = []
+    required_keys = {"lens", "concept", "claim", "evidence", "severity"}
+    for i, f in enumerate(findings):
+        missing = required_keys - f.keys()
+        if missing:
+            problems.append((i, f"missing keys: {sorted(missing)}"))
+            continue
+        if f["lens"] not in VALID_REVIEW_LENSES:
+            problems.append((i, f"lens {f['lens']!r} not one of {sorted(VALID_REVIEW_LENSES)}"))
+        if f["severity"] not in VALID_REVIEW_SEVERITIES:
+            problems.append((i, f"severity {f['severity']!r} not one of {sorted(VALID_REVIEW_SEVERITIES)}"))
+        evidence = f["evidence"]
+        if not isinstance(evidence, list) or not evidence:
+            problems.append((i, "evidence must be a non-empty array — a claim with no anchor is unfalsifiable"))
+        else:
+            for anchor in evidence:
+                if not isinstance(anchor, dict) or "line" not in anchor or "what" not in anchor:
+                    problems.append((i, f"evidence entry missing line/what: {anchor!r}"))
+        external = f.get("external_research")
+        if external:
+            verdict = external.get("verdict")
+            if verdict not in VALID_RESEARCH_VERDICTS:
+                problems.append((i, f"external_research verdict {verdict!r} not one of {sorted(VALID_RESEARCH_VERDICTS)}"))
+            sources = external.get("sources", [])
+            only_tier_c = bool(sources) and all(s.get("tier") == "C" for s in sources)
+            if only_tier_c:
+                problems.append((i, "external_research rests entirely on Tier C sources — Tier C is orientation-only and may never be the sole ground for a claim"))
+            for source in sources:
+                if source.get("tier") not in VALID_RESEARCH_TIERS:
+                    problems.append((i, f"external_research source tier {source.get('tier')!r} not one of {sorted(VALID_RESEARCH_TIERS)}"))
+    if len(findings) > max_findings:
+        problems.append((None, f"{len(findings)} findings exceeds sanity ceiling of {max_findings} — "
+                                f"agents/software-architect-and-testing.md says not to force a quota"))
     return problems
 
 
@@ -430,6 +484,74 @@ class GapAnalyzerShapeTest(unittest.TestCase):
         questions = [{"blocks_file": "database", "topic": f"t{i}", "question": f"q{i}", "evidence": f"src/main/java/A{i}.java:10 is the only writer"}
                      for i in range(41)]
         problems = validate_gap_analyzer_questions(questions, max_questions=40)
+        self.assertTrue(any("sanity ceiling" in p[1] for p in problems))
+
+
+class ArchitectureTestingReviewShapeTest(unittest.TestCase):
+    def test_valid_finding_passes(self):
+        findings = [{
+            "lens": "ddia", "concept": "DDIA ch.6 — no version field",
+            "claim": "InvoiceLedger has no @Version field.",
+            "evidence": [{"file": "InvoiceLedger.java", "line": 22, "what": "@Entity with no @Version"}],
+            "external_research": None, "severity": "worth-flagging",
+        }]
+        self.assertEqual(validate_architecture_testing_review_findings(findings), [])
+
+    def test_missing_evidence_flagged(self):
+        findings = [{"lens": "testing", "concept": "c", "claim": "x", "evidence": [], "severity": "informational"}]
+        problems = validate_architecture_testing_review_findings(findings)
+        self.assertTrue(any("non-empty array" in p[1] for p in problems))
+
+    def test_invalid_lens_flagged(self):
+        findings = [{"lens": "security", "concept": "c", "claim": "x",
+                     "evidence": [{"line": 1, "what": "w"}], "severity": "informational"}]
+        problems = validate_architecture_testing_review_findings(findings)
+        self.assertTrue(any("not one of" in p[1] and "lens" in str(p) for p in problems) or
+                        any("security" in p[1] for p in problems))
+
+    def test_tier_c_only_external_research_flagged(self):
+        """Regression for claude/steering-prompts/10-review-persona-and-standards.md
+        §2's "Tier C may never appear as a citation" — a finding whose
+        external_research rests entirely on deepwiki.com (Tier C) with no
+        Tier A/B backing must be caught, not silently accepted."""
+        findings = [{
+            "lens": "ddia", "concept": "c", "claim": "x",
+            "evidence": [{"line": 1, "what": "w"}], "severity": "informational",
+            "external_research": {
+                "question": "q",
+                "sources": [{"tier": "C", "identifier": "deepwiki.com/x/y"}],
+                "verdict": "PLAUSIBLE",
+            },
+        }]
+        problems = validate_architecture_testing_review_findings(findings)
+        self.assertTrue(any("Tier C" in p[1] for p in problems))
+
+    def test_tier_a_backed_external_research_passes(self):
+        findings = [{
+            "lens": "ddia", "concept": "c", "claim": "x",
+            "evidence": [{"line": 1, "what": "w"}], "severity": "informational",
+            "external_research": {
+                "question": "q",
+                "sources": [{"tier": "A", "identifier": "github.com/x/y"}],
+                "verdict": "CONFIRMED",
+            },
+        }]
+        self.assertEqual(validate_architecture_testing_review_findings(findings), [])
+
+    def test_invalid_verdict_flagged(self):
+        findings = [{
+            "lens": "ddia", "concept": "c", "claim": "x",
+            "evidence": [{"line": 1, "what": "w"}], "severity": "informational",
+            "external_research": {"question": "q", "sources": [], "verdict": "MAYBE"},
+        }]
+        problems = validate_architecture_testing_review_findings(findings)
+        self.assertTrue(any("verdict" in p[1] for p in problems))
+
+    def test_padded_list_exceeds_sanity_ceiling(self):
+        findings = [{"lens": "ddia", "concept": f"c{i}", "claim": f"x{i}",
+                     "evidence": [{"line": i, "what": "w"}], "severity": "informational"}
+                    for i in range(61)]
+        problems = validate_architecture_testing_review_findings(findings, max_findings=60)
         self.assertTrue(any("sanity ceiling" in p[1] for p in problems))
 
 

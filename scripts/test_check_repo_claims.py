@@ -394,6 +394,7 @@ class TestAgentSearchTooling(TreeCase):
 
     SCOPED = ["Bash(ast-grep run:*)"]
     DENIES = ["Bash(grep:*)", "Bash(rg:*)"]
+    NETWORK = ["Bash(curl:*)", "Bash(wget:*)", "Bash(git clone:*)"]
 
     def agent(self, name: str, tools: str) -> None:
         folder = self.dir / "agents"
@@ -419,22 +420,35 @@ class TestAgentSearchTooling(TreeCase):
 
     def test_scoped_bash_grant_passes(self) -> None:
         self.agent("writer.md", "Read, Glob, Write, Bash")
-        self.settings(self.SCOPED, self.DENIES)
+        self.settings(self.SCOPED, self.DENIES + self.NETWORK)
         self.assertEqual(self.run_check(), 0)
 
     def test_bash_without_a_scoped_allowlist_entry_fails(self) -> None:
         """A subagent's tools: field cannot scope Bash, so settings.json is
         the only thing standing between `Bash` and a general shell."""
         self.agent("writer.md", "Read, Glob, Write, Bash")
-        self.settings(["Bash(git status:*)"], self.DENIES)
+        self.settings(["Bash(git status:*)"], self.DENIES + self.NETWORK)
         self.assertEqual(self.run_check(), 1)
 
     def test_bash_without_text_search_denies_fails(self) -> None:
         """Removing the Grep tool buys nothing if the same agent can shell
         out to grep instead."""
         self.agent("writer.md", "Read, Glob, Write, Bash")
-        self.settings(self.SCOPED, [])
+        self.settings(self.SCOPED, self.NETWORK)
         self.assertEqual(self.run_check(), 1)
+
+    def test_bash_without_network_denies_fails(self) -> None:
+        """Grep/rg denied is not enough on its own -- an agent with Bash and
+        WebFetch can still reach the network directly instead of through
+        WebFetch."""
+        self.agent("writer.md", "Read, Glob, Write, Bash")
+        self.settings(self.SCOPED, self.DENIES)  # grep/rg present, network absent
+        self.assertEqual(self.run_check(), 1)
+
+    def test_scoped_bash_grant_with_full_denies_passes(self) -> None:
+        self.agent("writer.md", "Read, Glob, Write, Bash")
+        self.settings(self.SCOPED, self.DENIES + self.NETWORK)
+        self.assertEqual(self.run_check(), 0)
 
     def test_a_dot_claude_agent_is_checked_too(self) -> None:
         folder = self.dir / ".claude" / "agents"
@@ -872,6 +886,8 @@ class TestRealRepo(unittest.TestCase):
                     for e in permissions.get("allow", [])),
                 f"{bash_agents} declare Bash with no scoped allow entry")
             for required in crc.TEXT_SEARCH_DENIES:
+                self.assertIn(required, permissions.get("deny", []))
+            for required in crc.NETWORK_EGRESS_DENIES:
                 self.assertIn(required, permissions.get("deny", []))
 
     def test_every_steering_prompt_with_a_status_has_predicates(self) -> None:

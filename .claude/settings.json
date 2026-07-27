@@ -25,7 +25,25 @@
     "dispatches at once. The matching deny entries stop the same agents",
     "reaching for text search instead; scripts/check_repo_claims.py fails",
     "the build if an agent regains Grep or declares Bash without a scoped",
-    "entry here."
+    "entry here.",
+    "",
+    "The semgrep entries are the same pattern for a sixth agent,",
+    "software-architect-and-testing (agents/software-architect-and-",
+    "testing.md), which also declares bare Bash. It runs",
+    "scripts/spring_semgrep_rules.yml (the curated DDIA/testing-smell",
+    "ruleset) plus, occasionally, a community registry config -- 'semgrep",
+    "scan:*' covers both without granting an unscoped Bash.",
+    "",
+    "The curl/wget/git-clone denies below are the network-egress analog of",
+    "the grep/rg denies above: software-architect-and-testing is the only",
+    "agent granted both Bash and WebFetch today, and nothing stopped a raw",
+    "shell command from reaching arXiv/GitHub/deepwiki.com directly instead",
+    "of going through WebFetch, bypassing the tiering/citation discipline",
+    "its own prompt establishes. git clone is denied by subcommand, not bare",
+    "git, since git status/diff/log/ls-files above are already legitimately",
+    "allowed. check_repo_claims.py's check F fails the build if an agent",
+    "declares Bash without these three denies present, the same as it",
+    "already does for the grep/rg denies."
   ],
   "hooks": {
     "PreToolUse": [
@@ -35,6 +53,33 @@
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/hooks/require_hardened_tests.py\""
+          }
+        ]
+      },
+      {
+        "$comment": [
+          "Added 2026-07-25 after this exact mistake produced two false 'green'",
+          "reports in one session: `gradle ... | tail -30` then `echo \"EXIT=$?\"`",
+          "reads tail's exit code, not gradle's -- tail always exits 0. Runs on",
+          "every Bash call (cheap regex over the command string); denies with a",
+          "corrective pattern rather than asking, since a human is not always",
+          "present to unblock a background session. See .claude/hooks/",
+          "check_pipe_exit_code.py for the full reasoning and its escape hatches",
+          "(PIPESTATUS, pipefail).",
+          "",
+          "A second hook (enforce_repo_claims_before_commit.py) was written",
+          "alongside this one to run check_repo_claims.py before every git",
+          "commit, then deleted on discovering hooks/require_hardened_tests.py",
+          "already does that plus check_code_quality.py plus missing-test-sibling",
+          "and unwired-CI-suite checks. Do not re-add it -- extend",
+          "require_hardened_tests.py instead if this gate needs to grow."
+        ],
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/check_pipe_exit_code.py",
+            "timeout": 10
           }
         ]
       }
@@ -53,6 +98,8 @@
       "Bash(ast-grep scan:*)",
       "Bash(ast-grep test:*)",
       "Bash(ast-grep --version)",
+      "Bash(semgrep scan:*)",
+      "Bash(semgrep --version)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
@@ -64,7 +111,10 @@
       "Bash(egrep:*)",
       "Bash(fgrep:*)",
       "Bash(rg:*)",
-      "Bash(ripgrep:*)"
+      "Bash(ripgrep:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Bash(git clone:*)"
     ]
   }
 }

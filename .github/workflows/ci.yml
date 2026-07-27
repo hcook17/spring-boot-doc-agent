@@ -72,6 +72,35 @@ jobs:
                        f"other; run `which -a ast-grep`.")
           PY
 
+      # Same shape as the ast-grep check above, same reason: presence on PATH
+      # is not enough if it's not the pinned version. semgrep backs the
+      # software-architect-and-testing agent's ruleset (scripts/spring_semgrep_
+      # rules.yml), not the deterministic signal-scan layer -- see CONSTRAINTS.md's
+      # "Runtime prerequisites" for why it's a separate entry from ast-grep's.
+      - name: Verify semgrep on PATH matches the pin
+        run: |
+          python3 - <<'PY'
+          import re, shutil, subprocess, sys, pathlib
+          pin = re.search(r"^semgrep~=(\d+)\.(\d+)\.",
+                          pathlib.Path("requirements.txt").read_text(), re.M)
+          if not pin:
+              sys.exit("requirements.txt does not pin semgrep")
+          binary = shutil.which("semgrep")
+          if not binary:
+              sys.exit("semgrep is not on PATH")
+          out = subprocess.run([binary, "--version"], capture_output=True,
+                               text=True).stdout.strip()
+          got = re.search(r"(\d+)\.(\d+)\.(\d+)", out)
+          if not got:
+              sys.exit(f"could not parse a version from {out!r}")
+          want, have = (pin.group(1), pin.group(2)), (got.group(1), got.group(2))
+          print(f"pin={'.'.join(want)}.x  resolved={out}  at {binary}")
+          if want != have:
+              sys.exit(f"semgrep on PATH is {out}, but requirements.txt pins "
+                       f"{'.'.join(want)}.x. Two installs are shadowing each "
+                       f"other; run `which -a semgrep`.")
+          PY
+
       # Lint and import order. Rule selection, the 110-character line length
       # (derived from this repo's own p99.5, not from a style guide), and the
       # two deliberately-deferred rule families with their counts all live in
@@ -119,6 +148,16 @@ jobs:
       # same shape check_code_quality.py uses. This step fails the build.
       - name: rule_coverage.py (rule non-vacuity gate)
         run: python3 scripts/rule_coverage.py
+
+      # semgrep analog of the gate directly above: every rule in
+      # scripts/spring_semgrep_rules.yml must fire on scripts/semgrep_rule_
+      # fixtures/. Same split as rule_coverage.py -- only the fixture
+      # non-vacuity mode runs here; the backtest/ratchet mode is dev-machine
+      # only, and scripts/semgrep_rule_coverage_baseline.json does not exist
+      # yet because no real-repo backtest has been run (stated in CONSTRAINTS.md
+      # rather than faked with an invented baseline).
+      - name: semgrep_rule_coverage.py (rule non-vacuity gate)
+        run: python3 scripts/semgrep_rule_coverage.py
 
       # Measurements, not a verdict -- this step cannot fail, and is named so
       # that reads as true at a glance rather than looking like enforcement.
@@ -182,6 +221,16 @@ jobs:
       - name: test_citation_coverage.py
         run: python3 scripts/test_citation_coverage.py -v
 
+      # Same shape again: check_no_client_identifiers.py needs a real
+      # bytecode-oracle aggregate.json to gate, which CI has none of, so only
+      # its unit tests run here. Those tests are what this checker had never
+      # had before this suite -- and writing them surfaced a real bug fixed
+      # in the same change: PATTERNED_STRING_VALUES (for language_dirs) was
+      # defined but never consulted in _walk(), so a legitimate "java:main"
+      # value was a false positive on this confidentiality gate.
+      - name: test_check_no_client_identifiers.py
+        run: python3 scripts/test_check_no_client_identifiers.py -v
+
       # Covers the ratchet itself. Most of these tests exist for non-vacuity:
       # they assert each failure mode reaches a non-zero exit code, because a
       # ratchet that silently passes everything is indistinguishable from a
@@ -203,8 +252,34 @@ jobs:
       - name: test_deny_text_search.py
         run: python3 scripts/test_deny_text_search.py -v
 
+      # Runtime half of the network-egress policy. check_repo_claims.py's
+      # check F covers the static half (curl/wget/git-clone denied the
+      # instant any agent declares Bash); this covers the half that static
+      # inspection cannot reach -- a raw shell command actually gets blocked.
+      - name: test_deny_raw_network.py
+        run: python3 scripts/test_deny_raw_network.py -v
+
+      # Empirical instrument for source-text vs bytecode tradeoffs. Proof that
+      # native arm matches direct extends links and misses transitive ones, and
+      # that multipass recovers the transitive misses (proving STRUCTURAL cause).
+      # Skips itself if ast-grep is unavailable.
+      - name: test_stage0_oracle_compare.py
+        run: python3 scripts/test_stage0_oracle_compare.py -v
+
+      # This repo's second PreToolUse-on-Bash hook: blocks a build/test tool
+      # piped into a filter that discards its own exit status ($? after a
+      # pipe reads the filter's code, not the tool's). Shipped from
+      # .claude/hooks/ with no suite at all until this one -- the file lived
+      # outside the one directory hooks/require_hardened_tests.py checked at
+      # the time, so nothing required it to have tests.
+      - name: test_check_pipe_exit_code.py
+        run: python3 scripts/test_check_pipe_exit_code.py -v
+
       - name: test_rule_coverage.py
         run: python3 scripts/test_rule_coverage.py -v
+
+      - name: test_semgrep_rule_coverage.py
+        run: python3 scripts/test_semgrep_rule_coverage.py -v
 
       # Reads the Stage-1/2/3 output contracts back out of agents/*.md and
       # asserts they still equal the constants the validators enforce. Those

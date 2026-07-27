@@ -79,8 +79,28 @@ class MissingTestSuiteTest(unittest.TestCase):
         for name, reason in gate.TEST_EXEMPT.items():
             self.assertGreater(len(reason.strip()), 15, name)
 
-    def test_files_outside_scripts_are_ignored(self) -> None:
-        self.assertEqual(gate.missing_test_suites(["CLAUDE.md", "hooks/x.py"]), [])
+    def test_a_hook_without_a_suite_is_reported(self) -> None:
+        """check_pipe_exit_code.py shipped from .claude/hooks/ with no test
+        and nothing caught it: this guard used to check only scripts/, so a
+        hook living anywhere else was invisible to it. hooks/ and the nested
+        .claude/hooks/ form must both be covered now."""
+        problems = gate.missing_test_suites(["hooks/brand_new_hook.py"])
+        self.assertEqual(len(problems), 1)
+        self.assertIn("test_brand_new_hook.py", problems[0])
+
+    def test_a_nested_claude_hooks_file_without_a_suite_is_reported(self) -> None:
+        problems = gate.missing_test_suites([".claude/hooks/brand_new_hook.py"])
+        self.assertEqual(len(problems), 1)
+        self.assertIn("test_brand_new_hook.py", problems[0])
+
+    def test_a_hook_with_a_suite_passes(self) -> None:
+        self.assertEqual(
+            gate.missing_test_suites(["hooks/deny_text_search.py"]), [])
+        self.assertEqual(
+            gate.missing_test_suites([".claude/hooks/check_pipe_exit_code.py"]), [])
+
+    def test_files_outside_scripts_and_hooks_are_ignored(self) -> None:
+        self.assertEqual(gate.missing_test_suites(["CLAUDE.md"]), [])
 
 
 class UnwiredSuiteTest(unittest.TestCase):

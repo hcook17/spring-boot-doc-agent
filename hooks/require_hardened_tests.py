@@ -80,7 +80,12 @@ def missing_test_suites(staged: List[str]) -> List[str]:
     problems = []
     for rel in staged:
         path = Path(rel)
-        if path.parent.name != "scripts" or path.suffix != ".py":
+        # Path.name is only the final segment, so "hooks" here also covers
+        # .claude/hooks/foo.py -- no separate case needed for the nested
+        # form. check_pipe_exit_code.py shipped from .claude/hooks/ with no
+        # test and no test suite named it, because this guard used to read
+        # `!= "scripts"` and neither hook directory was in it.
+        if path.parent.name not in {"scripts", "hooks"} or path.suffix != ".py":
             continue
         if path.name.startswith("test_") or path.name in TEST_EXEMPT:
             continue

@@ -340,6 +340,17 @@ def derive_ast_grep_rule_count(root: Path) -> str:
                               rules.read_text(encoding="utf-8"), re.MULTILINE)))
 
 
+def derive_semgrep_rule_count(root: Path) -> str:
+    """semgrep analog of derive_ast_grep_rule_count above -- same reasoning,
+    different id shape: a `- id:` YAML list item under `rules:`, not a bare
+    top-level `id:` in a `---`-separated multi-document file."""
+    rules = (root / "scripts" / "spring_semgrep_rules.yml")
+    if not rules.is_file():
+        return "0"
+    return str(len(re.findall(r"^\s*-\s*id:\s*[a-z0-9_]+__[a-z0-9_]+\s*$",
+                              rules.read_text(encoding="utf-8"), re.MULTILINE)))
+
+
 DERIVATIONS: Dict[str, Callable[[Path], str]] = {
     "test_suite_count": derive_test_suite_count,
     "test_method_count": derive_test_method_count,
@@ -348,6 +359,7 @@ DERIVATIONS: Dict[str, Callable[[Path], str]] = {
     "pipeline_agent_count": derive_pipeline_agent_count,
     "predicate_count": derive_predicate_count,
     "ast_grep_rule_count": derive_ast_grep_rule_count,
+    "semgrep_rule_count": derive_semgrep_rule_count,
 }
 
 
@@ -1107,8 +1119,8 @@ def check_gate_honesty(root: Path) -> List[Finding]:
 
 
 # --------------------------------------------------------------------------
-# Check F -- agents search structurally, and the Bash grant that lets them
-# stays scoped
+# Check F -- agents search structurally and reach the network only through
+# sanctioned tools, and the Bash grant that lets them stays scoped
 # --------------------------------------------------------------------------
 
 # The tool name an agent must not declare, and the allowlist prefix that keeps
@@ -1117,6 +1129,14 @@ def check_gate_honesty(root: Path) -> List[Finding]:
 FORBIDDEN_AGENT_TOOL = "Grep"
 SCOPED_BASH_PREFIX = "Bash(ast-grep"
 TEXT_SEARCH_DENIES = ("Bash(grep:*)", "Bash(rg:*)")
+
+# Network egress analog of TEXT_SEARCH_DENIES: reaching the outside world via
+# a raw shell command instead of the WebFetch tool bypasses the same
+# tiering/citation discipline that mandating ast-grep over grep protects on
+# the search side. `git clone` is denied by subcommand, not bare `git` --
+# `Bash(git status:*)`/`diff`/`log`/`ls-files` are already legitimately
+# allowed in .claude/settings.json and must keep working.
+NETWORK_EGRESS_DENIES = ("Bash(curl:*)", "Bash(wget:*)", "Bash(git clone:*)")
 
 
 def _agent_definitions(root: Path) -> List[Path]:
@@ -1137,14 +1157,20 @@ def _declared_tools(path: Path) -> List[str]:
 
 
 def check_agent_search_tooling(root: Path) -> List[Finding]:
-    """Agents must search structurally (ast-grep), not textually.
+    """Agents must search structurally (ast-grep), not textually, and must
+    reach the network only through WebFetch, not a raw shell command.
 
     Two failure modes, because they are genuinely different. An agent that
     declares Grep is searching text, which matches inside strings and comments
     and is how a citation ends up anchored to a line that does not support the
     claim. An agent that declares Bash without a scoped allowlist entry has a
     general shell instead -- and a subagent's `tools:` field accepts bare tool
-    names only, so settings.json is the ONLY place that scoping can live."""
+    names only, so settings.json is the ONLY place that scoping can live. The
+    network case is the same shape one layer out: an agent with both Bash and
+    WebFetch (software-architect-and-testing is the only one today) can fetch
+    a third party (arXiv, GitHub, deepwiki.com) via curl/wget/git clone
+    instead of WebFetch, bypassing the tiering/citation discipline that tool
+    is meant to enforce."""
     findings: List[Finding] = []
     settings_path = root / ".claude" / "settings.json"
     try:
@@ -1184,6 +1210,17 @@ def check_agent_search_tooling(root: Path) -> List[Finding]:
                     f"an agent declares Bash but {required!r} is not denied. "
                     f"Removing the Grep tool accomplishes nothing if the same "
                     f"agent can shell out to text search instead.",
+                    f"F:missing-deny:{required}"))
+        for required in NETWORK_EGRESS_DENIES:
+            if required not in deny:
+                findings.append(Finding(
+                    "F", ".claude/settings.json", 1,
+                    f"an agent declares Bash but {required!r} is not denied. "
+                    f"An agent with both Bash and WebFetch (today, only "
+                    f"software-architect-and-testing) can reach the network "
+                    f"through a raw shell command instead, bypassing "
+                    f"WebFetch's tiering/citation discipline the same way an "
+                    f"unscoped Bash bypasses the ast-grep mandate.",
                     f"F:missing-deny:{required}"))
     return findings
 

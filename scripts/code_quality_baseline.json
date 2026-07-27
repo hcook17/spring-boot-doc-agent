@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
-  "production_functions": 278,
-  "production_functions_annotated": 147,
+  "production_functions": 279,
+  "production_functions_annotated": 148,
   "limits_for_new_functions": {
     "statements": 140,
     "complexity": 34,
@@ -10,7 +10,7 @@
   "unparseable": [],
   "docstring_violations": {
     "build_cross_group_edges.py": "build_cross_group_edges.py: 'how to run it' is at docstring line 64; the contract is within 20. Move the Usage block above the rationale.",
-    "capacity_preflight.py": "capacity_preflight.py: 'how to run it' is at docstring line 58; the contract is within 20. Move the Usage block above the rationale.",
+    "capacity_preflight.py": "capacity_preflight.py: 'how to run it' is at docstring line 61; the contract is within 20. Move the Usage block above the rationale.",
     "check_code_quality.py": "check_code_quality.py: 'how to run it' is at docstring line 51; the contract is within 20. Move the Usage block above the rationale.",
     "check_llms_coverage.py": "check_llms_coverage.py: 'how to run it' is at docstring line 36; the contract is within 20. Move the Usage block above the rationale.",
     "check_no_secrets_leaked.py": "check_no_secrets_leaked.py: 'how to run it' is at docstring line 29; the contract is within 20. Move the Usage block above the rationale.",
@@ -23,7 +23,7 @@
     "test_enterprise_kitchen_sink.py": "test_enterprise_kitchen_sink.py: 'how to run it' is at docstring line 78; the contract is within 20. Move the Usage block above the rationale.",
     "test_metamorphic.py": "test_metamorphic.py: 'how to run it' is at docstring line 32; the contract is within 20. Move the Usage block above the rationale.",
     "test_partition_repo_real_world.py": "test_partition_repo_real_world.py: runnable module, but its 23-line docstring never says how to run it",
-    "test_pipeline_stages.py": "test_pipeline_stages.py: 'how to run it' is at docstring line 38; the contract is within 20. Move the Usage block above the rationale.",
+    "test_pipeline_stages.py": "test_pipeline_stages.py: 'how to run it' is at docstring line 39; the contract is within 20. Move the Usage block above the rationale.",
     "test_spring_signal_scan.py": "test_spring_signal_scan.py: runnable module, but its 18-line docstring never says how to run it"
   },
   "functions": {
@@ -378,8 +378,8 @@
       "depth": 1
     },
     "check_repo_claims.py::check_agent_search_tooling": {
-      "statements": 21,
-      "complexity": 13,
+      "statements": 24,
+      "complexity": 15,
       "depth": 3
     },
     "check_repo_claims.py::check_ci_suite_coverage": {
@@ -446,6 +446,11 @@
       "statements": 1,
       "complexity": 1,
       "depth": 0
+    },
+    "check_repo_claims.py::derive_semgrep_rule_count": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
     },
     "check_repo_claims.py::derive_steering_prompt_count": {
       "statements": 2,
@@ -1618,7 +1623,7 @@
       "depth": 0
     },
     "test_capacity_preflight.py::FanoutArithmeticTest.test_total_fanout_formula": {
-      "statements": 7,
+      "statements": 8,
       "complexity": 1,
       "depth": 0
     },
@@ -2247,6 +2252,11 @@
       "complexity": 1,
       "depth": 0
     },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_bash_without_network_denies_fails": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
     "test_check_repo_claims.py::TestAgentSearchTooling.test_bash_without_text_search_denies_fails": {
       "statements": 3,
       "complexity": 1,
@@ -2258,6 +2268,11 @@
       "depth": 0
     },
     "test_check_repo_claims.py::TestAgentSearchTooling.test_scoped_bash_grant_passes": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_scoped_bash_grant_with_full_denies_passes": {
       "statements": 3,
       "complexity": 1,
       "depth": 0
@@ -2528,8 +2543,8 @@
       "depth": 1
     },
     "test_check_repo_claims.py::TestRealRepo.test_real_bash_agents_are_scoped_by_settings": {
-      "statements": 7,
-      "complexity": 6,
+      "statements": 9,
+      "complexity": 7,
       "depth": 2
     },
     "test_check_repo_claims.py::TestRealRepo.test_real_repo_passes": {
@@ -4137,6 +4152,41 @@
       "complexity": 1,
       "depth": 0
     },
+    "test_pipeline_stages.py::ArchitectureTestingReviewShapeTest.test_invalid_lens_flagged": {
+      "statements": 3,
+      "complexity": 5,
+      "depth": 0
+    },
+    "test_pipeline_stages.py::ArchitectureTestingReviewShapeTest.test_invalid_verdict_flagged": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_pipeline_stages.py::ArchitectureTestingReviewShapeTest.test_missing_evidence_flagged": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_pipeline_stages.py::ArchitectureTestingReviewShapeTest.test_padded_list_exceeds_sanity_ceiling": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 0
+    },
+    "test_pipeline_stages.py::ArchitectureTestingReviewShapeTest.test_tier_a_backed_external_research_passes": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_pipeline_stages.py::ArchitectureTestingReviewShapeTest.test_tier_c_only_external_research_flagged": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_pipeline_stages.py::ArchitectureTestingReviewShapeTest.test_valid_finding_passes": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
     "test_pipeline_stages.py::ArchitectureTraceabilityTest.test_fabricated_node_label_flagged": {
       "statements": 4,
       "complexity": 1,
@@ -4327,6 +4377,11 @@
       "complexity": 5,
       "depth": 2
     },
+    "test_pipeline_stages.py::validate_architecture_testing_review_findings": {
+      "statements": 32,
+      "complexity": 19,
+      "depth": 4
+    },
     "test_pipeline_stages.py::validate_file_summarizer_entries": {
       "statements": 15,
       "complexity": 8,
@@ -4457,6 +4512,21 @@
       "complexity": 2,
       "depth": 1
     },
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_a_hook_with_a_suite_passes": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_a_hook_without_a_suite_is_reported": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_a_nested_claude_hooks_file_without_a_suite_is_reported": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
     "test_require_hardened_tests.py::MissingTestSuiteTest.test_a_new_script_without_a_suite_is_reported": {
       "statements": 3,
       "complexity": 1,
@@ -4477,7 +4547,7 @@
       "complexity": 2,
       "depth": 1
     },
-    "test_require_hardened_tests.py::MissingTestSuiteTest.test_files_outside_scripts_are_ignored": {
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_files_outside_scripts_and_hooks_are_ignored": {
       "statements": 1,
       "complexity": 1,
       "depth": 0
@@ -4622,7 +4692,7 @@
       "complexity": 4,
       "depth": 1
     },
-    "test_run_manifest.py::CapacityPreflightTieInTest.test_all_five_real_keys_map_and_architect_sums": {
+    "test_run_manifest.py::CapacityPreflightTieInTest.test_all_six_real_keys_map_and_architect_sums": {
       "statements": 9,
       "complexity": 3,
       "depth": 2

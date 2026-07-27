@@ -6,6 +6,7 @@ Evidence sources referenced below:
 - **signals** = `spring_signals.json` (deterministic AST scan via ast-grep — see `scripts/spring_signal_scan.py`)
 - **summaries** = the merged output of Stage 1 (`file-summarizer` subagents)
 - **arch** = the merged Mermaid diagram from Stage 2 (`architect-merge`)
+- **arch_test_review** = `architecture_testing_review.json` from Stage 3 (`software-architect-and-testing`) — DDIA- and Effective-Software-Testing-lens findings about the target repo, each still evidenced the ordinary way (a real `path:line`); only `architecture.md` and `testing.md` receive this
 - **interview** = answers collected by the orchestrator directly from the user in Stage 3
 
 ## What counts as "code evidence"
@@ -26,8 +27,9 @@ Not everything that's technically text in the repository carries the same eviden
 
 ## 2. architecture.md
 **Purpose**: the merged Mermaid diagram plus prose explaining major subgraphs/modules.
-**Evidence**: arch (diagram + discrepancy notes), summaries (`group_function` fields).
+**Evidence**: arch (diagram + discrepancy notes), summaries (`group_function` fields), arch_test_review (DDIA-lens findings — partitioning, replication/consistency, schema evolution, batch/stream duality).
 **Interview-worthy**: nothing new — this is almost entirely code-derived. If `architect-merge`'s discrepancy section flagged a conflict with an existing README/doc, surface it here rather than silently picking a side.
+**On arch_test_review findings**: fold in as a normal, tagged claim (its `evidence` array gives you a real `path:line` the same way a `summaries` entry does) — add the DDIA concept name as attributed prose right next to it (e.g. "per DDIA 2e ch.6, partitioning..."), never as its own tag. If a finding carries `external_research`, mention the source in prose too (e.g. "per spring-projects/spring-kafka's reference docs") but do not wrap it in `[Evidenced — ...]` — that tag is reserved for a fact readable at a cited location in *this* repo, and an external repo or paper is neither. A Tier C source (deepwiki.com) inside `external_research` may ground your own understanding but must never itself be the thing a sentence in this doc rests on — see `agents/software-architect-and-testing.md` for the full tiering discipline.
 
 ## 3. integrations.md
 **Purpose**: every external system this service talks to — other services, message brokers, third-party APIs.
@@ -83,8 +85,9 @@ Not everything that's technically text in the repository carries the same eviden
 
 ## 13. testing.md
 **Purpose**: how this repo is tested and what conventions to follow when adding tests.
-**Evidence**: signals.testing (`@SpringBootTest`, Testcontainers usage), summaries of files under a test source root.
+**Evidence**: signals.testing (`@SpringBootTest`, Testcontainers usage), summaries of files under a test source root, arch_test_review (Effective Software Testing-lens findings — specification-based/boundary gaps, structural gaps, test-double discipline, named test smells).
 **Interview-worthy**: coverage targets or testing policy that's a team norm rather than something enforced in code (e.g. "we require integration tests for anything touching billing_invoice" isn't visible in a coverage report).
+**On arch_test_review findings**: same rule as architecture.md above — cite the underlying `path:line` as an ordinary tagged claim, attribute the Effective Software Testing concept (and any external research trail) as prose alongside it, never as a new tag.
 
 ## 14. known_limitations.md
 **Purpose**: known gaps, deliberate shortcuts, and things that are technically debt rather than design.

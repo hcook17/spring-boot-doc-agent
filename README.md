@@ -8,7 +8,9 @@ A Claude Code plugin that scans a Spring Boot repository, asks you the questions
 Stage 0  Deterministic scan (no LLM)     spring_signal_scan.py + partition_repo.py
 Stage 1  Parallel file summarization      file-summarizer × N groups, concurrent
 Stage 2  Parallel architecture            architect-segment × N groups (concurrent) → architect-merge (single)
-Stage 3  Gap analysis + LIVE interview    gap-analyzer (single, prepares questions) → orchestrator asks you directly
+Stage 3  Gap analysis + architecture/     gap-analyzer (single, prepares questions) +
+         testing review + LIVE interview  software-architect-and-testing (single, DDIA/testing findings)
+                                           → orchestrator asks gap-analyzer's questions directly
 Stage 4  Parallel doc generation          doc-writer × 14 files, concurrent
 ```
 
@@ -58,6 +60,10 @@ Tested via `python3 scripts/test_spring_drift_check.py -v`, a real integration t
 
 This is deliberately standalone, not a bug: no LLM calls, no CI wiring, not invoked automatically by the `document-spring-repo` pipeline. You run it by hand, pointing it at a repo and a prior scan, and use its report to decide what (if anything) needs a closer look.
 
+## On the architecture/testing review agent (`software-architect-and-testing`)
+
+Stage 3 also dispatches `software-architect-and-testing` (`agents/software-architect-and-testing.md`), which reviews the target repo through two books' lenses — [Designing Data-Intensive Applications, 2e](https://dataintensive.net/) (partitioning, replication/consistency, schema evolution, batch/stream processing) and *Effective Software Testing* (Aniche, Manning) (specification-based/boundary gaps, structural gaps, test-double discipline, named test smells) — feeding `architecture.md` and `testing.md` specifically. Its findings are evidenced the ordinary way (a real `path:line`, checked with `ast-grep` or, for the cross-cutting/multi-line patterns ast-grep's single-file matching doesn't reach cleanly, [semgrep](https://semgrep.dev) — see `scripts/spring_semgrep_rules.yml`, with the same non-vacuity gate `rule_coverage.py` holds the ast-grep ruleset to: `scripts/semgrep_rule_coverage.py`). When a finding hinges on whether an external library or pattern is a reasonable choice, it does bounded, tiered research (arXiv, GitHub filtered by stars and recent pushes, deepwiki.com as orientation only) rather than trusting memory — see the agent file and `claude/steering-prompts/00-shared-research-standards.md`/`10-review-persona-and-standards.md` for the exact discipline. Needs `semgrep` on `PATH` in addition to `ast-grep` — also pinned in `requirements.txt`.
+
 ## Testing the LLM stages
 
 Only the deterministic scripts had test coverage until now. `scripts/test_pipeline_stages.py` adds mechanical (not LLM-judge) structural tests for the four LLM stages — file-summarizer, architect-segment/architect-merge, gap-analyzer, doc-writer — checking the required `[Evidenced — ...]`/`[Confirmed — ...]`/`[Unknown — ...]`/`[Per existing docs — ...]` tag grammar, whether `[Evidenced — path:line]` citations actually resolve to real files/lines, each stage's required JSON output shape, and whether architecture-diagram node labels trace back to real file/class names:
@@ -94,5 +100,5 @@ claude plugin install spring-boot-doc-agent@spring-boot-doc-agent-marketplace
 1. `.claude-plugin/plugin.json` and `marketplace.json` both name a real author, and `plugin.json`'s `license` is `"MIT"`, matching the root `LICENSE` file. (`marketplace.json` carries no `license` field of its own — it inherits by reference, since its one plugin entry points at `./`.) Confirm both still say what you want before sharing this beyond your own machine.
 2. Read `skills/document-spring-repo/references/doc-taxonomy.md` once yourself before the first real run — it's the actual spec for what "good" looks like per file, and it's worth knowing what it does and doesn't ask about.
 3. Make sure `ast-grep` is on `PATH` (see above) before the first run — Stage 0 will fail fast with an install pointer if it isn't.
-4. Try it on one real (ideally smaller) service first. All five `agents/` files are native Claude Code subagent prompts now (not literal text adapted from a paper or another plugin) — `architect-segment`/`architect-merge` still carry forward the source paper's methodology (node-naming fidelity, subgraph aggregation, discrepancy-flagging), just reimplemented rather than copied.
+4. Try it on one real (ideally smaller) service first. All <!-- derived: pipeline_agent_count -->6<!-- /derived --> `agents/` files are native Claude Code subagent prompts now (not literal text adapted from a paper or another plugin) — `architect-segment`/`architect-merge` still carry forward the source paper's methodology (node-naming fidelity, subgraph aggregation, discrepancy-flagging), just reimplemented rather than copied.
 5. The interview stage will feel slow the first time — that's by design, not a bug. It's the only stage doing something a script fundamentally cannot.
