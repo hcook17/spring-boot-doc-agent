@@ -720,7 +720,7 @@ Assumptions affected:
 Files touched: scripts/check_no_client_identifiers.py, scripts/test_check_no_client_identifiers.py, scripts/test_stage0_oracle_compare.py, .github/workflows/ci.yml, scripts/stage0_oracle_compare.py, CONSTRAINTS.md, CLAUDE.md, claude/session-log.md
 
 ## 2026-07-27 — Stage 0 accuracy follow-ups: multi-hyphen profiles, contested entity_table_map, measured on in-tree mid-size checkout
-Commit: 62bc3ed
+Commit: 3df87fb
 Tests: 	est_spring_signal_scan.py 58/58; 	est_stage0_oracle_compare.py NativeVsMultipass+AssignCause 5/5; 	est_enterprise_kitchen_sink.py RealEnterpriseRepoTest+Ch03+multi-segment 13/13 (1 expectedFailure); check_repo_claims.py OK; check_code_quality.py OK after deliberate --update for one fixture-write statement.
 Assumptions affected:
 - CONSTRAINTS.md Known precision item 7 (multi-segment profiles skipped / credential blind spot) — [Resolved — CONFIG_NAME_PATTERNS widened to include hyphenated profile segments; kitchen-sink + RealEnterpriseRepoTest pin recognition / config_key_sets membership.]
