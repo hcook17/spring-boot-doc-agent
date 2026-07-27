@@ -182,6 +182,7 @@ import shutil
 import subprocess
 import sys
 
+from _build_signal_extract import extract_build_signals
 from _config_keys import extract_config_keys
 from _secret_heuristics import scan_text_for_secrets
 from _shared_excludes import DEFAULT_EXCLUDED_DIRS as EXCLUDED_DIRS
@@ -772,13 +773,27 @@ def _classify_non_java_file(full, rel, name, ext, buckets, files_scanned,
         _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
         return
 
-    if _is_build_file(name, ext):
+    if _is_build_file(name, ext) or name == "libs.versions.toml":
         # `deployment` (-> operations.md) rather than a new bucket: this is
         # how the service is built and shipped, which is what that bucket
         # already means for Dockerfiles and k8s manifests. A new bucket
         # would ripple into the fourteen-file taxonomy for no gain.
         files_scanned["deployment"] += 1
-        buckets["deployment"].append({"file": rel, "match": "build script"})
+        if name == "libs.versions.toml":
+            buckets["deployment"].append({"file": rel, "match": "version catalog"})
+        else:
+            buckets["deployment"].append({"file": rel, "match": "build script"})
+        # Read build scripts for dependency/plugin/module/toolchain evidence
+        # (ast-grep cannot parse Groovy). Also run the config/deployment
+        # redaction/key heuristics since build files can carry credentials.
+        try:
+            with open(full, encoding="utf-8-sig", errors="replace") as fh:
+                build_text = fh.read()
+        except OSError as e:
+            build_text = ""
+            print(f"warning: could not read build file '{rel}' for signal extraction: {e}", file=sys.stderr)
+        for row in extract_build_signals(rel, build_text):
+            buckets["deployment"].append(row)
         _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
         return
 

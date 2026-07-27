@@ -654,11 +654,61 @@ def _recheck_config_keys(repo_path, file_rel, old_keys):
     return STATUS_CONFIG_VALUES_ONLY_CHANGED, detail
 
 
+def _recheck_build_signals(repo_path, file_rel, group):
+    """Tier-2 for the synthetic build-file rule ids produced by
+    _build_signal_extract.py. Reads the file, re-runs the extractor, and
+    compares by structured identity (plugin_id, coordinate, module,
+    toolchain, catalog key) rather than by raw match text, since the same
+    line can match multiple rules and the match text is not distinctive."""
+    full_path = os.path.join(repo_path, file_rel)
+    try:
+        with open(full_path, encoding="utf-8-sig", errors="replace") as f:
+            text = f.read()
+    except OSError as e:
+        return [
+            drift_result(source, citation, STATUS_DRIFTED, 2,
+                         f"could not read build file for re-verification: {e}")
+            for source, citation in group
+        ]
+
+    fresh = extract_build_signals(file_rel, text)
+
+    def identity(row):
+        rid = row.get("rule_id")
+        if rid == "deployment__build_plugin":
+            return (rid, row.get("plugin_id"), row.get("plugin_version"))
+        if rid == "deployment__build_dependency":
+            coord = row.get("coordinate") or {}
+            return (rid, row.get("configuration"), coord.get("group"), coord.get("name"), coord.get("version"))
+        if rid == "deployment__build_module":
+            return (rid, row.get("module"))
+        if rid == "deployment__build_toolchain":
+            return (rid, row.get("toolchain_kind"), row.get("toolchain_value"))
+        if rid == "deployment__version_catalog":
+            return (rid, row.get("catalog_kind"), row.get("catalog_key"))
+        return (rid, row.get("match"))
+
+    fresh_counts = Counter(identity(r) for r in fresh)
+    budget = dict(fresh_counts)
+    results = []
+    for source, citation in group:
+        key = identity(citation)
+        if budget.get(key, 0) > 0:
+            budget[key] -= 1
+            results.append(drift_result(source, citation, STATUS_CONFIRMED, 2))
+        else:
+            detail = f"no fresh build signal match for {citation.get('rule_id')} identity {key}"
+            results.append(drift_result(source, citation, STATUS_DRIFTED, 2, detail))
+    return results
+
+
 def tier2_recheck_file(repo_path, file_rel, citations_for_file, ast_grep_path):
     """citations_for_file: list of (source, citation), all sharing file_rel,
     all with a rule_id (caller filters out the no-rule_id ones first). One
     ast-grep invocation for the whole file — covering every rule_id it has
     citations for — rather than one invocation per citation or per rule.
+    Build-file synthetic rule_ids skip ast-grep and use _build_signal_extract
+    instead.
 
     Returns (results, fresh_entity_tables) — the latter is {} unless this
     file actually has persistence__entity citations, in which case it's
@@ -678,6 +728,9 @@ def tier2_recheck_file(repo_path, file_rel, citations_for_file, ast_grep_path):
     results = []
     fresh_entity_tables = {}
     for rule_id, group in old_by_rule.items():
+        if rule_id.startswith("deployment__build_") or rule_id == "deployment__version_catalog":
+            results += _recheck_build_signals(repo_path, file_rel, group)
+            continue
         fresh = fresh_by_rule.get(rule_id, [])
         if rule_id == "persistence__entity":
             entity_results, fresh_entity_tables = _recheck_entities(file_rel, fresh, group)

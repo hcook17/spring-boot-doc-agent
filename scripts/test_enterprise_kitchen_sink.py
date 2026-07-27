@@ -234,6 +234,23 @@ def build_enterprise_repo(root):
 
     _w(root, "README.md", "# Acme Platform\n\nPre-existing overview.\n")
     _w(root, "pom.xml", "<project><modules/></project>\n")
+    _w(root, "build.gradle", """plugins {
+    id 'org.springframework.boot' version '3.2.0'
+    id 'java'
+}
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10'
+}
+sourceCompatibility = '17'
+""")
+    _w(root, "settings.gradle", "include 'billing'\ninclude ':ledger'\n")
+    _w(root, "gradle/libs.versions.toml", """
+[versions]
+spring-boot = "3.2.0"
+[libraries]
+starter = { module = "org.springframework.boot:spring-boot-starter", version.ref = "spring-boot" }
+""")
     _w(root, ".gitignore", "generated/\n*.log\n")
     _w(root, "Dockerfile", "FROM eclipse-temurin:21-jre\nCOPY app.jar /app.jar\n")
     _w(root, "docker-compose.yml", "services:\n  db:\n    image: postgres:16\n")
@@ -819,6 +836,27 @@ class Ch04EncodingTest(unittest.TestCase):
     def test_zero_byte_config_is_absent_rather_than_present_and_empty(self):
         self.assertNotIn(EMPTY_YML, self.signals["config_key_sets"])
         self.assertNotIn(EMPTY_YML, self.signals["redaction_zones"])
+
+    def test_build_gradle_signals_extracted(self):
+        """Build scripts are now structurally read for plugins, dependencies,
+        and toolchains — not just classified by filename."""
+        deployment = self.signals["evidence"]["deployment"]
+        plugins = [r for r in deployment if r.get("rule_id") == "deployment__build_plugin"]
+        self.assertEqual(
+            {(p["plugin_id"], p["plugin_version"]) for p in plugins},
+            {("org.springframework.boot", "3.2.0"), ("java", None)},
+        )
+        deps = [r for r in deployment if r.get("rule_id") == "deployment__build_dependency"]
+        self.assertIn(
+            ("implementation", "org.springframework.boot", "spring-boot-starter-web"),
+            {(d["configuration"], d["coordinate"].get("group"), d["coordinate"].get("name")) for d in deps},
+        )
+        tcs = [r for r in deployment if r.get("rule_id") == "deployment__build_toolchain"]
+        self.assertEqual(tcs[0]["toolchain_value"], "17")
+        mods = [r for r in deployment if r.get("rule_id") == "deployment__build_module"]
+        self.assertEqual({m["module"] for m in mods}, {"billing", "ledger"})
+        catalogs = [r for r in deployment if r.get("rule_id") == "deployment__version_catalog"]
+        self.assertEqual({c["catalog_kind"] for c in catalogs}, {"version", "library"})
 
     def test_non_ascii_source_is_neither_dropped_nor_mangled(self):
         matches = [row.get("match", "")

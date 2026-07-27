@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "production_functions": 312,
+  "production_functions": 314,
   "production_functions_annotated": 179,
   "limits_for_new_functions": {
     "statements": 140,
@@ -1327,6 +1327,16 @@
       "complexity": 4,
       "depth": 2
     },
+    "spring_drift_check.py::_recheck_build_signals": {
+      "statements": 18,
+      "complexity": 13,
+      "depth": 2
+    },
+    "spring_drift_check.py::_recheck_build_signals.identity": {
+      "statements": 13,
+      "complexity": 7,
+      "depth": 1
+    },
     "spring_drift_check.py::_recheck_config_keys": {
       "statements": 15,
       "complexity": 6,
@@ -1398,14 +1408,14 @@
       "depth": 2
     },
     "spring_drift_check.py::tier2_recheck_file": {
-      "statements": 21,
-      "complexity": 7,
+      "statements": 24,
+      "complexity": 9,
       "depth": 4
     },
     "spring_signal_scan.py::_classify_non_java_file": {
-      "statements": 27,
-      "complexity": 12,
-      "depth": 1
+      "statements": 37,
+      "complexity": 17,
+      "depth": 3
     },
     "spring_signal_scan.py::_clean_table_name": {
       "statements": 4,
@@ -3767,6 +3777,11 @@
       "complexity": 1,
       "depth": 0
     },
+    "test_enterprise_kitchen_sink.py::Ch04EncodingTest.test_build_gradle_signals_extracted": {
+      "statements": 11,
+      "complexity": 15,
+      "depth": 0
+    },
     "test_enterprise_kitchen_sink.py::Ch04EncodingTest.test_crlf_and_lf_twins_produce_identical_key_sets": {
       "statements": 2,
       "complexity": 1,
@@ -4178,7 +4193,7 @@
       "depth": 1
     },
     "test_enterprise_kitchen_sink.py::build_enterprise_repo": {
-      "statements": 50,
+      "statements": 53,
       "complexity": 3,
       "depth": 1
     },
