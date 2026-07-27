@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
-  "production_functions": 230,
-  "production_functions_annotated": 102,
+  "production_functions": 279,
+  "production_functions_annotated": 148,
   "limits_for_new_functions": {
     "statements": 140,
     "complexity": 34,
@@ -10,7 +10,7 @@
   "unparseable": [],
   "docstring_violations": {
     "build_cross_group_edges.py": "build_cross_group_edges.py: 'how to run it' is at docstring line 64; the contract is within 20. Move the Usage block above the rationale.",
-    "capacity_preflight.py": "capacity_preflight.py: 'how to run it' is at docstring line 58; the contract is within 20. Move the Usage block above the rationale.",
+    "capacity_preflight.py": "capacity_preflight.py: 'how to run it' is at docstring line 61; the contract is within 20. Move the Usage block above the rationale.",
     "check_code_quality.py": "check_code_quality.py: 'how to run it' is at docstring line 51; the contract is within 20. Move the Usage block above the rationale.",
     "check_llms_coverage.py": "check_llms_coverage.py: 'how to run it' is at docstring line 36; the contract is within 20. Move the Usage block above the rationale.",
     "check_no_secrets_leaked.py": "check_no_secrets_leaked.py: 'how to run it' is at docstring line 29; the contract is within 20. Move the Usage block above the rationale.",
@@ -21,8 +21,9 @@
     "semantic_eval_helpers.py": "semantic_eval_helpers.py: 'how to run it' is at docstring line 44; the contract is within 20. Move the Usage block above the rationale.",
     "test_citation_coverage.py": "test_citation_coverage.py: runnable module, but its 6-line docstring never says how to run it",
     "test_enterprise_kitchen_sink.py": "test_enterprise_kitchen_sink.py: 'how to run it' is at docstring line 78; the contract is within 20. Move the Usage block above the rationale.",
+    "test_metamorphic.py": "test_metamorphic.py: 'how to run it' is at docstring line 32; the contract is within 20. Move the Usage block above the rationale.",
     "test_partition_repo_real_world.py": "test_partition_repo_real_world.py: runnable module, but its 23-line docstring never says how to run it",
-    "test_pipeline_stages.py": "test_pipeline_stages.py: 'how to run it' is at docstring line 38; the contract is within 20. Move the Usage block above the rationale.",
+    "test_pipeline_stages.py": "test_pipeline_stages.py: 'how to run it' is at docstring line 39; the contract is within 20. Move the Usage block above the rationale.",
     "test_spring_signal_scan.py": "test_spring_signal_scan.py: runnable module, but its 18-line docstring never says how to run it"
   },
   "functions": {
@@ -65,6 +66,11 @@
       "statements": 7,
       "complexity": 4,
       "depth": 2
+    },
+    "_secret_heuristics.py::_unquote": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 0
     },
     "_secret_heuristics.py::scan_text_for_secrets": {
       "statements": 11,
@@ -301,12 +307,27 @@
       "complexity": 3,
       "depth": 2
     },
+    "check_repo_claims.py::_agent_definitions": {
+      "statements": 5,
+      "complexity": 3,
+      "depth": 2
+    },
     "check_repo_claims.py::_ci_run_lines": {
       "statements": 4,
       "complexity": 2,
       "depth": 1
     },
+    "check_repo_claims.py::_declared_tools": {
+      "statements": 4,
+      "complexity": 4,
+      "depth": 1
+    },
     "check_repo_claims.py::_eval_contains": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 1
+    },
+    "check_repo_claims.py::_eval_not_contains": {
       "statements": 8,
       "complexity": 3,
       "depth": 1
@@ -356,6 +377,11 @@
       "complexity": 3,
       "depth": 1
     },
+    "check_repo_claims.py::check_agent_search_tooling": {
+      "statements": 24,
+      "complexity": 15,
+      "depth": 3
+    },
     "check_repo_claims.py::check_ci_suite_coverage": {
       "statements": 12,
       "complexity": 5,
@@ -401,6 +427,11 @@
       "complexity": 5,
       "depth": 3
     },
+    "check_repo_claims.py::derive_ast_grep_rule_count": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
     "check_repo_claims.py::derive_ci_test_steps": {
       "statements": 3,
       "complexity": 4,
@@ -410,6 +441,16 @@
       "statements": 1,
       "complexity": 1,
       "depth": 0
+    },
+    "check_repo_claims.py::derive_predicate_count": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "check_repo_claims.py::derive_semgrep_rule_count": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
     },
     "check_repo_claims.py::derive_steering_prompt_count": {
       "statements": 2,
@@ -681,6 +722,61 @@
       "complexity": 8,
       "depth": 3
     },
+    "mutate.py::_apply_literal": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
+    "mutate.py::_apply_structural": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 1
+    },
+    "mutate.py::apply_mutation": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 1
+    },
+    "mutate.py::evaluate": {
+      "statements": 9,
+      "complexity": 3,
+      "depth": 1
+    },
+    "mutate.py::load_baseline": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 1
+    },
+    "mutate.py::main": {
+      "statements": 19,
+      "complexity": 9,
+      "depth": 1
+    },
+    "mutate.py::materialize": {
+      "statements": 7,
+      "complexity": 3,
+      "depth": 2
+    },
+    "mutate.py::report": {
+      "statements": 15,
+      "complexity": 15,
+      "depth": 2
+    },
+    "mutate.py::run_suite": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "mutate.py::tracked_files": {
+      "statements": 4,
+      "complexity": 4,
+      "depth": 1
+    },
+    "mutate.py::write_baseline": {
+      "statements": 2,
+      "complexity": 3,
+      "depth": 0
+    },
     "partition_repo.py::build_groups": {
       "statements": 31,
       "complexity": 18,
@@ -723,6 +819,76 @@
     },
     "partition_repo.py::to_posix": {
       "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "prompt_contracts.py::_read": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "prompt_contracts.py::_split_list": {
+      "statements": 2,
+      "complexity": 4,
+      "depth": 0
+    },
+    "prompt_contracts.py::doc_files": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "prompt_contracts.py::file_summary_keys": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 1
+    },
+    "prompt_contracts.py::main": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 2
+    },
+    "prompt_contracts.py::spring_roles": {
+      "statements": 7,
+      "complexity": 3,
+      "depth": 1
+    },
+    "rule_coverage.py::check_non_vacuity": {
+      "statements": 13,
+      "complexity": 7,
+      "depth": 2
+    },
+    "rule_coverage.py::check_ratchet": {
+      "statements": 14,
+      "complexity": 7,
+      "depth": 2
+    },
+    "rule_coverage.py::hit_counts": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 2
+    },
+    "rule_coverage.py::load_baseline": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "rule_coverage.py::main": {
+      "statements": 32,
+      "complexity": 8,
+      "depth": 3
+    },
+    "rule_coverage.py::report": {
+      "statements": 7,
+      "complexity": 6,
+      "depth": 1
+    },
+    "rule_coverage.py::rule_ids": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "rule_coverage.py::write_baseline": {
+      "statements": 2,
       "complexity": 1,
       "depth": 0
     },
@@ -1016,6 +1182,76 @@
       "complexity": 10,
       "depth": 3
     },
+    "set_delta.py::Delta.is_empty": {
+      "statements": 1,
+      "complexity": 2,
+      "depth": 0
+    },
+    "set_delta.py::Residue.describe": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 0
+    },
+    "set_delta.py::Residue.is_empty": {
+      "statements": 1,
+      "complexity": 2,
+      "depth": 0
+    },
+    "set_delta.py::check_scaling": {
+      "statements": 7,
+      "complexity": 3,
+      "depth": 2
+    },
+    "set_delta.py::classify": {
+      "statements": 1,
+      "complexity": 5,
+      "depth": 0
+    },
+    "set_delta.py::compare": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "set_delta.py::confined_to": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "set_delta.py::confined_to_rules": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "set_delta.py::counts_by_rule": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "set_delta.py::delta": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "set_delta.py::grows_only": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "set_delta.py::main": {
+      "statements": 21,
+      "complexity": 5,
+      "depth": 1
+    },
+    "set_delta.py::signals_set": {
+      "statements": 12,
+      "complexity": 6,
+      "depth": 2
+    },
+    "set_delta.py::unchanged": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
     "spring_drift_check.py::_raw_query_entries_with_resolved_entity": {
       "statements": 4,
       "complexity": 4,
@@ -1096,6 +1332,11 @@
       "complexity": 7,
       "depth": 4
     },
+    "spring_signal_scan.py::_classify_non_java_file": {
+      "statements": 27,
+      "complexity": 12,
+      "depth": 1
+    },
     "spring_signal_scan.py::_clean_table_name": {
       "statements": 4,
       "complexity": 2,
@@ -1120,6 +1361,11 @@
       "statements": 3,
       "complexity": 2,
       "depth": 1
+    },
+    "spring_signal_scan.py::_is_build_file": {
+      "statements": 1,
+      "complexity": 3,
+      "depth": 0
     },
     "spring_signal_scan.py::_normalize_bind_params": {
       "statements": 3,
@@ -1167,8 +1413,8 @@
       "depth": 1
     },
     "spring_signal_scan.py::scan": {
-      "statements": 89,
-      "complexity": 30,
+      "statements": 67,
+      "complexity": 20,
       "depth": 4
     },
     "spring_signal_scan.py::to_snake_case": {
@@ -1377,7 +1623,7 @@
       "depth": 0
     },
     "test_capacity_preflight.py::FanoutArithmeticTest.test_total_fanout_formula": {
-      "statements": 7,
+      "statements": 8,
       "complexity": 1,
       "depth": 0
     },
@@ -1981,6 +2227,61 @@
       "complexity": 1,
       "depth": 0
     },
+    "test_check_repo_claims.py::TestAgentSearchTooling.agent": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.settings": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_a_dot_claude_agent_is_checked_too": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_an_agent_declaring_grep_fails": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_bash_without_a_scoped_allowlist_entry_fails": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_bash_without_network_denies_fails": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_bash_without_text_search_denies_fails": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_grep_in_prose_is_not_a_violation": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_scoped_bash_grant_passes": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_scoped_bash_grant_with_full_denies_passes": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestAgentSearchTooling.test_structural_only_agent_passes": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
     "test_check_repo_claims.py::TestBacktest._flag_count": {
       "statements": 7,
       "complexity": 3,
@@ -2166,6 +2467,16 @@
       "complexity": 1,
       "depth": 0
     },
+    "test_check_repo_claims.py::TestNotContainsPredicate.test_not_contains_both_directions": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_check_repo_claims.py::TestNotContainsPredicate.test_not_contains_on_a_missing_file_fails": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
     "test_check_repo_claims.py::TestPredicateRegistry.test_an_unknown_predicate_is_rejected": {
       "statements": 3,
       "complexity": 1,
@@ -2221,10 +2532,20 @@
       "complexity": 4,
       "depth": 0
     },
+    "test_check_repo_claims.py::TestRealRepo.test_no_real_agent_declares_grep": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
     "test_check_repo_claims.py::TestRealRepo.test_predicates_attach_to_the_claim_that_declares_them": {
       "statements": 6,
       "complexity": 2,
       "depth": 1
+    },
+    "test_check_repo_claims.py::TestRealRepo.test_real_bash_agents_are_scoped_by_settings": {
+      "statements": 9,
+      "complexity": 7,
+      "depth": 2
     },
     "test_check_repo_claims.py::TestRealRepo.test_real_repo_passes": {
       "statements": 2,
@@ -2678,6 +2999,66 @@
     },
     "test_config_keys.py::YamlKeyExtractionTest.test_yaml_result_is_deduplicated_and_sorted": {
       "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_text_search.py::TestAstGrepIsNeverBlocked.test_ast_grep_is_never_blocked": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_deny_text_search.py::TestDenialExplainsTheAlternative.test_reason_names_ast_grep_and_both_traps": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_text_search.py::TestFailOpen.test_missing_command_key_does_not_block": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_text_search.py::TestFailOpen.test_unparseable_payload_does_not_block": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_text_search.py::TestGrepTool.test_grep_tool_is_denied": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_text_search.py::TestGrepTool.test_unrelated_tools_pass": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_deny_text_search.py::TestHeredocBodiesAreData.test_a_real_grep_after_a_heredoc_is_still_caught": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_text_search.py::TestHeredocBodiesAreData.test_an_unquoted_heredoc_tag_is_handled": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_text_search.py::TestHeredocBodiesAreData.test_prose_beginning_with_grep_inside_a_heredoc_is_not_a_command": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_deny_text_search.py::TestTextSearchIsBlocked.test_each_form_is_blocked": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_deny_text_search.py::TestTextSearchIsBlocked.test_unrelated_bash_passes": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_deny_text_search.py::denies": {
+      "statements": 1,
       "complexity": 1,
       "depth": 0
     },
@@ -3351,6 +3732,276 @@
       "complexity": 3,
       "depth": 1
     },
+    "test_metamorphic.py::AppendOnlyGrowthTest.test_adding_files_only_grows_the_set": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::BuildFileTypeTest.test_a_gradle_file_contributes_no_structural_rule": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::BuildFileTypeTest.test_adding_a_gradle_file_moves_only_itself": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::BuildFileTypeTest.test_adding_a_properties_file_moves_only_itself": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::BulkRenameTest.test_renaming_every_file_confines_movement_to_those_names": {
+      "statements": 7,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::ChurnIsIdempotentTest.test_repeated_reindent_is_stable": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_metamorphic.py::CorpusCase.assertRelation": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::CorpusCase.variant": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::DuplicationScalesTest.test_duplicating_the_corpus_doubles_every_rule_count": {
+      "statements": 7,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::EncodingAndLineEndingsTest.test_a_utf8_bom_changes_nothing": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::EncodingAndLineEndingsTest.test_crlf_line_endings_change_nothing": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::FormattingIsMeaningPreservingTest._apply": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::FormattingIsMeaningPreservingTest.test_each_formatting_transform_changes_nothing": {
+      "statements": 5,
+      "complexity": 4,
+      "depth": 2
+    },
+    "test_metamorphic.py::FormattingIsMeaningPreservingTest.test_wrapping_annotation_args_still_moves_the_set": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::HarnessIsNotVacuousTest.test_a_real_semantic_edit_is_reported_under_unchanged": {
+      "statements": 5,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::HarnessIsNotVacuousTest.test_the_reference_corpus_is_not_empty": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::IrrelevantFileTypesTest.test_a_unicode_filename_is_handled": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::IrrelevantFileTypesTest.test_an_empty_file_adds_nothing": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::IrrelevantFileTypesTest.test_unparseable_java_does_not_disturb_its_siblings": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::MassDeletionTest.test_deleting_files_removes_only_their_members": {
+      "statements": 5,
+      "complexity": 3,
+      "depth": 1
+    },
+    "test_metamorphic.py::RescanDeterminismTest.test_two_scans_of_the_same_tree_agree": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::SingleEditLocalityTest.test_one_file_edited_moves_only_that_file": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_metamorphic.py::setUpModule": {
+      "statements": 7,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_metamorphic.py::tearDownModule": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest._mutator": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest.setUp": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest.tearDown": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest.test_a_missing_anchor_is_an_error_not_a_silent_noop": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest.test_a_missing_file_is_an_error": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest.test_a_structural_pattern_that_matches_nothing_is_an_error": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest.test_a_structural_rewrite_survives_reindentation": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest.test_applies_the_replacement": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ApplyMutationTest.test_only_the_first_occurrence_is_replaced": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::BaselineTest.setUp": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::BaselineTest.tearDown": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::BaselineTest.test_a_missing_baseline_accepts_nothing": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::BaselineTest.test_a_stale_schema_version_is_ignored_not_trusted": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::BaselineTest.test_round_trip": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::RegistryAnchorsTest.test_a_mutation_actually_changes_the_text": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_mutate.py::RegistryAnchorsTest.test_every_mutator_anchor_exists": {
+      "statements": 8,
+      "complexity": 5,
+      "depth": 3
+    },
+    "test_mutate.py::RegistryAnchorsTest.test_every_mutator_names_a_real_suite": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_mutate.py::RegistryAnchorsTest.test_every_mutator_states_why": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_mutate.py::RegistryAnchorsTest.test_literal_mutators_state_why_they_are_not_structural": {
+      "statements": 2,
+      "complexity": 3,
+      "depth": 0
+    },
+    "test_mutate.py::RegistryAnchorsTest.test_mutator_names_are_unique": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_mutate.py::ReportTest._outcomes": {
+      "statements": 1,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_mutate.py::ReportTest.test_a_baselined_survivor_is_accepted": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ReportTest.test_a_new_survivor_is_a_nonzero_result": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ReportTest.test_all_killed_is_zero": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::ReportTest.test_an_unapplied_mutator_is_nonzero_even_if_baselined": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::SandboxIsolationTest._tracked_diff": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_mutate.py::SandboxIsolationTest.test_a_run_leaves_the_tracked_tree_untouched": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_mutate.py::SandboxIsolationTest.test_materialize_copies_only_tracked_files": {
+      "statements": 7,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_mutate.py::SurvivorDetectionTest.test_a_mutation_no_suite_catches_is_reported_as_survived": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_mutate.py::SurvivorDetectionTest.test_a_real_mutation_is_reported_as_killed": {
+      "statements": 4,
+      "complexity": 4,
+      "depth": 1
+    },
     "test_partition_repo.py::BuildGroupsTest.test_empty_input": {
       "statements": 1,
       "complexity": 1,
@@ -3498,6 +4149,41 @@
     },
     "test_partition_repo_real_world.py::RealRepoTest.test_produces_at_least_one_group": {
       "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_pipeline_stages.py::ArchitectureTestingReviewShapeTest.test_invalid_lens_flagged": {
+      "statements": 3,
+      "complexity": 5,
+      "depth": 0
+    },
+    "test_pipeline_stages.py::ArchitectureTestingReviewShapeTest.test_invalid_verdict_flagged": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_pipeline_stages.py::ArchitectureTestingReviewShapeTest.test_missing_evidence_flagged": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_pipeline_stages.py::ArchitectureTestingReviewShapeTest.test_padded_list_exceeds_sanity_ceiling": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 0
+    },
+    "test_pipeline_stages.py::ArchitectureTestingReviewShapeTest.test_tier_a_backed_external_research_passes": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_pipeline_stages.py::ArchitectureTestingReviewShapeTest.test_tier_c_only_external_research_flagged": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_pipeline_stages.py::ArchitectureTestingReviewShapeTest.test_valid_finding_passes": {
+      "statements": 2,
       "complexity": 1,
       "depth": 0
     },
@@ -3691,6 +4377,11 @@
       "complexity": 5,
       "depth": 2
     },
+    "test_pipeline_stages.py::validate_architecture_testing_review_findings": {
+      "statements": 32,
+      "complexity": 19,
+      "depth": 4
+    },
     "test_pipeline_stages.py::validate_file_summarizer_entries": {
       "statements": 15,
       "complexity": 8,
@@ -3700,6 +4391,276 @@
       "statements": 19,
       "complexity": 9,
       "depth": 3
+    },
+    "test_prompt_contracts.py::ContractsMatchTheValidatorsTest.test_doc_files_match_the_prompt": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::ContractsMatchTheValidatorsTest.test_file_summary_keys_match_the_prompt": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::ContractsMatchTheValidatorsTest.test_spring_roles_matches_the_prompt": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::ExitCodeTest.test_main_exits_zero_on_the_real_prompts": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::ParsedValuesAreSaneTest.test_every_registered_contract_parses": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_prompt_contracts.py::ParsedValuesAreSaneTest.test_roles_are_lowercase_single_tokens": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_prompt_contracts.py::ParsedValuesAreSaneTest.test_the_fourteen_file_set_has_fourteen_members": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest._edit": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest.setUp": {
+      "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest.tearDown": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest.test_a_missing_prompt_file_raises": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest.test_a_reworded_role_line_raises_rather_than_returning_empty": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest.test_a_second_json_block_raises": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest.test_adding_a_role_to_the_prompt_is_detected": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest.test_dropping_a_doc_file_from_the_prompt_is_detected": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_prompt_contracts.py::PromptEditGoesRedTest.test_renaming_a_json_key_in_the_prompt_is_detected": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::CommitDetectionTest.test_does_not_fire_on_a_word_containing_commit": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::CommitDetectionTest.test_does_not_fire_on_other_git_commands": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_require_hardened_tests.py::CommitDetectionTest.test_recognises_a_commit": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_require_hardened_tests.py::DeniesTest.test_a_finding_produces_a_deny_decision": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_require_hardened_tests.py::DeniesTest.test_the_reason_forbids_weakening_the_check": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::DeniesTest.test_the_reason_names_the_skill_to_load": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::FailOpenTest.test_an_internal_error_does_not_block": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_require_hardened_tests.py::FailOpenTest.test_unparseable_input_does_not_block": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_a_hook_with_a_suite_passes": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_a_hook_without_a_suite_is_reported": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_a_nested_claude_hooks_file_without_a_suite_is_reported": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_a_new_script_without_a_suite_is_reported": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_a_test_file_is_not_itself_required_to_have_a_test": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_an_exempt_module_is_allowed": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_every_exemption_states_a_reason": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_require_hardened_tests.py::MissingTestSuiteTest.test_files_outside_scripts_and_hooks_are_ignored": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::PassesThroughTest.test_a_non_bash_tool_is_untouched": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::PassesThroughTest.test_a_non_commit_command_is_untouched": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::PassesThroughTest.test_the_current_clean_tree_is_allowed": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::UnwiredSuiteTest.test_a_suite_absent_from_ci_is_reported": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::UnwiredSuiteTest.test_a_wired_suite_passes": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_require_hardened_tests.py::decide": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_rule_coverage.py::TestExitCodes.test_a_missing_target_directory_exits_two": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestExitCodes.test_fixture_mode_exits_zero": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestNonVacuity.test_a_missing_fixture_corpus_fails_rather_than_passing": {
+      "statements": 5,
+      "complexity": 1,
+      "depth": 1
+    },
+    "test_rule_coverage.py::TestNonVacuity.test_a_rule_with_no_fixture_is_caught": {
+      "statements": 6,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_rule_coverage.py::TestNonVacuity.test_an_exemption_must_state_a_reason": {
+      "statements": 6,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_rule_coverage.py::TestNonVacuity.test_every_real_rule_fires_on_the_fixture_corpus": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRatchet.baseline": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRatchet.setUp": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRatchet.tearDown": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRatchet.test_a_missing_baseline_is_not_a_failure": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRatchet.test_a_rule_dropping_to_zero_is_a_regression": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRatchet.test_a_rule_that_was_already_zero_is_not_a_regression": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRatchet.test_a_stale_schema_version_is_rejected": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRatchet.test_rising_counts_pass": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_rule_coverage.py::TestRuleIdParsing.test_a_nested_id_is_not_mistaken_for_a_rule": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_rule_coverage.py::TestRuleIdParsing.test_the_real_rule_file_yields_rules": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
     },
     "test_run_manifest.py::AtomicWriteTest.test_interrupted_write_leaves_prior_file_intact": {
       "statements": 9,
@@ -3731,7 +4692,7 @@
       "complexity": 4,
       "depth": 1
     },
-    "test_run_manifest.py::CapacityPreflightTieInTest.test_all_five_real_keys_map_and_architect_sums": {
+    "test_run_manifest.py::CapacityPreflightTieInTest.test_all_six_real_keys_map_and_architect_sums": {
       "statements": 9,
       "complexity": 3,
       "depth": 2
@@ -3921,6 +4882,16 @@
       "complexity": 2,
       "depth": 0
     },
+    "test_secret_heuristics.py::ScanTextForSecretsTest.test_a_quoted_real_secret_is_STILL_flagged": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_secret_heuristics.py::ScanTextForSecretsTest.test_does_not_flag_a_QUOTED_placeholder": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
     "test_secret_heuristics.py::ScanTextForSecretsTest.test_does_not_flag_angle_bracket_template_value": {
       "statements": 1,
       "complexity": 1,
@@ -3965,6 +4936,11 @@
       "statements": 4,
       "complexity": 2,
       "depth": 1
+    },
+    "test_secret_heuristics.py::ScanTextForSecretsTest.test_unbalanced_or_inner_quotes_do_not_unquote": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
     },
     "test_semantic_eval_helpers.py::MermaidSyntaxTest.test_all_endpoints_labeled_no_undefined_ref": {
       "statements": 4,
@@ -4058,6 +5034,101 @@
     },
     "test_semantic_eval_helpers.py::UnmatchedConfirmedTagsTest.test_unrelated_claim_flagged": {
       "statements": 4,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ConfinedToRulesTest.test_another_rule_moving_is_residue": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ConfinedToRulesTest.test_the_named_rule_may_move": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ConfinedToTest.test_an_empty_file_list_permits_nothing": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ConfinedToTest.test_movement_inside_the_named_files_is_expected": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ConfinedToTest.test_movement_outside_them_is_residue": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::DeltaTest.test_addition_and_removal_are_separated": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::DeltaTest.test_delta_is_directional": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::DeltaTest.test_identical_sets_have_an_empty_delta": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::GrowsOnlyTest.test_a_removal_is_a_regression": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::GrowsOnlyTest.test_additions_are_expected": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::RelationsAreNotVacuousTest.test_every_registered_relation_rejects_something": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_set_delta.py::ResidueDescriptionTest.test_describe_names_file_rule_and_direction": {
+      "statements": 5,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ScalingTest.test_a_short_count_is_reported_with_both_numbers": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_set_delta.py::ScalingTest.test_counts_are_per_rule_not_per_set": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ScalingTest.test_exact_doubling_passes": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::UnchangedRelationTest.test_an_empty_delta_leaves_no_residue": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::UnchangedRelationTest.test_permits_nothing": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ValidityGateTest.test_a_failed_scan_raises_rather_than_reporting_an_empty_set": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_set_delta.py::s": {
+      "statements": 1,
       "complexity": 1,
       "depth": 0
     },
@@ -4350,6 +5421,56 @@
       "statements": 3,
       "complexity": 2,
       "depth": 1
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest._matches": {
+      "statements": 1,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest._write": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest.setUp": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest.tearDown": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest.test_a_credential_in_gradle_properties_is_redacted": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest.test_a_plain_kts_script_is_not_a_build_file": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest.test_a_quoted_placeholder_in_a_build_script_is_not_redacted": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest.test_build_output_directories_stay_excluded": {
+      "statements": 4,
+      "complexity": 5,
+      "depth": 0
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest.test_build_scripts_land_in_deployment": {
+      "statements": 5,
+      "complexity": 3,
+      "depth": 1
+    },
+    "test_spring_signal_scan.py::BuildFileClassificationTest.test_gradle_properties_is_treated_as_config": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
     },
     "test_spring_signal_scan.py::JpqlLineageResolutionTest.test_association_traversal_out_of_scope": {
       "statements": 3,

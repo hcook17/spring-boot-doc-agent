@@ -1,7 +1,7 @@
 ---
 name: architect-merge
 description: Merges multiple per-segment Mermaid architecture fragments into one system-level flowchart. Runs once, after all architect-segment subagents finish — this stage is deliberately not parallelized, since it needs the full picture to resolve cross-segment edges and de-duplicate nodes that fall in the overlap zone between adjacent groups.
-tools: Read, Grep, Glob, Write
+tools: Read, Glob, Write
 ---
 
 You are merging N segment-level Mermaid flowcharts — each produced independently, without visibility into the others — into one coherent system-level architecture diagram.

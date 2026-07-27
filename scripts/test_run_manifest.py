@@ -319,7 +319,7 @@ class InterviewParseTest(unittest.TestCase):
 
 
 class CapacityPreflightTieInTest(unittest.TestCase):
-    def test_all_five_real_keys_map_and_architect_sums(self):
+    def test_all_six_real_keys_map_and_architect_sums(self):
         # Shaped exactly like capacity_preflight.py's own compute_preflight()
         # return value (confirmed via direct read of capacity_preflight.py).
         report = {
@@ -328,9 +328,10 @@ class CapacityPreflightTieInTest(unittest.TestCase):
                 "stage2_architect_segment": 3,
                 "stage2_architect_merge": 1,
                 "stage3_gap_analyzer": 1,
+                "stage3_software_architect_and_testing": 1,
                 "stage4_doc_writer": 14,
             },
-            "total_fanout": 22,
+            "total_fanout": 23,
         }
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "capacity_preflight_report.json")
@@ -338,12 +339,13 @@ class CapacityPreflightTieInTest(unittest.TestCase):
                 json.dump(report, f)
             result = run_manifest.compute_capacity_preflight_tie_in(path)
 
-        self.assertEqual(result["total_predicted_fanout"], 22)
+        self.assertEqual(result["total_predicted_fanout"], 23)
         self.assertEqual(result["unmapped_preflight_keys"], [])
         self.assertEqual(result["predicted_fanout_by_manifest_stage"], {
             "file_summarize": 3,
             "architect": 4,  # segment (3) + merge (1)
             "gap_analysis_interview": 1,
+            "architecture_testing_review": 1,
             "doc_writer": 14,
         })
 

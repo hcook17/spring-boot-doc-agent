@@ -15,10 +15,6 @@
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#12:Partially resolved",
-      "declares a status with no verify: predicates, so nothing checks it"
-    ],
-    [
       "C-missing:CONSTRAINTS.md#13:Violated and fixed",
       "declares a status with no verify: predicates, so nothing checks it"
     ],

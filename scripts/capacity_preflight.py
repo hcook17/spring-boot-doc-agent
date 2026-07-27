@@ -49,9 +49,12 @@ description):
                                         the orchestrating thread, not a
                                         subagent dispatch, so it isn't
                                         counted here)
+  Stage 3 (software-architect-and-testing): 1  (always; dispatched in the
+                                        same turn as gap-analyzer, its own
+                                        manifest stage, no interview)
   Stage 4 (doc-writer):              14 (fixed, one per output file)
   -----------------------------------------------------------
-  total = 2*num_groups + 16
+  total = 2*num_groups + 17
 
 Every threshold below is a stated, tunable guess pending real-world
 calibration (documented as such, not hidden) — this script surfaces
@@ -80,6 +83,7 @@ import partition_repo  # noqa: E402
 import spring_signal_scan  # noqa: E402
 
 STAGE3_FIXED_FANOUT = 1   # gap-analyzer, always exactly one dispatch
+STAGE3_ARCH_TEST_REVIEW_FANOUT = 1  # software-architect-and-testing, always one
 STAGE4_FIXED_FANOUT = 14  # doc-writer, one per output file, always fixed
 
 
@@ -199,6 +203,7 @@ def compute_preflight(repo_path, max_tokens=120000, overlap=0.10,
         "stage2_architect_segment": num_groups,
         "stage2_architect_merge": 1,
         "stage3_gap_analyzer": STAGE3_FIXED_FANOUT,
+        "stage3_software_architect_and_testing": STAGE3_ARCH_TEST_REVIEW_FANOUT,
         "stage4_doc_writer": STAGE4_FIXED_FANOUT,
     }
     total_fanout = sum(stage_fanout.values())

@@ -98,19 +98,28 @@ END_STAGE_STATUSES = sorted(STAGE_STATUSES - {"new", "running"})
 # capacity_preflight.py's stage_fanout dict uses a different, independently
 # evolved key vocabulary (confirmed by direct read of that file, not
 # assumed) — stage1_file_summarizer / stage2_architect_segment /
-# stage2_architect_merge / stage3_gap_analyzer / stage4_doc_writer — which
-# does not match this module's own stage names below. This mapping is the
-# only thing that lets finalize's --preflight-file tie-in diff predicted
-# vs. actual fan-out without silently producing nothing for every key.
+# stage2_architect_merge / stage3_gap_analyzer /
+# stage3_software_architect_and_testing / stage4_doc_writer — which does not
+# match this module's own stage names below. This mapping is the only thing
+# that lets finalize's --preflight-file tie-in diff predicted vs. actual
+# fan-out without silently producing nothing for every key.
 # stage2_architect_segment and stage2_architect_merge both fold into this
 # module's single combined "architect" stage (their predicted counts are
 # summed); capacity_preflight.py has no entries at all for signal_scan or
 # partition, since Stage 0 has no subagent fan-out to predict.
+# stage3_gap_analyzer and stage3_software_architect_and_testing map to two
+# *different* manifest stages, not one combined stage the way segment/merge
+# do above — they're dispatched in the same turn but tracked separately
+# (gap_analysis_interview also covers the live interview that follows;
+# architecture_testing_review does not), so folding them into one predicted
+# count the way architect does would misattribute a real/predicted mismatch
+# to whichever of the two actually drifted.
 PREFLIGHT_TO_MANIFEST_STAGE = {
     "stage1_file_summarizer": "file_summarize",
     "stage2_architect_segment": "architect",
     "stage2_architect_merge": "architect",
     "stage3_gap_analyzer": "gap_analysis_interview",
+    "stage3_software_architect_and_testing": "architecture_testing_review",
     "stage4_doc_writer": "doc_writer",
 }
 

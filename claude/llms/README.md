@@ -48,7 +48,9 @@ Every command is pinned to a commit SHA (or, for a still-open PR, its head branc
 | #36 | Execute the mirror-back; correct the manifest's two wrong rows; fix `06`'s stale `status:` | merged (`a62a99c`) — **no `pr-36.md`** |
 | [#47](pr-47.md) | Kitchen-sink suite, a code-quality ratchet, and five real bugs | merged (`1539d0c`) — branch history was rewritten before merge; see the file |
 | [#48](pr-48.md) | Verified testing/security anchors, cited from steering prompt 10 | merged (`8b1138a`) |
-| [#49](pr-49.md) | Order module docstrings reference-first, and enforce it | open (`e54a003`) |
+| [#49](pr-49.md) | Order module docstrings reference-first, and enforce it | merged (`56e9a74`) |
+| [#50](pr-50.md) | Measure tier 2's false-positive rate before adding anything to it | merged (`57d8e63`) |
+| [#51](pr-51.md) | Make agents search structurally, and build the tests that keep it honest | open (`c7426b3`) |
 
 > **#37–#46 have no `pr-N.md`.** They are not listed above either, so the gap is invisible in this table rather than merely undocumented — worth stating here rather than leaving a reader to infer it from the jump between #36 and #47. `python3 scripts/check_llms_coverage.py` prints the authoritative current list; it reports rather than fails, because `ENFORCE = False`.
 

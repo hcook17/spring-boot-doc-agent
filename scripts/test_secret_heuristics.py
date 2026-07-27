@@ -38,6 +38,36 @@ class ScanTextForSecretsTest(unittest.TestCase):
     def test_does_not_flag_changeme_placeholder(self):
         self.assertEqual(self._heuristics("client-secret: CHANGEME\n"), [])
 
+    def test_does_not_flag_a_QUOTED_placeholder(self):
+        """Found on a real build script, where every `password` line was a
+        quoted `${...}` and every one was reported as a literal credential.
+        PLACEHOLDER_VALUE_RE is anchored, and the line regex strips quotes
+        from the key but not the value, so the quotes defeated the match.
+
+        This matters beyond noise: agents/file-summarizer.md instructs
+        subagents that the scan already excluded genuine placeholders, so
+        "anything flagged is a real literal". That contract was false for
+        every quoted value."""
+        for line in ('password = "${DB_PASSWORD}"\n',
+                     "password: '${DB_PASSWORD}'\n",
+                     'api_key: "<set-me>"\n',
+                     "client-secret: 'CHANGEME'\n"):
+            self.assertEqual(self._heuristics(line), [], line)
+
+    def test_a_quoted_real_secret_is_STILL_flagged(self):
+        """The other direction, and the one that would matter if unquoting
+        were too eager: stripping quotes must not let a literal through."""
+        for line in ('password = "hunter2literal"\n',
+                     "password: 'hunter2literal'\n"):
+            self.assertEqual(self._heuristics(line), ["key-name:password"], line)
+
+    def test_unbalanced_or_inner_quotes_do_not_unquote(self):
+        """Only one matching surrounding pair is stripped. A value that
+        merely contains a quote is left alone, so this cannot be used to
+        smuggle a literal past the check."""
+        self.assertEqual(self._heuristics('password: "hunter2\n'), ["key-name:password"])
+        self.assertEqual(self._heuristics('password: he said "hi"\n'), ["key-name:password"])
+
     def test_does_not_flag_unrelated_key(self):
         self.assertEqual(self._heuristics("server:\n  port: 8080\n"), [])
 

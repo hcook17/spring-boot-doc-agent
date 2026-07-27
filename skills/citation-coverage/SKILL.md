@@ -81,7 +81,7 @@ are three: `spring_signals.json`'s per-hit `line`, `summaries.json`'s per-file
 yourself. A summary's *prose* — its `summary` and `group_function` text — carries
 no line, so anything line-shaped derived from prose alone is invented. If a claim
 has no anchor in any of the three, **re-open the file and find the line**. You
-have `Read` and `Grep` — use them.
+have `Read`, and `ast-grep` via `Bash` for structural search — use them. Not text search: it matches inside strings and comments, which mis-anchors the very citation you are trying to fix. Try both `@Name` and `@Name($$$)`, and treat a zero result as unproven rather than absent.
 
 **A3. A file-only citation is legitimate; an invented line is not.** If you
 genuinely cannot localize a claim to a line, `[Evidenced — path/File.java]` is

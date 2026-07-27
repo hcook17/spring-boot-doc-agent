@@ -80,15 +80,17 @@ class FanoutArithmeticTest(unittest.TestCase):
         self.assertEqual(report["stage_fanout"]["stage2_architect_segment"], 3)
         self.assertEqual(report["stage_fanout"]["stage2_architect_merge"], 1)
         self.assertEqual(report["stage_fanout"]["stage3_gap_analyzer"], 1)
+        self.assertEqual(report["stage_fanout"]["stage3_software_architect_and_testing"], 1)
         self.assertEqual(report["stage_fanout"]["stage4_doc_writer"], 14)
-        # 2*num_groups + 1 (merge) + 1 (gap-analyzer) + 14 (doc-writer) = 2*3+16 = 22
-        self.assertEqual(report["total_fanout"], 22)
+        # 2*num_groups + 1 (merge) + 1 (gap-analyzer) + 1 (software-architect-
+        # and-testing) + 14 (doc-writer) = 2*3+17 = 23
+        self.assertEqual(report["total_fanout"], 23)
 
     def test_single_group_minimum_fanout(self):
         report = capacity_preflight.compute_preflight(
             "/fake/repo", groups_data=_groups_data(1), edges=_edges_data(1),
         )
-        self.assertEqual(report["total_fanout"], 18)  # 2*1 + 16
+        self.assertEqual(report["total_fanout"], 19)  # 2*1 + 17
 
 
 class ThresholdWarningTest(unittest.TestCase):

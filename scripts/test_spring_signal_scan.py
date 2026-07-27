@@ -502,6 +502,84 @@ class ReferencesBucketTest(unittest.TestCase):
         self.assertIn("groupB.Service", import_entries[0]["match"])
 
 
+class BuildFileClassificationTest(unittest.TestCase):
+    """Gradle/Maven build scripts and build-adjacent property files.
+
+    These are classified by FILENAME, not parsed: ast-grep has no Groovy
+    grammar at all (`-l groovy` -> "groovy is not supported!"), so a
+    .gradle file can never get the structural treatment every .java rule
+    gets. Before this existed they fell through every branch in scan()'s
+    pass 1 -- read by file-summarizer, since partition_repo.py does not
+    exclude them, but carrying no bucket and, more seriously, never
+    reaching the secret-redaction path.
+
+    Note these do NOT go through rule_coverage.py's non-vacuity gate, which
+    only covers ast-grep rules. This suite is the only thing asserting the
+    Python filename path works, so an assertion missing here is a hole
+    nothing else covers."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write(self, name, text=""):
+        path = os.path.join(self.tmpdir, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+
+    def _matches(self, result, bucket):
+        return {(e["file"], e.get("match")) for e in result["evidence"][bucket]}
+
+    def test_build_scripts_land_in_deployment(self):
+        for name in ("build.gradle", "settings.gradle.kts", "pom.xml",
+                     "build.xml", "extra.groovy"):
+            self._write(name, "// build\n")
+        found = self._matches(spring_signal_scan.scan(self.tmpdir), "deployment")
+        for name in ("build.gradle", "settings.gradle.kts", "pom.xml",
+                     "build.xml", "extra.groovy"):
+            self.assertIn((name, "build script"), found, name)
+
+    def test_a_plain_kts_script_is_not_a_build_file(self):
+        """`.kts` alone is any Kotlin script. Matching it would put arbitrary
+        Kotlin into operations.md, so the compound suffix is what counts."""
+        self._write("scratch.kts", "println(1)\n")
+        found = self._matches(spring_signal_scan.scan(self.tmpdir), "deployment")
+        self.assertNotIn(("scratch.kts", "build script"), found)
+
+    def test_gradle_properties_is_treated_as_config(self):
+        self._write("gradle.properties", "org.gradle.jvmargs=-Xmx2g\n")
+        found = self._matches(spring_signal_scan.scan(self.tmpdir), "configuration")
+        self.assertIn(("gradle.properties", "config file"), found)
+
+    def test_a_credential_in_gradle_properties_is_redacted(self):
+        """The defect that motivated this: build.gradle's own comment records
+        that gradle.properties carries `_password` entries, and that file
+        matched none of the config patterns, so it never reached the
+        redaction path at all."""
+        self._write("gradle.properties", "repoUser=ci\nrepoPassword=hunter2literal\n")
+        zones = spring_signal_scan.scan(self.tmpdir)["redaction_zones"]
+        self.assertIn("gradle.properties", zones)
+        self.assertEqual([z["line"] for z in zones["gradle.properties"]], [2])
+
+    def test_a_quoted_placeholder_in_a_build_script_is_not_redacted(self):
+        """Routing more files into the redaction path made an existing
+        false positive matter: a quoted `${...}` was reported as a literal
+        credential because the placeholder regex is anchored and the value
+        keeps its quotes. Real build scripts write them exactly this way."""
+        self._write("domain.gradle", 'password = "${REPO_PASSWORD}"\n')
+        zones = spring_signal_scan.scan(self.tmpdir)["redaction_zones"]
+        self.assertNotIn("domain.gradle", zones)
+
+    def test_build_output_directories_stay_excluded(self):
+        self._write("build/generated/Thing.java", "package x;\npublic class Thing {}\n")
+        result = spring_signal_scan.scan(self.tmpdir)
+        files = {e["file"] for entries in result["evidence"].values() for e in entries}
+        self.assertFalse([f for f in files if f.startswith("build/")], files)
+
+
 class RespectGitignoreOptInTest(unittest.TestCase):
     """--respect-gitignore is additive-only: a directory not covered by the
     hardcoded EXCLUDED_DIRS floor (unlike vendor/, venv/, etc.) should only

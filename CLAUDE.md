@@ -2,7 +2,7 @@
 
 ## Steering prompts and the session log
 
-`claude/steering-prompts/` contains <!-- derived: steering_prompt_count -->14<!-- /derived --> numbered prompts. **`00`–`06` are mirrored from this project's attached Claude project ("Plugin For Asynchronous Documentation Creation") and have a canonical copy there; `07` and up were authored in this repo and exist nowhere else** (confirmed 2026-07-24 — the project's folder holds `00`–`06` only). Edits to `00`–`06` need mirroring back; edits to `07` and up do not. They fall into three groups:
+`claude/steering-prompts/` contains <!-- derived: steering_prompt_count -->15<!-- /derived --> numbered prompts. **`00`–`06` are mirrored from this project's attached Claude project ("Plugin For Asynchronous Documentation Creation") and have a canonical copy there; `07` and up were authored in this repo and exist nowhere else** (confirmed 2026-07-24 — the project's folder holds `00`–`06` only). Edits to `00`–`06` need mirroring back; edits to `07` and up do not. They fall into three groups:
 
 - **`00`–`05` — research/scaffold prompts.** `00` shared standards, then one per improvement category: testability, pluggability, constraints, analytics-logging, clarity/delivery-trust.
 - **`06`–`09` — implementation task prompts.** Wire drift-check, CI scaffold, dependency pinning, tool-quirks indexing. These carry a `status:` frontmatter field that is edited in place as the task lands; the body is left as historical record rather than rewritten.
@@ -20,7 +20,7 @@ verify:
   - contains:README.md:spring_drift_check.py
 ```
 
-Three forms, and no others: `path_exists:<path>`, `path_absent:<path>`, `contains:<path>:<literal>`. An unrecognized predicate fails rather than being skipped. Write them to falsify the status in the direction that actually bites — a `not started` prompt should assert its deliverable is **absent**, which is the exact shape `06` got wrong. That prompt's `status:` read `not started` for a whole window after the work landed and was flagged three separate times in `claude/session-log.md` before anyone edited the field; its own `note:` records this. A predicate would have failed the build the first time.
+<!-- derived: predicate_count -->5<!-- /derived --> forms, and no others: `path_exists:<path>`, `path_absent:<path>`, `contains:<path>:<literal>`, `not_contains:<path>:<literal>`, `unchanged_since:<path>:<level>:<digest>`. An unrecognized predicate fails rather than being skipped. (This sentence read "Three forms" for two separate windows after a fourth and then a fifth landed — hence the derived block. `PREDICATE_PREFIXES` was already derived from the registry in one direction; this closes the other.) Write them to falsify the status in the direction that actually bites — a `not started` prompt should assert its deliverable is **absent**, which is the exact shape `06` got wrong. That prompt's `status:` read `not started` for a whole window after the work landed and was flagged three separate times in `claude/session-log.md` before anyone edited the field; its own `note:` records this. A predicate would have failed the build the first time.
 
 `07`'s `path_absent:scripts/verify_llms_docs.py` is worth understanding as a pattern: it turns "deleted as a security defect — do not re-add it" from a comment into a build failure.
 
@@ -63,6 +63,25 @@ Only tag an assumption `[Resolved]` if you're confident the prompt's stated prob
 ### Why this exists, not just what to do
 
 A Claude Code CLI session (this one) has full repo and git access but no access to the Claude project where the canonical copies of `00`–`06` live. A Cowork session attached to that project has the reverse — it can read/edit the prompts but can't run git commands against this repo directly. `claude/session-log.md` is the one file that crosses that gap: cheap for this session to write (it already has full context of its own change), and small enough for the other session to read directly once it has folder access, without needing the full diff or `.git` history relayed by hand.
+
+## Searching code: ast-grep, never text search
+
+**Agents search structurally.** No agent definition may declare the `Grep` tool, and `grep`/`rg` are denied through `Bash` in `.claude/settings.json`. `scripts/check_repo_claims.py`'s check F fails the build if an agent regains `Grep`, and `hooks/deny_text_search.py` (a `PreToolUse` hook, shipped in `hooks/hooks.json` and verified to fire for subagents as well as the main thread) blocks it at runtime. Two controls because they fail differently: the static one cannot be bypassed but only runs in CI; the runtime one catches an agent shelling out to `grep` through `Bash`, which static inspection cannot see.
+
+The reason is citation correctness, not taste. Text search matches inside strings and comments, which is how a claim ends up carrying an `[Evidenced — path:line]` tag anchored to a line that does not support it.
+
+Each of the following has produced a wrong answer here, in this repo, and is worth reading before writing a pattern (no count, deliberately — the list grows, and the sentence that used to carry one was wrong within a day of being written):
+
+- **A marker annotation and an argument-bearing annotation are disjoint node shapes.** `-p '@Column'` returns **zero** against a file holding 122 `@Column(name = "...")`. Always try `@Name` *and* `@Name($$$)`. Every rule in `spring_ast_grep_rules.yml` that can take arguments lists both forms for this reason.
+- **A zero result means *unproven*, not *absent*.** ast-grep exits 0 when a structurally valid pattern matches nothing, so a silent zero is indistinguishable from a wrong pattern. Never turn one into a claim that something is not there.
+- **The mandate binds where ast-grep has a grammar.** It has none for Groovy (`-l groovy` fails outright), so Gradle build scripts are classified by filename in `spring_signal_scan.py` and carry no structural signals at all. Kotlin and Scala it does support. Check before designing around a language: `echo x | ast-grep run --stdin -l <lang> -p x`.
+- **ast-grep is not a prose search tool.** Its `markdown` grammar matches broad block nodes: on `README.md`, `-p 'ast-grep'` reports 35 lines of which 27 contain no such string. For docs and logs, use `Glob` to narrow and `Read` to open. The mandate is about *code*, where citations live.
+
+**Coverage is the invariant the mandate exists to serve**, and it is enforced separately. `scripts/rule_coverage.py` runs the <!-- derived: ast_grep_rule_count -->29<!-- /derived --> rules against the committed corpus in `scripts/rule_fixtures/` and fails if any rule matches nothing — a rule nobody can make fire is not coverage. It also has a backtest mode against a real repository, ratcheted against `scripts/rule_coverage_baseline.json`; that corpus is far too large to track, so it is measured on a dev machine and only the baseline is committed. Adding a rule means adding a fixture that triggers it, in the same commit.
+
+## Check F also gates network egress
+
+Check F (in `scripts/check_repo_claims.py`, alongside the structural-search mandate above) also denies raw network egress for any agent granted `Bash` tool access. The instant an agent declares `Bash`, `curl`/`wget`/`git clone` are denied the same way `grep`/`rg` already are. `software-architect-and-testing` is the only agent with both `Bash` and `WebFetch`; without this gate, it could reach arXiv/GitHub/deepwiki.com via raw shell commands instead of `WebFetch`, bypassing the tiered external-research discipline its own prompt establishes. Two-part enforcement: `scripts/check_repo_claims.py`'s static check (run in CI) fails the build if any Bash-granted agent is missing the `curl`/`wget`/`git-clone` deny entries in `.claude/settings.json`; `hooks/deny_raw_network.py` (a `PreToolUse` hook, wired in `hooks/hooks.json`) covers the runtime half by actually blocking a raw shell command. Same split as `hooks/deny_text_search.py` and check F's text-search half — the static one cannot be bypassed but only runs in CI; the runtime one catches what static inspection cannot reach.
 
 ## Tool and environment quirks
 
