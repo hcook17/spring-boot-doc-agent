@@ -3,8 +3,8 @@
   "production_functions": 327,
   "production_functions_annotated": 208,
   "limits_for_new_functions": {
-    "statements": 133,
-    "complexity": 51,
+    "statements": 135,
+    "complexity": 46,
     "depth": 7
   },
   "unparseable": [],
@@ -1172,8 +1172,8 @@
       "depth": 0
     },
     "run_pipeline_local.py::_write_certification_and_finish": {
-      "statements": 21,
-      "complexity": 13,
+      "statements": 24,
+      "complexity": 17,
       "depth": 3
     },
     "run_pipeline_local.py::_write_json": {
@@ -1257,8 +1257,8 @@
       "depth": 4
     },
     "run_pipeline_local.py::run_pipeline": {
-      "statements": 133,
-      "complexity": 51,
+      "statements": 135,
+      "complexity": 46,
       "depth": 2
     },
     "run_pipeline_local.py::run_pipeline._ensure_pool": {
