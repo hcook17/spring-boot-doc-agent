@@ -68,5 +68,28 @@ class ScannerFrameworkExportTest(unittest.TestCase):
         self.assertEqual(scanner.name, "filesystem")
 
 
+class PipelineCliTest(unittest.TestCase):
+    def test_add_run_arguments_registers_repo_path(self):
+        import argparse
+
+        from doc_engine.pipeline.local_run import add_run_arguments
+
+        ap = argparse.ArgumentParser()
+        add_run_arguments(ap)
+        args = ap.parse_args([str(FIXTURE_DIR), "--deterministic-only"])
+        self.assertTrue(args.deterministic_only)
+        self.assertEqual(os.path.abspath(args.repo_path), os.path.abspath(str(FIXTURE_DIR)))
+
+    def test_add_run_arguments_accepts_compliance_profile(self):
+        import argparse
+
+        from doc_engine.pipeline.local_run import add_run_arguments
+
+        ap = argparse.ArgumentParser()
+        add_run_arguments(ap)
+        args = ap.parse_args([str(FIXTURE_DIR), "--compliance-profile", "scan_only"])
+        self.assertEqual(args.compliance_profile, "scan_only")
+
+
 if __name__ == "__main__":
     unittest.main()

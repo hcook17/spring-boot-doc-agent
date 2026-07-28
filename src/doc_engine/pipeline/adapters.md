@@ -1,5 +1,25 @@
 # StageExecutor adapter pattern (defer HTTP until named customer)
 
+## Target repo configuration
+
+Each documented Spring repo can declare orchestrator policy in `.doc-engine.yml`:
+
+```yaml
+# .doc-engine.yml in target repo
+compliance_profile: certified
+scanners: [filesystem, ast-grep]
+```
+
+`compliance_profile` values:
+
+| Profile | Meaning |
+|---------|---------|
+| `scan_only` | `init_manifest` + `signal_scan` and validate `spring_signals.json` |
+| `deterministic_only` | Full Stage 0 deterministic graph + artifact contract gate |
+| `certified` | Full stage graph + all mechanical gates; emits `certification.json` |
+
+CLI overrides (highest first): `--compliance-profile`, `--deterministic-only`, then `.doc-engine.yml`, then default `certified`.
+
 This package orchestrates the document-spring-repo pipeline with a **ports and adapters** split:
 
 | Port | Production adapter | Local / CI adapter |

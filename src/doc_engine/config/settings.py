@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from doc_engine.pipeline.compliance import ComplianceProfile
+
 
 class Settings(BaseSettings):
     """Runtime configuration for the doc-engine SDK and CLI."""
@@ -24,6 +26,7 @@ class Settings(BaseSettings):
     build_command: Optional[str] = None
     db_path: Optional[str] = None
     doc_taxonomy: Optional[List[str]] = None
+    compliance_profile: ComplianceProfile = ComplianceProfile.CERTIFIED
     extra: Dict[str, Any] = Field(default_factory=dict)
 
 

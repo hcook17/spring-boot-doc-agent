@@ -1,10 +1,10 @@
 {
   "schema_version": 3,
-  "production_functions": 320,
-  "production_functions_annotated": 205,
+  "production_functions": 327,
+  "production_functions_annotated": 208,
   "limits_for_new_functions": {
-    "statements": 180,
-    "complexity": 61,
+    "statements": 135,
+    "complexity": 46,
     "depth": 7
   },
   "unparseable": [],
@@ -1107,8 +1107,13 @@
       "depth": 0
     },
     "run_pipeline_local.py::Runner.__init__": {
-      "statements": 4,
+      "statements": 5,
       "complexity": 1,
+      "depth": 0
+    },
+    "run_pipeline_local.py::Runner._record_gate": {
+      "statements": 3,
+      "complexity": 3,
       "depth": 0
     },
     "run_pipeline_local.py::Runner.gates_failed": {
@@ -1127,14 +1132,19 @@
       "depth": 0
     },
     "run_pipeline_local.py::Runner.run": {
-      "statements": 35,
-      "complexity": 15,
+      "statements": 39,
+      "complexity": 19,
       "depth": 2
     },
     "run_pipeline_local.py::Runner.table": {
       "statements": 4,
       "complexity": 3,
       "depth": 1
+    },
+    "run_pipeline_local.py::_artifact_inventory": {
+      "statements": 7,
+      "complexity": 3,
+      "depth": 2
     },
     "run_pipeline_local.py::_node_id": {
       "statements": 8,
@@ -1151,10 +1161,20 @@
       "complexity": 2,
       "depth": 1
     },
+    "run_pipeline_local.py::_run_drift_check": {
+      "statements": 9,
+      "complexity": 4,
+      "depth": 1
+    },
     "run_pipeline_local.py::_script": {
       "statements": 1,
       "complexity": 1,
       "depth": 0
+    },
+    "run_pipeline_local.py::_write_certification_and_finish": {
+      "statements": 24,
+      "complexity": 17,
+      "depth": 3
     },
     "run_pipeline_local.py::_write_json": {
       "statements": 2,
@@ -1165,6 +1185,16 @@
       "statements": 2,
       "complexity": 3,
       "depth": 1
+    },
+    "run_pipeline_local.py::add_run_arguments": {
+      "statements": 12,
+      "complexity": 2,
+      "depth": 0
+    },
+    "run_pipeline_local.py::build_arg_parser": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
     },
     "run_pipeline_local.py::confirmed_tag": {
       "statements": 1,
@@ -1192,34 +1222,9 @@
       "depth": 4
     },
     "run_pipeline_local.py::main": {
-      "statements": 180,
-      "complexity": 61,
-      "depth": 3
-    },
-    "run_pipeline_local.py::main._ensure_pool": {
-      "statements": 3,
-      "complexity": 3,
-      "depth": 1
-    },
-    "run_pipeline_local.py::main.handler_architect": {
       "statements": 2,
       "complexity": 1,
       "depth": 0
-    },
-    "run_pipeline_local.py::main.handler_doc_writer": {
-      "statements": 4,
-      "complexity": 2,
-      "depth": 0
-    },
-    "run_pipeline_local.py::main.handler_file_summarize": {
-      "statements": 2,
-      "complexity": 1,
-      "depth": 0
-    },
-    "run_pipeline_local.py::main.handler_gap": {
-      "statements": 7,
-      "complexity": 2,
-      "depth": 1
     },
     "run_pipeline_local.py::mock_architecture": {
       "statements": 37,
@@ -1250,6 +1255,36 @@
       "statements": 15,
       "complexity": 11,
       "depth": 4
+    },
+    "run_pipeline_local.py::run_pipeline": {
+      "statements": 135,
+      "complexity": 46,
+      "depth": 2
+    },
+    "run_pipeline_local.py::run_pipeline._ensure_pool": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 1
+    },
+    "run_pipeline_local.py::run_pipeline.handler_architect": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "run_pipeline_local.py::run_pipeline.handler_doc_writer": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 0
+    },
+    "run_pipeline_local.py::run_pipeline.handler_file_summarize": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "run_pipeline_local.py::run_pipeline.handler_gap": {
+      "statements": 7,
+      "complexity": 2,
+      "depth": 1
     },
     "run_pipeline_local.py::sweep_todos": {
       "statements": 20,

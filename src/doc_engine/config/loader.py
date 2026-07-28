@@ -48,6 +48,8 @@ def load_repo_config(repo_path: str) -> Optional[Settings]:
     if isinstance(scanners, str):
         scanners = [s.strip() for s in scanners.split(",") if s.strip()]
 
+    profile = raw.get("compliance_profile", "certified")
+
     return Settings(
         scanners=scanners if scanners else Settings().scanners,
         sql_dialect=raw.get("sql_dialect", "ansi"),
@@ -55,6 +57,7 @@ def load_repo_config(repo_path: str) -> Optional[Settings]:
         build_command=raw.get("build_command"),
         db_path=raw.get("db_path"),
         doc_taxonomy=raw.get("doc_taxonomy"),
+        compliance_profile=profile,
         extra=raw.get("extra", {}),
     )
 
