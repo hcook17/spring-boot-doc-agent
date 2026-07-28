@@ -33,3 +33,7 @@ Thumbs.db
 # .git/info/exclude, which is per-clone and never pushed.
 /target-repo/
 /target-repos/
+
+# Fixture Gradle caches (created when CodeQL/snapshot builds run locally)
+scripts/test_fixtures/**/.gradle/
+
