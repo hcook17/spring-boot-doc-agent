@@ -81,6 +81,6 @@ runs:
       run: |
         set -euo pipefail
         CERT_PATH="${{ inputs.pipeline-artifacts-dir }}/certification.json"
-        python3 doc-engine certification verify "$CERT_PATH"
+        doc-engine certification verify "$CERT_PATH"
         echo "certification-path=$CERT_PATH" >> "$GITHUB_OUTPUT"
         echo "certified=true" >> "$GITHUB_OUTPUT"

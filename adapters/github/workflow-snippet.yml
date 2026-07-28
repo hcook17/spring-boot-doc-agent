@@ -22,4 +22,4 @@
       --skip-drift
 
 - name: Gate certification
-  run: python3 doc-engine certification verify pipeline-artifacts/certification.json
+  run: doc-engine certification verify pipeline-artifacts/certification.json

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Exit 0 only when certification.json exists and reports certified: true."""
+"""Exit 0 only when certification.json exists and reports certified: true.
+
+Usage:
+    python3 scripts/verify_certification.py pipeline-artifacts/certification.json
+"""
 
 from __future__ import annotations
 

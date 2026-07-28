@@ -51,7 +51,7 @@ jobs:
             --signals-file scripts/test_fixtures/spring_signals_fixture_expected.json
 
       - name: Gate certification.json
-        run: python3 doc-engine certification verify pipeline-artifacts/certification.json
+        run: doc-engine certification verify pipeline-artifacts/certification.json
 
   pr-comment:
     if: github.event_name == 'pull_request'
