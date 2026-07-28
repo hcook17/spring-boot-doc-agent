@@ -12,8 +12,11 @@ Produces a self-contained MkDocs site in the output directory.
 Usage:
     python3 scripts/build_docs_site.py --docs-dir <path> --out-dir <path>
 
+Example from the repo root:
+    python3 scripts/build_docs_site.py --docs-dir ocs-api-service-develop/docs --out-dir _site
+
 The output directory can be served locally with:
-    python3 -m http.server --directory <out-dir>/site 8000
+    python3 -m http.server --directory <out-dir> 8000
 
 Or deployed to GitHub Pages / Netlify / S3 as a static bundle.
 """
