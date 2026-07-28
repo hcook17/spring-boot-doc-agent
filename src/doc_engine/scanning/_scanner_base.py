@@ -4,6 +4,8 @@
 A scanner backend is a pluggable source of evidence for spring_signal_scan.py.
 Each backend produces a partial spring_signals.json-shaped dict. The orchestrator
 runs one or more backends and merges their outputs deterministically.
+
+ScannerBackend implements the Scanner protocol in doc_engine.core.protocols.
 """
 
 from abc import ABC, abstractmethod
@@ -16,6 +18,8 @@ class ScannerBackend(ABC):
     Backends must be deterministic and must return a dict that matches the
     canonical spring_signals.json schema at the top level. They may omit fields
     they do not produce; the merge step fills in defaults.
+
+    Concrete subclasses satisfy the Scanner protocol structurally.
     """
 
     @property

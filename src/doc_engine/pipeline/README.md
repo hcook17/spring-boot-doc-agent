@@ -62,7 +62,7 @@ After each artifact-producing stage, run:
 python3 scripts/validate_artifacts.py --all <run-directory>
 ```
 
-Mechanical shape gates (summaries, gap questions) live in `scripts/pipeline_validators.py`.
+Mechanical shape gates (summaries, gap questions) live in `doc_engine.tools.pipeline_validators` (`scripts/pipeline_validators.py` shim).
 
 Schemas: `scripts/schemas/*.schema.json` (derived from `doc_engine.pipeline.artifacts`).
 
@@ -71,6 +71,6 @@ Schemas: `scripts/schemas/*.schema.json` (derived from `doc_engine.pipeline.arti
 - `PipelineRunner` — `src/doc_engine/pipeline/runner.py`
 - `PipelineContext` — paths, repo, manifest, in-run state
 - `MockStageExecutor` — local E2E without LLM
-- `scripts/run_pipeline_local.py` — CLI wrapper + gates
+- `local_runner.py` — full local pipeline orchestration; `scripts/run_pipeline_local.py` is a thin shim
 
 SKILL.md stage names map 1:1 to `build_stage_specs()` in `stages.py`.

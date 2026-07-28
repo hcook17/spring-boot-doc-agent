@@ -820,3 +820,13 @@ Tests: `ruff check scripts/` pass; `check_code_quality.py` OK after `--update`; 
 Assumptions affected:
 - `claude/steering-prompts/08-dependency-pinning-task-prompt.md` — claimed `ast-grep-cli` was removed from `requirements.txt` — [Resolved — pin restored (`ast-grep-cli~=0.45.0`); verify predicates flipped to `contains`.]
 Files touched: requirements.txt, requirements-dev.txt, claude/steering-prompts/08-dependency-pinning-task-prompt.md, CONSTRAINTS.md, scripts/code_quality_baseline.json, scripts/test_*.py, scripts/spring_signal_scan.py, claude/session-log.md
+
+---
+
+## 2026-07-28 — R3 pipeline in package (local_runner, validators, action dedup)
+
+Commit: uncommitted
+Tests: 824 passed, 1 xfailed (intentional); `check_repo_claims.py` OK; `check_code_quality.py` OK
+Assumptions affected:
+- `claude/steering-prompts/02-pluggability-research-prompt.md` — orchestration in scripts/run_pipeline_local — [Resolved — body moved to `src/doc_engine/pipeline/local_runner.py`; `local_run.py` imports package directly without scripts bootstrap.]
+Files touched: src/doc_engine/pipeline/local_runner.py, src/doc_engine/pipeline/local_run.py, src/doc_engine/tools/pipeline_validators.py, scripts/run_pipeline_local.py, scripts/pipeline_validators.py, adapters/github/README.md, src/doc_engine/core/protocols.py, src/doc_engine/scanning/_scanner_base.py, src/doc_engine/pipeline/README.md, claude/session-log.md

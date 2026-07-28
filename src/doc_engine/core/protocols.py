@@ -7,7 +7,10 @@ Signal = Dict[str, Any]
 
 @runtime_checkable
 class Scanner(Protocol):
-    name: str
+    """Structural interface for Stage 0 scanner backends (see ScannerBackend ABC)."""
+
+    @property
+    def name(self) -> str: ...
 
     def version_hash(self) -> str: ...
 
