@@ -64,7 +64,8 @@ class RegistryAnchorsTest(unittest.TestCase):
         literal = {m.path for m in mutate.MUTATORS if not m.lang}
         self.assertEqual(
             literal,
-            {"agents/gap-analyzer.md", "agents/file-summarizer.md", "CLAUDE.md",
+            {"adapters/claude/agents/gap-analyzer.md",
+             "adapters/claude/agents/file-summarizer.md", "CLAUDE.md",
              "src/doc_engine/scanning/resources/spring_ast_grep_rules.yml"},
             "a new literal mutator appeared; either make it structural or "
             "extend Mutator's docstring with the reason it cannot be")

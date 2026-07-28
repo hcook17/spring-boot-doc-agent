@@ -6,20 +6,13 @@ stage graph, gates, and mock generative stages until HttpLLMStageExecutor lands.
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Sequence
+
+from doc_engine.tools._bootstrap import ensure_scripts_importable
 
 
 def _ensure_script_import_path() -> None:
-    scripts = Path(__file__).resolve().parents[3] / "scripts"
-    src = scripts.parent / "src"
-    scripts_str = str(scripts)
-    src_str = str(src)
-    if scripts_str not in sys.path:
-        sys.path.insert(0, scripts_str)
-    if src_str not in sys.path:
-        sys.path.insert(0, src_str)
+    ensure_scripts_importable()
 
 
 def run_pipeline(args) -> int:

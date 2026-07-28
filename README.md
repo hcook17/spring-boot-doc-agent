@@ -1,6 +1,16 @@
 # spring-boot-doc-agent
 
-A Claude Code plugin that scans a Spring Boot repository, asks you the questions static analysis genuinely can't answer, and generates a fixed 14-file documentation set.
+**doc-engine** is a portable orchestrator for documenting Spring Boot repositories — scan, interview, and generate a fixed 14-file documentation set with machine-enforceable `certification.json` gates.
+
+The **Claude Code plugin** (`adapters/claude/`) is an optional adapter for live generative stages. CI and local deterministic runs should use the CLI:
+
+```bash
+pip install -e .
+doc-engine pipeline run /path/to/spring-repo --out-dir pipeline-artifacts
+doc-engine certification verify pipeline-artifacts/certification.json
+```
+
+See [`docs/product-architecture.md`](docs/product-architecture.md) for kernel vs adapter layout.
 
 ## Pipeline
 
@@ -108,17 +118,29 @@ python3 scripts/run_pipeline_local.py /abs/path/to/spring-repo
 
 `STATUS.md` at the plugin root is a single, in-place-edited snapshot of what's done vs. pending on this plugin's own scaffolding work, and the next concrete action — read it before picking up any of `claude/steering-prompts/`. `CONTRIBUTING.md` has this repo's write-then-verify rule for anything written through a device bridge, remote tool, or a prior session's unverified claim about repo state. `claude/llms/README.md` indexes this repo's own PR history, one file per PR, each pairing a summary with deterministic `git`/`grep` commands to verify its claims directly instead of trusting the prose. `claude/tool-quirks.md` (see `skills/tool-quirks/SKILL.md`) is a separate index for odd behavior in the ambient tools/environment this repo is worked in — `gh`, `git`, MCP tools, Windows/Git-Bash quirks — distinct from this plugin's own document-generation logic.
 
-## Install (local, not yet published)
+## Install
+
+**Kernel (any IDE / CI):**
+
+```bash
+pip install -r requirements.txt
+pip install -e .
+doc-engine pipeline run <repo_path> --out-dir pipeline-artifacts
+```
+
+**Claude Code adapter (optional — live generative stages + skills):**
 
 ```bash
 claude plugin marketplace add ./spring-boot-doc-agent
 claude plugin install spring-boot-doc-agent@spring-boot-doc-agent-marketplace
 ```
 
+Marketplace entry installs `adapters/claude/` as `CLAUDE_PLUGIN_ROOT`. Example target-repo config: [`docs/examples/.doc-engine.yml`](docs/examples/.doc-engine.yml).
+
 ## Before you use this for real
 
-1. `.claude-plugin/plugin.json` and `marketplace.json` both name a real author, and `plugin.json`'s `license` is `"MIT"`, matching the root `LICENSE` file. (`marketplace.json` carries no `license` field of its own — it inherits by reference, since its one plugin entry points at `./`.) Confirm both still say what you want before sharing this beyond your own machine.
-2. Read `skills/document-spring-repo/references/doc-taxonomy.md` once yourself before the first real run — it's the actual spec for what "good" looks like per file, and it's worth knowing what it does and doesn't ask about.
+1. `adapters/claude/plugin.json` and `.claude-plugin/marketplace.json` both name a real author, and `plugin.json`'s `license` is `"MIT"`, matching the root `LICENSE` file. (`marketplace.json` carries no `license` field of its own — it inherits by reference, since its plugin entry points at `adapters/claude/`.) Confirm both still say what you want before sharing this beyond your own machine.
+2. Read `adapters/claude/skills/document-spring-repo/references/doc-taxonomy.md` once yourself before the first real run — it's the actual spec for what "good" looks like per file, and it's worth knowing what it does and doesn't ask about.
 3. Make sure `ast-grep` is on `PATH` (see above) before the first run — Stage 0 will fail fast with an install pointer if it isn't.
-4. Try it on one real (ideally smaller) service first. All <!-- derived: pipeline_agent_count -->6<!-- /derived --> `agents/` files are native Claude Code subagent prompts now (not literal text adapted from a paper or another plugin) — `architect-segment`/`architect-merge` still carry forward the source paper's methodology (node-naming fidelity, subgraph aggregation, discrepancy-flagging), just reimplemented rather than copied.
+4. Try it on one real (ideally smaller) service first. All <!-- derived: pipeline_agent_count -->6<!-- /derived --> `adapters/claude/agents/` files are native Claude Code subagent prompts now (not literal text adapted from a paper or another plugin) — `architect-segment`/`architect-merge` still carry forward the source paper's methodology (node-naming fidelity, subgraph aggregation, discrepancy-flagging), just reimplemented rather than copied.
 5. The interview stage will feel slow the first time — that's by design, not a bug. It's the only stage doing something a script fundamentally cannot.

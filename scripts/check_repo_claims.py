@@ -143,7 +143,7 @@ DERIVED_RE = re.compile(
 # file, in the one module whose stated purpose is making "don't write the
 # same fact twice" enforceable. Now they agree by construction.
 OWN_PATH_PREFIXES = (
-    "scripts/", "agents/", "skills/", "claude/", ".github/",
+    "scripts/", "agents/", "adapters/", "skills/", "claude/", ".github/",
     "baseline-reference/", ".claude/", ".claude-plugin/",
 )
 
@@ -176,7 +176,7 @@ CURRENT_STATE_ROOT_DOCS = frozenset({
     "CLAUDE.md", "CONSTRAINTS.md", "CONTRIBUTING.md", "README.md",
     "STATUS.md", "MATURITY_ASSESSMENT.md",
 })
-CURRENT_STATE_PREFIXES = ("skills/", "agents/", ".claude/")
+CURRENT_STATE_PREFIXES = ("skills/", "agents/", "adapters/", ".claude/")
 
 # `pr-N.md`, `<name>.md`, `stage-N/` -- a template, not a path. An isolated
 # capital letter inside the filename is the tell; real names here are either
@@ -331,7 +331,10 @@ def derive_steering_prompt_count(root: Path) -> str:
 
 
 def derive_pipeline_agent_count(root: Path) -> str:
-    return str(len(list((root / "agents").glob("*.md"))))
+    adapter_agents = root / "adapters" / "claude" / "agents"
+    legacy_agents = root / "agents"
+    folder = adapter_agents if adapter_agents.is_dir() else legacy_agents
+    return str(len(list(folder.glob("*.md"))))
 
 
 def derive_predicate_count(root: Path) -> str:
@@ -542,6 +545,26 @@ def is_own_path(token: str) -> bool:
     return token.startswith(OWN_PATH_PREFIXES) and "." in Path(token).name
 
 
+LEGACY_PATH_MAP: Dict[str, str] = {
+    ".claude-plugin/plugin.json": "adapters/claude/plugin.json",
+}
+LEGACY_PATH_PREFIXES: Tuple[str, str] = (
+    ("agents/", "adapters/claude/agents/"),
+    ("skills/", "adapters/claude/skills/"),
+)
+
+
+def _resolve_repo_path(root: Path, token: str) -> Path:
+    """Resolve a repo-relative path, honoring post-reorg legacy aliases."""
+    mapped = LEGACY_PATH_MAP.get(token, token)
+    for old, new in LEGACY_PATH_PREFIXES:
+        if mapped.startswith(old):
+            candidate = new + mapped[len(old):]
+            if (root / candidate).exists():
+                return root / candidate
+    return root / mapped
+
+
 def resolve_reference(root: Path, token: str) -> Optional[str]:
     """Returns None when the reference resolves, or a reason when it does not.
 
@@ -561,7 +584,7 @@ def resolve_reference(root: Path, token: str) -> Optional[str]:
         path_part = anchor.group("path")
         if not is_own_path(path_part):
             return None
-        target = root / path_part
+        target = _resolve_repo_path(root, path_part)
         if not target.is_file():
             return f"references {token!r}, whose file does not exist"
         line_count = len(target.read_text(encoding="utf-8", errors="replace").splitlines())
@@ -575,10 +598,17 @@ def resolve_reference(root: Path, token: str) -> Optional[str]:
         return None
 
     if "*" in token or "?" in token:
-        return (None if any(root.glob(token))
+        glob_token = token
+        for old, new in LEGACY_PATH_PREFIXES:
+            if glob_token.startswith(old):
+                if not any(root.glob(glob_token)):
+                    glob_token = new + glob_token[len(old):]
+                break
+        return (None if any(root.glob(glob_token))
                 else f"references {token!r}, which matches no file")
 
-    if not (root / token).exists():
+    resolved = _resolve_repo_path(root, token)
+    if not resolved.exists():
         return f"references {token!r}, which does not exist"
     return None
 
@@ -668,11 +698,13 @@ def parse_frontmatter(text: str) -> Dict[str, object]:
 
 
 def _eval_path_exists(root: Path, operand: str) -> Tuple[bool, str]:
-    return (root / operand).exists(), f"{operand} does not exist"
+    path = _resolve_repo_path(root, operand)
+    return path.exists(), f"{operand} does not exist"
 
 
 def _eval_path_absent(root: Path, operand: str) -> Tuple[bool, str]:
-    return not (root / operand).exists(), f"{operand} exists but was declared absent"
+    path = _resolve_repo_path(root, operand)
+    return not path.exists(), f"{operand} exists but was declared absent"
 
 
 def _eval_contains(root: Path, operand: str) -> Tuple[bool, str]:
@@ -680,7 +712,7 @@ def _eval_contains(root: Path, operand: str) -> Tuple[bool, str]:
     target, literal = target.strip(), literal.strip()
     if not literal:
         return False, f"malformed contains: predicate (no literal after {target!r})"
-    path = root / target
+    path = _resolve_repo_path(root, target)
     if not path.is_file():
         return False, f"{target} does not exist, so it cannot contain {literal!r}"
     return literal in path.read_text(encoding="utf-8"), \
@@ -699,7 +731,7 @@ def _eval_not_contains(root: Path, operand: str) -> Tuple[bool, str]:
     target, literal = target.strip(), literal.strip()
     if not literal:
         return False, f"malformed not_contains: predicate (no literal after {target!r})"
-    path = root / target
+    path = _resolve_repo_path(root, target)
     if not path.is_file():
         return False, (f"{target} does not exist, so the claim that it omits "
                        f"{literal!r} cannot be checked")
@@ -1157,10 +1189,14 @@ NETWORK_EGRESS_DENIES = ("Bash(curl:*)", "Bash(wget:*)", "Bash(git clone:*)")
 
 
 def _agent_definitions(root: Path) -> List[Path]:
-    """Plugin agents live in agents/; a project may also carry .claude/agents/.
-    Both are checked so adding one later does not silently escape the gate."""
+    """Plugin agents live under adapters/claude/agents/ (or legacy agents/);
+    a project may also carry .claude/agents/. All are checked."""
     found: List[Path] = []
-    for folder in (root / "agents", root / ".claude" / "agents"):
+    for folder in (
+        root / "adapters" / "claude" / "agents",
+        root / "agents",
+        root / ".claude" / "agents",
+    ):
         if folder.is_dir():
             found.extend(sorted(folder.glob("*.md")))
     return found

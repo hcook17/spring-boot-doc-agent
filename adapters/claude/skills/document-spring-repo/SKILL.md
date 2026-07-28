@@ -11,6 +11,29 @@ Read `${CLAUDE_PLUGIN_ROOT}/CONSTRAINTS.md` once before running this pipeline fo
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/document-spring-repo/references/doc-taxonomy.md` before Stage 4 — it defines what goes in each of the fourteen files, which evidence maps to which file, and — this is the part that actually matters — where the line is between "safe to infer from code" and "needs a clarifying question." Getting that boundary wrong is the main way this pipeline produces confident-sounding fiction instead of documentation.
 
+## Orchestrator entry points (use these first)
+
+The executable stage graph lives in `doc_engine.pipeline.build_stage_specs()`. **Local and CI runs should start from the orchestrator**, not by re-typing the bash blocks below.
+
+| Goal | Command |
+|------|---------|
+| Full local run (mock generative stages) | `doc-engine pipeline run <repo_path>` |
+| Stage 0 only | `doc-engine pipeline run <repo_path> --compliance-profile deterministic_only` |
+| Fast signal scan smoke | `doc-engine pipeline run <repo_path> --compliance-profile scan_only` |
+| Same as above (script entry) | `python3 scripts/run_pipeline_local.py <repo_path>` |
+
+Every run writes `certification.json` in `--out-dir` (default `local-runs/<repo>-<timestamp>/`). **`certified: true` with `generative_executor: mock`** means structural wiring passed — not that an LLM ran or that docs are human-quality. Production Claude Code runs must complete live generative stages (Stages 1–4 below) and treat `generative_executor: live` as the honest certification claim.
+
+Target repos can set policy in `.doc-engine.yml`:
+
+```yaml
+compliance_profile: certified
+```
+
+Gate IDs for certified profile are defined in `src/doc_engine/pipeline/compliance.py` (`CERTIFIED_GATE_IDS`). GitHub Actions should run `doc-engine pipeline run` and `python3 scripts/verify_certification.py <out-dir>/certification.json`.
+
+**Claude Code (this skill)** remains the adapter for **live generative stages** — Task fan-out to `agents/*.md`. The bash sequences in Stages 0–4 below document equivalence to `build_stage_specs()` for manual/agent execution; prefer `doc-engine pipeline run` for deterministic work and certification.
+
 ## Data contracts between stages
 
 Four JSON artifacts cross stage boundaries. Their shapes are enforced by Pydantic models in `src/doc_engine/pipeline/artifacts.py` and JSON Schema files in `scripts/schemas/` (derived from those models). Validate at each boundary — fail the run on shape drift rather than letting a downstream stage absorb it silently.

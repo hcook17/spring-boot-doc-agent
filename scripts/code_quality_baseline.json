@@ -18,7 +18,8 @@
     "partition_repo.py": "partition_repo.py: 'how to run it' is at docstring line 44; the contract is within 20. Move the Usage block above the rationale.",
     "run_manifest.py": "run_manifest.py: 'how to run it' is at docstring line 62; the contract is within 20. Move the Usage block above the rationale.",
     "run_pipeline_local.py": "run_pipeline_local.py: runnable module, but its 68-line docstring never says how to run it",
-    "semantic_eval_helpers.py": "semantic_eval_helpers.py: 'how to run it' is at docstring line 44; the contract is within 20. Move the Usage block above the rationale."
+    "semantic_eval_helpers.py": "semantic_eval_helpers.py: 'how to run it' is at docstring line 44; the contract is within 20. Move the Usage block above the rationale.",
+    "validate_artifacts.py": "validate_artifacts.py: runnable module, but its 1-line docstring never says how to run it"
   },
   "functions": {
     "_ast_signature.py::_strip_docstrings": {
@@ -342,12 +343,12 @@
       "depth": 1
     },
     "check_repo_claims.py::_eval_path_absent": {
-      "statements": 1,
+      "statements": 2,
       "complexity": 1,
       "depth": 0
     },
     "check_repo_claims.py::_eval_path_exists": {
-      "statements": 1,
+      "statements": 2,
       "complexity": 1,
       "depth": 0
     },
@@ -355,6 +356,11 @@
       "statements": 18,
       "complexity": 8,
       "depth": 1
+    },
+    "check_repo_claims.py::_resolve_repo_path": {
+      "statements": 7,
+      "complexity": 4,
+      "depth": 3
     },
     "check_repo_claims.py::_test_suite_paths": {
       "statements": 1,
@@ -447,8 +453,8 @@
       "depth": 2
     },
     "check_repo_claims.py::derive_pipeline_agent_count": {
-      "statements": 1,
-      "complexity": 1,
+      "statements": 4,
+      "complexity": 2,
       "depth": 0
     },
     "check_repo_claims.py::derive_predicate_count": {
@@ -567,9 +573,9 @@
       "depth": 1
     },
     "check_repo_claims.py::resolve_reference": {
-      "statements": 22,
-      "complexity": 12,
-      "depth": 2
+      "statements": 29,
+      "complexity": 15,
+      "depth": 4
     },
     "check_repo_claims.py::run_action_mode": {
       "statements": 18,
@@ -1649,11 +1655,6 @@
     "stage0_oracle_compare.py::validate_rows": {
       "statements": 10,
       "complexity": 4,
-      "depth": 2
-    },
-    "validate_artifacts.py::main": {
-      "statements": 41,
-      "complexity": 13,
       "depth": 2
     }
   }

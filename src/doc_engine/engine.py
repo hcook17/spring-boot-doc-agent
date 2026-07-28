@@ -8,8 +8,7 @@ from typing import Any, Dict, Optional
 
 from doc_engine.config.settings import Settings
 from doc_engine.scanning import scan_repository
-
-SCRIPT_DIR = Path(__file__).resolve().parents[2] / "scripts"
+from doc_engine.tools._bootstrap import ensure_scripts_importable
 
 
 class Engine:
@@ -40,8 +39,7 @@ class Engine:
         return {"signals": signals, "docs": docs, "interview_answers": interview_answers}
 
     def build_site(self, docs_bundle: Dict[str, Any], out_dir: str, **kwargs: Any) -> str:
-        if str(SCRIPT_DIR) not in sys.path:
-            sys.path.insert(0, str(SCRIPT_DIR))
+        ensure_scripts_importable()
         from build_docs_site import main as build_site_main  # noqa: E402
 
         docs = docs_bundle.get("docs", {})

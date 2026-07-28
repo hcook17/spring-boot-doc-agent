@@ -42,7 +42,10 @@ import sys
 from pathlib import Path
 from typing import FrozenSet
 
-AGENTS_DIR = Path(__file__).resolve().parent.parent / "agents"
+_root = Path(__file__).resolve().parent.parent
+AGENTS_DIR = _root / "adapters" / "claude" / "agents"
+if not AGENTS_DIR.is_dir():
+    AGENTS_DIR = _root / "agents"
 
 # "**Spring role** -- one of: controller, service, ... -- pulled from ..."
 # Anchored on the bolded label so a prose mention elsewhere cannot match, and
