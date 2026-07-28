@@ -887,7 +887,8 @@ def _write_certification_and_finish(
     generative_executor,
     *,
     show_table=True,
-    result_lines=None,
+    success_lines=None,
+    notice_lines=None,
 ):
     if show_table:
         runner.table()
@@ -903,10 +904,13 @@ def _write_certification_and_finish(
     cert_path = write_certification_json(out_dir, report)
 
     log("")
-    if result_lines:
-        for line in result_lines:
+    if notice_lines:
+        for line in notice_lines:
             log(line)
-    elif not report.certified:
+    if report.certified and success_lines:
+        for line in success_lines:
+            log(line)
+    elif not report.certified and not notice_lines:
         failed_gates = [g.id for g in runner.gate_records if g.required and g.status != "ok"]
         failed_stages = [s.name for s in report.stages if s.status != "ok"]
         parts = []
@@ -1140,7 +1144,7 @@ def run_pipeline(args) -> int:
     if runner.aborted:
         return _write_certification_and_finish(
             log, runner, profile, repo_path, out_dir, "none",
-            result_lines=["Run aborted before later stages — see above."],
+            notice_lines=["Run aborted before later stages — see above."],
         )
 
     if pipeline_ctx.signals is None and os.path.isfile(signals_path):
@@ -1168,9 +1172,7 @@ def run_pipeline(args) -> int:
         _artifact_inventory(log, out_dir)
         return _write_certification_and_finish(
             log, runner, profile, repo_path, out_dir, "none",
-            result_lines=[
-                "RESULT: scan-only profile complete.",
-            ] if not any(g.status != "ok" for g in runner.gate_records) else None,
+            success_lines=["RESULT: scan-only profile complete."],
         )
 
     if profile == ComplianceProfile.DETERMINISTIC_ONLY:
@@ -1199,10 +1201,10 @@ def run_pipeline(args) -> int:
 
         return _write_certification_and_finish(
             log, runner, profile, repo_path, out_dir, "none",
-            result_lines=[
+            success_lines=[
                 "RESULT: deterministic stages complete. Run generative stages via "
                 "Claude Code + document-spring-repo skill for real docs.",
-            ] if not any(g.status != "ok" for g in runner.gate_records) else None,
+            ],
         )
 
     log.rule("STAGES 1-4 — MOCKED subagent fan-out (PipelineRunner)")
@@ -1218,6 +1220,12 @@ def run_pipeline(args) -> int:
         )
         if not stage_result.success:
             runner.aborted = True
+
+    if runner.aborted:
+        return _write_certification_and_finish(
+            log, runner, profile, repo_path, out_dir, "mock",
+            notice_lines=["Run aborted after generative stage failure — see above."],
+        )
 
     if existing_readme := find_existing_readme(repo_path):
         log("")
@@ -1312,10 +1320,10 @@ def run_pipeline(args) -> int:
 
     return _write_certification_and_finish(
         log, runner, profile, repo_path, out_dir, "mock",
-        result_lines=[
+        success_lines=[
             "RESULT: every gate passed. Remember Stages 1-4 were mocked: this says the "
             "wiring and the checks work, not that any document is correct.",
-        ] if not any(g.status != "ok" for g in runner.gate_records) else None,
+        ],
     )
 
 

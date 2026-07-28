@@ -6,6 +6,7 @@ import os
 import tempfile
 import unittest
 from argparse import Namespace
+from pathlib import Path
 
 from pydantic import ValidationError
 
@@ -173,6 +174,44 @@ class CertificationReportTest(unittest.TestCase):
             data = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(data["schema_version"], 1)
             self.assertEqual(data["compliance_profile"], "scan_only")
+
+    def test_failed_stage_with_empty_gates_not_certified(self):
+        """Vacuously empty gate list must not imply certified when a stage failed."""
+        report = build_certification_report(
+            ComplianceProfile.CERTIFIED,
+            "/repo",
+            "/out",
+            [StageRecord(name="doc_writer", status="fail", detail="mock raised")],
+            [],
+            generative_executor="mock",
+        )
+        self.assertFalse(report.certified)
+        self.assertIn("stage:doc_writer:fail", report.failures)
+
+
+class FinishMessagingTest(unittest.TestCase):
+    def test_success_lines_only_when_certified(self):
+        import run_pipeline_local
+
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "run.log")
+            log = run_pipeline_local.Log(log_path)
+            runner = run_pipeline_local.Runner(log, keep_going=False)
+            runner.record("pipeline:doc_writer", "FAIL", 0.0, "mock failed")
+            code = run_pipeline_local._write_certification_and_finish(
+                log,
+                runner,
+                ComplianceProfile.CERTIFIED,
+                "/repo",
+                tmp,
+                "mock",
+                show_table=False,
+                success_lines=["RESULT: every gate passed."],
+            )
+            transcript = Path(log_path).read_text(encoding="utf-8")
+            self.assertEqual(code, 1)
+            self.assertNotIn("every gate passed", transcript)
+            self.assertIn("certification failed", transcript)
 
 
 class ScanOnlyIntegrationTest(unittest.TestCase):
