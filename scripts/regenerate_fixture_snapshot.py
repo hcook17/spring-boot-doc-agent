@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Regenerate the fixture snapshot used by SPRING_SIGNAL_USE_SNAPSHOT=1.
 
-This runs a full CodeQL scan of scripts/test_fixtures/spring_signals/ and
-writes the result to scripts/test_fixtures/spring_signals_fixture_expected.json.
-Commit the updated JSON when the scanner code or queries change and the
-snapshot's scanner_version no longer matches the current version.
+This runs the configured scanner set against scripts/test_fixtures/spring_signals/
+and writes the result to scripts/test_fixtures/spring_signals_fixture_expected.json.
+Commit the updated JSON when the scanner code or rules change and the snapshot's
+scanner_version no longer matches the current version.
 """
 
+import argparse
 import json
 import os
 import sys
@@ -20,11 +21,16 @@ import spring_signal_scan
 
 
 def main() -> int:
-    build_command = (
-        os.path.join(FIXTURE_DIR, "gradlew.bat" if os.name == "nt" else "gradlew")
-        + " --no-daemon clean compileJava compileTestJava"
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "--scanners",
+        default="filesystem,ast-grep",
+        help="Comma-separated scanner names to use for the snapshot. Default: filesystem,ast-grep",
     )
-    result = spring_signal_scan.scan(FIXTURE_DIR, build_command=build_command)
+    args = ap.parse_args()
+
+    scanners = [s.strip() for s in args.scanners.split(",") if s.strip()]
+    result = spring_signal_scan.scan(FIXTURE_DIR, scanners=scanners)
     with open(SNAPSHOT_PATH, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
     print(f"wrote {SNAPSHOT_PATH}")

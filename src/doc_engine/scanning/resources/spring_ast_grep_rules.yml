@@ -31,7 +31,7 @@
 #     switching both to kind+has relational rules (order/count of *other*
 #     annotations no longer matters), confirmed against a real, large
 #     production Spring Boot codebase as well as synthetic fixtures.
-#   - see scripts/test_spring_signal_scan.py for the fixtures and expected
+#   - see tests/test_spring_signal_scan.py for the fixtures and expected
 #     counts this file's rules are pinned against.
 
   # ---- api_surface ----

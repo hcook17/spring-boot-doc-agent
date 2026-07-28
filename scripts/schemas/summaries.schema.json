@@ -1,0 +1,91 @@
+{
+  "$defs": {
+    "FileSummaryEntry": {
+      "description": "One file-summarizer output object \u2014 also the element type of summaries.json.",
+      "properties": {
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "cluster": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cluster",
+          "type": "array"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "relationships": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Relationships",
+          "type": "array"
+        },
+        "cross_group_relationships": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cross Group Relationships",
+          "type": "array"
+        },
+        "group_function": {
+          "title": "Group Function",
+          "type": "string"
+        },
+        "spring_role": {
+          "title": "Spring Role",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/FileSummaryEvidence"
+          },
+          "title": "Evidence",
+          "type": "array"
+        }
+      },
+      "required": [
+        "file",
+        "cluster",
+        "summary",
+        "relationships",
+        "cross_group_relationships",
+        "group_function",
+        "spring_role",
+        "evidence"
+      ],
+      "title": "FileSummaryEntry",
+      "type": "object"
+    },
+    "FileSummaryEvidence": {
+      "properties": {
+        "line": {
+          "minimum": 1,
+          "title": "Line",
+          "type": "integer"
+        },
+        "what": {
+          "minLength": 1,
+          "title": "What",
+          "type": "string"
+        }
+      },
+      "required": [
+        "line",
+        "what"
+      ],
+      "title": "FileSummaryEvidence",
+      "type": "object"
+    }
+  },
+  "description": "summaries.json \u2014 concatenated file-summarizer output.",
+  "items": {
+    "$ref": "#/$defs/FileSummaryEntry"
+  },
+  "title": "SummariesArtifact",
+  "type": "array"
+}

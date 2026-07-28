@@ -41,6 +41,9 @@ jobs:
         run: |
           pip install -r requirements-dev.txt
 
+      - name: Install doc-engine package
+        run: pip install -e .
+
       # Presence is not enough. This step used to run `ast-grep --version` and
       # discard the answer, so it passed while the binary that actually
       # resolved on PATH was a different build from the one requirements.txt
@@ -169,199 +172,18 @@ jobs:
       - name: claim metrics (reports; never fails)
         run: python3 scripts/check_repo_claims.py --metrics
 
-      - name: test_spring_signal_scan.py
-        run: python3 scripts/test_spring_signal_scan.py -v
+      - name: pytest tests/
+        run: pytest tests/ -v --tb=short
 
-      - name: test_build_signal_extract.py
-        run: python3 scripts/test_build_signal_extract.py -v
+      - name: validate_artifacts.py (spring_signals fixture schema)
+        run: python3 scripts/validate_artifacts.py spring_signals scripts/test_fixtures/spring_signals_fixture_expected.json
 
-      - name: test_partition_repo.py
-        run: python3 scripts/test_partition_repo.py -v
-
-      - name: test_spring_drift_check.py
-        run: python3 scripts/test_spring_drift_check.py -v
-
-      - name: test_pipeline_stages.py
-        run: python3 scripts/test_pipeline_stages.py -v
-
-      - name: test_secret_heuristics.py
-        run: python3 scripts/test_secret_heuristics.py -v
-
-      - name: test_config_keys.py
-        run: python3 scripts/test_config_keys.py -v
-
-      - name: test_semantic_eval_helpers.py
-        run: python3 scripts/test_semantic_eval_helpers.py -v
-
-      - name: test_capacity_preflight.py
-        run: python3 scripts/test_capacity_preflight.py -v
-
-      - name: test_run_manifest.py
-        run: python3 scripts/test_run_manifest.py -v
-
-      - name: test_build_cross_group_edges.py
-        run: python3 scripts/test_build_cross_group_edges.py -v
-
-      - name: test_check_llms_coverage.py
-        run: python3 scripts/test_check_llms_coverage.py -v
-
-      # Runs the real scanner and the real drift checker over the fixtures and
-      # counts wrong verdicts, rather than asserting per-rule behaviour -- see
-      # its docstring for the non-overlap contract with test_spring_drift_check.
-      # ~10s, the slowest suite here, because every scenario shells out to
-      # ast-grep twice. Skips itself if ast-grep is unavailable.
-      - name: test_drift_normalization.py
-        run: python3 scripts/test_drift_normalization.py -v
-
-      # The checker itself isn't CI-wired -- like check_no_secrets_leaked.py,
-      # it needs a completed target-repo run to check, and CI has none. Its
-      # unit tests do run here.
-      - name: test_check_pipeline_output.py
-        run: python3 scripts/test_check_pipeline_output.py -v
-
-      # Same shape: citation_coverage.py needs a completed run's docs/ plus the
-      # target repo, so only its unit tests run here.
-      - name: test_citation_coverage.py
-        run: python3 scripts/test_citation_coverage.py -v
-
-      # Same shape again: check_no_client_identifiers.py needs a real
-      # bytecode-oracle aggregate.json to gate, which CI has none of, so only
-      # its unit tests run here. Those tests are what this checker had never
-      # had before this suite -- and writing them surfaced a real bug fixed
-      # in the same change: PATTERNED_STRING_VALUES (for language_dirs) was
-      # defined but never consulted in _walk(), so a legitimate "java:main"
-      # value was a false positive on this confidentiality gate.
-      - name: test_check_no_client_identifiers.py
-        run: python3 scripts/test_check_no_client_identifiers.py -v
-
-      # Covers the ratchet itself. Most of these tests exist for non-vacuity:
-      # they assert each failure mode reaches a non-zero exit code, because a
-      # ratchet that silently passes everything is indistinguishable from a
-      # working one at the green checkmark.
-      - name: test_check_code_quality.py
-        run: python3 scripts/test_check_code_quality.py -v
-
-      # Same posture as the suite above: most of these tests exist to prove
-      # each check reaches a non-zero exit code on an injected defect, plus
-      # a regression class pinning that markdown content can never reach a
-      # shell -- the defect that got verify_llms_docs.py deleted.
-      - name: test_check_repo_claims.py
-        run: python3 scripts/test_check_repo_claims.py -v
-
-      # Runtime half of the structural-search policy. check_repo_claims.py's
-      # check F covers the static half (no agent definition may declare Grep);
-      # this covers the half that static inspection cannot reach -- an agent
-      # that lost the Grep tool but shells out to `grep` through Bash.
-      - name: test_deny_text_search.py
-        run: python3 scripts/test_deny_text_search.py -v
-
-      # Runtime half of the network-egress policy. check_repo_claims.py's
-      # check F covers the static half (curl/wget/git-clone denied the
-      # instant any agent declares Bash); this covers the half that static
-      # inspection cannot reach -- a raw shell command actually gets blocked.
-      - name: test_deny_raw_network.py
-        run: python3 scripts/test_deny_raw_network.py -v
-
-      # Empirical instrument for source-text vs bytecode tradeoffs. Proof that
-      # native arm matches direct extends links and misses transitive ones, and
-      # that multipass recovers the transitive misses (proving STRUCTURAL cause).
-      # Skips itself if ast-grep is unavailable.
-      - name: test_stage0_oracle_compare.py
-        run: python3 scripts/test_stage0_oracle_compare.py -v
-
-      # This repo's second PreToolUse-on-Bash hook: blocks a build/test tool
-      # piped into a filter that discards its own exit status ($? after a
-      # pipe reads the filter's code, not the tool's). Shipped from
-      # .claude/hooks/ with no suite at all until this one -- the file lived
-      # outside the one directory hooks/require_hardened_tests.py checked at
-      # the time, so nothing required it to have tests.
-      - name: test_check_pipe_exit_code.py
-        run: python3 scripts/test_check_pipe_exit_code.py -v
-
-      - name: test_rule_coverage.py
-        run: python3 scripts/test_rule_coverage.py -v
-
-      - name: test_semgrep_rule_coverage.py
-        run: python3 scripts/test_semgrep_rule_coverage.py -v
-
-      # Reads the Stage-1/2/3 output contracts back out of agents/*.md and
-      # asserts they still equal the constants the validators enforce. Those
-      # constants were hand-copied from the prompts with nothing checking the
-      # copy, so editing a prompt left test_pipeline_stages.py green while
-      # validating the previous contract. Its PromptEditGoesRedTest class
-      # carries the non-vacuity proof in the suite rather than as a ritual
-      # someone performs once and writes down.
-      - name: test_prompt_contracts.py
-        run: python3 scripts/test_prompt_contracts.py -v
-
-      # The expectation algebra over the evidence set, and the metamorphic
-      # relations it exists to express. set_delta.py answers "was this change
-      # the one we predicted?", which spring_drift_check.py cannot: it reports
-      # that a citation moved, never whether the movement was expected. The
-      # residue -- not the size of the delta -- is what fails, so a change that
-      # legitimately adds a rule passes while a reformat that quietly moves a
-      # member does not.
-      - name: test_set_delta.py
-        run: python3 scripts/test_set_delta.py -v
-
-      # Metamorphic relations across input type and velocity. Closes two
-      # bounds test_drift_normalization states it does not cover ("Only Java
-      # is perturbed", "No encoding or line-ending perturbation"), and asserts
-      # idempotence and locality, which no other suite here names.
-      - name: test_metamorphic.py
-        run: python3 scripts/test_metamorphic.py -v
-
-      - name: test_mutate.py
-        run: python3 scripts/test_mutate.py -v
-
-      # The commit-time gate. Project-scoped rather than plugin-shipped: it
-      # resolves the repo from its own location, so carrying it into another
-      # checkout would have it checking this one.
-      - name: test_require_hardened_tests.py
-        run: python3 scripts/test_require_hardened_tests.py -v
-
-      # Mechanises the ritual this repo's standing rule depends on -- break
-      # the code, watch the tests go red, restore it -- which was performed by
-      # hand, once, with no artifact proving it happened. Every mutation runs
-      # against a copy of the tracked tree, never the working tree, and only
-      # the one suite each mutator names.
-      #
       # Non-blocking on purpose: a survivor count needs to be watched before
       # anyone can defend a threshold, the same reasoning recorded on
       # check_code_quality.py's USAGE_WITHIN_LINES. ENFORCE = False in the
       # script, so check_gate_honesty requires "non-blocking" in this name.
       - name: mutate.py (mutation score; reports, non-blocking)
         run: python3 scripts/mutate.py
-
-      # The evidence for _ast_signature.py's default, kept executable. The
-      # choice of t2 came from measurements taken in a throwaway script, and a
-      # measurement made once in a scratch file decays exactly the way a claim
-      # written in prose does -- so each measurement is a test here instead.
-      # Verified non-vacuous by hand: making t2 stop stripping docstrings,
-      # reverting the default to t1, and accepting an unknown level silently
-      # each turn this suite red.
-      - name: test_ast_signature.py
-        run: python3 scripts/test_ast_signature.py -v
-
-      # The kitchen-sink suite: the documented command series run as real
-      # subprocesses against a deliberately hostile synthetic enterprise repo,
-      # plus fault injection that closes the loop to each gate's actual process
-      # exit code -- the two things no other suite here does. It is also the
-      # only coverage run_pipeline_local.py has. Organized around DDIA's
-      # chapters (encoding, replication, partitioning, lost updates, the
-      # end-to-end argument), which is what decides both what it covers and how
-      # hard it asserts. Stages 1-4 come from run_pipeline_local.py's mocks.
-      #
-      # This is the slowest step in the workflow: ~132s locally on Windows,
-      # faster here since the cost is process startup rather than work. It
-      # carries one deliberate expectedFailure (overlap cascading past adjacent
-      # groups) -- if that ever reports an *unexpected success*, the underlying
-      # defect was fixed and the marker should be deleted, not re-added.
-      #
-      # KITCHEN_SINK_REPO is unset on purpose: the opt-in real-repo lane is
-      # local-only and outside this workflow's runtime budget.
-      - name: test_enterprise_kitchen_sink.py
-        run: python3 scripts/test_enterprise_kitchen_sink.py -v
 
       # REMOVED: the verify_llms_docs.py step. It extracted backtick-fenced
       # spans from LLM-authored markdown and ran them through `bash -c`, with

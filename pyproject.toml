@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "doc-engine"
+version = "0.1.0"
+description = "Language-agnostic documentation generation SDK for software repositories."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Doc Engine Team" },
+]
+keywords = ["documentation", "static-analysis", "spring-boot", "codeql", "ast-grep"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Documentation",
+]
+dependencies = [
+    "pathspec",
+    "sqllineage>=1.5.0",
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+    "pyyaml>=6.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "ast-grep-cli>=0.45.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/example/doc-engine"
+Documentation = "https://example.github.io/doc-engine"
+Repository = "https://github.com/example/doc-engine.git"
+
+[project.scripts]
+doc-engine = "doc_engine.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["doc_engine*"]
+
+[tool.setuptools.package-data]
+doc_engine = ["scanning/resources/*.yml"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

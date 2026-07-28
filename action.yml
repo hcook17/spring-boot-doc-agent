@@ -1,0 +1,90 @@
+name: "Doc Engine"
+description: "Generate a documentation site from a repository using the doc-engine SDK."
+author: "Doc Engine Team"
+branding:
+  icon: "book-open"
+  color: "blue"
+
+inputs:
+  repo-path:
+    description: "Path to the repository to scan (relative to the workspace)"
+    required: false
+    default: "."
+  scanners:
+    description: "Comma-separated scanner names (e.g. filesystem,ast-grep)"
+    required: false
+    default: "filesystem,ast-grep"
+  sql-dialect:
+    description: "SQL dialect for native-query lineage extraction"
+    required: false
+    default: "ansi"
+  respect-gitignore:
+    description: "Exclude paths matched by the repo's own .gitignore"
+    required: false
+    default: "false"
+  build-command:
+    description: "Build command for the CodeQL scanner (optional)"
+    required: false
+    default: ""
+  site-name:
+    description: "Title for the generated site"
+    required: false
+    default: "Documentation"
+  out-dir:
+    description: "Directory where the site should be written"
+    required: false
+    default: "_site"
+  publish:
+    description: "Upload the generated site as a GitHub Pages artifact"
+    required: false
+    default: "true"
+
+outputs:
+  site-path:
+    description: "Path to the generated site directory"
+    value: ${{ steps.site.outputs.site-path }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install doc-engine
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+        pip install -e .
+
+    - name: Scan repository
+      shell: bash
+      run: |
+        SCAN_ARGS=(scan "${{ inputs.repo-path }}" --out signals.json --scanners "${{ inputs.scanners }}" --sql-dialect "${{ inputs.sql-dialect }}")
+        if [ "${{ inputs.respect-gitignore }}" = "true" ]; then
+          SCAN_ARGS+=(--respect-gitignore)
+        fi
+        if [ -n "${{ inputs.build-command }}" ]; then
+          SCAN_ARGS+=(--build-command "${{ inputs.build-command }}")
+        fi
+        doc-engine "${SCAN_ARGS[@]}"
+
+    - name: Generate docs
+      shell: bash
+      run: doc-engine docs signals.json --out docs.json
+
+    - name: Build site
+      id: site
+      shell: bash
+      run: |
+        doc-engine site docs.json --out-dir "${{ inputs.out-dir }}" --site-name "${{ inputs.site-name }}"
+        echo "site-path=${{ inputs.out-dir }}" >> "$GITHUB_OUTPUT"
+
+    - name: Upload Pages artifact
+      if: inputs.publish == 'true'
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ${{ inputs.out-dir }}

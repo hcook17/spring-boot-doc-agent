@@ -14,8 +14,10 @@
 # .ruff.toml but is NOT the ratchet -- see scripts/check_code_quality.py,
 # which owns the committed per-function baseline ruff has no equivalent for.
 ruff~=0.16.0
+pytest~=8.3.0
 
 # Material for MkDocs: builds the DeepWiki-like static site from the 14 generated
 # markdown docs. This is a dev/publishing dependency, not a runtime dependency of
 # the pipeline itself.
 mkdocs-material~=9.5.0
+

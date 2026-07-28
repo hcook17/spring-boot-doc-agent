@@ -1,0 +1,237 @@
+{
+  "$defs": {
+    "EntityTableEntry": {
+      "additionalProperties": true,
+      "properties": {
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "table": {
+          "title": "Table",
+          "type": "string"
+        },
+        "table_name_source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Table Name Source"
+        },
+        "rule_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rule Id"
+        },
+        "match": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Match"
+        }
+      },
+      "required": [
+        "file",
+        "table"
+      ],
+      "title": "EntityTableEntry",
+      "type": "object"
+    },
+    "EvidenceMatch": {
+      "additionalProperties": true,
+      "description": "One hit inside a spring_signals evidence bucket.",
+      "properties": {
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "line": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line"
+        },
+        "match": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Match"
+        },
+        "rule_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rule Id"
+        }
+      },
+      "required": [
+        "file"
+      ],
+      "title": "EvidenceMatch",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "spring_signals.json \u2014 Stage 0 system of record.",
+  "properties": {
+    "schema_version": {
+      "minimum": 2,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scanner_version": {
+      "default": "unknown",
+      "title": "Scanner Version",
+      "type": "string"
+    },
+    "repo_path": {
+      "title": "Repo Path",
+      "type": "string"
+    },
+    "files_scanned": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Files Scanned",
+      "type": "object"
+    },
+    "entity_table_map": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/EntityTableEntry"
+          },
+          {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        ]
+      },
+      "title": "Entity Table Map",
+      "type": "object"
+    },
+    "evidence": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/$defs/EvidenceMatch"
+        },
+        "type": "array"
+      },
+      "title": "Evidence",
+      "type": "object"
+    },
+    "file_signature_algorithm": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "File Signature Algorithm"
+    },
+    "file_signatures": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "File Signatures"
+    },
+    "redaction_zones": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Redaction Zones"
+    },
+    "config_key_sets": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Config Key Sets"
+    },
+    "scanners": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Scanners"
+    }
+  },
+  "required": [
+    "schema_version",
+    "repo_path",
+    "files_scanned",
+    "entity_table_map",
+    "evidence"
+  ],
+  "title": "SpringSignalsArtifact",
+  "type": "object"
+}

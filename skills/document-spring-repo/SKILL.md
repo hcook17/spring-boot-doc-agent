@@ -11,6 +11,36 @@ Read `${CLAUDE_PLUGIN_ROOT}/CONSTRAINTS.md` once before running this pipeline fo
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/document-spring-repo/references/doc-taxonomy.md` before Stage 4 — it defines what goes in each of the fourteen files, which evidence maps to which file, and — this is the part that actually matters — where the line is between "safe to infer from code" and "needs a clarifying question." Getting that boundary wrong is the main way this pipeline produces confident-sounding fiction instead of documentation.
 
+## Data contracts between stages
+
+Four JSON artifacts cross stage boundaries. Their shapes are enforced by Pydantic models in `src/doc_engine/pipeline/artifacts.py` and JSON Schema files in `scripts/schemas/` (derived from those models). Validate at each boundary — fail the run on shape drift rather than letting a downstream stage absorb it silently.
+
+| Artifact | Producer | Consumers | Schema |
+|----------|----------|-----------|--------|
+| `spring_signals.json` | Stage 0 `spring_signal_scan.py` | partition (indirect), Stages 1–4, `spring_drift_check.py` | `scripts/schemas/spring_signals.schema.json` |
+| `groups.json` | Stage 0 `partition_repo.py` | Stage 1, `capacity_preflight.py`, `build_cross_group_edges.py` | `scripts/schemas/groups.schema.json` |
+| `summaries.json` | Stage 1 `file-summarizer` | Stages 2–4 | `scripts/schemas/summaries.schema.json` |
+| `interview_answers.json` | Stage 3 orchestrator (live interview) | Stage 4, `run_manifest.py finalize` | `scripts/schemas/interview_answers.schema.json` |
+
+After Stage 0 produces `spring_signals.json` and `groups.json`:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/validate_artifacts.py" spring_signals spring_signals.json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/validate_artifacts.py" groups groups.json
+```
+
+Or validate everything present in the run directory:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/validate_artifacts.py" --all .
+```
+
+After Stage 1 concatenates `summaries.json`, validate again. After recording `interview_answers.json`, validate that file before Stage 4.
+
+`spring_signals.json` carries `schema_version` (currently ≥ 2). Any schema change must consider `spring_drift_check.py` as a downstream consumer, not only the four pipeline stages.
+
+The executable stage graph in code is `doc_engine.pipeline.build_stage_specs()` — SKILL.md stages map 1:1 to those names. See `src/doc_engine/pipeline/README.md` for the bounded-context map.
+
 **All six agent files — `file-summarizer.md`, `doc-writer.md`, `gap-analyzer.md`, `architect-segment.md`, `architect-merge.md`, and `software-architect-and-testing.md` — are registered Claude Code subagents**, each with proper YAML frontmatter (`name`, `description`, `tools`), dispatched by name via the Task tool. This wasn't always true of the last two: earlier drafts of `architect-segment.md`/`architect-merge.md` carried their source paper's (ArchAgent, arXiv:2601.13007) own literal Position/Objective/Reasoning-Steps prompt text — no frontmatter, and literal `{README}`/`{REPO}` placeholders under "Input Variables" instead of resolved content — which meant they had to be dispatched by hand (read the file, substitute the placeholders, send as a generic prompt), the same legitimate no-frontmatter pattern Anthropic's own `skill-creator` plugin uses for its `analyzer`/`comparator`/`grader` agents. Both have since been rewritten into native, frontmatter-complete prompts that keep the paper's methodology — node-naming fidelity, ignore-non-functional-code, subgraph aggregation, discrepancy-flagging against existing docs — without the placeholder-substitution mechanism, so they now dispatch exactly like the other three (see Stage 2 below).
 
 ## Run-level telemetry: `run_manifest.py`
@@ -54,7 +84,7 @@ It also catches a case the prompt-based version explicitly could not: two files 
 
 (Use `--status failed --error "<what went wrong>"` on the matching `end-stage` call instead if a script exits non-zero.)
 
-`spring_signals.json` gives you AST-detected Spring markers (controllers, entities, security annotations, messaging, deployment files, etc.) — via ast-grep, see `scripts/spring_ast_grep_rules.yml` — plus an `entity_table_map` resolving JPA entity classes to table names. `groups.json` gives you the token-bounded, DFS-ordered file groups for Stage 1. Read both before proceeding.
+`spring_signals.json` gives you AST-detected Spring markers (controllers, entities, security annotations, messaging, deployment files, etc.) — via ast-grep, see `src/doc_engine/scanning/resources/spring_ast_grep_rules.yml` — plus an `entity_table_map` resolving JPA entity classes to table names. `groups.json` gives you the token-bounded, DFS-ordered file groups for Stage 1. Read both before proceeding.
 
 `spring_signal_scan.py` shells out to the `ast-grep` binary, so it needs to be on `PATH` (the script's own error message links install instructions if it isn't).
 
@@ -131,6 +161,19 @@ Dispatch one `gap-analyzer` subagent (`agents/gap-analyzer.md`) with the **paths
 ```
 
 Don't skip this stage even if the codebase looks self-explanatory. The whole reason it exists is that some categories (write ownership, external consumers, known limitations, deployment topology) are structurally invisible to static analysis regardless of how clean the code is.
+
+**Mechanical gate — validate `summaries.json` and `gap_questions.json` before Stage 4.** Shape checks for the summarizer and gap-analyzer outputs live in `scripts/pipeline_validators.py` (same logic as `tests/test_pipeline_stages.py`). Run this after `summaries.json` exists and after `gap_questions.json` is written; do not dispatch doc-writers while it is failing:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pipeline_validators.py" . --target-repo <repo_path>
+```
+
+Also validate artifact schemas at the boundary:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/validate_artifacts.py" summaries summaries.json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/validate_artifacts.py" interview_answers interview_answers.json
+```
 
 ## Stage 4 — Parallel doc generation
 

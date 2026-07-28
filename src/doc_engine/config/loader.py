@@ -1,0 +1,67 @@
+"""Repository-level configuration file loading."""
+
+import json
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from doc_engine.config.settings import Settings
+
+_CONFIG_NAMES = (".doc-engine.yml", ".doc-engine.yaml", ".doc-engine.json")
+
+
+def find_repo_config(repo_path: str) -> Optional[Path]:
+    root = Path(repo_path).resolve()
+    for name in _CONFIG_NAMES:
+        candidate = root / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _load_yaml(path: Path) -> Dict[str, Any]:
+    try:
+        import yaml  # type: ignore
+    except ImportError:
+        raise RuntimeError(
+            f"PyYAML is required to read {path.name}. Install with: pip install pyyaml"
+        )
+    with path.open("r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data if isinstance(data, dict) else {}
+
+
+def load_repo_config(repo_path: str) -> Optional[Settings]:
+    path = find_repo_config(repo_path)
+    if path is None:
+        return None
+
+    if path.suffix == ".json":
+        with path.open("r", encoding="utf-8") as f:
+            raw = json.load(f)
+    else:
+        raw = _load_yaml(path)
+
+    if not isinstance(raw, dict):
+        return None
+
+    scanners = raw.get("scanners")
+    if isinstance(scanners, str):
+        scanners = [s.strip() for s in scanners.split(",") if s.strip()]
+
+    return Settings(
+        scanners=scanners if scanners else Settings().scanners,
+        sql_dialect=raw.get("sql_dialect", "ansi"),
+        respect_gitignore=bool(raw.get("respect_gitignore", False)),
+        build_command=raw.get("build_command"),
+        db_path=raw.get("db_path"),
+        doc_taxonomy=raw.get("doc_taxonomy"),
+        extra=raw.get("extra", {}),
+    )
+
+
+def merge_config(base: Settings, overrides: Dict[str, Any]) -> Settings:
+    data = base.model_dump()
+    for key, value in overrides.items():
+        if value is not None and key in data:
+            data[key] = value
+    return Settings(**data)

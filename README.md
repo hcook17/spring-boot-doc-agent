@@ -24,7 +24,7 @@ Every generated file tags its claims as **evidenced in code**, **confirmed in in
 
 ## On the deterministic scan (`spring_signal_scan.py`)
 
-Java structural detection runs on [ast-grep](https://ast-grep.github.io/) (tree-sitter-based AST matching), not regex — see `scripts/spring_ast_grep_rules.yml` for the rule set. It's still source-text analysis, not bytecode — no build step or classpath required, at some cost in precision (it won't resolve inherited annotations or interfaces implemented indirectly). See `claude/research/source-text-vs-bytecode-analysis.md` for a deeper comparison against compiled-bytecode/ArchUnit-style analysis. Needs the `ast-grep` binary on `PATH`:
+Java structural detection runs on [ast-grep](https://ast-grep.github.io/) (tree-sitter-based AST matching), not regex — see `src/doc_engine/scanning/resources/spring_ast_grep_rules.yml` for the rule set. It's still source-text analysis, not bytecode — no build step or classpath required, at some cost in precision (it won't resolve inherited annotations or interfaces implemented indirectly). See `claude/research/source-text-vs-bytecode-analysis.md` for a deeper comparison against compiled-bytecode/ArchUnit-style analysis. Needs the `ast-grep` binary on `PATH`:
 
 ```bash
 pip install -r requirements.txt   # pins ast-grep-cli, sqllineage, pathspec
@@ -79,6 +79,26 @@ By default it runs against synthetic sample data shaped like each agent's docume
 `test_pipeline_stages.py` (above) only checks the *shape* of the four LLM stages' output — it never judges whether an `[Evidenced]` claim is actually true, or whether a `[Confirmed]` tag is really backed by a real interview answer. `skills/semantic-pipeline-eval/` adds that judgment layer: run it against a completed pipeline's `PIPELINE_ARTIFACTS_DIR` to sample evidenced claims for truthfulness, flag unmatched `[Confirmed]` tags and Mermaid syntax issues (via `scripts/semantic_eval_helpers.py`'s mechanical pre-pass), and check for cross-doc contradictions — see that skill's `SKILL.md` for the full rubric and its two-lane human sign-off (escalated findings, plus a random confidence spot-check over the judge's own `Supported` verdicts).
 
 Separately, `skills/capacity-preflight/` turns this plugin's stated-but-unverified scale assumptions (chars/N token heuristic, uncapped subagent fan-out, the per-group `cross_group_edges.json` slice each Stage-1 dispatch carries) into concrete numbers for one specific target repo before you commit to a full run — `scripts/capacity_preflight.py` imports `partition_repo.py`'s, `spring_signal_scan.py`'s and `build_cross_group_edges.py`'s own logic rather than re-estimating from scratch. Use it before pointing the pipeline at a large or unfamiliar repo.
+
+## Pipeline contracts and local orchestration
+
+Inter-stage JSON artifacts (`spring_signals.json`, `groups.json`, `summaries.json`, `interview_answers.json`) have enforced shapes — see `skills/document-spring-repo/SKILL.md` "Data contracts between stages" and `scripts/schemas/`. Validate after each stage boundary:
+
+```bash
+python3 scripts/validate_artifacts.py --all <run-directory>
+```
+
+Mechanical summarizer/gap-analyzer shape gates (before doc-writer fan-out in a real run):
+
+```bash
+python3 scripts/pipeline_validators.py <run-directory> --target-repo <repo_path>
+```
+
+Code-level stage graph and bounded-context map: `src/doc_engine/pipeline/README.md`. End-to-end local run (deterministic stages real, LLM stages mocked):
+
+```bash
+python3 scripts/run_pipeline_local.py /abs/path/to/spring-repo
+```
 
 ## Constraints
 

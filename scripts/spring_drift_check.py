@@ -343,11 +343,15 @@ def load_manifest(path):
     return data
 
 
-def tier1_scan(repo_path):
-    """Fresh sha256 per file currently in repo_path, via the exact same
-    dfs_walk() (and therefore the exact same EXCLUDED_DIRS) spring_signal_scan.py
-    itself used — so "what changed" is judged against the same file set the
-    original scan walked, not some independently reinvented notion of it."""
+def tier1_scan(repo_path, scan_context=None):
+    """Fresh sha256 per file currently in repo_path.
+
+    When scan_context is provided, reuses its precomputed signatures (same walk
+    as spring_signal_scan) instead of walking the repository again.
+    """
+    if scan_context is not None:
+        return dict(scan_context.file_signatures)
+
     current = {}
     for full in spring_signal_scan.dfs_walk(repo_path):
         rel = os.path.relpath(full, repo_path).replace("\\", "/")
@@ -756,15 +760,20 @@ def check_drift(repo_path, signals, manifest=None):
         old_signatures = signals.get("file_signatures", {})
         baseline_provenance = {"source": "spring_signals.json"}
 
-    current_signatures = tier1_scan(repo_path)
+    import _src_bootstrap  # noqa: F401
+    from doc_engine.core.context import ScanContext
+
+    scan_context = ScanContext.build(repo_path)
+    current_signatures = tier1_scan(repo_path, scan_context=scan_context)
     classification = classify_files(old_signatures, current_signatures)
     changed_set = set(classification["changed"])
     deleted_set = set(classification["deleted"])
     unchanged_set = set(classification["unchanged"])
 
-    # If nothing changed and nothing was deleted, every citation is unchanged.
-    # Skip the expensive full CodeQL rescan in that common case.
-    if not changed_set and not deleted_set:
+    # If nothing changed, nothing was added, and nothing was deleted, every
+    # citation is unchanged. Skip the expensive full CodeQL rescan in that
+    # common case.
+    if not changed_set and not deleted_set and not classification["added"]:
         results = []
         for source, citation in all_citations(signals):
             results.append(drift_result(source, citation, STATUS_UNCHANGED, 1))
@@ -784,7 +793,12 @@ def check_drift(repo_path, signals, manifest=None):
     # to precisely recheck Java structural citations under the build-based
     # Stage 0 design; per-file re-runs are not possible because CodeQL needs a
     # whole-project database.
-    fresh_signals = spring_signal_scan.scan(repo_path)
+    scanners = signals.get("scanners") or ["filesystem", "ast-grep"]
+    fresh_signals = spring_signal_scan.scan(
+        repo_path,
+        scanners=scanners,
+        scan_context=scan_context,
+    )
     fresh_evidence_by_file = {}
     for bucket_name, entries in fresh_signals.get("evidence", {}).items():
         for entry in entries:
