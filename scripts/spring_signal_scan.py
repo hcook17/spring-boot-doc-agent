@@ -32,6 +32,7 @@ from doc_engine.scanning.spring import (
 from doc_engine.scanning.spring import (
     scanner_version as _scanner_version,
 )
+from doc_engine.scanning._scanner_filesystem import CONFIG_NAME_PATTERNS
 from doc_engine.scanning.support._codeql_runner import CodeQLError
 
 # Re-exports consumed by tests and sibling scripts that historically imported
@@ -39,6 +40,7 @@ from doc_engine.scanning.support._codeql_runner import CodeQLError
 __all__ = [
     "AstGrepError",
     "AstGrepNotFoundError",
+    "CONFIG_NAME_PATTERNS",
     "CodeQLError",
     "CodeQLNotFoundError",
     "CodeQLScannerError",
@@ -72,7 +74,10 @@ def run_ast_grep(binary: str, repo_path: str) -> List[Dict[str, Any]]:
         "--no-ignore", "global", "--no-ignore", "exclude",
         repo_path,
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = subprocess.run(
+        cmd, capture_output=True, text=True,
+        encoding="utf-8", errors="replace",
+    )
     if proc.returncode != 0:
         raise AstGrepError(
             f"ast-grep exited with status {proc.returncode}: {proc.stderr.strip()}"

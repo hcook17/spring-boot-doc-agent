@@ -112,7 +112,10 @@ class AstGrepBackend(ScannerBackend):
         else:
             cmd = self._repo_root_scan_argv(ast_grep_path, repo_path)
 
-        proc = subprocess.run(cmd, capture_output=True, text=True)
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+        )
         if proc.returncode != 0:
             print(f"warning: ast-grep exited with status {proc.returncode}", file=sys.stderr)
             print(proc.stderr, file=sys.stderr)

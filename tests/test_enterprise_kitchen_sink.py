@@ -1058,7 +1058,7 @@ class Ch06PartitioningTest(unittest.TestCase):
             "    seen = {f for grp in g for f, _ in grp}\n"
             "    assert seen == {f for f, _ in ft}, mt\n"
             "print('OK')\n"
-        ) % (SCRIPT_DIR, _STATE["repo"])
+        ) % (str(SCRIPT_DIR), _STATE["repo"])
         try:
             proc = subprocess.run([PY, "-c", probe], capture_output=True, text=True,
                                   encoding="utf-8", errors="replace", timeout=120)
