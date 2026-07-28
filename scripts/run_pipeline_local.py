@@ -91,6 +91,15 @@ if SRC_DIR not in sys.path:
 from _shared_excludes import DEFAULT_EXCLUDED_DIRS  # noqa: E402
 from doc_tag_utils import VALID_DOC_FILES  # noqa: E402
 
+from doc_engine.config.loader import load_repo_config  # noqa: E402
+from doc_engine.pipeline.compliance import (  # noqa: E402
+    ComplianceProfile,
+    build_certification_report,
+    resolve_compliance_profile,
+    stage_records_from_runner_results,
+    stages_for_profile,
+    write_certification_json,
+)
 from doc_engine.pipeline.context import PipelineContext, StageKind  # noqa: E402
 from doc_engine.pipeline.executor import MockStageExecutor  # noqa: E402
 from doc_engine.pipeline.runner import PipelineRunner  # noqa: E402
@@ -224,12 +233,27 @@ class Runner:
         self.log = log
         self.keep_going = keep_going
         self.results = []  # (label, status, seconds, detail)
+        self.gate_records = []
         self.aborted = False
 
     def record(self, label, status, seconds, detail=""):
         self.results.append((label, status, seconds, detail))
 
-    def run(self, label, argv, gate=False, critical=False, cwd=None, env=None,
+    def _record_gate(self, gate_id, label, status, detail="", required=True):
+        from doc_engine.pipeline.compliance import GateRecord
+
+        gate_status = "ok" if status == "OK" else "skipped" if status == "SKIPPED" else "fail"
+        self.gate_records.append(
+            GateRecord(
+                id=gate_id,
+                label=label,
+                status=gate_status,
+                required=required,
+                detail=detail,
+            )
+        )
+
+    def run(self, label, argv, gate=False, gate_id=None, critical=False, cwd=None, env=None,
             quiet=False):
         """Run one subprocess, echoing its exact command line and full output.
 
@@ -263,6 +287,8 @@ class Runner:
             elapsed = time.time() - started
             self.log(f"  !! could not execute: {exc}")
             self.record(label, "ERROR", elapsed, str(exc))
+            if gate and gate_id:
+                self._record_gate(gate_id, label, "ERROR", str(exc))
             if critical and not self.keep_going:
                 self.aborted = True
             return None
@@ -280,6 +306,8 @@ class Runner:
             status = "NONZERO"
         self.log(f"  -> exit {proc.returncode} in {elapsed:.2f}s")
         self.record(label, status, elapsed, f"exit {proc.returncode}")
+        if gate and gate_id:
+            self._record_gate(gate_id, label, status, f"exit {proc.returncode}")
 
         if proc.returncode != 0 and critical and not self.keep_going:
             self.log("")
@@ -840,6 +868,78 @@ def find_existing_readme(repo_path):
     return None
 
 
+def _artifact_inventory(log, out_dir):
+    log.rule("ARTIFACT INVENTORY")
+    for root, dirs, files in os.walk(out_dir):
+        dirs.sort()
+        for name in sorted(files):
+            abspath = os.path.join(root, name)
+            rel = os.path.relpath(abspath, out_dir).replace(os.sep, "/")
+            log(f"  {os.path.getsize(abspath):>9,} B  {rel}")
+
+
+def _write_certification_and_finish(
+    log,
+    runner,
+    profile,
+    repo_path,
+    out_dir,
+    generative_executor,
+    *,
+    show_table=True,
+    result_lines=None,
+):
+    if show_table:
+        runner.table()
+
+    report = build_certification_report(
+        profile,
+        repo_path,
+        out_dir,
+        stage_records_from_runner_results(runner.results),
+        runner.gate_records,
+        generative_executor=generative_executor,
+    )
+    cert_path = write_certification_json(out_dir, report)
+
+    log("")
+    if result_lines:
+        for line in result_lines:
+            log(line)
+    elif not report.certified:
+        failed_gates = [g.id for g in runner.gate_records if g.required and g.status != "ok"]
+        failed_stages = [s.name for s in report.stages if s.status != "ok"]
+        parts = []
+        if failed_stages:
+            parts.append(f"stages: {', '.join(failed_stages)}")
+        if failed_gates:
+            parts.append(f"gates: {', '.join(failed_gates)}")
+        log(f"RESULT: certification failed — {'; '.join(parts)}")
+    log(f"  certification: {report.certified} -> {cert_path}")
+    log(f"Full transcript: {os.path.join(out_dir, 'run.log')}")
+    log.close()
+    return 1 if not report.certified else 0
+
+
+def _run_drift_check(log, runner, py, repo_path, manifest, out_dir, args, signals_path):
+    if args.skip_drift:
+        return
+    log.rule("DRIFT CHECK (real) — pre-flight for a future re-run")
+    baseline = os.path.abspath(args.prior_signals) if args.prior_signals else signals_path
+    if not args.prior_signals:
+        log("  note: drift is measured against this run's own scan, so 'no drift' is")
+        log("        the expected result — it exercises the script, it doesn't tell")
+        log("        you anything about the repo. Use --prior-signals for a real check.")
+    runner.run(
+        "spring_drift_check.py",
+        [
+            py, _script("spring_drift_check.py"), repo_path, baseline,
+            "--manifest", manifest,
+            "--out", os.path.join(out_dir, "drift_report.json"),
+        ],
+    )
+
+
 def build_arg_parser():
     ap = argparse.ArgumentParser(
         description="Run the document-spring-repo pipeline locally, end to end, "
@@ -882,10 +982,15 @@ def add_run_arguments(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--keep-going", action="store_true",
                     help="continue after a failed prerequisite stage instead of "
                          "stopping")
+    ap.add_argument(
+        "--compliance-profile",
+        choices=[p.value for p in ComplianceProfile],
+        default=None,
+        help="compliance profile: scan_only, deterministic_only, or certified "
+             "(default: certified, or value from .doc-engine.yml)",
+    )
     ap.add_argument("--deterministic-only", action="store_true",
-                    help="run init + signal_scan (unless --signals-file) through "
-                         "capacity_preflight only; skip mocked LLM stages and "
-                         "doc-related gates")
+                    help="shorthand for --compliance-profile deterministic_only")
     ap.add_argument("--signals-file", default=None,
                     help="reuse an existing spring_signals.json; copies into "
                          "--out-dir and skips the signal_scan stage")
@@ -896,6 +1001,13 @@ def run_pipeline(args) -> int:
     if not os.path.isdir(repo_path):
         print(f"error: {repo_path} is not a directory", file=sys.stderr)
         return 2
+
+    repo_config = load_repo_config(repo_path)
+    profile = resolve_compliance_profile(repo_config, args)
+    skip_signal_scan = bool(args.signals_file)
+    strict_citations_effective = (
+        profile == ComplianceProfile.CERTIFIED or args.strict_citations
+    )
 
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     out_dir = args.out_dir or os.path.join(
@@ -929,14 +1041,17 @@ def run_pipeline(args) -> int:
     log(f"  docs output   : {docs_dir}"
         f"{'  (inside the target repo)' if args.docs_in_target_repo else '  (outside the target repo)'}")
     log(f"  python        : {py}")
+    log(f"  compliance    : {profile.value}")
     if args.signals_file:
         log(f"  signals file  : {os.path.abspath(args.signals_file)} (signal_scan skipped)")
     else:
         log(f"  ast-grep      : {shutil.which('ast-grep') or 'NOT ON PATH — the signal scan will fail'}")
-    log(f"  mode          : {'deterministic-only' if args.deterministic_only else 'full (mock LLM stages)'}")
+    log(f"  mode          : {profile.value}")
     log(f"  date          : {today}")
     log("")
-    if args.deterministic_only:
+    if profile == ComplianceProfile.SCAN_ONLY:
+        log("  Scan-only profile — init_manifest and signal_scan only.")
+    elif profile == ComplianceProfile.DETERMINISTIC_ONLY:
         log("  Deterministic stages only — no mocked LLM stages or doc gates.")
     else:
         log("  Stages 1-4 are MOCKED — no model runs. Their artifacts are")
@@ -999,10 +1114,11 @@ def run_pipeline(args) -> int:
     })
 
     all_specs = build_stage_specs()
-    deterministic_specs = [s for s in all_specs if s.kind == StageKind.DETERMINISTIC]
-    if args.signals_file:
-        deterministic_specs = [s for s in deterministic_specs if s.name != "signal_scan"]
-    generative_specs = [s for s in all_specs if s.kind == StageKind.GENERATIVE]
+    selected_specs = stages_for_profile(
+        profile, all_specs, skip_signal_scan=skip_signal_scan,
+    )
+    deterministic_specs = [s for s in selected_specs if s.kind == StageKind.DETERMINISTIC]
+    generative_specs = [s for s in selected_specs if s.kind == StageKind.GENERATIVE]
 
     log.rule("STAGE 0 — deterministic (PipelineRunner, real scripts)")
     det_runner = PipelineRunner(
@@ -1022,29 +1138,49 @@ def run_pipeline(args) -> int:
             runner.aborted = True
 
     if runner.aborted:
-        runner.table()
-        log("")
-        log("Run aborted before later stages — see above.")
-        log.close()
-        return 1
+        return _write_certification_and_finish(
+            log, runner, profile, repo_path, out_dir, "none",
+            result_lines=["Run aborted before later stages — see above."],
+        )
 
     if pipeline_ctx.signals is None and os.path.isfile(signals_path):
         pipeline_ctx.signals = _read_json(signals_path)
 
-    pool = load_citations(pipeline_ctx.signals, repo_path)
-    pipeline_ctx.pool = pool
-    resolvable = sum(len(v) for v in pool.values())
-    log("")
-    log(f"  evidence pool: {resolvable} resolvable citation(s) across "
-        f"{sum(1 for v in pool.values() if v)} non-empty bucket(s)")
-    if pipeline_ctx.groups:
-        log(f"  groups: {pipeline_ctx.groups['num_groups']} covering "
-            f"{pipeline_ctx.groups['total_files_considered']} file(s)")
+    if profile != ComplianceProfile.SCAN_ONLY:
+        pool = load_citations(pipeline_ctx.signals, repo_path)
+        pipeline_ctx.pool = pool
+        resolvable = sum(len(v) for v in pool.values())
+        log("")
+        log(f"  evidence pool: {resolvable} resolvable citation(s) across "
+            f"{sum(1 for v in pool.values() if v)} non-empty bucket(s)")
+        if pipeline_ctx.groups:
+            log(f"  groups: {pipeline_ctx.groups['num_groups']} covering "
+                f"{pipeline_ctx.groups['total_files_considered']} file(s)")
 
-    if args.deterministic_only:
+    if profile == ComplianceProfile.SCAN_ONLY:
+        log.rule("GATES (scan-only)")
+        runner.run(
+            "validate_artifacts.py spring_signals (scan-only gate)",
+            [py, _script("validate_artifacts.py"), "spring_signals", signals_path],
+            gate=True,
+            gate_id="validate_artifacts_spring_signals",
+        )
+        _artifact_inventory(log, out_dir)
+        return _write_certification_and_finish(
+            log, runner, profile, repo_path, out_dir, "none",
+            result_lines=[
+                "RESULT: scan-only profile complete.",
+            ] if not any(g.status != "ok" for g in runner.gate_records) else None,
+        )
+
+    if profile == ComplianceProfile.DETERMINISTIC_ONLY:
         log.rule("GATES (deterministic artifacts)")
-        runner.run("validate_artifacts.py --all (B contract gate)",
-                   [py, _script("validate_artifacts.py"), "--all", out_dir], gate=True)
+        runner.run(
+            "validate_artifacts.py --all (B contract gate)",
+            [py, _script("validate_artifacts.py"), "--all", out_dir],
+            gate=True,
+            gate_id="validate_artifacts_all",
+        )
 
         log.rule("FINALIZE (real)")
         fin_argv = [
@@ -1053,40 +1189,21 @@ def run_pipeline(args) -> int:
             "--preflight-file", preflight_path,
         ]
         runner.run("run_manifest.py finalize", fin_argv)
-        runner.run("run_manifest.py summary",
-                   [py, _script("run_manifest.py"), "summary", manifest])
+        runner.run(
+            "run_manifest.py summary",
+            [py, _script("run_manifest.py"), "summary", manifest],
+        )
 
-        if not args.skip_drift:
-            log.rule("DRIFT CHECK (real) — pre-flight for a future re-run")
-            baseline = os.path.abspath(args.prior_signals) if args.prior_signals else signals_path
-            if not args.prior_signals:
-                log("  note: drift is measured against this run's own scan, so 'no drift' is")
-                log("        the expected result — it exercises the script, it doesn't tell")
-                log("        you anything about the repo. Use --prior-signals for a real check.")
-            runner.run("spring_drift_check.py",
-                       [py, _script("spring_drift_check.py"), repo_path, baseline,
-                        "--manifest", manifest,
-                        "--out", os.path.join(out_dir, "drift_report.json")])
+        _run_drift_check(log, runner, py, repo_path, manifest, out_dir, args, signals_path)
+        _artifact_inventory(log, out_dir)
 
-        log.rule("ARTIFACT INVENTORY")
-        for root, dirs, files in os.walk(out_dir):
-            dirs.sort()
-            for name in sorted(files):
-                abspath = os.path.join(root, name)
-                rel = os.path.relpath(abspath, out_dir).replace(os.sep, "/")
-                log(f"  {os.path.getsize(abspath):>9,} B  {rel}")
-
-        runner.table()
-        failed = runner.gates_failed()
-        log("")
-        if failed:
-            log(f"RESULT: {len(failed)} gate(s) failed — {', '.join(r[0] for r in failed)}")
-        else:
-            log("RESULT: deterministic stages complete. Run generative stages via "
-                "Claude Code + document-spring-repo skill for real docs.")
-        log(f"Full transcript: {os.path.join(out_dir, 'run.log')}")
-        log.close()
-        return 1 if failed else 0
+        return _write_certification_and_finish(
+            log, runner, profile, repo_path, out_dir, "none",
+            result_lines=[
+                "RESULT: deterministic stages complete. Run generative stages via "
+                "Claude Code + document-spring-repo skill for real docs.",
+            ] if not any(g.status != "ok" for g in runner.gate_records) else None,
+        )
 
     log.rule("STAGES 1-4 — MOCKED subagent fan-out (PipelineRunner)")
     gen_runner = PipelineRunner(generative_executor=mock_executor, stages=generative_specs)
@@ -1107,43 +1224,55 @@ def run_pipeline(args) -> int:
         log(f"  note: {existing_readme} already exists in the target repo. A real run "
             f"never overwrites it — the generated overview goes to docs/readme.md.")
 
-    # ---------------- Gates and post-run checks ----------------
     log.rule("GATES AND POST-RUN CHECKS (real)")
 
-    runner.run("validate_artifacts.py --all (B contract gate)",
-               [py, _script("validate_artifacts.py"), "--all", out_dir], gate=True)
+    runner.run(
+        "validate_artifacts.py --all (B contract gate)",
+        [py, _script("validate_artifacts.py"), "--all", out_dir],
+        gate=True,
+        gate_id="validate_artifacts_all",
+    )
 
-    runner.run("pipeline_validators.py (summaries + gap_questions gate)",
-               [py, _script("pipeline_validators.py"), out_dir, "--target-repo", repo_path],
-               gate=True)
+    runner.run(
+        "pipeline_validators.py (summaries + gap_questions gate)",
+        [py, _script("pipeline_validators.py"), out_dir, "--target-repo", repo_path],
+        gate=True,
+        gate_id="pipeline_validators",
+    )
 
     gate_argv = [py, _script("check_pipeline_output.py"), docs_dir,
                  "--target-repo", repo_path]
     if not args.docs_in_target_repo:
-        # The write check compares `git status --porcelain` in the target repo
-        # against the expected docs/ paths. With docs written outside the repo
-        # there is nothing for it to see, so it is turned off explicitly rather
-        # than left to report a confusing clean result.
         gate_argv.append("--no-write-check")
         log("")
         log("  note: --no-write-check is passed because the docs were written outside")
         log("        the target repo. Re-run with --docs-in-target-repo to exercise")
         log("        the stray-write check for real.")
-    runner.run("check_pipeline_output.py (Stage 4 GATE)", gate_argv, gate=True)
+    runner.run(
+        "check_pipeline_output.py (Stage 4 GATE)",
+        gate_argv,
+        gate=True,
+        gate_id="check_pipeline_output",
+    )
 
     cc_argv = [py, _script("citation_coverage.py"), docs_dir, "--target-repo", repo_path]
-    if args.strict_citations:
+    if strict_citations_effective:
         cc_argv.append("--strict")
-    runner.run("citation_coverage.py", cc_argv, gate=args.strict_citations)
+    runner.run(
+        "citation_coverage.py",
+        cc_argv,
+        gate=strict_citations_effective,
+        gate_id="citation_coverage",
+    )
 
-    runner.run("check_no_secrets_leaked.py",
-               [py, _script("check_no_secrets_leaked.py"),
-                os.path.join(out_dir, "summaries.json"), docs_dir], gate=True)
+    runner.run(
+        "check_no_secrets_leaked.py",
+        [py, _script("check_no_secrets_leaked.py"),
+         os.path.join(out_dir, "summaries.json"), docs_dir],
+        gate=True,
+        gate_id="check_no_secrets_leaked",
+    )
 
-    # The real structural suite, pointed at the mock artifacts. This is the
-    # check that keeps the mocks honest: if a mock drifts from the documented
-    # shape, it fails here instead of quietly producing artifacts no real stage
-    # would accept.
     env = dict(os.environ)
     env["PIPELINE_ARTIFACTS_DIR"] = out_dir
     env["PIPELINE_ARTIFACTS_TARGET_REPO"] = repo_path
@@ -1153,62 +1282,41 @@ def run_pipeline(args) -> int:
         log("        PIPELINE_ARTIFACTS_DIR. With --docs-in-target-repo the docs are")
         log("        elsewhere, so its docs subtest will skip; summaries and gap")
         log("        questions are still validated.")
-    runner.run("test_pipeline_stages.py -v (real suite vs. mock artifacts)",
-               [py, _script("test_pipeline_stages.py"), "-v"], gate=True, env=env)
+    runner.run(
+        "test_pipeline_stages.py -v (real suite vs. mock artifacts)",
+        [py, _script("test_pipeline_stages.py"), "-v"],
+        gate=True,
+        gate_id="test_pipeline_stages",
+        env=env,
+    )
 
-    # ---------------- Finalize ----------------
     log.rule("FINALIZE (real)")
-    runner.run("run_manifest.py finalize",
-               [py, _script("run_manifest.py"), "finalize", manifest,
-                "--signals-file", signals_path, "--docs-dir", docs_dir,
-                "--interview-file", os.path.join(out_dir, "interview_answers.json"),
-                "--preflight-file", preflight_path])
-    runner.run("run_manifest.py summary",
-               [py, _script("run_manifest.py"), "summary", manifest])
+    runner.run(
+        "run_manifest.py finalize",
+        [py, _script("run_manifest.py"), "finalize", manifest,
+         "--signals-file", signals_path, "--docs-dir", docs_dir,
+         "--interview-file", os.path.join(out_dir, "interview_answers.json"),
+         "--preflight-file", preflight_path],
+    )
+    runner.run(
+        "run_manifest.py summary",
+        [py, _script("run_manifest.py"), "summary", manifest],
+    )
 
-    # ---------------- Drift check ----------------
-    # Deliberately after finalize, not with the other checks above: --manifest
-    # reads the manifest's `file_signatures` as the tier-1 baseline, and that
-    # field is written *by* finalize. Running it earlier would hand the script a
-    # manifest with nothing to compare against. This ordering also matches how
-    # SKILL.md frames the tool — a pre-flight for the *next* run, measured
-    # against the manifest of the run that produced the current docs.
-    if not args.skip_drift:
-        log.rule("DRIFT CHECK (real) — pre-flight for a future re-run")
-        baseline = os.path.abspath(args.prior_signals) if args.prior_signals else signals_path
-        if not args.prior_signals:
-            log("  note: drift is measured against this run's own scan, so 'no drift' is")
-            log("        the expected result — it exercises the script, it doesn't tell")
-            log("        you anything about the repo. Use --prior-signals for a real check.")
-        runner.run("spring_drift_check.py",
-                   [py, _script("spring_drift_check.py"), repo_path, baseline,
-                    "--manifest", manifest,
-                    "--out", os.path.join(out_dir, "drift_report.json")])
+    _run_drift_check(log, runner, py, repo_path, manifest, out_dir, args, signals_path)
 
-    # ---------------- Inventory ----------------
-    log.rule("ARTIFACT INVENTORY")
-    for root, dirs, files in os.walk(out_dir):
-        dirs.sort()
-        for name in sorted(files):
-            abspath = os.path.join(root, name)
-            rel = os.path.relpath(abspath, out_dir).replace(os.sep, "/")
-            log(f"  {os.path.getsize(abspath):>9,} B  {rel}")
+    _artifact_inventory(log, out_dir)
     if args.docs_in_target_repo:
         log("")
         log(f"  plus the fourteen docs written into {docs_dir}")
 
-    runner.table()
-
-    failed = runner.gates_failed()
-    log("")
-    if failed:
-        log(f"RESULT: {len(failed)} gate(s) failed — {', '.join(r[0] for r in failed)}")
-    else:
-        log("RESULT: every gate passed. Remember Stages 1-4 were mocked: this says the "
-            "wiring and the checks work, not that any document is correct.")
-    log(f"Full transcript: {os.path.join(out_dir, 'run.log')}")
-    log.close()
-    return 1 if failed else 0
+    return _write_certification_and_finish(
+        log, runner, profile, repo_path, out_dir, "mock",
+        result_lines=[
+            "RESULT: every gate passed. Remember Stages 1-4 were mocked: this says the "
+            "wiring and the checks work, not that any document is correct.",
+        ] if not any(g.status != "ok" for g in runner.gate_records) else None,
+    )
 
 
 def main(argv=None) -> int:
