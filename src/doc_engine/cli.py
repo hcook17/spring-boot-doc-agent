@@ -7,6 +7,7 @@ from typing import Any, Dict
 
 from doc_engine import Engine
 from doc_engine.config import Config, load_repo_config, merge_config
+from doc_engine.pipeline.local_run import add_run_arguments, run_pipeline
 
 
 def _load_json(path: str) -> Dict[str, Any]:
@@ -62,6 +63,10 @@ def cmd_site(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_pipeline_run(args: argparse.Namespace) -> int:
+    return run_pipeline(args)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(prog="doc-engine", description=__doc__)
     sub = ap.add_subparsers(dest="command", required=True)
@@ -91,6 +96,21 @@ def main() -> int:
     site_ap.add_argument("--out-dir", required=True)
     site_ap.add_argument("--site-name", default="Documentation")
     site_ap.set_defaults(func=cmd_site)
+
+    pipeline_ap = sub.add_parser(
+        "pipeline",
+        help="Run the full document-spring-repo pipeline (deterministic + mock LLM stages)",
+    )
+    pipeline_sub = pipeline_ap.add_subparsers(dest="pipeline_command", required=True)
+    run_ap = pipeline_sub.add_parser(
+        "run",
+        help="Run locally against one target repo (see scripts/run_pipeline_local.py)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Deterministic stages use real scripts; Stages 1–4 are mocked unless "
+               "you drive generative work via an external adapter (Claude, Cursor, etc.).",
+    )
+    add_run_arguments(run_ap)
+    run_ap.set_defaults(func=cmd_pipeline_run)
 
     args = ap.parse_args()
     return args.func(args)

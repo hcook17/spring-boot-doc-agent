@@ -840,7 +840,7 @@ def find_existing_readme(repo_path):
     return None
 
 
-def main():
+def build_arg_parser():
     ap = argparse.ArgumentParser(
         description="Run the document-spring-repo pipeline locally, end to end, "
                     "against one target repo. Deterministic stages run for real; "
@@ -849,6 +849,12 @@ def main():
         epilog="Every stage's command line and output is echoed and also written "
                "to <out-dir>/run.log.",
     )
+    add_run_arguments(ap)
+    return ap
+
+
+def add_run_arguments(ap: argparse.ArgumentParser) -> None:
+    """Register local pipeline flags on an ArgumentParser (CLI or script entry)."""
     ap.add_argument("repo_path", help="absolute path to the target Spring Boot repo")
     ap.add_argument("--out-dir", default=None,
                     help="where artifacts and run.log go "
@@ -883,8 +889,9 @@ def main():
     ap.add_argument("--signals-file", default=None,
                     help="reuse an existing spring_signals.json; copies into "
                          "--out-dir and skips the signal_scan stage")
-    args = ap.parse_args()
 
+
+def run_pipeline(args) -> int:
     repo_path = os.path.abspath(args.repo_path)
     if not os.path.isdir(repo_path):
         print(f"error: {repo_path} is not a directory", file=sys.stderr)
@@ -1202,6 +1209,11 @@ def main():
     log(f"Full transcript: {os.path.join(out_dir, 'run.log')}")
     log.close()
     return 1 if failed else 0
+
+
+def main(argv=None) -> int:
+    args = build_arg_parser().parse_args(argv)
+    return run_pipeline(args)
 
 
 if __name__ == "__main__":
