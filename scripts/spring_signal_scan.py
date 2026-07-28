@@ -3,6 +3,9 @@
 
 Implementation lives in doc_engine.scanning. This module preserves the
 historical scripts/ entry point and backward-compatible public API.
+
+Usage:
+    python3 scripts/spring_signal_scan.py <repo_path> --out spring_signals.json
 """
 
 import argparse

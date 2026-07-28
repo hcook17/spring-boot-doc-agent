@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_pipeline_stages."""
+"""Backward-compatible runner — implementation in tests/test_pipeline_stages.
+
+Usage:
+    python3 scripts/test_pipeline_stages.py -v
+"""
 import sys
 from pathlib import Path
 

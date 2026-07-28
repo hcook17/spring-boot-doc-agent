@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_prompt_contracts."""
+"""Backward-compatible runner — implementation in tests/test_prompt_contracts.
+
+Usage:
+    python3 scripts/test_prompt_contracts.py -v
+"""
 import sys
 from pathlib import Path
 

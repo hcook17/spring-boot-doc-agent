@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_deny_text_search."""
+"""Backward-compatible runner — implementation in tests/test_deny_text_search.
+
+Usage:
+    python3 scripts/test_deny_text_search.py -v
+"""
 import sys
 from pathlib import Path
 

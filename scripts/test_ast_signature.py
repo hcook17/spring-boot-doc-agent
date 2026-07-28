@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_ast_signature."""
+"""Backward-compatible runner — implementation in tests/test_ast_signature.
+
+Usage:
+    python3 scripts/test_ast_signature.py -v
+"""
 import sys
 from pathlib import Path
 

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_secret_heuristics."""
+"""Backward-compatible runner — implementation in tests/test_secret_heuristics.
+
+Usage:
+    python3 scripts/test_secret_heuristics.py -v
+"""
 import sys
 from pathlib import Path
 

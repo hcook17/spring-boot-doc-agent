@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_check_code_quality."""
+"""Backward-compatible runner — implementation in tests/test_check_code_quality.
+
+Usage:
+    python3 scripts/test_check_code_quality.py -v
+"""
 import sys
 from pathlib import Path
 

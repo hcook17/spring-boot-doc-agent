@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_build_cross_group_edges."""
+"""Backward-compatible runner — implementation in tests/test_build_cross_group_edges.
+
+Usage:
+    python3 scripts/test_build_cross_group_edges.py -v
+"""
 import sys
 from pathlib import Path
 

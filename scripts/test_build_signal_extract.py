@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_build_signal_extract."""
+"""Backward-compatible runner — implementation in tests/test_build_signal_extract.
+
+Usage:
+    python3 scripts/test_build_signal_extract.py -v
+"""
 import sys
 from pathlib import Path
 

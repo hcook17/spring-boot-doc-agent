@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_spring_drift_check."""
+"""Backward-compatible runner — implementation in tests/test_spring_drift_check.
+
+Usage:
+    python3 scripts/test_spring_drift_check.py -v
+"""
 import sys
 from pathlib import Path
 

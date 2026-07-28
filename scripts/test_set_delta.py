@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_set_delta."""
+"""Backward-compatible runner — implementation in tests/test_set_delta.
+
+Usage:
+    python3 scripts/test_set_delta.py -v
+"""
 import sys
 from pathlib import Path
 

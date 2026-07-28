@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_metamorphic."""
+"""Backward-compatible runner — implementation in tests/test_metamorphic.
+
+Usage:
+    python3 scripts/test_metamorphic.py -v
+"""
 import sys
 from pathlib import Path
 

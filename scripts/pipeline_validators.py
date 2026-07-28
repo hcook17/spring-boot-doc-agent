@@ -2,6 +2,9 @@
 
 Promoted from tests/test_pipeline_stages.py so SKILL.md gates and
 check_pipeline_output.py can import the same logic CI enforces.
+
+Usage:
+    python3 scripts/pipeline_validators.py <run-directory> --target-repo <repo>
 """
 
 from __future__ import annotations

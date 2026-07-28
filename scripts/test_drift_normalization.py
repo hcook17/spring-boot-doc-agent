@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_drift_normalization."""
+"""Backward-compatible runner — implementation in tests/test_drift_normalization.
+
+Usage:
+    python3 scripts/test_drift_normalization.py -v
+"""
 import sys
 from pathlib import Path
 

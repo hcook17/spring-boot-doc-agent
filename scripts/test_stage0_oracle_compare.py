@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_stage0_oracle_compare."""
+"""Backward-compatible runner — implementation in tests/test_stage0_oracle_compare.
+
+Usage:
+    python3 scripts/test_stage0_oracle_compare.py -v
+"""
 import sys
 from pathlib import Path
 

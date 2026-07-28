@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_require_hardened_tests."""
+"""Backward-compatible runner — implementation in tests/test_require_hardened_tests.
+
+Usage:
+    python3 scripts/test_require_hardened_tests.py -v
+"""
 import sys
 from pathlib import Path
 

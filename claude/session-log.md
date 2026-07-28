@@ -810,3 +810,13 @@ Tests: `test_scan_context_wiring.py` 6/6, `test_artifact_schemas.py` 8/8; `check
 Assumptions affected:
 - `skills/document-spring-repo/SKILL.md` — local E2E via `run_pipeline_local.py` always mocks Stages 1–4 — [New info — `--deterministic-only` and `--signals-file` skip generative stages and reuse prior `spring_signals.json`.]
 Files touched: scripts/run_pipeline_local.py, src/doc_engine/scanning/_scanner_astgrep.py, src/doc_engine/pipeline/artifacts.py, scripts/schemas/spring_signals.schema.json, tests/test_scan_context_wiring.py, claude/session-log.md
+
+---
+
+## 2026-07-28 — PR #53: restore ast-grep-cli pin; land pipeline on snapshot branch
+
+Commit: uncommitted (pushing with PR #53)
+Tests: `ruff check scripts/` pass; `check_code_quality.py` OK after `--update`; `check_repo_claims.py` pending after prompt 08 verify flip
+Assumptions affected:
+- `claude/steering-prompts/08-dependency-pinning-task-prompt.md` — claimed `ast-grep-cli` was removed from `requirements.txt` — [Resolved — pin restored (`ast-grep-cli~=0.45.0`); verify predicates flipped to `contains`.]
+Files touched: requirements.txt, requirements-dev.txt, claude/steering-prompts/08-dependency-pinning-task-prompt.md, CONSTRAINTS.md, scripts/code_quality_baseline.json, scripts/test_*.py, scripts/spring_signal_scan.py, claude/session-log.md

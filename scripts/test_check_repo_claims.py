@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_check_repo_claims."""
+"""Backward-compatible runner — implementation in tests/test_check_repo_claims.
+
+Usage:
+    python3 scripts/test_check_repo_claims.py -v
+"""
 import sys
 from pathlib import Path
 

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_semantic_eval_helpers."""
+"""Backward-compatible runner — implementation in tests/test_semantic_eval_helpers.
+
+Usage:
+    python3 scripts/test_semantic_eval_helpers.py -v
+"""
 import sys
 from pathlib import Path
 

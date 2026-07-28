@@ -5,6 +5,9 @@ This runs the configured scanner set against scripts/test_fixtures/spring_signal
 and writes the result to scripts/test_fixtures/spring_signals_fixture_expected.json.
 Commit the updated JSON when the scanner code or rules change and the snapshot's
 scanner_version no longer matches the current version.
+
+Usage:
+    python3 scripts/regenerate_fixture_snapshot.py
 """
 
 import argparse

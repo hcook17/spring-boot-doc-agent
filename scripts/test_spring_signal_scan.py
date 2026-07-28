@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_spring_signal_scan."""
+"""Backward-compatible runner — implementation in tests/test_spring_signal_scan.
+
+Usage:
+    python3 scripts/test_spring_signal_scan.py -v
+"""
 import sys
 from pathlib import Path
 

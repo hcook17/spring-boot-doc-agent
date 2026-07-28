@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_config_keys."""
+"""Backward-compatible runner — implementation in tests/test_config_keys.
+
+Usage:
+    python3 scripts/test_config_keys.py -v
+"""
 import sys
 from pathlib import Path
 

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_capacity_preflight."""
+"""Backward-compatible runner — implementation in tests/test_capacity_preflight.
+
+Usage:
+    python3 scripts/test_capacity_preflight.py -v
+"""
 import sys
 from pathlib import Path
 

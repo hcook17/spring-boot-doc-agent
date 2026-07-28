@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_partition_repo."""
+"""Backward-compatible runner — implementation in tests/test_partition_repo.
+
+Usage:
+    python3 scripts/test_partition_repo.py -v
+"""
 import sys
 from pathlib import Path
 

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_citation_coverage."""
+"""Backward-compatible runner — implementation in tests/test_citation_coverage.
+
+Usage:
+    python3 scripts/test_citation_coverage.py -v
+"""
 import sys
 from pathlib import Path
 

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Backward-compatible runner — implementation in tests/test_mutate."""
+"""Backward-compatible runner — implementation in tests/test_mutate.
+
+Usage:
+    python3 scripts/test_mutate.py -v
+"""
 import sys
 from pathlib import Path
 
