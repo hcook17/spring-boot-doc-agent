@@ -11,7 +11,7 @@ import jakarta.persistence.*;
 // rule, which is relational (kind + has) specifically to survive this.
 @Entity
 @Table(name = "payment_ledger")
-@EntityListeners(AuditingEntityListener.class)
+@EntityListeners(PaymentLedger.class)
 @Cacheable
 public class PaymentLedger {
     @Id

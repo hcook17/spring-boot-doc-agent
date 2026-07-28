@@ -174,6 +174,7 @@ deploy time, per the framing this check was built for).
 """
 
 import argparse
+import glob
 import hashlib
 import json
 import os
@@ -181,15 +182,17 @@ import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 from _build_signal_extract import extract_build_signals
+from _codeql_runner import CodeQLError, CodeQLNotFoundError, scan_with_codeql
 from _config_keys import extract_config_keys
 from _secret_heuristics import scan_text_for_secrets
 from _shared_excludes import DEFAULT_EXCLUDED_DIRS as EXCLUDED_DIRS
 from _shared_excludes import load_gitignore_spec
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-RULE_FILE = os.path.join(SCRIPT_DIR, "spring_ast_grep_rules.yml")
+PACK_DIR = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "codeql", "spring-signals"))
 
 JAVA_EXT = {".java"}
 
@@ -552,102 +555,101 @@ def compute_file_signature(path):
     return h.hexdigest()
 
 
-class AstGrepError(RuntimeError):
-    """Any ast-grep invocation failure that must not kill the process.
+class CodeQLScannerError(RuntimeError):
+    """Any CodeQL-based scanner failure that should not kill the test process.
 
-    Added 2026-07-25. The reasoning in AstGrepNotFoundError below was always
-    general -- SystemExit raised under setUpClass takes down the whole test
-    process -- but the original fix converted only find_ast_grep(), leaving
-    run_ast_grep()'s two sys.exit(1) calls to reproduce the identical failure
-    whenever ast-grep is *present but fails*: a malformed rule file, an
-    out-of-range --globs argument, or output this script cannot parse as
-    JSON. scan() is called from setUpClass in three suites, so that path had
-    the same silent-process-death behavior the earlier fix was written to
-    remove.
-
-    AstGrepNotFoundError subclasses this, so `except AstGrepNotFoundError`
-    at any existing call site keeps its exact previous meaning."""
+    This replaces the old AstGrepError hierarchy. It is raised by the
+    CodeQL runner wrapper (scan_with_codeql) and by the local source-text
+    helpers. Keeping it as a plain Exception subclass means unittest's
+    setUpClass still catches it normally, just as the previous ast-grep
+    error classes did."""
 
 
-class AstGrepNotFoundError(AstGrepError):
-    """Raised by find_ast_grep() when the binary isn't on PATH.
+def _read_source_lines(repo_path, rel, start_line, max_lines=20):
+    """Read up to max_lines from a Java source file, starting at 1-indexed
+    start_line. Returns the joined source text (without a trailing newline).
 
-    A plain Exception subclass on purpose, not a sys.exit(1) call directly:
-    when scan() runs inside unittest's setUpClass (test_spring_signal_scan.py,
-    test_capacity_preflight.py, test_spring_drift_check.py all call scan()
-    there), unittest's _handleClassSetUp only catches Exception, not
-    BaseException — SystemExit is a BaseException, so raising it here used to
-    propagate straight through and kill the whole test process with no
-    per-class error and no "Ran N tests" summary line, rather than being
-    reported as a normal setUpClass failure for just that one class. CLI
-    entry points (main() in this file, spring_drift_check.py, and
-    capacity_preflight.py) catch this explicitly and print the same
-    stderr message + sys.exit(1) as before, so command-line behavior is
-    unchanged."""
-
-
-def find_ast_grep():
-    path = shutil.which("ast-grep")
-    if path is None:
-        raise AstGrepNotFoundError(
-            "error: the 'ast-grep' binary is not on PATH. This scanner shells out to "
-            "ast-grep for all Java structural detection (see spring_ast_grep_rules.yml). "
-            "Install it (e.g. `cargo install ast-grep` or `npm install -g @ast-grep/cli`, "
-            "see https://ast-grep.github.io/guide/quick-start.html) and re-run."
-        )
-    return path
-
-
-def run_ast_grep(ast_grep_path, repo_path, respect_gitignore=False):
-    cmd = [
-        ast_grep_path, "scan",
-        "--rule", RULE_FILE,
-        "--json=compact",
-        # Make exclusion depend only on EXCLUDED_DIRS below, not on whatever
-        # .gitignore happens to say in a given checkout — same reasoning as
-        # the rest of this script's build-independence. When respect_gitignore
-        # is set, "vcs" is omitted below so ast-grep's own native .gitignore
-        # handling takes over for that one category — no need to reimplement
-        # gitignore matching for the ast-grep subprocess call itself. Note
-        # this only actually does anything inside a real VCS root (a .git
-        # directory present) — same as ripgrep's underlying `ignore` crate,
-        # a standalone .gitignore with no .git next to it is invisible to
-        # this. Real target repos for this plugin are checkouts, so this
-        # isn't a practical gap, but it's why the Python-side dfs_walk
-        # gitignore_spec matching (which has no such requirement) is the
-        # one actually doing the work in a bare-directory scan.
-        "--no-ignore", "hidden",
-        "--no-ignore", "dot",
-        "--no-ignore", "parent",
-        "--no-ignore", "global",
-        "--no-ignore", "exclude",
-    ]
-    if not respect_gitignore:
-        cmd += ["--no-ignore", "vcs"]
-    for d in sorted(EXCLUDED_DIRS):
-        cmd += ["--globs", f"!**/{d}/**"]
-    cmd.append(repo_path)
-
-    # encoding= is explicit rather than left to text=True's default, which is
-    # the *locale* codec — cp1252 on a default Windows install. ast-grep emits
-    # UTF-8 JSON that echoes matched source text, and that text lands in every
-    # evidence row's "match" field (see the buckets appends below), so a
-    # locale-decoded read corrupts evidence two different ways: a character
-    # whose UTF-8 bytes are all defined in cp1252 (é, 日, emoji) decodes to
-    # silent mojibake that flows on into cited documentation, and one whose
-    # bytes include 0x81/0x8D/0x8F/0x90/0x9D (Cyrillic 'с' is d1 81) raises
-    # UnicodeDecodeError and takes down the whole scan. errors="replace" so a
-    # genuinely undecodable byte degrades one match instead of the run.
-    proc = subprocess.run(cmd, capture_output=True, text=True,
-                          encoding="utf-8", errors="replace")
-    if proc.returncode != 0:
-        raise AstGrepError(
-            f"error: ast-grep exited with status {proc.returncode}\n{proc.stderr}"
-        )
+    CodeQL locates structural elements but does not return raw source text,
+    so the existing Python extraction helpers (which expect the text of a
+    declaration or annotation) still need the file content. This is read
+    directly from the working tree, which is the same file the sha256
+    file_signatures pass already visited."""
+    full = os.path.join(repo_path, rel.replace("/", os.sep))
     try:
-        return json.loads(proc.stdout) if proc.stdout.strip() else []
-    except json.JSONDecodeError as e:
-        raise AstGrepError(f"error: could not parse ast-grep output as JSON: {e}") from e
+        with open(full, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+    except OSError:
+        return ""
+    if not lines or start_line < 1:
+        return ""
+    slice_ = lines[start_line - 1:start_line - 1 + max_lines]
+    return "".join(slice_).rstrip("\n")
+
+
+def _scanner_version():
+    """Return a content hash of the scanner code and CodeQL query pack.
+
+    This value is stored in spring_signals.json so downstream tooling can
+    tell whether the scanner itself changed since a previous run. If the
+    version changes, a cached spring_signals.json should be re-scanned. The
+    hash covers this file, the CodeQL runner, and every .ql query in the
+    pack, plus the auxiliary Python helpers that affect the output."""
+    h = hashlib.sha256()
+    paths = [
+        os.path.join(SCRIPT_DIR, "spring_signal_scan.py"),
+        os.path.join(SCRIPT_DIR, "_codeql_runner.py"),
+        os.path.join(SCRIPT_DIR, "_build_signal_extract.py"),
+        os.path.join(SCRIPT_DIR, "_config_keys.py"),
+        os.path.join(SCRIPT_DIR, "_secret_heuristics.py"),
+    ]
+    if os.path.isdir(PACK_DIR):
+        for ql in sorted(glob.glob(os.path.join(PACK_DIR, "*.ql"))):
+            paths.append(ql)
+    for p in sorted(paths):
+        try:
+            with open(p, "rb") as f:
+                for chunk in iter(lambda: f.read(1 << 20), b""):
+                    h.update(chunk)
+        except OSError:
+            pass
+    return h.hexdigest()[:16]
+
+
+def detect_build_command(repo_path):
+    """Return a reasonable default build command for a Java project.
+
+    Order of preference: Gradle wrapper (gradlew.bat, then gradlew), Maven
+    wrapper (mvnw), system Gradle, system Maven. The command includes a
+    clean compile step so CodeQL's tracer sees real compilation work.
+
+    On Windows a bash gradlew script is invoked via Git Bash if available;
+    otherwise the user should pass an explicit --build-command."""
+    repo_path = os.path.abspath(repo_path)
+    # compileTestJava is included so test sources are part of the CodeQL
+    # database; otherwise SpringBootTest and other test-only signals vanish.
+    # --no-daemon keeps CodeQL's tracer from losing the compiler process behind
+    # a reused Gradle daemon, which is the usual cause of
+    # "could not process any of it" on small fixture builds.
+    if os.path.exists(os.path.join(repo_path, "gradlew.bat")):
+        return "gradlew.bat --no-daemon clean compileJava compileTestJava"
+    if os.path.exists(os.path.join(repo_path, "gradlew")):
+        git_bash = r"C:\Program Files\Git\bin\bash.exe"
+        if os.path.exists(git_bash):
+            return f'"{git_bash}" "{os.path.join(repo_path, "gradlew")}" --no-daemon clean compileJava compileTestJava'
+        return "bash gradlew --no-daemon clean compileJava compileTestJava"
+    if os.path.exists(os.path.join(repo_path, "build.gradle")) or \
+       os.path.exists(os.path.join(repo_path, "build.gradle.kts")):
+        gradle = shutil.which("gradle") or shutil.which("gradle.bat")
+        if gradle:
+            return f"{gradle} --no-daemon clean compileJava compileTestJava"
+    if os.path.exists(os.path.join(repo_path, "mvnw")) or \
+       os.path.exists(os.path.join(repo_path, "mvnw.cmd")):
+        return "mvnw --no-daemon clean compile test-compile"
+    if os.path.exists(os.path.join(repo_path, "pom.xml")):
+        mvn = shutil.which("mvn") or shutil.which("mvn.cmd")
+        if mvn:
+            return f"{mvn} --no-daemon clean compile test-compile"
+    return None
 
 
 def _first_line_match(text):
@@ -882,7 +884,7 @@ def _entity_map_lineage_gate(entity_name, map_entry):
     }
 
 
-def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
+def scan(repo_path, sql_dialect="ansi", respect_gitignore=False, build_command=None, db_path=None):
     gitignore_spec = load_gitignore_spec(repo_path) if respect_gitignore else None
 
     buckets = {
@@ -898,6 +900,11 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
     file_signatures = {}
     redaction_zones = {}
     config_key_sets = {}
+
+    # Compute once so the CodeQL result cache and the output JSON agree on the
+    # version hash. This also avoids re-reading all the .ql files and scanner
+    # helpers twice per scan.
+    scanner_version = _scanner_version()
 
     # Pass 1 (plain Python, no parsing): filename-based buckets, plus a
     # java-file count for files_scanned. Unlike the regex-era version this
@@ -929,17 +936,43 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
         _classify_non_java_file(full, rel, name, ext, buckets, files_scanned,
                                 redaction_zones, config_key_sets)
 
-    # Pass 2: everything Java-structural, via ast-grep.
-    ast_grep_path = find_ast_grep()
-    matches = run_ast_grep(ast_grep_path, repo_path, respect_gitignore=respect_gitignore)
+    # Pass 2: everything Java-structural, via CodeQL.
+    # Skip CodeQL entirely when the walk found no Java source files — this
+    # keeps filename-only test fixtures (build-file classification, gitignore
+    # opt-in on a directory with no Java, etc.) from needing a Java build.
+    if files_scanned["java"] > 0:
+        if build_command is None:
+            build_command = detect_build_command(repo_path)
+        if build_command is None:
+            raise CodeQLScannerError(
+                "Could not detect a Java build command for this repository. "
+                "Pass --build-command, e.g. 'gradlew clean compileJava'."
+            )
+        try:
+            matches = scan_with_codeql(
+                Path(repo_path), build_command,
+                pack_dir=Path(PACK_DIR),
+                db_path=Path(db_path) if db_path else None,
+                keep_database=True,
+                scanner_version=scanner_version,
+            )
+        except CodeQLError as e:
+            raise CodeQLScannerError(str(e)) from e
+    else:
+        matches = []
 
-    seen = set()  # (file, line, ruleId) -> collapse same AST-node-kind hits that land on one line
+    seen = set()  # (file, line, rule_id) -> collapse same AST-node-kind hits that land on one line
     for m in matches:
-        rel = os.path.relpath(m["file"], repo_path).replace("\\", "/")
-        line = m["range"]["start"]["line"] + 1
-        text = m.get("text", "")
-        rule_id = m["ruleId"]
-        match_str = _first_line_match(text)
+        rel = m["file"].replace("\\", "/")
+        line = m["line"]
+        rule_id = m["rule_id"]
+        # CodeQL returns locations, not raw source text. Read the relevant
+        # source lines so existing regex-based extraction helpers can keep
+        # working unchanged. The line count is generous enough for most class
+        # / interface declarations; helpers only look at the header anyway.
+        max_lines = 40 if rule_id in {"persistence__entity", "persistence__repository"} else 10
+        src_text = _read_source_lines(repo_path, rel, line, max_lines=max_lines)
+        match_str = _first_line_match(src_text)
 
         dedup_key = (rel, line, rule_id)
         if dedup_key in seen:
@@ -947,24 +980,35 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
         seen.add(dedup_key)
 
         if rule_id == "persistence__entity":
-            extracted = _extract_entity(rel, text)
+            extracted = _extract_entity(rel, src_text)
             if extracted is None:
-                continue
-            class_name, map_entry = extracted
-            # rule_id + match let drift-check tooling re-verify this exact
-            # citation later (re-run persistence__entity against just this
-            # file, re-extract, compare) without guessing which rule
-            # produced it. class_name on the bucket-side entry (below) is
-            # what lets that same tooling correlate the two parallel
-            # representations of one entity match — entity_table_map has no
-            # `line`/`match` of its own to key off, and the bucket entry has
-            # no `table`/`table_name_source` — without class_name on the
-            # bucket entry, the two can't be tied back together.
+                # Fall back to the typed class name from CodeQL if regex extraction fails.
+                class_name = m.get("class_name")
+                if not class_name:
+                    continue
+            else:
+                class_name, map_entry = extracted
+
+            # CodeQL resolves the actual @Table(name=...) value, so prefer the
+            # typed column when it is present. This is more robust than source-text
+            # regex extraction, which can miss annotations that sit above the
+            # class declaration line CodeQL reports.
+            codeql_table = m.get("table_name")
+            if codeql_table:
+                map_entry = {
+                    "file": rel,
+                    "table": codeql_table,
+                    "table_name_source": "explicit",
+                }
+            elif extracted is None:
+                map_entry = {
+                    "file": rel,
+                    "table": to_snake_case(class_name),
+                    "table_name_source": "inferred-default-naming",
+                }
+
             map_entry["rule_id"] = rule_id
             map_entry["match"] = match_str
-            # Collect every candidate under the simple class name; finalize
-            # into entity_table_map after the match loop (lowest-path winner
-            # for citation identity, status=contested when packages collide).
             entity_candidates.setdefault(class_name, []).append(map_entry)
             buckets["persistence"].append({
                 "file": rel, "line": line, "match": match_str,
@@ -974,30 +1018,24 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
 
         bucket, _, _subkind = rule_id.partition("__")
         if bucket not in buckets:
-            # Defensive: a rule id that doesn't map to a known bucket shouldn't
-            # silently vanish or crash the whole scan.
-            print(f"warning: ast-grep rule id '{rule_id}' has no matching evidence bucket, skipping", file=sys.stderr)
+            print(f"warning: CodeQL rule id '{rule_id}' has no matching evidence bucket, skipping", file=sys.stderr)
             continue
 
-        # rule_id travels with every entry (not just persistence__entity,
-        # above) so drift-check tooling always knows which specific
-        # ast-grep rule to re-run for a precise recheck, rather than
-        # guessing from the bucket name — a bucket like `persistence` mixes
-        # rule_id-bearing entries with plain-Python filename matches (the
-        # migration-script entries appended in pass 1 above) that have no
-        # rule_id at all, deliberately: there's no rule to re-run for those.
         entry = {"file": rel, "line": line, "match": match_str, "rule_id": rule_id}
 
         if rule_id == "raw_queries__query":
-            multi_args = m.get("metaVariables", {}).get("multi", {}).get("ARGS", [])
-            query_kind, query_text = _extract_query(multi_args)
+            query_kind = m.get("query_kind", "jpql")
+            query_text = m.get("query_text") or m.get("query")
             entry["query_kind"] = query_kind
-            if query_text is not None:
+            if query_text:
                 entry["query"] = query_text
                 if query_kind == "native":
                     entry["lineage"] = extract_sql_lineage(query_text, dialect=sql_dialect)
         elif rule_id == "persistence__repository":
-            entry.update(_extract_repository(text))
+            entry.update(_extract_repository(src_text))
+            # If CodeQL resolved the entity type, add it as a fallback.
+            if not entry.get("entity") and m.get("entity_name"):
+                entry["entity"] = m.get("entity_name")
 
         buckets[bucket].append(entry)
 
@@ -1028,7 +1066,8 @@ def scan(repo_path, sql_dialect="ansi", respect_gitignore=False):
     entity_table_map = dict(sorted(entity_table_map.items()))
 
     return {
-        "schema_version": 6,
+        "schema_version": 7,
+        "scanner_version": scanner_version,
         "repo_path": os.path.abspath(repo_path),
         "files_scanned": files_scanned,
         "entity_table_map": entity_table_map,
@@ -1056,8 +1095,14 @@ def main():
     ap.add_argument("--respect-gitignore", action="store_true", default=False,
                      help="Additionally exclude paths matched by the repo's own .gitignore, "
                           "on top of the hardcoded EXCLUDED_DIRS floor (default: off; requires "
-                          "the pathspec library for the Python-side walk; ast-grep's own native "
-                          "gitignore handling is used for the ast-grep subprocess call)")
+                          "the pathspec library for the Python-side walk).")
+    ap.add_argument("--build-command", default=None,
+                    help="Build command used by CodeQL to create a Java database "
+                         "(e.g. 'gradlew clean compileJava'). If omitted, the scanner tries "
+                         "to detect a Maven or Gradle wrapper automatically.")
+    ap.add_argument("--db-path", default=None,
+                    help="Optional path where CodeQL should keep the analysis database. "
+                         "Reusing a database speeds up repeated scans; omitted creates a temp database.")
     args = ap.parse_args()
 
     if not os.path.isdir(args.repo_path):
@@ -1065,10 +1110,14 @@ def main():
         sys.exit(1)
 
     try:
-        result = scan(args.repo_path, sql_dialect=args.sql_dialect, respect_gitignore=args.respect_gitignore)
-    except AstGrepError as e:
-        # Base class, so this covers both "binary missing" and "binary ran and
-        # failed". Same stderr text and exit code as before either way.
+        result = scan(
+            args.repo_path,
+            sql_dialect=args.sql_dialect,
+            respect_gitignore=args.respect_gitignore,
+            build_command=args.build_command,
+            db_path=args.db_path,
+        )
+    except (CodeQLScannerError, CodeQLNotFoundError) as e:
         print(e, file=sys.stderr)
         sys.exit(1)
     with open(args.out, "w") as f:

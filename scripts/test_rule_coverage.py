@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Contract for rule_coverage.py, the gate that proves each ast-grep rule can
+"""Contract for rule_coverage.py, the gate that proves each CodeQL query can
 actually fire.
 
 Not covered by sibling suites. test_spring_signal_scan.py pins what the
-scanner *produces* for a handful of buckets; it names 2 of the 23 rule ids and
-has never asserted that the other 21 are capable of matching anything at all.
+scanner *produces* for a handful of buckets; it names a few of the rule ids and
+has never asserted that the rest are capable of matching anything at all.
 That gap is the whole reason this file exists: on a real production Spring
-service, 13 rules returned zero and nothing could say whether they were broken
+service, many rules returned zero and nothing could say whether they were broken
 or simply unexercised.
 
 The load-bearing test is test_a_rule_with_no_fixture_is_caught. Without it,
-rule_coverage.py could report "23/23 rules fired" because it silently found no
+rule_coverage.py could report "all rules fired" because it silently found no
 rules to check, which is the vacuous-pass shape this repo keeps writing
 directional tests against.
 
@@ -37,15 +37,17 @@ class TestRuleIdParsing(unittest.TestCase):
         self.assertGreaterEqual(len(ids), 20)
         self.assertIn("persistence__entity", ids)
 
-    def test_a_nested_id_is_not_mistaken_for_a_rule(self) -> None:
-        """`id:` indented inside a rule body names a sub-clause, not a rule.
-        Anchoring is what keeps the denominator honest."""
+    def test_duplicate_rule_ids_are_deduplicated(self) -> None:
+        """A query may repeat the same rule_id in multiple branches; the
+        denominator must count each logical rule only once."""
         with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "rules.yml"
+            path = Path(tmp) / "Dummy.ql"
             path.write_text(
-                "id: bucket__real\nrule:\n  has:\n    id: bucket__nested\n",
+                'rule_id = "bucket__real"\n'
+                'rule_id = "bucket__real"\n'
+                'rule_id = "bucket__other"\n',
                 encoding="utf-8")
-            self.assertEqual(rc.rule_ids(path), ["bucket__real"])
+            self.assertEqual(rc.rule_ids(path), ["bucket__real", "bucket__other"])
 
 
 class TestNonVacuity(unittest.TestCase):

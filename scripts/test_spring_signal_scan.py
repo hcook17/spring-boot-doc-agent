@@ -4,20 +4,25 @@ Integration test for spring_signal_scan.py, run against the fixture repo in
 test_fixtures/spring_signals/.
 
 This is a REAL integration test, not a mocked one: it calls scan() directly,
-which shells out to the actual ast-grep binary using the actual bundled
-spring_ast_grep_rules.yml. That's deliberate — the thing most worth testing
-here is whether the rule file and the Python wrapper still agree with each
-other and with a real ast-grep install, not whether some mock was configured
-correctly. If ast-grep isn't on PATH, this fails loudly, which is correct:
-that's a real deployment problem, not a reason to skip the test.
+which now uses a build-based CodeQL pass for Java structural detection. The
+fixture directory includes a Gradle build so the CodeQL database can be created.
+If the CodeQL CLI isn't installed, the fixture build fails, or the bundled
+queries are wrong, this fails loudly - that is a real deployment problem, not
+a reason to skip the test.
 
 Every fixture file exists to guard a specific, previously-broken behavior —
 see the comment at the top of each one. Run with:
 
     python3 scripts/test_spring_signal_scan.py -v
 
-Requires: ast-grep on PATH (see spring_signal_scan.py's error message for
-install instructions if this fails with "ast-grep binary is not on PATH").
+Fast mode (skips the slow tests that build a fresh CodeQL database for a
+one-off scratch repo; the main fixture suite still runs and is cached):
+
+    SPRING_SIGNAL_FAST_MODE=1 python3 scripts/test_spring_signal_scan.py -v
+
+Requires: CodeQL CLI on PATH and a working Java toolchain (see
+spring_signal_scan.py's error message for install instructions if this
+fails).
 """
 
 import json
@@ -27,18 +32,65 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 FIXTURE_DIR = os.path.join(SCRIPT_DIR, "test_fixtures", "spring_signals")
 sys.path.insert(0, SCRIPT_DIR)
 
+# Fast mode skips the slow tests that build a fresh CodeQL database for a
+# one-off scratch repo. The main fixture suite (SpringSignalScanTest) still runs
+# and is served by the content-addressed result cache in _codeql_runner.py.
+FAST_MODE = os.environ.get("SPRING_SIGNAL_FAST_MODE", "").lower() in ("1", "true", "yes")
+
 import spring_signal_scan  # noqa: E402
+from _codeql_runner import create_database  # noqa: E402
+
+FIXTURE_BUILD_COMMAND = (
+    os.path.join(FIXTURE_DIR, "gradlew.bat" if os.name == "nt" else "gradlew")
+    + " --no-daemon clean compileJava compileTestJava"
+)
+
+
+def _javac_build_command(tmpdir, java_files):
+    """Return a javac command string for simple dependency-free fixtures."""
+    files = " ".join(java_files)
+    return f"javac -d . {files}"
+
+
+def _gradle_build_command(tmpdir, source_dirs):
+    """Write a minimal Gradle build in tmpdir and return a command string.
+
+    Uses the fixture's bundled Gradle wrapper so the test does not depend on a
+    system Gradle install. The build only pulls in jakarta.persistence, which is
+    enough for the entity determinism and gitignore fixtures.
+    """
+    with open(os.path.join(tmpdir, "build.gradle"), "w") as f:
+        f.write(
+            "plugins { id 'java' }\n"
+            "repositories { mavenCentral() }\n"
+            "dependencies { implementation 'jakarta.persistence:jakarta.persistence-api:3.1.0' }\n"
+            "sourceSets {\n"
+            "    main {\n"
+            "        java {\n"
+            f"            srcDirs = {source_dirs!r}\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        )
+    with open(os.path.join(tmpdir, "settings.gradle"), "w") as f:
+        f.write("rootProject.name = 'temp-scan'\n")
+    gradlew = os.path.join(FIXTURE_DIR, "gradlew.bat" if os.name == "nt" else "gradlew")
+    return f"{gradlew} --no-daemon clean compileJava compileTestJava"
 
 
 class SpringSignalScanTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.result = spring_signal_scan.scan(FIXTURE_DIR)
+        cls.result = spring_signal_scan.scan(
+            FIXTURE_DIR,
+            build_command=FIXTURE_BUILD_COMMAND,
+        )
         cls.evidence = cls.result["evidence"]
 
     def _entries_for(self, bucket, filename):
@@ -48,9 +100,13 @@ class SpringSignalScanTest(unittest.TestCase):
 
     def test_file_counts(self):
         fs = self.result["files_scanned"]
-        self.assertEqual(fs["java"], 9, "target/generated-sources/ShouldBeExcluded.java must not be counted")  # 8 original + SLARule.java
-        self.assertEqual(fs["config"], 2)
-        self.assertEqual(fs["deployment"], 1)
+        # 9 original fixtures + 7 new coverage fixtures + 1 test fixture;
+        # target/generated-sources/ShouldBeExcluded.java must not be counted.
+        self.assertEqual(fs["java"], 17)
+        # application-local.yml + bootstrap.yml + gradle/wrapper/gradle-wrapper.properties
+        self.assertEqual(fs["config"], 3)
+        # Dockerfile + build.gradle + settings.gradle
+        self.assertEqual(fs["deployment"], 3)
         self.assertEqual(fs["other_relevant"], 2)  # logback-spring.xml + db/migration/V1__init.sql
 
     def test_excluded_dirs_are_not_scanned(self):
@@ -61,7 +117,13 @@ class SpringSignalScanTest(unittest.TestCase):
     def test_config_and_deployment_and_logging_and_migration(self):
         self.assertEqual(len(self._entries_for("configuration", "application-local.yml")), 1)
         self.assertEqual(len(self._entries_for("configuration", "bootstrap.yml")), 1)
+        self.assertEqual(len(self._entries_for("configuration", "gradle/wrapper/gradle-wrapper.properties")), 1)
         self.assertEqual(len(self._entries_for("deployment", "Dockerfile")), 1)
+        # build.gradle is both a build script and a source of extracted
+        # deployment signals (plugins, dependencies, toolchain).
+        self.assertGreaterEqual(len(self._entries_for("deployment", "build.gradle")), 1)
+        self.assertEqual(self._entries_for("deployment", "build.gradle")[0]["match"], "build script")
+        self.assertEqual(len(self._entries_for("deployment", "settings.gradle")), 1)
         self.assertEqual(len(self._entries_for("observability", "logback-spring.xml")), 1)
         self.assertEqual(len(self._entries_for("persistence", "db/migration/V1__init.sql")), 1)
 
@@ -102,7 +164,7 @@ class SpringSignalScanTest(unittest.TestCase):
         # Regression guard for a REAL bug found by running the old scanner
         # against a production codebase's Application.java: it did
         # `"@Entity" in text`, a substring check that also matched
-        # "@EntityScan(...)". Misc.java carries @EntityScan on a non-entity
+        # "@EntityScan(...)". src/main/java/com/example/billing/Misc.java carries @EntityScan on a non-entity
         # class specifically to guard against that recurring.
         self.assertNotIn("SecurityConfig", self.result["entity_table_map"])
 
@@ -118,7 +180,7 @@ class SpringSignalScanTest(unittest.TestCase):
     # ---- repository detection ----
 
     def test_plain_repository(self):
-        entries = self._entries_for("persistence", "InvoiceRepository.java")
+        entries = self._entries_for("persistence", "src/main/java/com/example/billing/InvoiceRepository.java")
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0]["repository"], "InvoiceRepository")
         self.assertEqual(entries[0]["entity"], "Invoice")
@@ -128,20 +190,20 @@ class SpringSignalScanTest(unittest.TestCase):
         # Regression guard: same annotation-adjacency issue as entities, for
         # "public interface $N extends JpaRepository<...> {$$$}". Most real
         # repository interfaces carry @Repository, which used to break this.
-        entries = self._entries_for("persistence", "AnnotatedRepository.java")
+        entries = self._entries_for("persistence", "src/main/java/com/example/billing/AnnotatedRepository.java")
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0]["repository"], "AnnotatedRepository")
 
     def test_non_repository_interface_is_not_matched(self):
-        # Negative case: NotARepository.java sits in the same conceptual
+        # Negative case: src/main/java/com/example/billing/NotARepository.java sits in the same conceptual
         # role but extends nothing Spring-Data-shaped. Zero matches expected
         # — detection is structural, not filename/directory based.
-        self.assertEqual(len(self._entries_for("persistence", "NotARepository.java")), 0)
+        self.assertEqual(len(self._entries_for("persistence", "src/main/java/com/example/billing/NotARepository.java")), 0)
 
     # ---- raw queries: jpql vs native, argument-order independence ----
 
     def test_jpql_query_extracted(self):
-        entries = self._entries_for("raw_queries", "InvoiceRepository.java")
+        entries = self._entries_for("raw_queries", "src/main/java/com/example/billing/InvoiceRepository.java")
         jpql = [e for e in entries if e["query_kind"] == "jpql"]
         self.assertEqual(len(jpql), 1)
         self.assertEqual(jpql[0]["query"], "SELECT i FROM Invoice i WHERE i.status = :status")
@@ -150,7 +212,7 @@ class SpringSignalScanTest(unittest.TestCase):
         # nativeQuery=true appears AFTER the query string here — a fixed
         # this-line-or-next-line heuristic or an argument-order-sensitive
         # pattern both got this right only by accident.
-        entries = self._entries_for("raw_queries", "InvoiceRepository.java")
+        entries = self._entries_for("raw_queries", "src/main/java/com/example/billing/InvoiceRepository.java")
         native = [e for e in entries if e["query_kind"] == "native"]
         self.assertEqual(len(native), 1)
         self.assertEqual(native[0]["query"], "SELECT * FROM billing_invoice WHERE status = :status")
@@ -161,7 +223,7 @@ class SpringSignalScanTest(unittest.TestCase):
         # This is the real integration path: scan() -> extract_sql_lineage()
         # -> the actual sqllineage library, against the fixture's real
         # native query text (":status" named parameter and all).
-        entries = self._entries_for("raw_queries", "InvoiceRepository.java")
+        entries = self._entries_for("raw_queries", "src/main/java/com/example/billing/InvoiceRepository.java")
         native = next(e for e in entries if e["query_kind"] == "native")
         self.assertIn("lineage", native)
         self.assertTrue(native["lineage"]["available"], native["lineage"].get("reason"))
@@ -175,7 +237,7 @@ class SpringSignalScanTest(unittest.TestCase):
         # entity_table_map (Invoice.java's @Table(name="billing_invoice")),
         # alias "i." stripped, then fed through the same extract_sql_lineage()
         # native queries use. Real integration path, not a mocked lookup.
-        entries = self._entries_for("raw_queries", "InvoiceRepository.java")
+        entries = self._entries_for("raw_queries", "src/main/java/com/example/billing/InvoiceRepository.java")
         jpql = next(e for e in entries if e["query_kind"] == "jpql")
         self.assertIn("lineage", jpql)
         self.assertTrue(jpql["lineage"]["available"], jpql["lineage"].get("reason"))
@@ -184,22 +246,22 @@ class SpringSignalScanTest(unittest.TestCase):
     # ---- api_surface / security ----
 
     def test_controller_and_mappings(self):
-        entries = self._entries_for("api_surface", "InvoiceController.java")
+        entries = self._entries_for("api_surface", "src/main/java/com/example/billing/InvoiceController.java")
         self.assertEqual(len(entries), 4)  # @RestController, @RequestMapping, @GetMapping, @PostMapping
 
     def test_multiline_security_annotation_detected(self):
-        entries = self._entries_for("security", "InvoiceController.java")
+        entries = self._entries_for("security", "src/main/java/com/example/billing/InvoiceController.java")
         self.assertEqual(len(entries), 1)
 
     # ---- dedup: two distinct AST matches on one line collapse to one entry ----
 
     def test_same_line_double_usage_is_deduped(self):
-        # Misc.java has `RestTemplate restTemplate = new RestTemplate();` —
+        # src/main/java/com/example/billing/Misc.java has `RestTemplate restTemplate = new RestTemplate();` —
         # two real, distinct type_identifier matches on one line. The old
         # regex scanner reported at most one hit per line; this scanner
         # dedupes by (file, line, ruleId) to match that, rather than
         # reporting every AST node individually.
-        entries = self._entries_for("outbound_clients", "Misc.java")
+        entries = self._entries_for("outbound_clients", "src/main/java/com/example/billing/Misc.java")
         self.assertEqual(len(entries), 2)  # one import entry + one deduped usage entry
 
     def test_evidence_is_sorted_for_determinism(self):
@@ -215,6 +277,7 @@ class SpringSignalScanTest(unittest.TestCase):
         self.assertEqual(keys, sorted(keys), "entity_table_map keys are not sorted")
 
 
+@unittest.skipIf(FAST_MODE, "slow one-off CodeQL DB build skipped in fast mode")
 class ScanDeterminismTest(unittest.TestCase):
     """Same input tree must produce byte-identical output.
 
@@ -228,7 +291,7 @@ class ScanDeterminismTest(unittest.TestCase):
     def test_two_scans_of_the_same_tree_serialize_identically(self):
         # Measured caveat, recorded so nobody reads more into a green result
         # here than it earns: when this was run against the unfixed scanner
-        # (entity_table_map emitted in ast-grep match order), this test still
+        # (entity_table_map emitted in CodeQL match order), this test still
         # PASSED, while the ordering invariants above failed. Two scans inside
         # one process happened to see the same match order, so back-to-back
         # comparison did not expose the very defect it was written for.
@@ -237,8 +300,14 @@ class ScanDeterminismTest(unittest.TestCase):
         # per call, but the explicit sortedness assertions are the detectors
         # that actually work. A probe that only re-runs and diffs is weaker
         # than an invariant that names the property.
-        first = spring_signal_scan.scan(FIXTURE_DIR)
-        second = spring_signal_scan.scan(FIXTURE_DIR)
+        first = spring_signal_scan.scan(
+            FIXTURE_DIR,
+            build_command=FIXTURE_BUILD_COMMAND,
+        )
+        second = spring_signal_scan.scan(
+            FIXTURE_DIR,
+            build_command=FIXTURE_BUILD_COMMAND,
+        )
         self.assertEqual(
             json.dumps(first, indent=2, sort_keys=False),
             json.dumps(second, indent=2, sort_keys=False),
@@ -268,7 +337,9 @@ class ScanDeterminismTest(unittest.TestCase):
                     "}\n"
                 )
 
-        result = spring_signal_scan.scan(tmp)
+        build_command = _gradle_build_command(tmp, ["pkg_a", "pkg_b"])
+        db_path = Path(tmp) / "codeql_db"
+        result = spring_signal_scan.scan(tmp, build_command=build_command, db_path=db_path)
         entry = result["entity_table_map"]["User"]
         self.assertEqual(entry["table"], "a_user")
         self.assertTrue(entry["file"].startswith("pkg_a"), entry["file"])
@@ -279,8 +350,10 @@ class ScanDeterminismTest(unittest.TestCase):
         )
 
         # And it stays that way — the point is stability, not the specific
-        # winner of the identity fields.
-        again = spring_signal_scan.scan(tmp)["entity_table_map"]["User"]
+        # winner.
+        again = spring_signal_scan.scan(
+            tmp, build_command=build_command, db_path=db_path
+        )["entity_table_map"]["User"]
         self.assertEqual(entry, again)
 
         # Contested map entry must refuse lineage rather than guess a table.
@@ -498,6 +571,7 @@ class JpqlLineageResolutionTest(unittest.TestCase):
         self.assertFalse(result["available"])
 
 
+@unittest.skipIf(FAST_MODE, "slow one-off CodeQL DB build skipped in fast mode")
 class ReferencesBucketTest(unittest.TestCase):
     """references__import / references__package (spring_ast_grep_rules.yml)
     build a repo-wide import/package index so file-summarizer can find
@@ -524,12 +598,16 @@ class ReferencesBucketTest(unittest.TestCase):
             )
         with open(os.path.join(group_b, "Service.java"), "w") as f:
             f.write("package groupB;\n\npublic class Service {\n}\n")
+        self.build_command = _javac_build_command(self.tmpdir, ["groupA/Consumer.java", "groupB/Service.java"])
+        self.db_path = Path(self.tmpdir) / "codeql_db"
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def test_cross_group_import_appears_in_references_bucket(self):
-        result = spring_signal_scan.scan(self.tmpdir)
+        result = spring_signal_scan.scan(
+            self.tmpdir, build_command=self.build_command, db_path=self.db_path
+        )
         import_entries = [
             e for e in result["evidence"]["references"]
             if e["rule_id"] == "references__import" and e["file"] == "groupA/Consumer.java"
@@ -616,6 +694,7 @@ class BuildFileClassificationTest(unittest.TestCase):
         self.assertFalse([f for f in files if f.startswith("build/")], files)
 
 
+@unittest.skipIf(FAST_MODE, "slow one-off CodeQL DB build skipped in fast mode")
 class RespectGitignoreOptInTest(unittest.TestCase):
     """--respect-gitignore is additive-only: a directory not covered by the
     hardcoded EXCLUDED_DIRS floor (unlike vendor/, venv/, etc.) should only
@@ -637,42 +716,36 @@ class RespectGitignoreOptInTest(unittest.TestCase):
         scratch_dir = os.path.join(self.tmpdir, "scratch_module")
         os.makedirs(scratch_dir)
         with open(os.path.join(scratch_dir, "Scratch.java"), "w") as f:
-            f.write("package scratch_module;\n\n@Entity\npublic class Scratch {\n}\n")
+            f.write(
+                "package scratch_module;\n\n"
+                "import jakarta.persistence.*;\n\n"
+                "@Entity\n"
+                "public class Scratch {\n}\n"
+            )
         with open(os.path.join(self.tmpdir, ".gitignore"), "w") as f:
             f.write("scratch_module/\n")
+        self.build_command = _gradle_build_command(self.tmpdir, ["scratch_module"])
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def test_scratch_module_scanned_without_opt_in(self):
-        result = spring_signal_scan.scan(self.tmpdir)
+        result = spring_signal_scan.scan(self.tmpdir, build_command=self.build_command)
         self.assertEqual(result["files_scanned"]["java"], 1)
         self.assertIn("Scratch", result["entity_table_map"])
 
     def test_scratch_module_excluded_with_opt_in(self):
-        result = spring_signal_scan.scan(self.tmpdir, respect_gitignore=True)
+        result = spring_signal_scan.scan(
+            self.tmpdir, respect_gitignore=True, build_command=self.build_command
+        )
         self.assertEqual(result["files_scanned"]["java"], 0)
         self.assertNotIn("Scratch", result["entity_table_map"])
 
 
 
 
-class AstGrepFailureIsAnExceptionTest(unittest.TestCase):
-    """run_ast_grep() used to call sys.exit(1) on a failing ast-grep.
-
-    That is the identical defect AstGrepNotFoundError was introduced to fix
-    in find_ast_grep(), left in place at two sites because the original fix
-    converted only the "binary missing" path. SystemExit derives from
-    BaseException, and unittest's _handleClassSetUp catches only Exception --
-    so a sys.exit() raised under setUpClass (which is where three suites call
-    scan()) kills the whole test process with no "Ran N tests" line, instead
-    of being reported as one class's setUpClass error.
-
-    These tests pin the property that actually matters: an ordinary
-    `except Exception` must catch it. Asserting the exception type alone
-    would not -- SystemExit would satisfy an assertRaises(BaseException) just
-    as well, which is precisely how this went unnoticed the first time.
-    """
+class CodeQLFailureIsAnExceptionTest(unittest.TestCase):
+    """CodeQL failures must be ordinary exceptions, not process-killers."""
 
     class _FakeProc:
         def __init__(self, returncode=0, stdout="", stderr=""):
@@ -688,56 +761,32 @@ class AstGrepFailureIsAnExceptionTest(unittest.TestCase):
         finally:
             spring_signal_scan.subprocess.run = original
 
-    def test_nonzero_exit_raises_ast_grep_error(self):
-        proc = self._FakeProc(returncode=2, stderr="bad rule file")
-        with self.assertRaises(spring_signal_scan.AstGrepError):
-            self._run_with(proc, lambda: spring_signal_scan.run_ast_grep("ast-grep", "."))
+    def test_not_found_error_is_a_codeql_error(self):
+        self.assertTrue(issubclass(spring_signal_scan.CodeQLNotFoundError,
+                                   spring_signal_scan.CodeQLError))
 
-    def test_unparseable_output_raises_ast_grep_error(self):
-        proc = self._FakeProc(returncode=0, stdout="not json at all")
-        with self.assertRaises(spring_signal_scan.AstGrepError):
-            self._run_with(proc, lambda: spring_signal_scan.run_ast_grep("ast-grep", "."))
-
-    def test_nonzero_exit_is_catchable_as_a_plain_exception(self):
-        """The regression witness. Against the pre-fix code this fails by
-        the SystemExit propagating straight through the `except Exception`."""
-        proc = self._FakeProc(returncode=2, stderr="bad rule file")
+    def test_scanner_error_is_catchable_as_a_plain_exception(self):
+        """main() catches CodeQLScannerError as Exception, not BaseException."""
+        proc = self._FakeProc(returncode=1, stderr="database creation failed")
         caught = None
         try:
-            self._run_with(proc, lambda: spring_signal_scan.run_ast_grep("ast-grep", "."))
+            self._run_with(proc, lambda: create_database(
+                "codeql", Path("."), "fake-build", Path("db")))
         except Exception as exc:  # noqa: BLE001 -- catching broadly is the point
             caught = exc
         self.assertIsNotNone(
-            caught, "run_ast_grep raised something `except Exception` cannot catch")
+            caught, "create_database raised something `except Exception` cannot catch")
         self.assertNotIsInstance(caught, SystemExit)
 
-    def test_unparseable_output_is_catchable_as_a_plain_exception(self):
-        proc = self._FakeProc(returncode=0, stdout="{{{")
-        caught = None
-        try:
-            self._run_with(proc, lambda: spring_signal_scan.run_ast_grep("ast-grep", "."))
-        except Exception as exc:  # noqa: BLE001 -- catching broadly is the point
-            caught = exc
-        self.assertIsNotNone(caught)
-        self.assertNotIsInstance(caught, SystemExit)
-
-    def test_the_failure_message_still_names_ast_grep_and_the_status(self):
-        """CLI behavior is meant to be unchanged: main() prints the exception
-        and exits 1, so the text a user sees must still carry the detail that
-        used to be printed directly."""
-        proc = self._FakeProc(returncode=3, stderr="rule parse failed")
-        with self.assertRaises(spring_signal_scan.AstGrepError) as ctx:
-            self._run_with(proc, lambda: spring_signal_scan.run_ast_grep("ast-grep", "."))
+    def test_failure_message_carries_codeql_status(self):
+        proc = self._FakeProc(returncode=1, stderr="database creation failed")
+        with self.assertRaises(spring_signal_scan.CodeQLError) as ctx:
+            self._run_with(proc, lambda: create_database(
+                "codeql", Path("."), "fake-build", Path("db")))
         message = str(ctx.exception)
-        self.assertIn("ast-grep", message)
-        self.assertIn("3", message)
-        self.assertIn("rule parse failed", message)
-
-    def test_not_found_error_is_still_an_ast_grep_error(self):
-        """Subclassing keeps every existing `except AstGrepNotFoundError`
-        call site meaning exactly what it meant before."""
-        self.assertTrue(issubclass(spring_signal_scan.AstGrepNotFoundError,
-                                   spring_signal_scan.AstGrepError))
+        self.assertIn("codeql", message.lower())
+        self.assertIn("1", message)
+        self.assertIn("database creation failed", message)
 
 
 if __name__ == "__main__":

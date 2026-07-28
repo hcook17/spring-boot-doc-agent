@@ -745,3 +745,15 @@ Assumptions affected:
 - `skills/document-spring-repo/references/doc-taxonomy.md` — operations.md / local_development.md now prefer `deployment__build_*` rows over an agent's own reading of build scripts. — [Resolved — evidence section updated.]
 - `agents/file-summarizer.md` — build `rule_id` rows treated as ground truth like other Stage 0 hits. — [Resolved — step 2 example updated.]
 Files touched: scripts/_build_signal_extract.py, scripts/spring_signal_scan.py, scripts/spring_drift_check.py, scripts/test_build_signal_extract.py, scripts/test_spring_signal_scan.py, scripts/test_enterprise_kitchen_sink.py, .github/workflows/ci.yml, CONSTRAINTS.md, skills/document-spring-repo/references/doc-taxonomy.md, agents/file-summarizer.md, claude/session-log.md, scripts/code_quality_baseline.json, scripts/repo_claims_baseline.json
+
+---
+
+## 2026-07-27 — Stage 0 CodeQL adoption: content-addressed result cache and fast-mode test suites
+Commit: uncommitted
+Tests: test_spring_signal_scan.py fast mode 55/55 OK (5 skipped); test_spring_drift_check.py fast mode 41/41 OK (27 skipped); test_rule_coverage.py 13/13; rule_coverage.py 28/28 rules fired; check_repo_claims.py OK (14 pre-existing baseline findings unchanged).
+Assumptions affected:
+- `claude/steering-prompts/08-dependency-pinning-task-prompt.md` — "`requirements.txt` added at plugin root pinning `ast-grep-cli~=0.45.0`" — [Resolved — `ast-grep` replaced by CodeQL CLI (standalone binary, not a Python package); `requirements.txt` no longer contains `ast-grep-cli`; `verify:` predicate updated to `not_contains:requirements.txt:ast-grep-cli`.]
+- `CONSTRAINTS.md` "Runtime prerequisites" item 1 — "`ast-grep` binary on `PATH`" and `find_ast_grep()`/`run_ast_grep()` references — [Resolved — CodeQL CLI on `PATH`; `_codeql_runner.py` raises `CodeQLError`/`CodeQLScannerError`; CLI entry points catch and exit 1 cleanly.]
+- `MATURITY_ASSESSMENT.md` "Dependency reproducibility" — residual `find_ast_grep()` reference — [Resolved — row updated to CodeQL CLI and current `requirements.txt` contents.]
+- `.claude/skills/verify-state-claims/SKILL.md` historical example — `run_ast_grep()` reference — [Resolved — updated to CodeQL runner analogy.]
+Files touched: scripts/_codeql_runner.py, scripts/spring_signal_scan.py, scripts/test_spring_signal_scan.py, scripts/test_spring_drift_check.py, requirements.txt, CONSTRAINTS.md, MATURITY_ASSESSMENT.md, .claude/skills/verify-state-claims/SKILL.md, claude/steering-prompts/08-dependency-pinning-task-prompt.md, claude/session-log.md
