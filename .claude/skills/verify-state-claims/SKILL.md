@@ -33,7 +33,7 @@ anyway, with the record right there:
 | `CLAUDE.md`'s rule *against* hardcoded counts carried three wrong numbers of its own | It quoted a sentence that had already been corrected, and stamped its replacement "as of" a date it was wrong on. |
 | `12-review-session-launcher.md` sent fresh sessions to two prompt files that did not exist | A renumbering moved them. Nothing resolved the paths. |
 | `CONSTRAINTS.md` cited `verify_llms_docs.py` after it was deleted | In two places, so the file contradicted itself. |
-| A `[Resolved]` was written for a `sys.exit` fix true of one function | It was generalized to the file; `run_ast_grep()` still had two. |
+| A `[Resolved]` was written for a `sys.exit` fix true of one function | It was generalized to the file; the CodeQL runner still had two analogous exits. |
 | `capacity_preflight.py` measured a broadcast removed three commits earlier | Over-reported by ~21x, in the direction of alarm. |
 | `ls docs/*.md \| wc -l` was added to catch a duplicate-write bug | Counting to fourteen *passes* that exact failure. |
 

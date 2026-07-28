@@ -13,9 +13,9 @@ Usage:
     python3 spring_drift_check.py <repo_path> spring_signals.json \\
         --manifest run_manifest.json --out drift_report.json
 
-Tier 1 compares content hashes to find changed files; tier 2 re-runs targeted
-ast-grep queries against those files to decide whether the citation itself
-actually moved. No LLM calls anywhere in this file.
+Tier 1 compares content hashes to find changed files; tier 2 re-runs
+spring_signal_scan.py (now CodeQL-based) against the current repo to decide
+whether the citation itself actually moved. No LLM calls anywhere in this file.
 
 WHY THIS EXISTS
 
@@ -231,6 +231,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
 import spring_signal_scan  # noqa: E402
+from _build_signal_extract import extract_build_signals  # noqa: E402
 from _config_keys import extract_config_keys  # noqa: E402
 
 # Every citation ends up with exactly one of these — nothing is ever
@@ -408,25 +409,17 @@ def drift_result(source, citation, status, tier, detail=None):
     return result
 
 
-def _recheck_entities(file_rel, fresh_matches, group):
-    """group: citations whose rule_id is persistence__entity — both the
-    persistence-bucket entries (existence only, no table info) and the
-    entity_table_map entries (class_name injected by all_citations,
-    table/table_name_source present) go through here uniformly.
+def _recheck_entities(fresh_entity_map, group):
+    """group: citations whose rule_id is persistence__entity.
+
+    fresh_entity_map: the current entity_table_map from a fresh
+    spring_signal_scan.scan() of the repo (class_name -> entry).
 
     Returns (results, fresh_entities): fresh_entities is the class_name ->
-    {"table", "table_name_source"} map this function already derives
-    internally to do its own comparison — exposed to the caller rather than
-    discarded, so a second, unrelated derived-citation type (JPQL lineage's
-    entity_table_map dependency, see _reverify_jpql_lineage_provenance
-    below) can reuse this file's already-paid-for ast-grep re-run instead
-    of triggering a second one against the same file."""
-    fresh_entities = {}
-    for m in fresh_matches:
-        extracted = spring_signal_scan._extract_entity(file_rel, m.get("text", ""))
-        if extracted:
-            cname, entry = extracted
-            fresh_entities[cname] = entry
+    {"table", "table_name_source"} map used for comparison — exposed to the
+    caller so JPQL lineage provenance (_reverify_jpql_lineage_provenance) can
+    reuse it without a second scan."""
+    fresh_entities = dict(fresh_entity_map) if fresh_entity_map else {}
 
     results = []
     for source, citation in group:
@@ -434,7 +427,7 @@ def _recheck_entities(file_rel, fresh_matches, group):
         fresh = fresh_entities.get(cname) if cname else None
         if fresh is None:
             detail = (
-                f"class '{cname}' no longer matched by persistence__entity in this file"
+                f"class '{cname}' no longer matched by persistence__entity"
                 if cname else "citation has no class_name to re-verify against (unexpected — treating conservatively as drift)"
             )
             results.append(drift_result(source, citation, STATUS_DRIFTED, 2, detail))
@@ -448,12 +441,15 @@ def _recheck_entities(file_rel, fresh_matches, group):
     return results, fresh_entities
 
 
-def _recheck_repositories(fresh_matches, group):
+def _recheck_repositories(fresh_repo_entries, group):
+    """fresh_repo_entries: current persistence__repository evidence entries
+    from a fresh scan. Each entry is expected to carry repository, entity, and
+    id_type fields (spring_signal_scan.py adds them for persistence__repository)."""
     fresh_repos = {}
-    for m in fresh_matches:
-        extra = spring_signal_scan._extract_repository(m.get("text", ""))
-        if extra.get("repository"):
-            fresh_repos[extra["repository"]] = extra
+    for entry in fresh_repo_entries:
+        rname = entry.get("repository")
+        if rname:
+            fresh_repos[rname] = entry
 
     results = []
     for source, citation in group:
@@ -461,7 +457,7 @@ def _recheck_repositories(fresh_matches, group):
         fresh = fresh_repos.get(rname) if rname else None
         if fresh is None:
             detail = (
-                f"repository '{rname}' no longer matched by persistence__repository in this file"
+                f"repository '{rname}' no longer matched by persistence__repository"
                 if rname else "citation has no repository name to re-verify against (unexpected — treating conservatively as drift)"
             )
             results.append(drift_result(source, citation, STATUS_DRIFTED, 2, detail))
@@ -476,12 +472,13 @@ def _recheck_repositories(fresh_matches, group):
     return results
 
 
-def _recheck_queries(fresh_matches, group):
+def _recheck_queries(fresh_query_entries, group):
+    """fresh_query_entries: current raw_queries__query evidence entries from a
+    fresh scan. Each entry carries query_kind and query (spring_signal_scan.py
+    extracts both from @Query annotations)."""
     fresh_counts = Counter()
-    for m in fresh_matches:
-        multi_args = m.get("metaVariables", {}).get("multi", {}).get("ARGS", [])
-        qkind, qtext = spring_signal_scan._extract_query(multi_args)
-        fresh_counts[(qkind, qtext)] += 1
+    for entry in fresh_query_entries:
+        fresh_counts[(entry.get("query_kind"), entry.get("query"))] += 1
 
     budget = dict(fresh_counts)
     results = []
@@ -496,13 +493,13 @@ def _recheck_queries(fresh_matches, group):
     return results
 
 
-def _recheck_generic(fresh_matches, group):
+def _recheck_generic(fresh_entries, group):
     """Fallback for every rule type without a specialized extractor. Most
     of these are single-line annotation matches (api_surface, security,
-    messaging, observability, ...) where the full ast-grep match text
-    already equals the stored, truncated `match` field, so this is a
-    meaningful shape comparison rather than a fallback of convenience."""
-    fresh_counts = Counter(spring_signal_scan._first_line_match(m.get("text", "")) for m in fresh_matches)
+    messaging, observability, ...) where the stored `match` field is a
+    meaningful shape comparison, so we compare it against the fresh scan's
+    match values for the same rule in the same file."""
+    fresh_counts = Counter(e.get("match") for e in fresh_entries)
     budget = dict(fresh_counts)
     results = []
     for source, citation in group:
@@ -654,22 +651,69 @@ def _recheck_config_keys(repo_path, file_rel, old_keys):
     return STATUS_CONFIG_VALUES_ONLY_CHANGED, detail
 
 
-def tier2_recheck_file(repo_path, file_rel, citations_for_file, ast_grep_path):
+def _recheck_build_signals(repo_path, file_rel, group):
+    """Tier-2 for the synthetic build-file rule ids produced by
+    _build_signal_extract.py. Reads the file, re-runs the extractor, and
+    compares by structured identity (plugin_id, coordinate, module,
+    toolchain, catalog key) rather than by raw match text, since the same
+    line can match multiple rules and the match text is not distinctive."""
+    full_path = os.path.join(repo_path, file_rel)
+    try:
+        with open(full_path, encoding="utf-8-sig", errors="replace") as f:
+            text = f.read()
+    except OSError as e:
+        return [
+            drift_result(source, citation, STATUS_DRIFTED, 2,
+                         f"could not read build file for re-verification: {e}")
+            for source, citation in group
+        ]
+
+    fresh = extract_build_signals(file_rel, text)
+
+    def identity(row):
+        rid = row.get("rule_id")
+        if rid == "deployment__build_plugin":
+            return (rid, row.get("plugin_id"), row.get("plugin_version"))
+        if rid == "deployment__build_dependency":
+            coord = row.get("coordinate") or {}
+            return (rid, row.get("configuration"), coord.get("group"), coord.get("name"), coord.get("version"))
+        if rid == "deployment__build_module":
+            return (rid, row.get("module"))
+        if rid == "deployment__build_toolchain":
+            return (rid, row.get("toolchain_kind"), row.get("toolchain_value"))
+        if rid == "deployment__version_catalog":
+            return (rid, row.get("catalog_kind"), row.get("catalog_key"))
+        return (rid, row.get("match"))
+
+    fresh_counts = Counter(identity(r) for r in fresh)
+    budget = dict(fresh_counts)
+    results = []
+    for source, citation in group:
+        key = identity(citation)
+        if budget.get(key, 0) > 0:
+            budget[key] -= 1
+            results.append(drift_result(source, citation, STATUS_CONFIRMED, 2))
+        else:
+            detail = f"no fresh build signal match for {citation.get('rule_id')} identity {key}"
+            results.append(drift_result(source, citation, STATUS_DRIFTED, 2, detail))
+    return results
+
+
+def tier2_recheck_file(repo_path, file_rel, citations_for_file, fresh_evidence_by_file, fresh_entity_map):
     """citations_for_file: list of (source, citation), all sharing file_rel,
-    all with a rule_id (caller filters out the no-rule_id ones first). One
-    ast-grep invocation for the whole file — covering every rule_id it has
-    citations for — rather than one invocation per citation or per rule.
+    all with a rule_id (caller filters out the no-rule_id ones first).
+
+    fresh_evidence_by_file: file_rel -> list of fresh evidence entries from a
+    current spring_signal_scan.scan() of the repo.
+
+    fresh_entity_map: the fresh entity_table_map from the same scan.
 
     Returns (results, fresh_entity_tables) — the latter is {} unless this
     file actually has persistence__entity citations, in which case it's
-    _recheck_entities' own fresh_entities map passed straight through; see
-    that function's docstring for why it's surfaced here."""
-    full_path = os.path.join(repo_path, file_rel)
-    all_matches = spring_signal_scan.run_ast_grep(ast_grep_path, full_path)
-
+    _recheck_entities' fresh_entities map passed straight through."""
     fresh_by_rule = {}
-    for m in all_matches:
-        fresh_by_rule.setdefault(m["ruleId"], []).append(m)
+    for entry in fresh_evidence_by_file.get(file_rel, []):
+        fresh_by_rule.setdefault(entry.get("rule_id"), []).append(entry)
 
     old_by_rule = {}
     for source, citation in citations_for_file:
@@ -678,9 +722,12 @@ def tier2_recheck_file(repo_path, file_rel, citations_for_file, ast_grep_path):
     results = []
     fresh_entity_tables = {}
     for rule_id, group in old_by_rule.items():
+        if rule_id.startswith("deployment__build_") or rule_id == "deployment__version_catalog":
+            results += _recheck_build_signals(repo_path, file_rel, group)
+            continue
         fresh = fresh_by_rule.get(rule_id, [])
         if rule_id == "persistence__entity":
-            entity_results, fresh_entity_tables = _recheck_entities(file_rel, fresh, group)
+            entity_results, fresh_entity_tables = _recheck_entities(fresh_entity_map, group)
             results += entity_results
         elif rule_id == "persistence__repository":
             results += _recheck_repositories(fresh, group)
@@ -715,12 +762,40 @@ def check_drift(repo_path, signals, manifest=None):
     deleted_set = set(classification["deleted"])
     unchanged_set = set(classification["unchanged"])
 
+    # If nothing changed and nothing was deleted, every citation is unchanged.
+    # Skip the expensive full CodeQL rescan in that common case.
+    if not changed_set and not deleted_set:
+        results = []
+        for source, citation in all_citations(signals):
+            results.append(drift_result(source, citation, STATUS_UNCHANGED, 1))
+        results.sort(key=lambda r: (r["file"] or "", r["line"] or 0, r["source"]))
+        status_counts = Counter(r["status"] for r in results)
+        return {
+            "repo_path": os.path.abspath(repo_path),
+            "prior_scan_repo_path": signals.get("repo_path"),
+            "file_signatures_baseline": baseline_provenance,
+            "file_summary": classification,
+            "citations_checked": len(results),
+            "status_counts": dict(status_counts),
+            "results": results,
+        }
+
+    # Fresh, full CodeQL-based scan of the current repo. This is the only way
+    # to precisely recheck Java structural citations under the build-based
+    # Stage 0 design; per-file re-runs are not possible because CodeQL needs a
+    # whole-project database.
+    fresh_signals = spring_signal_scan.scan(repo_path)
+    fresh_evidence_by_file = {}
+    for bucket_name, entries in fresh_signals.get("evidence", {}).items():
+        for entry in entries:
+            fresh_evidence_by_file.setdefault(entry.get("file", ""), []).append(entry)
+    fresh_entity_map = fresh_signals.get("entity_table_map", {})
+
     citations_by_file = {}
     for source, citation in all_citations(signals):
         citations_by_file.setdefault(citation["file"], []).append((source, citation))
 
     results = []
-    ast_grep_path = None  # resolved lazily — a run with nothing to tier-2-recheck needs no ast-grep at all
     fresh_entity_tables = {}  # class_name -> fresh table info, accumulated across every changed entity file
 
     for file_rel in sorted(citations_by_file):
@@ -768,9 +843,9 @@ def check_drift(repo_path, signals, manifest=None):
                 ))
 
         if with_rule:
-            if ast_grep_path is None:
-                ast_grep_path = spring_signal_scan.find_ast_grep()
-            file_results, file_fresh_entities = tier2_recheck_file(repo_path, file_rel, with_rule, ast_grep_path)
+            file_results, file_fresh_entities = tier2_recheck_file(
+                repo_path, file_rel, with_rule, fresh_evidence_by_file, fresh_entity_map
+            )
             results += file_results
             fresh_entity_tables.update(file_fresh_entities)
 
@@ -823,7 +898,7 @@ def main():
     manifest = load_manifest(args.manifest) if args.manifest is not None else None
     try:
         report = check_drift(args.repo_path, signals, manifest=manifest)
-    except spring_signal_scan.AstGrepError as e:
+    except spring_signal_scan.CodeQLScannerError as e:
         print(e, file=sys.stderr)
         sys.exit(1)
 

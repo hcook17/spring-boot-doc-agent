@@ -172,6 +172,9 @@ jobs:
       - name: test_spring_signal_scan.py
         run: python3 scripts/test_spring_signal_scan.py -v
 
+      - name: test_build_signal_extract.py
+        run: python3 scripts/test_build_signal_extract.py -v
+
       - name: test_partition_repo.py
         run: python3 scripts/test_partition_repo.py -v
 

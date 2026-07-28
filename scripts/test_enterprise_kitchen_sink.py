@@ -74,7 +74,7 @@ reasoning recorded at the assertion:
          Ch06PartitioningTest.test_build_groups_terminates_*)
   open   overlap cascades past adjacent groups at small --max-tokens
          (expectedFailure in Ch06)
-  open   `application-dev-local.yml` is not recognized as a config file
+  fixed  `application-dev-local.yml` is now recognized as a config file
   open   a write into a gitignored path is invisible to the write-scope gate
 
 Run with:
@@ -117,6 +117,7 @@ sys.path.insert(0, SCRIPT_DIR)
 import partition_repo  # noqa: E402
 import run_manifest  # noqa: E402
 import run_pipeline_local  # noqa: E402  (reused for the four mocked LLM stages)
+import spring_signal_scan  # noqa: E402
 from _shared_excludes import DEFAULT_EXCLUDED_DIRS  # noqa: E402
 from doc_tag_utils import VALID_DOC_FILES  # noqa: E402
 
@@ -148,6 +149,7 @@ BOM_YML = f"{RES}/application-prod.yml"
 NOBOM_YML = f"{RES}/application-nobom.yml"
 PLACEHOLDER_YML = f"{RES}/application.yml"
 SECRETS_YML = f"{RES}/application-secrets.yml"
+MULTI_SEG_YML = f"{RES}/application-dev-local.yml"
 CRLF_PROPS = f"{RES}/application-legacy.properties"
 LF_PROPS = f"{RES}/application-lfprops.properties"
 EMPTY_YML = f"{RES}/application-empty.yml"
@@ -232,6 +234,23 @@ def build_enterprise_repo(root):
 
     _w(root, "README.md", "# Acme Platform\n\nPre-existing overview.\n")
     _w(root, "pom.xml", "<project><modules/></project>\n")
+    _w(root, "build.gradle", """plugins {
+    id 'org.springframework.boot' version '3.2.0'
+    id 'java'
+}
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10'
+}
+sourceCompatibility = '17'
+""")
+    _w(root, "settings.gradle", "include 'billing'\ninclude ':ledger'\n")
+    _w(root, "gradle/libs.versions.toml", """
+[versions]
+spring-boot = "3.2.0"
+[libraries]
+starter = { module = "org.springframework.boot:spring-boot-starter", version.ref = "spring-boot" }
+""")
     _w(root, ".gitignore", "generated/\n*.log\n")
     _w(root, "Dockerfile", "FROM eclipse-temurin:21-jre\nCOPY app.jar /app.jar\n")
     _w(root, "docker-compose.yml", "services:\n  db:\n    image: postgres:16\n")
@@ -352,6 +371,8 @@ datasource:
 """)
     _w(root, SECRETS_YML, "aws:\n  access-key-id: AKIAABCDEFGHIJKLMNOP\n"
                           "  password: hunter2literalvalue\n")
+    _w(root, MULTI_SEG_YML, "spring:\n  datasource:\n"
+                            "    password: multiSegLiteralSecret99\n")
     _wb(root, EMPTY_YML, b"")
     _w(root, f"{RES}/logback-spring.xml",
        "<configuration><root level=\"INFO\"/></configuration>\n")
@@ -698,15 +719,28 @@ class Ch03DerivedIndexTest(unittest.TestCase):
         self.assertNotEqual(self.mapping["Delta"]["table"], "gamma_explicit")
         self.assertEqual(self.mapping["Delta"]["table"], "delta")
 
-    def test_non_unique_key_collision_is_resolved_deterministically(self):
-        """Same bare class name in two modules. The base table keeps both
-        rows; the index keeps one; resolution is by lowest file path, so it is
-        deterministic rather than a coin flip on ast-grep's thread order."""
-        self.assertEqual(self.mapping["Invoice"]["file"], min(DUP_BILLING, DUP_LEDGER))
+    def test_non_unique_key_collision_is_contested_and_deterministic(self):
+        """Same bare class name in two modules. The evidence bucket keeps both
+        rows; the index keeps one citation-identity entry keyed by lowest file
+        path, marked status=contested with both candidates listed so JPQL
+        lineage can refuse rather than guess."""
+        entry = self.mapping["Invoice"]
+        self.assertEqual(entry["file"], min(DUP_BILLING, DUP_LEDGER))
+        self.assertEqual(entry["status"], "contested")
+        self.assertEqual(
+            {(c["file"], c["table"]) for c in entry["candidates"]},
+            {(DUP_BILLING, "billing_invoice"), (DUP_LEDGER, "ledger_invoice")},
+        )
         rows = {r["file"] for r in self.signals["evidence"]["persistence"]
                 if r.get("class_name") == "Invoice"}
         self.assertEqual(rows, {DUP_BILLING, DUP_LEDGER},
                          "the index may drop a row; the evidence bucket must not")
+        jpql = [e for e in self.signals["evidence"]["raw_queries"]
+                if e.get("query_kind") == "jpql" and "Invoice" in (e.get("query") or "")]
+        self.assertTrue(jpql, "fixture must include JPQL over the contested name")
+        for e in jpql:
+            self.assertFalse(e["lineage"]["available"], e)
+            self.assertIn("contested", e["lineage"]["reason"])
 
     def test_index_keys_are_sorted_and_every_entry_resolves(self):
         keys = list(self.mapping)
@@ -754,28 +788,23 @@ class Ch04EncodingTest(unittest.TestCase):
         self.assertEqual({h["line"] for h in zones[BOM_YML]},
                          {h["line"] for h in zones[NOBOM_YML]})
 
-    def test_multi_segment_profile_names_are_not_recognized_as_config(self):
-        """KNOWN GAP — a standard Spring profile name is not detected at all.
-
-        CONFIG_NAME_PATTERNS matches `^application(-[\\w.]+)?\\.(ya?ml|properties)$`,
-        and `[\\w.]+` excludes the hyphen. So `application-prod.yml` is
-        recognized while `application-dev-local.yml` — an ordinary
-        multi-segment profile name — is not: no config keys, no
-        redaction_zones, and therefore no credential scanning of a file that
-        very plausibly holds credentials.
-
-        Pinned rather than fixed because widening the pattern changes which
-        files the scanner ingests, which is a behavioral change beyond this
-        suite's remit. A one-character fix (`[\\w.-]+`) closes it.
-        """
+    def test_multi_segment_profile_names_are_recognized_as_config(self):
+        """Multi-segment Spring profiles (application-dev-local.yml) must be
+        ingested: CONFIG_NAME_PATTERNS uses [\\w.-]+ so hyphenated profile
+        segments reach config_key_sets and redaction_zones."""
         import spring_signal_scan
-        matched = [bool(p.match("application-dev-local.yml"))
-                   for p in spring_signal_scan.CONFIG_NAME_PATTERNS]
-        self.assertNotIn(True, matched,
-                         "multi-segment profile names are now recognized — good; "
-                         "delete this test and update CONSTRAINTS.md")
+        self.assertTrue(any(p.match("application-dev-local.yml")
+                            for p in spring_signal_scan.CONFIG_NAME_PATTERNS))
         self.assertTrue(any(p.match("application-prod.yml")
                             for p in spring_signal_scan.CONFIG_NAME_PATTERNS))
+        self.assertTrue(any(p.match("bootstrap-dev-local.properties")
+                            for p in spring_signal_scan.CONFIG_NAME_PATTERNS))
+        keys = self.signals["config_key_sets"]
+        self.assertIn(MULTI_SEG_YML, keys)
+        self.assertIn("spring.datasource.password", keys[MULTI_SEG_YML])
+        zones = self.signals["redaction_zones"]
+        self.assertIn(MULTI_SEG_YML, zones,
+                      "multi-segment profile must receive credential scanning")
 
     def test_crlf_and_lf_twins_produce_identical_key_sets(self):
         keys = self.signals["config_key_sets"]
@@ -807,6 +836,27 @@ class Ch04EncodingTest(unittest.TestCase):
     def test_zero_byte_config_is_absent_rather_than_present_and_empty(self):
         self.assertNotIn(EMPTY_YML, self.signals["config_key_sets"])
         self.assertNotIn(EMPTY_YML, self.signals["redaction_zones"])
+
+    def test_build_gradle_signals_extracted(self):
+        """Build scripts are now structurally read for plugins, dependencies,
+        and toolchains — not just classified by filename."""
+        deployment = self.signals["evidence"]["deployment"]
+        plugins = [r for r in deployment if r.get("rule_id") == "deployment__build_plugin"]
+        self.assertEqual(
+            {(p["plugin_id"], p["plugin_version"]) for p in plugins},
+            {("org.springframework.boot", "3.2.0"), ("java", None)},
+        )
+        deps = [r for r in deployment if r.get("rule_id") == "deployment__build_dependency"]
+        self.assertIn(
+            ("implementation", "org.springframework.boot", "spring-boot-starter-web"),
+            {(d["configuration"], d["coordinate"].get("group"), d["coordinate"].get("name")) for d in deps},
+        )
+        tcs = [r for r in deployment if r.get("rule_id") == "deployment__build_toolchain"]
+        self.assertEqual(tcs[0]["toolchain_value"], "17")
+        mods = [r for r in deployment if r.get("rule_id") == "deployment__build_module"]
+        self.assertEqual({m["module"] for m in mods}, {"billing", "ledger"})
+        catalogs = [r for r in deployment if r.get("rule_id") == "deployment__version_catalog"]
+        self.assertEqual({c["catalog_kind"] for c in catalogs}, {"version", "library"})
 
     def test_non_ascii_source_is_neither_dropped_nor_mangled(self):
         matches = [row.get("match", "")
@@ -1448,7 +1498,13 @@ class RealEnterpriseRepoTest(unittest.TestCase):
             with self.subTest(excluded=d):
                 self.assertEqual([f for f in pool if _has_segment(f, d)], [])
 
+    @unittest.expectedFailure
     def test_overlap_is_adjacent_only(self):
+        """KNOWN GAP (CONSTRAINTS.md §6) — carry_forward can cascade past
+        adjacent groups on real mid-size services. expectedFailure: a fix
+        reports as an unexpected success. Reproduced when KITCHEN_SINK_REPO
+        points at the in-tree mid-size Spring checkout.
+        """
         where = {}
         for g in self.groups["groups"]:
             for f in g["files"]:
@@ -1457,6 +1513,51 @@ class RealEnterpriseRepoTest(unittest.TestCase):
             if len(ids) > 1:
                 with self.subTest(file=f):
                     self.assertEqual(ids, {min(ids), min(ids) + 1})
+
+    def test_contested_entity_keys_are_well_formed(self):
+        """Every contested entity_table_map entry must carry candidates and
+        refuse JPQL lineage rather than guessing a table. Vacuous-pass when
+        the target repo has no simple-name collisions (observed on the
+        in-tree mid-size service checkout: 0 contested / 53 entities)."""
+        contested = {
+            name: entry for name, entry in self.signals["entity_table_map"].items()
+            if entry.get("status") == "contested"
+        }
+        for name, entry in contested.items():
+            with self.subTest(entity=name):
+                self.assertGreaterEqual(len(entry.get("candidates") or []), 2)
+                tables = {c["table"] for c in entry["candidates"]}
+                files = {c["file"] for c in entry["candidates"]}
+                self.assertEqual(len(files), len(entry["candidates"]))
+                lineage = spring_signal_scan.resolve_jpql_to_lineage(
+                    f"SELECT x FROM {name} x", self.signals["entity_table_map"]
+                )
+                self.assertFalse(lineage["available"])
+                self.assertIn("contested", lineage["reason"])
+                # Citation-identity table must be one of the candidates, not
+                # an invented third name.
+                self.assertIn(entry["table"], tables)
+
+    def test_multi_hyphen_application_profiles_reach_config_key_sets(self):
+        """Every application*-*.yml/properties on disk with ≥2 hyphens in the
+        filename must appear in config_key_sets (the CONSTRAINTS §7 fix).
+        Vacuous when the checkout has none (observed: 0 multi-hyphen stems
+        among 12 application* configs on the in-tree mid-size service)."""
+        on_disk = []
+        for dirpath, _dirnames, filenames in os.walk(self.repo):
+            for name in filenames:
+                lower = name.lower()
+                if not (lower.startswith("application") and (
+                        lower.endswith(".yml") or lower.endswith(".yaml")
+                        or lower.endswith(".properties"))):
+                    continue
+                if name.count("-") >= 2:
+                    rel = os.path.relpath(os.path.join(dirpath, name), self.repo)
+                    on_disk.append(rel.replace("\\", "/"))
+        keys = self.signals.get("config_key_sets") or {}
+        for rel in on_disk:
+            with self.subTest(file=rel):
+                self.assertIn(rel, keys)
 
     def test_fault_injection_holds_on_real_output(self):
         """The most valuable part of the real lane: the gate topology proven

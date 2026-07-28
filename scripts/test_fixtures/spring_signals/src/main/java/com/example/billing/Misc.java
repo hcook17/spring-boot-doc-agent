@@ -16,11 +16,11 @@ import org.testcontainers.containers.PostgreSQLContainer;
 // fake "Application" entity with an inferred table name.
 @EntityScan({"com.example.billing"})
 @EnableWebSecurity
-public class SecurityConfig {
+class SecurityConfig {
     // Field type AND constructor-call type on one line — exercises the
     // dedup-by-(file, line, ruleId) collapse in spring_signal_scan.py, since
     // ast-grep correctly reports these as two distinct type_identifier
     // matches (RestTemplate declared, RestTemplate constructed).
     private final RestTemplate restTemplate = new RestTemplate();
-    private final MeterRegistry meterRegistry;
+    private MeterRegistry meterRegistry;
 }

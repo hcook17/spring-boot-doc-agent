@@ -1,0 +1,443 @@
+"""CodeQL runner wrapper for Stage 0.
+
+Replaces the ast-grep structural pass with a build-based CodeQL extraction.
+This module is responsible for:
+  - locating the CodeQL CLI
+  - creating a CodeQL database from a target repo (using a build command)
+  - running the spring-signals query pack against the database
+  - decoding BQRS results to a list of dicts that spring_signal_scan.py can
+    consume in the same shape as the old ast-grep evidence entries
+
+The output schema is intentionally close to the old ast-grep JSON:
+  {"file": "src/.../Foo.java", "line": 42, "match": "...", "rule_id": "..."}
+plus extra typed columns where the query provides them (e.g., class_name,
+query, query_kind, repository, entity, id_type).
+
+Reading the actual source text from the file line is done by
+spring_signal_scan.py, not here, because CodeQL does not return raw source
+bytes and because the existing Python extraction helpers already know how to
+parse the relevant declaration/annotation text.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+# Directories whose contents do not affect the Java build/CodeQL extraction and
+# should be ignored when computing the content hash for database caching.
+_HASH_EXCLUDED_DIRS = {
+    ".git", ".gradle", "build", "target", "out", "node_modules", ".idea", ".vscode",
+    "__pycache__", ".pytest_cache", ".mypy_cache",
+}
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+DEFAULT_PACK_DIR = REPO_ROOT / "codeql" / "spring-signals"
+
+CODEQL_DEFAULT_PATHS = [
+    Path(r"C:\Users\16145\.cursor\tools\codeql\codeql.exe"),
+]
+
+
+class CodeQLError(RuntimeError):
+    """Any CodeQL CLI failure that should not silently kill the process."""
+
+
+class CodeQLNotFoundError(CodeQLError):
+    """Raised when the CodeQL CLI cannot be found on PATH or default locations."""
+
+
+def find_codeql() -> Path:
+    """Return the CodeQL CLI executable path.
+
+    Looks on PATH first, then checks a small list of known install locations.
+    """
+    path = shutil.which("codeql")
+    if path:
+        return Path(path)
+    for candidate in CODEQL_DEFAULT_PATHS:
+        if candidate.is_file():
+            return candidate
+    raise CodeQLNotFoundError(
+        "error: the 'codeql' binary is not on PATH and not in any known "
+        "install location. Install the CodeQL CLI (e.g. from "
+        "https://github.com/github/codeql-cli-binaries/releases) and add it "
+        "to PATH, or place it at one of: "
+        + ", ".join(str(p) for p in CODEQL_DEFAULT_PATHS)
+    )
+
+
+def codeql_version(codeql_path: Path) -> str:
+    """Return the CodeQL CLI version string, e.g. '2.26.0'."""
+    proc = subprocess.run(
+        [str(codeql_path), "--version"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace"
+    )
+    if proc.returncode != 0:
+        raise CodeQLError(f"codeql --version failed: {proc.stderr}")
+    # Output is typically "CodeQL command-line toolchain release X.Y.Z."
+    for line in proc.stdout.splitlines():
+        if "release" in line:
+            parts = line.split()
+            for part in parts:
+                if part[0].isdigit():
+                    return part.rstrip(".")
+    raise CodeQLError(f"could not parse codeql version from: {proc.stdout}")
+
+
+def _cache_dir() -> Path:
+    return Path(tempfile.gettempdir()) / "spring_signal_scan_codeql_cache"
+
+
+def _repo_content_hash(repo_path: Path) -> str:
+    """Return a deterministic hash of the source files that affect CodeQL extraction."""
+    h = hashlib.sha256()
+    for root, dirs, files in os.walk(repo_path):
+        dirs[:] = [d for d in dirs if d not in _HASH_EXCLUDED_DIRS]
+        for name in sorted(files):
+            if not (name.endswith(".java") or name.endswith(".gradle") or name.endswith(".gradle.kts")
+                    or name in {"pom.xml", "build.xml", "settings.gradle", "settings.gradle.kts"}
+                    or name.endswith(".properties") or name.endswith(".yml") or name.endswith(".yaml")):
+                continue
+            path = Path(root) / name
+            try:
+                data = path.read_bytes()
+            except OSError:
+                continue
+            h.update(str(path.relative_to(repo_path)).encode("utf-8"))
+            h.update(b"\0")
+            h.update(data)
+            h.update(b"\0")
+    return h.hexdigest()[:32]
+
+
+def _query_pack_hash(pack_dir: Path) -> str:
+    """Hash every .ql file in the pack so query changes invalidate the cache."""
+    h = hashlib.sha256()
+    for ql in sorted(pack_dir.glob("*.ql")):
+        h.update(ql.name.encode("utf-8"))
+        h.update(b"\0")
+        h.update(ql.read_bytes())
+        h.update(b"\0")
+    return h.hexdigest()[:32]
+
+
+def _cache_key(repo_path: Path, pack_dir: Path, build_command: str) -> str:
+    """Combined cache key: repo source + build command + query pack.
+
+    The build command is part of the key because `compileJava` and
+    `compileTestJava` produce different extraction scopes for the same
+    repo content. Hashing it keeps their databases distinct.
+    """
+    h = hashlib.sha256()
+    h.update(_repo_content_hash(repo_path).encode("utf-8"))
+    h.update(b"\0")
+    h.update(build_command.encode("utf-8"))
+    h.update(b"\0")
+    h.update(_query_pack_hash(pack_dir).encode("utf-8"))
+    return h.hexdigest()[:32]
+
+
+def _cache_db_path(repo_path: Path, pack_dir: Path, build_command: str) -> Path:
+    cache_dir = _cache_dir()
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir / _cache_key(repo_path, pack_dir, build_command)
+
+
+def _cache_metadata(db_path: Path) -> Optional[Dict[str, str]]:
+    meta = db_path / "spring_signal_scan_cache.json"
+    if not meta.is_file():
+        return None
+    try:
+        return json.loads(meta.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _write_cache_metadata(db_path: Path, repo_path: Path, pack_dir: Path, build_command: str) -> None:
+    meta = db_path / "spring_signal_scan_cache.json"
+    meta.write_text(json.dumps({
+        "cache_key": _cache_key(repo_path, pack_dir, build_command),
+    }), encoding="utf-8")
+
+
+def _cache_is_valid(db_path: Path, repo_path: Path, pack_dir: Path, build_command: str) -> bool:
+    meta = _cache_metadata(db_path)
+    if meta is None:
+        return False
+    return meta.get("cache_key") == _cache_key(repo_path, pack_dir, build_command)
+
+
+def _results_cache_path(
+    repo_path: Path, pack_dir: Path, build_command: str, scanner_version: str
+) -> Path:
+    """Path to the cached query results for a fully determined scan."""
+    h = hashlib.sha256()
+    h.update(scanner_version.encode("utf-8"))
+    h.update(b"\0")
+    h.update(_cache_key(repo_path, pack_dir, build_command).encode("utf-8"))
+    return _cache_dir() / (h.hexdigest()[:32] + "_results.json")
+
+
+def _load_results_cache(
+    repo_path: Path, pack_dir: Path, build_command: str, scanner_version: str
+) -> Optional[List[Dict[str, Any]]]:
+    path = _results_cache_path(repo_path, pack_dir, build_command, scanner_version)
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _save_results_cache(
+    repo_path: Path,
+    pack_dir: Path,
+    build_command: str,
+    scanner_version: str,
+    rows: List[Dict[str, Any]],
+) -> None:
+    path = _results_cache_path(repo_path, pack_dir, build_command, scanner_version)
+    path.write_text(json.dumps(rows), encoding="utf-8")
+
+
+def create_database(
+    codeql_path: Path,
+    repo_path: Path,
+    db_path: Path,
+    build_command: str,
+    overwrite: bool = True,
+) -> None:
+    """Create a CodeQL Java database for the repo using the supplied build.
+
+    The build_command is passed straight to `codeql database create --command`.
+    On Windows this often needs to be a .bat file or a shell script that sets
+    JAVA_HOME before invoking the build.
+    """
+    cmd = [
+        str(codeql_path), "database", "create", str(db_path),
+        "--language=java",
+        f"--command={build_command}",
+        f"--source-root={repo_path}",
+    ]
+    if overwrite:
+        cmd.append("--overwrite")
+    proc = subprocess.run(
+        cmd,
+        capture_output=True, text=True, encoding="utf-8", errors="replace"
+    )
+    if proc.returncode != 0:
+        raise CodeQLError(
+            f"codeql database create failed (exit {proc.returncode}):\n"
+            f"{proc.stderr}\n{proc.stdout}"
+        )
+
+
+def install_pack(codeql_path: Path, pack_dir: Path) -> None:
+    """Install the QL pack dependencies (codeql/java-all, etc.)."""
+    proc = subprocess.run(
+        [str(codeql_path), "pack", "install", str(pack_dir)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace"
+    )
+    if proc.returncode != 0:
+        raise CodeQLError(
+            f"codeql pack install failed (exit {proc.returncode}):\n"
+            f"{proc.stderr}\n{proc.stdout}"
+        )
+
+
+def discover_queries(pack_dir: Path) -> List[Path]:
+    """Return all .ql files in the pack directory, sorted."""
+    return sorted(pack_dir.glob("*.ql"))
+
+
+def run_query(
+    codeql_path: Path,
+    db_path: Path,
+    query_file: Path,
+    bqrs_path: Path,
+) -> None:
+    """Run a single .ql query against a database, writing a BQRS file."""
+    proc = subprocess.run(
+        [
+            str(codeql_path), "query", "run",
+            f"--database={db_path}",
+            f"--output={bqrs_path}",
+            str(query_file),
+        ],
+        capture_output=True, text=True, encoding="utf-8", errors="replace"
+    )
+    if proc.returncode != 0:
+        raise CodeQLError(
+            f"codeql query run failed for {query_file.name} "
+            f"(exit {proc.returncode}):\n{proc.stderr}\n{proc.stdout}"
+        )
+
+
+def decode_bqrs(
+    codeql_path: Path,
+    bqrs_path: Path,
+) -> List[Dict[str, Any]]:
+    """Decode a BQRS file to a list of dicts keyed by column name.
+
+    CodeQL's JSON output is:
+      {"#select": {"columns": [{"name": "file", "kind": "String"}, ...],
+                   "tuples": [[...], ...]}}
+    We map each tuple to a dict using the column names. Columns without a
+    name get synthetic names (col_0, col_1, ...).
+    """
+    proc = subprocess.run(
+        [
+            str(codeql_path), "bqrs", "decode",
+            "--format=json",
+            # Include source locations and strings as plain values.
+            "--entities=string,url",
+            str(bqrs_path),
+        ],
+        capture_output=True, text=True, encoding="utf-8", errors="replace"
+    )
+    if proc.returncode != 0:
+        raise CodeQLError(
+            f"codeql bqrs decode failed for {bqrs_path} "
+            f"(exit {proc.returncode}):\n{proc.stderr}\n{proc.stdout}"
+        )
+    raw = json.loads(proc.stdout)
+    select = raw.get("#select", {})
+    columns = select.get("columns", [])
+    tuples = select.get("tuples", [])
+
+    # Build name list. CodeQL columns have either a name or just a kind.
+    names = []
+    for i, col in enumerate(columns):
+        name = col.get("name")
+        if not name:
+            name = f"col_{i}"
+        names.append(name)
+
+    result = []
+    for row in tuples:
+        result.append({names[i]: value for i, value in enumerate(row)})
+    return result
+
+
+def run_all_queries(
+    codeql_path: Path,
+    db_path: Path,
+    pack_dir: Path,
+    tmp_dir: Path,
+) -> List[Dict[str, Any]]:
+    """Run every .ql query in the pack and return merged decoded results."""
+    queries = discover_queries(pack_dir)
+    if not queries:
+        raise CodeQLError(f"no .ql queries found in {pack_dir}")
+
+    all_rows: List[Dict[str, Any]] = []
+    for query in queries:
+        bqrs_path = tmp_dir / f"{query.stem}.bqrs"
+        run_query(codeql_path, db_path, query, bqrs_path)
+        rows = decode_bqrs(codeql_path, bqrs_path)
+        for row in rows:
+            # Tag every row with the query file that produced it, useful for
+            # debugging and drift-check provenance.
+            row["_query_file"] = query.name
+        all_rows.extend(rows)
+    return all_rows
+
+
+def scan_with_codeql(
+    repo_path: Path,
+    build_command: str,
+    pack_dir: Optional[Path] = None,
+    db_path: Optional[Path] = None,
+    keep_database: bool = False,
+    scanner_version: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """End-to-end: create database, run queries, return evidence rows.
+
+    Args:
+        repo_path: path to the target repository
+        build_command: command used by CodeQL to compile the Java sources
+        pack_dir: path to the spring-signals QL pack; defaults to the bundled
+                  pack under the project root
+        db_path: optional path for the CodeQL database; if omitted, a
+                 content-addressed cache is used. The cache key is a hash of
+                 the repo's source/build files, the build command, and the query
+                 pack, so the DB is reused when none of those change.
+        keep_database: if True and db_path is provided, keep the database on
+                       disk; otherwise it is removed after scanning. Ignored when
+                       db_path is omitted (the cache is always kept).
+        scanner_version: hash of the scanner code and query pack; when the
+                         cache is used, query results are also cached keyed by
+                         this version, so unchanged code skips re-running queries.
+
+    Returns:
+        A list of evidence dicts ready for spring_signal_scan.py to bucket.
+    """
+    codeql_path = find_codeql()
+    pack_dir = pack_dir or DEFAULT_PACK_DIR
+    if not pack_dir.is_dir():
+        raise CodeQLError(f"query pack not found: {pack_dir}")
+
+    using_cache = db_path is None
+    if using_cache:
+        db_path = _cache_db_path(repo_path, pack_dir, build_command)
+        keep_database = True
+
+    # If we have a fully deterministic result cache, we can skip everything
+    # (including the ~10s `codeql pack install` call).
+    if using_cache and scanner_version:
+        cached_rows = _load_results_cache(repo_path, pack_dir, build_command, scanner_version)
+        if cached_rows is not None:
+            return cached_rows
+
+    install_pack(codeql_path, pack_dir)
+
+    tmp = tempfile.mkdtemp(prefix="codeql_stage0_")
+    try:
+        if db_path.exists() and keep_database:
+            if using_cache and _cache_is_valid(db_path, repo_path, pack_dir, build_command):
+                # Reuse a valid cached database.
+                pass
+            elif using_cache:
+                # Cache is stale (source, build command, or queries changed): rebuild.
+                shutil.rmtree(db_path, ignore_errors=True)
+                create_database(codeql_path, repo_path, db_path, build_command, overwrite=True)
+                _write_cache_metadata(db_path, repo_path, pack_dir, build_command)
+            else:
+                # Caller-provided db_path with keep_database: trust it.
+                pass
+        else:
+            create_database(codeql_path, repo_path, db_path, build_command, overwrite=True)
+            if using_cache:
+                _write_cache_metadata(db_path, repo_path, pack_dir, build_command)
+        rows = run_all_queries(codeql_path, db_path, pack_dir, Path(tmp))
+        if using_cache and scanner_version:
+            _save_results_cache(repo_path, pack_dir, build_command, scanner_version, rows)
+        return rows
+    finally:
+        if not keep_database:
+            shutil.rmtree(db_path, ignore_errors=True)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    # Simple CLI for quick manual testing of the runner.
+    # Usage: python3 scripts/_codeql_runner.py <repo_path> <build_command> [db_path]
+    # If db_path is provided, the database is kept there and reused if it exists.
+    if len(sys.argv) < 3:
+        print("usage: python3 scripts/_codeql_runner.py <repo_path> <build_command> [db_path]")
+        sys.exit(1)
+    repo = Path(sys.argv[1])
+    build = sys.argv[2]
+    db = Path(sys.argv[3]) if len(sys.argv) > 3 else None
+    rows = scan_with_codeql(repo, build, db_path=db, keep_database=True)
+    print(json.dumps({"row_count": len(rows), "sample": rows[:5]}, indent=2))

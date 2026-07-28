@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
-"""Proves every ast-grep rule can actually fire, and ratchets real-corpus hits.
+"""Proves every CodeQL query/sub-kind can actually fire, and ratchets real-corpus hits.
 
 Usage:
     python3 scripts/rule_coverage.py                    # non-vacuity gate (CI)
     python3 scripts/rule_coverage.py <repo>             # corpus backtest
-    python3 scripts/rule_coverage.py <repo> --update    # rewrite the baseline
+    python3 scripts/rule_coverage.py <repo> --update  # rewrite the baseline
 
 Two modes, because they answer two different questions and only one of them
 can run in CI.
 
-**Non-vacuity** (no argument) runs the rule set against scripts/rule_fixtures/,
-a committed corpus small enough to live in the repo, and fails if any rule
-matches nothing. This is the invariant that was missing. Measured against a
-real production Spring service, 10 of 23 rules fired and 13 returned zero -- and
-nothing in the repo could distinguish "this codebase has no Kafka" from "this
-rule is broken". A rule that cannot fire on a fixture written to trigger it is
-broken, unambiguously, and that is decidable here with no external corpus.
+**Non-vacuity** (no argument) runs the query pack against
+scripts/test_fixtures/spring_signals/, a committed corpus small enough to live
+in the repo, and fails if any rule_id matches nothing. This is the invariant
+that was missing. With the old ast-grep layer, 10 of 23 rules fired on a real
+production Spring service and 13 returned zero, and nothing in the repo could
+distinguish "this codebase has no Kafka" from "this rule is broken". A rule
+that cannot fire on a fixture written to trigger it is broken, unambiguously,
+and that is decidable here with no external corpus.
 
-**Backtest** (with a path) reports per-rule hit counts against a real
+**Backtest** (with a path) reports per-rule-id hit counts against a real
 repository and compares them to scripts/rule_coverage_baseline.json. It exists
 because the fixture corpus proves a rule *can* fire, never that it fires on
 code anyone actually wrote. The baseline is committed and the comparison is a
@@ -25,17 +26,13 @@ ratchet: a rule that used to find things and now finds none is a regression,
 which is the shape check_code_quality.py already uses. Real corpora are large
 and usually gitignored, so this mode is run on a dev machine and its result --
 not the corpus -- is what CI sees.
-
-The split matters. Putting the corpus in CI was never an option (the one used
-to derive the current baseline is ~101MB and untracked), and a check that
-cannot run is worth nothing, which is how this repo ended up with four
-checkers wired to nothing at all.
 """
 from __future__ import annotations
 
 import argparse
 import collections
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -46,36 +43,71 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import spring_signal_scan  # noqa: E402
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-RULE_FILE = SCRIPT_DIR / "spring_ast_grep_rules.yml"
-FIXTURE_DIR = SCRIPT_DIR / "rule_fixtures"
+PACK_DIR = SCRIPT_DIR.parent / "codeql" / "spring-signals"
+FIXTURE_DIR = SCRIPT_DIR / "test_fixtures" / "spring_signals"
 BASELINE_FILE = SCRIPT_DIR / "rule_coverage_baseline.json"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
-# `id:` at column 0 of a document in the rule file. Anchored so an `id:` nested
-# inside a rule body can never be mistaken for a rule name.
-RULE_ID_RE = re.compile(r"^id:\s*([a-z0-9_]+__[a-z0-9_]+)\s*$", re.MULTILINE)
+# Rule ids are explicit rule_id = "bucket__kind" strings inside the .ql files.
+RULE_ID_RE = re.compile(r'rule_id\s*=\s*"([a-z0-9_]+__[a-z0-9_]+)"')
 
-# Rules that legitimately cannot be exercised by a fixture, each with the
+# Rules that legitimately cannot be exercised by the fixture, each with the
 # reason. Same shape as check_repo_claims.py's CI_EXEMPT_SUITES: an exemption
 # must say why, or it is indistinguishable from an oversight.
 FIXTURE_EXEMPT: Dict[str, str] = {}
 
 
-def rule_ids(rule_file: Path = RULE_FILE) -> List[str]:
-    return RULE_ID_RE.findall(rule_file.read_text(encoding="utf-8"))
+def rule_ids(rule_file: Optional[Path] = None) -> List[str]:
+    """Return every unique rule_id declared in the CodeQL query pack.
+
+    The optional rule_file argument is kept for backward compatibility with
+    tests that previously passed a YAML file to the ast-grep version.
+    """
+    ids: List[str] = []
+    if rule_file is not None:
+        sources = [rule_file]
+    else:
+        sources = sorted(PACK_DIR.glob("*.ql"))
+    for ql in sources:
+        ids.extend(RULE_ID_RE.findall(ql.read_text(encoding="utf-8")))
+    # Deduplicate while preserving the order they appear in the pack.
+    seen = set()
+    unique: List[str] = []
+    for rid in ids:
+        if rid not in seen:
+            seen.add(rid)
+            unique.append(rid)
+    return unique
+
+
+def _fixture_build_command() -> str:
+    gradlew = "gradlew.bat" if os.name == "nt" else "gradlew"
+    return f"{FIXTURE_DIR / gradlew} --no-daemon clean compileJava compileTestJava"
 
 
 def hit_counts(target: Path) -> collections.Counter[str]:
-    """Per-rule match counts, via the same runner the real scanner uses so
-    this cannot drift from what the pipeline actually sees."""
-    binary = spring_signal_scan.find_ast_grep()
-    matches = spring_signal_scan.run_ast_grep(binary, str(target))
+    """Per-rule-id match counts, via the same scanner the pipeline uses so
+    this cannot drift from what Stage 0 actually sees."""
+    build_command = None
+    if (target / "build.gradle").is_file() or (target / "pom.xml").is_file():
+        build_command = _fixture_build_command()
+    result = spring_signal_scan.scan(str(target), build_command=build_command)
     counts: collections.Counter[str] = collections.Counter()
-    for match in matches:
-        rule = match.get("ruleId")
-        if rule:
-            counts[rule] += 1
+    for entries in result["evidence"].values():
+        for entry in entries:
+            rule = entry.get("rule_id")
+            if rule:
+                counts[rule] += 1
     return counts
+
+
+def check_non_vacuity() -> List[str]:
+    """Every rule must match something in the fixture corpus."""
+    if not FIXTURE_DIR.is_dir():
+        return [f"fixture corpus {FIXTURE_DIR.name}/ is missing; "
+                f"the non-vacuity gate has nothing to run against"]
+    counts = hit_counts(FIXTURE_DIR)
+    problems = []
 
 
 def check_non_vacuity() -> List[str]:
@@ -91,7 +123,7 @@ def check_non_vacuity() -> List[str]:
         if counts.get(rule, 0) == 0:
             problems.append(
                 f"{rule} matched nothing in {FIXTURE_DIR.name}/. Either the "
-                f"rule is broken, or the fixture that should trigger it is "
+                f"query is broken, or the fixture that should trigger it is "
                 f"missing. A rule nobody can make fire is not coverage.")
     for rule, reason in FIXTURE_EXEMPT.items():
         if not reason.strip():
@@ -109,9 +141,9 @@ def write_baseline(target: Path, counts: collections.Counter[str]) -> None:
     payload = {
         "schema_version": SCHEMA_VERSION,
         "$comment": (
-            "Per-rule hit counts from a real corpus, measured on a dev machine "
-            "because the corpus is too large to track. The gate is a ratchet: "
-            "a rule that used to fire and now fires zero times is a "
+            "Per-rule-id hit counts from a real corpus, measured on a dev "
+            "machine because the corpus is too large to track. The gate is a "
+            "ratchet: a rule that used to fire and now fires zero times is a "
             "regression. Rising counts are always fine and do not need a "
             "re-measure. Regenerate with: "
             "python3 scripts/rule_coverage.py <repo> --update"
@@ -138,7 +170,7 @@ def check_ratchet(counts: collections.Counter[str]) -> List[str]:
         if was > 0 and now == 0:
             problems.append(
                 f"{rule} fired {was} time(s) in the baseline and zero now. "
-                f"Either the rule regressed or the corpus changed; if the "
+                f"Either the query regressed or the corpus changed; if the "
                 f"corpus changed, re-measure with --update.")
     return problems
 
@@ -184,7 +216,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             if not problems:
                 print("OK: no rule regressed against the baseline.")
                 return 0
-    except spring_signal_scan.AstGrepNotFoundError as exc:
+    except spring_signal_scan.CodeQLScannerError as exc:
         print(str(exc), file=sys.stderr)
         return 2
 

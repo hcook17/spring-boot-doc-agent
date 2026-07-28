@@ -49,7 +49,7 @@ Not everything that's technically text in the repository carries the same eviden
 
 ## 6. operations.md
 **Purpose**: how this service is deployed, scaled, and kept healthy.
-**Evidence**: signals.deployment (Dockerfile, compose, k8s/helm manifests, CI workflow files).
+**Evidence**: signals.deployment (Dockerfile, compose, k8s/helm manifests, CI workflow files). When the build system is present, prefer the `deployment__build_*` rows (`deployment__build_plugin`, `deployment__build_dependency`, `deployment__build_module`, `deployment__build_toolchain`, `deployment__version_catalog`) for versions, dependencies, plugins, and multi-module structure over reading the build script yourself. Those rows carry the line number of the literal source and are re-verified by drift tier 2; an agent's own read of a `.gradle` file is not structural and is more prone to missing a coordinate or inventing a version.
 **Interview-worthy**: anything about the deployment environment that lives outside the repo — actual replica counts, autoscaling policy if it's set via a platform UI rather than checked-in config, on-call rotation/paging setup. Don't guess at production topology from a Dockerfile alone.
 
 ## 7. observability.md
@@ -80,7 +80,7 @@ Not everything that's technically text in the repository carries the same eviden
 
 ## 12. local_development.md
 **Purpose**: how to get this running on a laptop.
-**Evidence**: signals.deployment (docker-compose for local deps), signals.configuration (profiles like `application-local.yml`), build tool detection (`pom.xml` vs `build.gradle`/`build.gradle.kts`).
+**Evidence**: signals.deployment (docker-compose for local deps), signals.configuration (profiles like `application-local.yml`), build tool detection (`pom.xml` vs `build.gradle`/`build.gradle.kts`). Prefer `deployment__build_*` rows for the actual build versions, dependencies, plugins, and modules where they exist; the build tool file alone only tells you Gradle or Maven was used.
 **Interview-worthy**: anything that requires access outside the repo — VPN, internal artifact repository credentials, seed data that lives in a separate system. Note these as prerequisites rather than omitting them or guessing at values.
 
 ## 13. testing.md
