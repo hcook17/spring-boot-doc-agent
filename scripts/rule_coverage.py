@@ -80,18 +80,18 @@ def rule_ids(rule_file: Optional[Path] = None) -> List[str]:
     return unique
 
 
-def _fixture_build_command() -> str:
-    gradlew = "gradlew.bat" if os.name == "nt" else "gradlew"
-    return f"{FIXTURE_DIR / gradlew} --no-daemon clean compileJava compileTestJava"
-
-
 def hit_counts(target: Path) -> collections.Counter[str]:
     """Per-rule-id match counts, via the same scanner the pipeline uses so
-    this cannot drift from what Stage 0 actually sees."""
-    build_command = None
-    if (target / "build.gradle").is_file() or (target / "pom.xml").is_file():
-        build_command = _fixture_build_command()
-    result = spring_signal_scan.scan(str(target), build_command=build_command)
+    this cannot drift from what Stage 0 actually sees.
+
+    CI uses filesystem+ast-grep (no CodeQL CLI on the runner). The CodeQL pack
+    and ast-grep rules share the same rule_id vocabulary, so non-vacuity still
+    proves every declared id can fire on the fixture corpus.
+    """
+    result = spring_signal_scan.scan(
+        str(target),
+        scanners=["filesystem", "ast-grep"],
+    )
     counts: collections.Counter[str] = collections.Counter()
     for entries in result["evidence"].values():
         for entry in entries:

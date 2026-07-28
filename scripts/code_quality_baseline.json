@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
-  "production_functions": 321,
-  "production_functions_annotated": 206,
+  "production_functions": 320,
+  "production_functions_annotated": 205,
   "limits_for_new_functions": {
     "statements": 180,
     "complexity": 61,
@@ -956,11 +956,6 @@
       "complexity": 4,
       "depth": 1
     },
-    "rule_coverage.py::_fixture_build_command": {
-      "statements": 2,
-      "complexity": 2,
-      "depth": 0
-    },
     "rule_coverage.py::check_non_vacuity": {
       "statements": 13,
       "complexity": 7,
@@ -972,8 +967,8 @@
       "depth": 2
     },
     "rule_coverage.py::hit_counts": {
-      "statements": 11,
-      "complexity": 6,
+      "statements": 8,
+      "complexity": 4,
       "depth": 3
     },
     "rule_coverage.py::load_baseline": {
