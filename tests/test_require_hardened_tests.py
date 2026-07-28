@@ -29,7 +29,7 @@ from pathlib import Path
 from unittest import mock
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks"))
+sys.path.insert(0, str(REPO_ROOT / "adapters" / "claude" / "hooks"))
 
 import require_hardened_tests as gate  # noqa: E402
 
@@ -85,7 +85,8 @@ class MissingTestSuiteTest(unittest.TestCase):
         and nothing caught it: this guard used to check only scripts/, so a
         hook living anywhere else was invisible to it. hooks/ and the nested
         .claude/hooks/ form must both be covered now."""
-        problems = gate.missing_test_suites(["hooks/brand_new_hook.py"])
+        problems = gate.missing_test_suites(
+            ["adapters/claude/hooks/brand_new_hook.py"])
         self.assertEqual(len(problems), 1)
         self.assertIn("test_brand_new_hook.py", problems[0])
 
@@ -96,9 +97,11 @@ class MissingTestSuiteTest(unittest.TestCase):
 
     def test_a_hook_with_a_suite_passes(self) -> None:
         self.assertEqual(
-            gate.missing_test_suites(["hooks/deny_text_search.py"]), [])
+            gate.missing_test_suites(
+                ["adapters/claude/hooks/deny_text_search.py"]), [])
         self.assertEqual(
-            gate.missing_test_suites([".claude/hooks/check_pipe_exit_code.py"]), [])
+            gate.missing_test_suites(
+                [".claude/hooks/check_pipe_exit_code.py"]), [])
 
     def test_files_outside_scripts_and_hooks_are_ignored(self) -> None:
         self.assertEqual(gate.missing_test_suites(["CLAUDE.md"]), [])

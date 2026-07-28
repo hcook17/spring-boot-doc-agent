@@ -1,0 +1,25 @@
+# Snippet: gate a PR on doc-engine certification.
+# Copy into your Spring service repo or use the root action.yml via:
+#   uses: ./.github/actions/doc-engine   # after vendoring this repo
+#   or: uses: your-org/spring-boot-doc-agent@vX
+
+- uses: actions/checkout@v4
+
+- uses: actions/setup-python@v5
+  with:
+    python-version: "3.11"
+
+- name: Install doc-engine
+  run: |
+    pip install -r requirements.txt
+    pip install -e .
+
+- name: Run pipeline
+  run: |
+    doc-engine pipeline run . \
+      --compliance-profile certified \
+      --out-dir pipeline-artifacts \
+      --skip-drift
+
+- name: Gate certification
+  run: python3 doc-engine certification verify pipeline-artifacts/certification.json

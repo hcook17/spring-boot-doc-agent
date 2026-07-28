@@ -1,4 +1,4 @@
-name: doc-engine scan and publish
+name: doc-engine pipeline certification
 
 on:
   push:
@@ -13,27 +13,17 @@ on:
         description: "Path to the repository to scan (relative to workspace)"
         required: true
         default: "."
-      scanners:
-        description: "Comma-separated scanner names"
+      compliance_profile:
+        description: "scan_only, deterministic_only, or certified"
         required: true
-        default: "filesystem,ast-grep"
-      site_name:
-        description: "Site title"
-        required: true
-        default: "Documentation"
+        default: "scan_only"
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
   pull-requests: write
 
-concurrency:
-  group: "pages-${{ github.ref }}"
-  cancel-in-progress: false
-
 jobs:
-  build:
+  certify:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -51,42 +41,24 @@ jobs:
           pip install -r requirements-dev.txt
           pip install -e .
 
-      - name: Run doc-engine scan
+      - name: Run pipeline (scan_only on fixture signals)
         run: |
-          REPO_PATH="${{ github.event.inputs.repo_path || '.' }}"
-          SCANNERS="${{ github.event.inputs.scanners || 'filesystem,ast-grep' }}"
-          doc-engine scan "$REPO_PATH" --out signals.json --scanners "$SCANNERS" --respect-gitignore
+          PROFILE="${{ github.event.inputs.compliance_profile || 'scan_only' }}"
+          doc-engine pipeline run scripts/test_fixtures/spring_signals \
+            --compliance-profile "$PROFILE" \
+            --out-dir pipeline-artifacts \
+            --skip-drift \
+            --signals-file scripts/test_fixtures/spring_signals_fixture_expected.json
 
-      - name: Run doc-engine docs
-        run: doc-engine docs signals.json --out docs.json
-
-      - name: Run doc-engine site
-        run: doc-engine site docs.json --out-dir _site --site-name "${{ github.event.inputs.site_name || 'Documentation' }}"
-
-      - name: Upload artifact
-        if: github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
-  deploy:
-    if: github.ref == 'refs/heads/main'
-    needs: build
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Gate certification.json
+        run: python3 doc-engine certification verify pipeline-artifacts/certification.json
 
   pr-comment:
     if: github.event_name == 'pull_request'
-    needs: build
+    needs: certify
     runs-on: ubuntu-latest
     steps:
-      - name: Comment that docs were built
+      - name: Comment certification result
         uses: actions/github-script@v7
         with:
           script: |
@@ -94,5 +66,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: "📚 Documentation site built by doc-engine workflow (see Actions artifacts on merge to main for GitHub Pages publish)."
+              body: "Pipeline certification passed (`scan_only` on fixture signals). See `pipeline-artifacts/certification.json` in the workflow log artifacts if uploaded."
             });

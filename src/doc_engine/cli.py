@@ -67,6 +67,12 @@ def cmd_pipeline_run(args: argparse.Namespace) -> int:
     return run_pipeline(args)
 
 
+def cmd_certification_verify(args: argparse.Namespace) -> int:
+    from doc_engine.tools.certification import main as cert_main
+
+    return cert_main([args.path])
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(prog="doc-engine", description=__doc__)
     sub = ap.add_subparsers(dest="command", required=True)
@@ -111,6 +117,23 @@ def main() -> int:
     )
     add_run_arguments(run_ap)
     run_ap.set_defaults(func=cmd_pipeline_run)
+
+    cert_ap = sub.add_parser(
+        "certification",
+        help="Certification gate utilities",
+    )
+    cert_sub = cert_ap.add_subparsers(dest="certification_command", required=True)
+    verify_ap = cert_sub.add_parser(
+        "verify",
+        help="Exit 0 only when certification.json reports certified: true",
+    )
+    verify_ap.add_argument(
+        "path",
+        nargs="?",
+        default="certification.json",
+        help="path to certification.json",
+    )
+    verify_ap.set_defaults(func=cmd_certification_verify)
 
     args = ap.parse_args()
     return args.func(args)

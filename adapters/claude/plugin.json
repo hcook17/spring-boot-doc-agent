@@ -1,0 +1,10 @@
+{
+  "name": "spring-boot-doc-agent",
+  "version": "0.5.0",
+  "description": "Claude Code adapter for doc-engine — scan a Spring Boot repository, ask clarifying questions static analysis cannot answer, and generate a fixed 14-file documentation set via agents and skills.",
+  "author": {
+    "name": "Hunter Cook"
+  },
+  "license": "MIT",
+  "keywords": ["documentation", "spring-boot", "architecture", "onboarding", "java"]
+}

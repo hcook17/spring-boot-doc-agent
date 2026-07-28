@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "spring-boot-doc-agent",
-      "source": "./"
+      "source": "./adapters/claude"
     }
   ]
 }

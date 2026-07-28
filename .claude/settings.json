@@ -52,7 +52,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/hooks/require_hardened_tests.py\""
+            "command": "python3 \"adapters/claude/hooks/require_hardened_tests.py\""
           }
         ]
       },

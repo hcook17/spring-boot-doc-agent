@@ -48,7 +48,7 @@ import sys
 from pathlib import Path
 from typing import List
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[3]
 SKILL = "directional-tests"
 
 # Modules that are libraries or entry points for which a dedicated suite is not
@@ -87,14 +87,29 @@ def missing_test_suites(staged: List[str]) -> List[str]:
         # form. check_pipe_exit_code.py shipped from .claude/hooks/ with no
         # test and no test suite named it, because this guard used to read
         # `!= "scripts"` and neither hook directory was in it.
-        if path.parent.name not in {"scripts", "hooks"} or path.suffix != ".py":
+        hook_parents = {"scripts", "hooks"}
+        rel_parts = path.parts
+        is_adapter_hook = (
+            len(rel_parts) >= 3
+            and rel_parts[0] == "adapters"
+            and rel_parts[1] == "claude"
+            and rel_parts[2] == "hooks"
+        )
+        if (
+            path.parent.name not in hook_parents
+            and not is_adapter_hook
+        ) or path.suffix != ".py":
             continue
         if path.name.startswith("test_") or path.name in TEST_EXEMPT:
             continue
-        if not (REPO_ROOT / "scripts" / f"test_{path.name}").is_file():
-            problems.append(
-                f"{rel} has no scripts/test_{path.name}. Add one, or add the "
-                f"module to TEST_EXEMPT in this hook with a reason.")
+        scripts_test = REPO_ROOT / "scripts" / f"test_{path.name}"
+        tests_test = REPO_ROOT / "tests" / f"test_{path.name}"
+        if scripts_test.is_file() or (is_adapter_hook and tests_test.is_file()):
+            continue
+        problems.append(
+            f"{rel} has no scripts/test_{path.name} (or tests/test_{path.name} "
+            f"for adapters/claude/hooks). Add one, or add the module to "
+            f"TEST_EXEMPT in this hook with a reason.")
     return problems
 
 

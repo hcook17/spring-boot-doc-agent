@@ -22,7 +22,7 @@ import unittest
 from pathlib import Path
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks"))
+sys.path.insert(0, str(REPO_ROOT / "adapters" / "claude" / "hooks"))
 
 import deny_raw_network as drn  # noqa: E402
 

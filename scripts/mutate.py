@@ -133,7 +133,7 @@ MUTATORS: List[Mutator] = [
     # --- literal: see Mutator's docstring for why each one cannot be ---------
     # --- structural, and RegistryAnchorsTest for what guards them instead ----
     Mutator(
-        "agent-regains-grep", "agents/gap-analyzer.md", "",
+        "agent-regains-grep", "adapters/claude/agents/gap-analyzer.md", "",
         "tools: Read, Glob, Write", "tools: Read, Grep, Glob, Write",
         "test_check_repo_claims.py",
         "all five agents declared Grep until 0ee4033; check F exists to stop it "
@@ -152,7 +152,7 @@ MUTATORS: List[Mutator] = [
         "test_check_repo_claims.py",
         'CLAUDE.md read "Three forms" for two windows after a fourth and fifth landed'),
     Mutator(
-        "prompt-contract-drifts", "agents/file-summarizer.md", "",
+        "prompt-contract-drifts", "adapters/claude/agents/file-summarizer.md", "",
         "test, other —", "test, other, scheduler —",
         "test_prompt_contracts.py",
         "the validators held hand-copied duplicates of this list with nothing "
