@@ -20,6 +20,11 @@ one-off scratch repo; the main fixture suite still runs and is cached):
 
     SPRING_SIGNAL_FAST_MODE=1 python3 scripts/test_spring_signal_scan.py -v
 
+Snapshot mode (skips the CodeQL build entirely by loading a pre-recorded
+spring_signals.json for the fixture; validated against the current scanner_version):
+
+    SPRING_SIGNAL_USE_SNAPSHOT=1 python3 scripts/test_spring_signal_scan.py -v
+
 Requires: CodeQL CLI on PATH and a working Java toolchain (see
 spring_signal_scan.py's error message for install instructions if this
 fails).
@@ -42,6 +47,17 @@ sys.path.insert(0, SCRIPT_DIR)
 # one-off scratch repo. The main fixture suite (SpringSignalScanTest) still runs
 # and is served by the content-addressed result cache in _codeql_runner.py.
 FAST_MODE = os.environ.get("SPRING_SIGNAL_FAST_MODE", "").lower() in ("1", "true", "yes")
+
+FIXTURE_SNAPSHOT_PATH = os.path.join(
+    SCRIPT_DIR, "test_fixtures", "spring_signals_fixture_expected.json"
+)
+
+# Snapshot mode skips the CodeQL build entirely by loading a pre-recorded
+# spring_signals.json for the fixture. This is the fastest smoke-test path and
+# is useful in fresh CI environments where the content-addressed cache is cold.
+# The snapshot is validated against the current scanner_version; if it is stale,
+# a real scan is run instead so the tests never silently run against stale data.
+USE_SNAPSHOT = os.environ.get("SPRING_SIGNAL_USE_SNAPSHOT", "").lower() in ("1", "true", "yes")
 
 import spring_signal_scan  # noqa: E402
 from _codeql_runner import create_database  # noqa: E402
@@ -86,11 +102,27 @@ def _gradle_build_command(tmpdir, source_dirs):
 
 class SpringSignalScanTest(unittest.TestCase):
     @classmethod
+    def _load_fixture_snapshot(cls):
+        with open(FIXTURE_SNAPSHOT_PATH, "r", encoding="utf-8") as f:
+            snapshot = json.load(f)
+        current_version = spring_signal_scan._scanner_version()
+        if snapshot.get("scanner_version") != current_version:
+            raise RuntimeError(
+                f"fixture snapshot is stale: expected scanner_version={current_version}, "
+                f"got {snapshot.get('scanner_version')}. Regenerate with:\n"
+                f"  python3 scripts/regenerate_fixture_snapshot.py"
+            )
+        return snapshot
+
+    @classmethod
     def setUpClass(cls):
-        cls.result = spring_signal_scan.scan(
-            FIXTURE_DIR,
-            build_command=FIXTURE_BUILD_COMMAND,
-        )
+        if USE_SNAPSHOT:
+            cls.result = cls._load_fixture_snapshot()
+        else:
+            cls.result = spring_signal_scan.scan(
+                FIXTURE_DIR,
+                build_command=FIXTURE_BUILD_COMMAND,
+            )
         cls.evidence = cls.result["evidence"]
 
     def _entries_for(self, bucket, filename):

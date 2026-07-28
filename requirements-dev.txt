@@ -1,9 +1,9 @@
 # Development-only dependencies. Deliberately NOT in requirements.txt: that
-# file is the plugin's runtime prerequisite set (ast-grep-cli, sqllineage,
-# pathspec), documented as such in CONSTRAINTS.md's "Runtime prerequisites"
-# item 4. Nothing here is needed to run the pipeline -- only to check the
-# code that implements it -- and folding a linter into the runtime set would
-# make that list say something untrue.
+# file is the plugin's runtime prerequisite set (sqllineage, pathspec, semgrep),
+# documented as such in CONSTRAINTS.md's "Runtime prerequisites" item 4. CodeQL
+# CLI is a standalone binary and is listed separately there. Nothing here is
+# needed to run the pipeline -- only to check or publish the code/docs -- and
+# folding a linter into the runtime set would make that list say something untrue.
 #
 # Compatible-release pins, matching requirements.txt's convention: a fresh
 # environment reliably gets a working version without being frozen forever.
@@ -14,3 +14,8 @@
 # .ruff.toml but is NOT the ratchet -- see scripts/check_code_quality.py,
 # which owns the committed per-function baseline ruff has no equivalent for.
 ruff~=0.16.0
+
+# Material for MkDocs: builds the DeepWiki-like static site from the 14 generated
+# markdown docs. This is a dev/publishing dependency, not a runtime dependency of
+# the pipeline itself.
+mkdocs-material~=9.5.0

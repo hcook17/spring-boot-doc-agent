@@ -1,0 +1,66 @@
+name: Publish docs site
+
+on:
+  workflow_dispatch:
+    inputs:
+      docs_dir:
+        description: "Directory containing the 14 generated markdown docs"
+        required: true
+        default: "docs"
+      site_name:
+        description: "Site title"
+        required: true
+        default: "Repo Documentation"
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - "site/**"
+      - "scripts/build_docs_site.py"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Build site
+        run: |
+          DOCS_DIR="${{ github.event.inputs.docs_dir || 'docs' }}"
+          SITE_NAME="${{ github.event.inputs.site_name || 'Repo Documentation' }}"
+          python3 scripts/build_docs_site.py --docs-dir "$DOCS_DIR" --out-dir _site --site-name "$SITE_NAME"
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
