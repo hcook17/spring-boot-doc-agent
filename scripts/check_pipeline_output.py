@@ -105,6 +105,21 @@ def parse_porcelain(output: str) -> List[str]:
     return paths
 
 
+def list_ignored_untracked(target_repo: Path) -> List[str]:
+    """Ignored untracked paths (invisible to git status --porcelain)."""
+    proc = subprocess.run(
+        ["git", "ls-files", "-o", "-i", "--exclude-standard"],
+        cwd=str(target_repo), capture_output=True, text=True,
+    )
+    if proc.returncode != 0:
+        return []
+    return [
+        line.strip().replace("\\", "/")
+        for line in proc.stdout.splitlines()
+        if line.strip()
+    ]
+
+
 def check_target_repo_writes(target_repo: Path, docs_dir: Path) -> List[str]:
     """The structural replacement for "write only where you were told."
 
@@ -131,6 +146,12 @@ def check_target_repo_writes(target_repo: Path, docs_dir: Path) -> List[str]:
             continue
         where = "outside the docs directory" if docs_rel else "in the target repo (docs were written elsewhere)"
         issues.append(f"unexpected write {where}: {path}")
+
+    for path in list_ignored_untracked(target_repo):
+        norm = path.replace("\\", "/").rstrip("/")
+        if docs_rel is not None and (norm == docs_rel or norm.startswith(docs_rel + "/")):
+            continue
+        issues.append(f"unexpected write in a gitignored path: {path}")
     return issues
 
 

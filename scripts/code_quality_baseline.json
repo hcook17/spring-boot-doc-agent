@@ -1,11 +1,11 @@
 {
   "schema_version": 3,
-  "production_functions": 327,
-  "production_functions_annotated": 208,
+  "production_functions": 277,
+  "production_functions_annotated": 200,
   "limits_for_new_functions": {
-    "statements": 135,
-    "complexity": 46,
-    "depth": 7
+    "statements": 82,
+    "complexity": 31,
+    "depth": 6
   },
   "unparseable": [],
   "docstring_violations": {
@@ -17,7 +17,6 @@
     "check_pipeline_output.py": "check_pipeline_output.py: 'how to run it' is at docstring line 40; the contract is within 20. Move the Usage block above the rationale.",
     "partition_repo.py": "partition_repo.py: 'how to run it' is at docstring line 44; the contract is within 20. Move the Usage block above the rationale.",
     "run_manifest.py": "run_manifest.py: 'how to run it' is at docstring line 62; the contract is within 20. Move the Usage block above the rationale.",
-    "run_pipeline_local.py": "run_pipeline_local.py: runnable module, but its 68-line docstring never says how to run it",
     "semantic_eval_helpers.py": "semantic_eval_helpers.py: 'how to run it' is at docstring line 44; the contract is within 20. Move the Usage block above the rationale.",
     "validate_artifacts.py": "validate_artifacts.py: runnable module, but its 1-line docstring never says how to run it"
   },
@@ -293,14 +292,19 @@
       "depth": 3
     },
     "check_pipeline_output.py::check_target_repo_writes": {
-      "statements": 15,
-      "complexity": 8,
+      "statements": 20,
+      "complexity": 12,
       "depth": 2
     },
     "check_pipeline_output.py::exit_code": {
       "statements": 1,
       "complexity": 2,
       "depth": 0
+    },
+    "check_pipeline_output.py::list_ignored_untracked": {
+      "statements": 4,
+      "complexity": 4,
+      "depth": 1
     },
     "check_pipeline_output.py::main": {
       "statements": 24,
@@ -838,13 +842,13 @@
       "depth": 0
     },
     "partition_repo.py::build_groups": {
-      "statements": 31,
-      "complexity": 18,
+      "statements": 33,
+      "complexity": 20,
       "depth": 4
     },
     "partition_repo.py::build_groups.carry_forward": {
-      "statements": 11,
-      "complexity": 4,
+      "statements": 13,
+      "complexity": 5,
       "depth": 2
     },
     "partition_repo.py::dfs_file_list": {
@@ -881,51 +885,6 @@
       "statements": 1,
       "complexity": 1,
       "depth": 0
-    },
-    "pipeline_validators.py::_evidence_problems": {
-      "statements": 16,
-      "complexity": 9,
-      "depth": 3
-    },
-    "pipeline_validators.py::_gap_evidence_problems": {
-      "statements": 7,
-      "complexity": 5,
-      "depth": 1
-    },
-    "pipeline_validators.py::extract_mermaid_node_labels": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "pipeline_validators.py::find_untraceable_nodes": {
-      "statements": 5,
-      "complexity": 5,
-      "depth": 2
-    },
-    "pipeline_validators.py::main": {
-      "statements": 13,
-      "complexity": 4,
-      "depth": 2
-    },
-    "pipeline_validators.py::run_stage5_gate": {
-      "statements": 16,
-      "complexity": 7,
-      "depth": 2
-    },
-    "pipeline_validators.py::validate_architecture_testing_review_findings": {
-      "statements": 32,
-      "complexity": 19,
-      "depth": 4
-    },
-    "pipeline_validators.py::validate_file_summarizer_entries": {
-      "statements": 14,
-      "complexity": 8,
-      "depth": 3
-    },
-    "pipeline_validators.py::validate_gap_analyzer_questions": {
-      "statements": 19,
-      "complexity": 9,
-      "depth": 3
     },
     "prompt_contracts.py::_read": {
       "statements": 4,
@@ -1089,216 +1048,6 @@
     },
     "run_manifest.py::start_stage": {
       "statements": 3,
-      "complexity": 1,
-      "depth": 0
-    },
-    "run_pipeline_local.py::Log.__call__": {
-      "statements": 4,
-      "complexity": 1,
-      "depth": 0
-    },
-    "run_pipeline_local.py::Log.__init__": {
-      "statements": 8,
-      "complexity": 4,
-      "depth": 3
-    },
-    "run_pipeline_local.py::Log.close": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "run_pipeline_local.py::Log.rule": {
-      "statements": 4,
-      "complexity": 1,
-      "depth": 0
-    },
-    "run_pipeline_local.py::Runner.__init__": {
-      "statements": 5,
-      "complexity": 1,
-      "depth": 0
-    },
-    "run_pipeline_local.py::Runner._record_gate": {
-      "statements": 3,
-      "complexity": 3,
-      "depth": 0
-    },
-    "run_pipeline_local.py::Runner.gates_failed": {
-      "statements": 1,
-      "complexity": 3,
-      "depth": 0
-    },
-    "run_pipeline_local.py::Runner.mock": {
-      "statements": 20,
-      "complexity": 5,
-      "depth": 2
-    },
-    "run_pipeline_local.py::Runner.record": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "run_pipeline_local.py::Runner.run": {
-      "statements": 39,
-      "complexity": 19,
-      "depth": 2
-    },
-    "run_pipeline_local.py::Runner.table": {
-      "statements": 4,
-      "complexity": 3,
-      "depth": 1
-    },
-    "run_pipeline_local.py::_artifact_inventory": {
-      "statements": 7,
-      "complexity": 3,
-      "depth": 2
-    },
-    "run_pipeline_local.py::_node_id": {
-      "statements": 8,
-      "complexity": 3,
-      "depth": 1
-    },
-    "run_pipeline_local.py::_quote": {
-      "statements": 1,
-      "complexity": 2,
-      "depth": 0
-    },
-    "run_pipeline_local.py::_read_json": {
-      "statements": 2,
-      "complexity": 2,
-      "depth": 1
-    },
-    "run_pipeline_local.py::_run_drift_check": {
-      "statements": 9,
-      "complexity": 4,
-      "depth": 1
-    },
-    "run_pipeline_local.py::_script": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "run_pipeline_local.py::_write_certification_and_finish": {
-      "statements": 24,
-      "complexity": 17,
-      "depth": 3
-    },
-    "run_pipeline_local.py::_write_json": {
-      "statements": 2,
-      "complexity": 2,
-      "depth": 1
-    },
-    "run_pipeline_local.py::_write_text": {
-      "statements": 2,
-      "complexity": 3,
-      "depth": 1
-    },
-    "run_pipeline_local.py::add_run_arguments": {
-      "statements": 12,
-      "complexity": 2,
-      "depth": 0
-    },
-    "run_pipeline_local.py::build_arg_parser": {
-      "statements": 3,
-      "complexity": 1,
-      "depth": 0
-    },
-    "run_pipeline_local.py::confirmed_tag": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "run_pipeline_local.py::evidenced": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "run_pipeline_local.py::find_existing_readme": {
-      "statements": 4,
-      "complexity": 3,
-      "depth": 2
-    },
-    "run_pipeline_local.py::load_citations": {
-      "statements": 16,
-      "complexity": 17,
-      "depth": 3
-    },
-    "run_pipeline_local.py::load_citations.resolves": {
-      "statements": 11,
-      "complexity": 8,
-      "depth": 4
-    },
-    "run_pipeline_local.py::main": {
-      "statements": 2,
-      "complexity": 1,
-      "depth": 0
-    },
-    "run_pipeline_local.py::mock_architecture": {
-      "statements": 37,
-      "complexity": 16,
-      "depth": 2
-    },
-    "run_pipeline_local.py::mock_docs": {
-      "statements": 44,
-      "complexity": 13,
-      "depth": 4
-    },
-    "run_pipeline_local.py::mock_file_summaries": {
-      "statements": 34,
-      "complexity": 17,
-      "depth": 4
-    },
-    "run_pipeline_local.py::mock_gap_and_interview": {
-      "statements": 31,
-      "complexity": 18,
-      "depth": 3
-    },
-    "run_pipeline_local.py::per_existing_docs_tag": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "run_pipeline_local.py::pick": {
-      "statements": 15,
-      "complexity": 11,
-      "depth": 4
-    },
-    "run_pipeline_local.py::run_pipeline": {
-      "statements": 135,
-      "complexity": 46,
-      "depth": 2
-    },
-    "run_pipeline_local.py::run_pipeline._ensure_pool": {
-      "statements": 3,
-      "complexity": 3,
-      "depth": 1
-    },
-    "run_pipeline_local.py::run_pipeline.handler_architect": {
-      "statements": 2,
-      "complexity": 1,
-      "depth": 0
-    },
-    "run_pipeline_local.py::run_pipeline.handler_doc_writer": {
-      "statements": 4,
-      "complexity": 2,
-      "depth": 0
-    },
-    "run_pipeline_local.py::run_pipeline.handler_file_summarize": {
-      "statements": 2,
-      "complexity": 1,
-      "depth": 0
-    },
-    "run_pipeline_local.py::run_pipeline.handler_gap": {
-      "statements": 7,
-      "complexity": 2,
-      "depth": 1
-    },
-    "run_pipeline_local.py::sweep_todos": {
-      "statements": 20,
-      "complexity": 13,
-      "depth": 7
-    },
-    "run_pipeline_local.py::unknown_tag": {
-      "statements": 1,
       "complexity": 1,
       "depth": 0
     },

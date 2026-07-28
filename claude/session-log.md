@@ -830,3 +830,14 @@ Tests: 824 passed, 1 xfailed (intentional); `check_repo_claims.py` OK; `check_co
 Assumptions affected:
 - `claude/steering-prompts/02-pluggability-research-prompt.md` — orchestration in scripts/run_pipeline_local — [Resolved — body moved to `src/doc_engine/pipeline/local_runner.py`; `local_run.py` imports package directly without scripts bootstrap.]
 Files touched: src/doc_engine/pipeline/local_runner.py, src/doc_engine/pipeline/local_run.py, src/doc_engine/tools/pipeline_validators.py, scripts/run_pipeline_local.py, scripts/pipeline_validators.py, adapters/github/README.md, src/doc_engine/core/protocols.py, src/doc_engine/scanning/_scanner_base.py, src/doc_engine/pipeline/README.md, claude/session-log.md
+
+---
+
+## 2026-07-28 — Principal review follow-up: certified CI, partition/write-scope fixes, module split
+
+Commit: uncommitted
+Tests: compliance + certified integration + partition overlap pass; `check_repo_claims.py` OK; `check_code_quality.py` baseline updated
+Assumptions affected:
+- Kitchen sink overlap xfail — [Resolved — `partition_repo.build_groups` no longer re-carries overlap seed files.]
+- Write-scope gate gitignore blind spot — [Resolved — `check_pipeline_output.py` uses `git ls-files -o -i`.]
+Files touched: .github/workflows/doc-engine.yml, scripts/partition_repo.py, scripts/check_pipeline_output.py, src/doc_engine/pipeline/gates.py, src/doc_engine/pipeline/mock_stages.py, src/doc_engine/pipeline/local_runner.py, tests/test_compliance.py, tests/test_local_runner_certified.py, tests/test_adapter_layout.py, tests/test_partition_repo.py, tests/test_enterprise_kitchen_sink.py, scripts/code_quality_baseline.json, claude/session-log.md

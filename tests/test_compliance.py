@@ -191,14 +191,14 @@ class CertificationReportTest(unittest.TestCase):
 
 class FinishMessagingTest(unittest.TestCase):
     def test_success_lines_only_when_certified(self):
-        import run_pipeline_local
+        from doc_engine.pipeline.local_runner import Log, Runner, _write_certification_and_finish
 
         with tempfile.TemporaryDirectory() as tmp:
             log_path = os.path.join(tmp, "run.log")
-            log = run_pipeline_local.Log(log_path)
-            runner = run_pipeline_local.Runner(log, keep_going=False)
+            log = Log(log_path)
+            runner = Runner(log, keep_going=False)
             runner.record("pipeline:doc_writer", "FAIL", 0.0, "mock failed")
-            code = run_pipeline_local._write_certification_and_finish(
+            code = _write_certification_and_finish(
                 log,
                 runner,
                 ComplianceProfile.CERTIFIED,
@@ -216,7 +216,7 @@ class FinishMessagingTest(unittest.TestCase):
 
 class ScanOnlyIntegrationTest(unittest.TestCase):
     def test_scan_only_with_signals_file_writes_certification(self):
-        import run_pipeline_local
+        from doc_engine.pipeline.local_runner import run_pipeline
 
         with tempfile.TemporaryDirectory() as tmp:
             out_dir = os.path.join(tmp, "run")
@@ -234,7 +234,7 @@ class ScanOnlyIntegrationTest(unittest.TestCase):
                 deterministic_only=False,
                 signals_file=str(FIXTURE_SNAPSHOT_PATH),
             )
-            code = run_pipeline_local.run_pipeline(args)
+            code = run_pipeline(args)
             cert_path = os.path.join(out_dir, "certification.json")
             self.assertTrue(os.path.isfile(cert_path))
             with open(cert_path, encoding="utf-8") as f:

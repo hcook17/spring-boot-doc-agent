@@ -73,7 +73,7 @@ reasoning recorded at the assertion:
   fixed  build_groups() could loop forever (see
          Ch06PartitioningTest.test_build_groups_terminates_*)
   open   overlap cascades past adjacent groups at small --max-tokens
-         (expectedFailure in Ch06)
+         (fixed: carry_forward no longer re-carries overlap seed files)
   fixed  `application-dev-local.yml` is now recognized as a config file
   open   a write into a gitignored path is invisible to the write-scope gate
 
@@ -980,26 +980,8 @@ class Ch06PartitioningTest(unittest.TestCase):
                 where.setdefault(f, set()).add(g["id"])
         return where
 
-    @unittest.expectedFailure
     def test_overlap_never_spans_more_than_two_groups(self):
-        """KNOWN DEFECT — overlap cascades past adjacent groups.
-
-        The design is ~10% overlap between *adjacent* groups, and
-        test_partition_repo_real_world.py already asserts no file is counted
-        more than twice. Both are violated here: when a group is small enough
-        that its own ~10% tail consists of files that were themselves carried
-        *into* it, the carry propagates again, so a file lands in three
-        consecutive groups and is summarized three times.
-
-        Measured on this fixture: Crlf.java and Empty.java appear in groups
-        {1, 2, 3} at --max-tokens 2000. It does not reproduce at 1000 or 4000,
-        which is why no existing suite catches it — the real-world suite runs
-        at the 120000 default, where groups are never small enough.
-
-        Deterministic and platform-independent, so expectedFailure is safe
-        here: the day carry_forward stops re-carrying carried-in files, this
-        becomes an unexpected success and CI goes red pointing at this marker.
-        """
+        """Overlap must stay between adjacent groups only — no cascade into three."""
         for f, ids in self._membership().items():
             if len(ids) > 1:
                 with self.subTest(file=f):
@@ -1382,21 +1364,17 @@ class Ch12GateResponsibilityTest(unittest.TestCase):
         self.assertEqual(self._gate(_STATE["docs"]).returncode, 0,
                          "--no-write-check should remove exactly this control")
 
-    def test_a_stray_write_into_a_gitignored_path_is_invisible_to_the_gate(self):
-        """A hole in the only mechanical control on write scope: the check is
-        built on `git status --porcelain`, which never reports ignored paths.
-        A doc-writer that wrote into a gitignored directory therefore passes
-        silently. Pinned as a known limitation — if this ever starts failing,
-        the write check grew ignored-path awareness and CONSTRAINTS.md should
-        be updated with it."""
+    def test_a_stray_write_into_a_gitignored_path_fails_the_gate(self):
+        """Ignored untracked paths are checked via git ls-files -o -i."""
         stray = os.path.join(_STATE["repo"], GITIGNORED_DIR, "oops.md")
         with open(stray, "w", encoding="utf-8") as f:
             f.write("written outside docs/, into a gitignored directory\n")
         self.addCleanup(lambda: os.path.exists(stray) and os.remove(stray))
         proc = _run([PY, _script("check_pipeline_output.py"), _STATE["docs"],
                      "--target-repo", _STATE["repo"]])
-        self.assertEqual(proc.returncode, 0,
-                         "gate unexpectedly saw a write into a gitignored path")
+        self.assertEqual(proc.returncode, 1,
+                         "gate must report a write into a gitignored path")
+        self.assertIn("gitignored path", proc.stderr)
 
     def test_citation_coverage_is_a_worklist_by_default_and_a_gate_under_strict(self):
         """Three finding kinds, one strict run: a miscased tag the Stage-4 gate

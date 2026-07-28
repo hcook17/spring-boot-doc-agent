@@ -71,6 +71,8 @@ Schemas: `scripts/schemas/*.schema.json` (derived from `doc_engine.pipeline.arti
 - `PipelineRunner` — `src/doc_engine/pipeline/runner.py`
 - `PipelineContext` — paths, repo, manifest, in-run state
 - `MockStageExecutor` — local E2E without LLM
-- `local_runner.py` — full local pipeline orchestration; `scripts/run_pipeline_local.py` is a thin shim
+- `local_runner.py` — orchestration, gates wiring, certification finish
+- `mock_stages.py` — mock generative stage writers
+- `gates.py` — in-process mechanical gate runners (`validate_artifacts`, `pipeline_validators`)
 
 SKILL.md stage names map 1:1 to `build_stage_specs()` in `stages.py`.
