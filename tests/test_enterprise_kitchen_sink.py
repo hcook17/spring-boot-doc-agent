@@ -480,7 +480,10 @@ def run_chain(repo, out_dir):
 
     record("init", _run(manifest_cmd("init", repo, "--out", manifest)))
     record("start_signal_scan", _run(manifest_cmd("start-stage", manifest, "signal_scan")))
-    record("signal_scan", _run([PY, _script("spring_signal_scan.py"), repo, "--out", signals]))
+    record("signal_scan", _run([
+        PY, _script("spring_signal_scan.py"), repo, "--out", signals,
+        "--scanners", "filesystem,ast-grep",
+    ]))
     record("end_signal_scan",
            _run(manifest_cmd("end-stage", manifest, "signal_scan", "--status", "complete")))
     record("start_partition", _run(manifest_cmd("start-stage", manifest, "partition")))
@@ -883,7 +886,8 @@ class Ch04EncodingTest(unittest.TestCase):
             shutil.copytree(os.path.join(_STATE["repo"], LEDGER.replace("/", os.sep)),
                             os.path.join(mini, "src"))
             proc = _run([PY, _script("spring_signal_scan.py"), mini,
-                         "--out", os.path.join(d, "s.json")], env=env)
+                         "--out", os.path.join(d, "s.json"),
+                         "--scanners", "filesystem,ast-grep"], env=env)
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
             with open(os.path.join(d, "s.json"), encoding="utf-8") as f:
                 mini_signals = json.load(f)

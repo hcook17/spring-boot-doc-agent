@@ -93,7 +93,7 @@ def main() -> int:
     ap.add_argument("--db-path", default=None)
     ap.add_argument(
         "--scanners", default=None,
-        help="Comma-separated scanner names. Default: filesystem,codeql.",
+        help="Comma-separated scanner names. Default: filesystem,ast-grep.",
     )
     args = ap.parse_args()
 

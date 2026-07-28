@@ -21,7 +21,7 @@ import unittest
 from pathlib import Path
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPT_DIR = SCRIPTS_DIR
 import check_code_quality as checker  # noqa: E402
 
 

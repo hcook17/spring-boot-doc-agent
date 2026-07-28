@@ -23,9 +23,13 @@ def get_scanner(name: str) -> Scanner:
 
 
 def resolve_scanner_names(names: list) -> list:
-    """Validate and return a list of scanner names, defaulting to filesystem+codeql."""
+    """Validate and return a list of scanner names, defaulting to filesystem+ast-grep.
+
+    CodeQL remains available via ``--scanners filesystem,codeql`` (or including
+    ``codeql`` in the list) when the CodeQL CLI and a Java build are present.
+    """
     if not names:
-        return ["filesystem", "codeql"]
+        return ["filesystem", "ast-grep"]
     seen = set()
     result = []
     for name in names:
