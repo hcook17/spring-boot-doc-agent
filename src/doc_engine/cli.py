@@ -1,0 +1,100 @@
+"""CLI entry point for the doc-engine package."""
+
+import argparse
+import json
+import sys
+from typing import Any, Dict
+
+from doc_engine import Engine
+from doc_engine.config import Config, load_repo_config, merge_config
+
+
+def _load_json(path: str) -> Dict[str, Any]:
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _save_json(path: str, data: Dict[str, Any]) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def _scan_config(repo: str, args: argparse.Namespace) -> Config:
+    base = load_repo_config(repo) or Config()
+    overrides: Dict[str, Any] = {}
+    if args.scanners:
+        overrides["scanners"] = [s.strip() for s in args.scanners.split(",") if s.strip()]
+    if args.sql_dialect != "ansi":
+        overrides["sql_dialect"] = args.sql_dialect
+    if args.respect_gitignore:
+        overrides["respect_gitignore"] = True
+    if args.build_command:
+        overrides["build_command"] = args.build_command
+    if args.db_path:
+        overrides["db_path"] = args.db_path
+    return merge_config(base, overrides)
+
+
+def cmd_scan(args: argparse.Namespace) -> int:
+    config = _scan_config(args.repo, args)
+    engine = Engine(config)
+    signals = engine.scan(args.repo)
+    _save_json(args.out, signals)
+    print(f"Wrote signals to {args.out}")
+    return 0
+
+
+def cmd_docs(args: argparse.Namespace) -> int:
+    signals = _load_json(args.signals)
+    interview = _load_json(args.interview) if args.interview else {}
+    engine = Engine()
+    bundle = engine.generate_docs(signals, interview_answers=interview)
+    _save_json(args.out, bundle)
+    print(f"Wrote docs bundle to {args.out}")
+    return 0
+
+
+def cmd_site(args: argparse.Namespace) -> int:
+    bundle = _load_json(args.docs)
+    engine = Engine()
+    site_path = engine.build_site(bundle, out_dir=args.out_dir, site_name=args.site_name)
+    print(f"Built site at {site_path}")
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="doc-engine", description=__doc__)
+    sub = ap.add_subparsers(dest="command", required=True)
+
+    scan_ap = sub.add_parser("scan", help="Scan a repository and produce signals")
+    scan_ap.add_argument("repo")
+    scan_ap.add_argument("--out", default="signals.json")
+    scan_ap.add_argument(
+        "--scanners",
+        default=None,
+        help="Comma-separated scanner names (overrides .doc-engine.yml)",
+    )
+    scan_ap.add_argument("--sql-dialect", default="ansi")
+    scan_ap.add_argument("--respect-gitignore", action="store_true")
+    scan_ap.add_argument("--build-command", default=None)
+    scan_ap.add_argument("--db-path", default=None)
+    scan_ap.set_defaults(func=cmd_scan)
+
+    docs_ap = sub.add_parser("docs", help="Generate a docs bundle from signals")
+    docs_ap.add_argument("signals")
+    docs_ap.add_argument("--out", default="docs.json")
+    docs_ap.add_argument("--interview", default=None, help="Path to interview answers JSON")
+    docs_ap.set_defaults(func=cmd_docs)
+
+    site_ap = sub.add_parser("site", help="Build a static site from a docs bundle")
+    site_ap.add_argument("docs")
+    site_ap.add_argument("--out-dir", required=True)
+    site_ap.add_argument("--site-name", default="Documentation")
+    site_ap.set_defaults(func=cmd_site)
+
+    args = ap.parse_args()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

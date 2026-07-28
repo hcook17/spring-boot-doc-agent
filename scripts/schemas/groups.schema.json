@@ -1,0 +1,110 @@
+{
+  "$defs": {
+    "GroupEntry": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "files": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Files",
+          "type": "array"
+        },
+        "est_tokens": {
+          "title": "Est Tokens",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "files",
+        "est_tokens"
+      ],
+      "title": "GroupEntry",
+      "type": "object"
+    },
+    "SkippedFile": {
+      "additionalProperties": true,
+      "properties": {
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "reason"
+      ],
+      "title": "SkippedFile",
+      "type": "object"
+    }
+  },
+  "description": "groups.json \u2014 partition_repo.py output.",
+  "properties": {
+    "repo_path": {
+      "title": "Repo Path",
+      "type": "string"
+    },
+    "max_tokens_per_group": {
+      "title": "Max Tokens Per Group",
+      "type": "integer"
+    },
+    "overlap": {
+      "title": "Overlap",
+      "type": "number"
+    },
+    "total_files_considered": {
+      "title": "Total Files Considered",
+      "type": "integer"
+    },
+    "total_files_skipped": {
+      "title": "Total Files Skipped",
+      "type": "integer"
+    },
+    "skipped": {
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SkippedFile"
+          },
+          {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        ]
+      },
+      "title": "Skipped",
+      "type": "array"
+    },
+    "num_groups": {
+      "title": "Num Groups",
+      "type": "integer"
+    },
+    "groups": {
+      "items": {
+        "$ref": "#/$defs/GroupEntry"
+      },
+      "title": "Groups",
+      "type": "array"
+    }
+  },
+  "required": [
+    "repo_path",
+    "max_tokens_per_group",
+    "overlap",
+    "total_files_considered",
+    "total_files_skipped",
+    "skipped",
+    "num_groups",
+    "groups"
+  ],
+  "title": "GroupsArtifact",
+  "type": "object"
+}

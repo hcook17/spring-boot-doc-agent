@@ -153,7 +153,9 @@ def _load_or_build_edges(repo_path, signals_file, groups_data, edges_file):
         with open(signals_file, encoding="utf-8") as f:
             signals_data = json.load(f)
     else:
-        signals_data = spring_signal_scan.scan(repo_path)
+        signals_data = spring_signal_scan.scan(
+            repo_path, scanners=["filesystem", "ast-grep"],
+        )
     return build_cross_group_edges.build_report(groups_data, signals_data)
 
 

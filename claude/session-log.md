@@ -757,3 +757,66 @@ Assumptions affected:
 - `MATURITY_ASSESSMENT.md` "Dependency reproducibility" — residual `find_ast_grep()` reference — [Resolved — row updated to CodeQL CLI and current `requirements.txt` contents.]
 - `.claude/skills/verify-state-claims/SKILL.md` historical example — `run_ast_grep()` reference — [Resolved — updated to CodeQL runner analogy.]
 Files touched: scripts/_codeql_runner.py, scripts/spring_signal_scan.py, scripts/test_spring_signal_scan.py, scripts/test_spring_drift_check.py, requirements.txt, CONSTRAINTS.md, MATURITY_ASSESSMENT.md, .claude/skills/verify-state-claims/SKILL.md, claude/steering-prompts/08-dependency-pinning-task-prompt.md, claude/session-log.md
+
+---
+
+## 2026-07-27 — Unified signal framework, doc_engine SDK, and GitHub Action for product architecture
+Commit: uncommitted
+Tests: test_spring_signal_scan.py 58/58 passing (with and without SPRING_SIGNAL_USE_SNAPSHOT); multi-scanner run on ocs-api-service-develop (filesystem+ast-grep) produced 629 Java files, 53 entities, 4,224 evidence rows; doc_engine SDK scan/docs/site smoke test passed; check_repo_claims.py OK (14 pre-existing baseline findings unchanged).
+Assumptions affected:
+- `claude/steering-prompts/02-pluggability-research-prompt.md` — "Stage 0 is a single monolithic scanner" — [Resolved — `spring_signal_scan.py` now orchestrates pluggable backends via `_orchestrator.py`: `FilesystemBackend`, `CodeQLBackend`, `AstGrepBackend`, merged by `SpringSignalMerger`, lineage resolved by `SpringLineageResolver`. New scanners can implement the `Scanner` protocol in `_signal_framework.py`.]
+- `CONSTRAINTS.md` Known precision items 2, 7, 11 — verify predicates that anchored to `scripts/spring_signal_scan.py` — [Resolved — predicates updated to `_merge_signals.py`, `_resolve_lineage.py`, and `_scanner_filesystem.py` after code was extracted; no claim semantics changed, only the file that now hosts the evidence.]
+- `claude/steering-prompts/08-dependency-pinning-task-prompt.md` — "CodeQL CLI on PATH" — [Still accurate — CodeQL remains the production default scanner, but the SDK and CI workflows default to `filesystem,ast-grep` where a compatible Java toolchain is not available, so the product works out of the box while CodeQL is opt-in via `--scanners filesystem,codeql,ast-grep`.]
+- New product architecture assumptions (not in steering prompts): [Resolved — created `doc_engine/` package (`Engine`, `Config`, CLI `scan`/`docs`/`site`), `pyproject.toml`, and reusable GitHub Action `action.yml` plus workflow `.github/workflows/doc-engine.yml`.]
+Files touched: scripts/_signal_framework.py, scripts/_orchestrator.py, scripts/_scanner_registry.py, scripts/_scanner_filesystem.py, scripts/_scanner_codeql.py, scripts/_scanner_astgrep.py, scripts/_merge_signals.py, scripts/_resolve_lineage.py, scripts/spring_signal_scan.py, scripts/test_spring_signal_scan.py, scripts/regenerate_fixture_snapshot.py, doc_engine/__init__.py, doc_engine/config.py, doc_engine/engine.py, doc_engine/scanner.py, doc_engine/generation.py, doc_engine/site.py, doc_engine/cli.py, pyproject.toml, action.yml, .github/workflows/doc-engine.yml, CONSTRAINTS.md, claude/session-log.md
+
+---
+
+## 2026-07-27 — doc_engine SDK follow-up: config loader, tests, CI wiring
+Commit: uncommitted
+Tests: test_doc_engine.py 6/6; test_spring_signal_scan.py 58/58; test_spring_drift_check.py 41/41; check_repo_claims.py OK.
+Assumptions affected:
+- Product plan item `.doc-engine.yml` repo config — [Resolved — `doc_engine/config_loader.py` reads `.doc-engine.yml`/`.doc-engine.json`; CLI merges repo config with flags.]
+- Product plan item CLI as distribution channel — [Resolved — `doc-engine scan|docs|site` entry point in `pyproject.toml`; wired in CI and GitHub Action.]
+Files touched: doc_engine/config_loader.py, doc_engine/cli.py, doc_engine/doc-engine.example.yml, scripts/test_doc_engine.py, .github/workflows/ci.yml, .github/workflows/doc-engine.yml, action.yml, pyproject.toml, scripts/_merge_signals.py, claude/session-log.md
+
+---
+
+## 2026-07-28 — Pipeline B+A close-out: contracts, validators, orchestrator, repo hygiene
+
+Commit: uncommitted
+Tests: `pytest tests/test_artifact_schemas.py tests/test_pipeline_runner.py tests/test_pipeline_stages.py tests/test_prompt_contracts.py -q` passing; `python3 scripts/check_repo_claims.py` passing
+Assumptions affected:
+- `claude/steering-prompts/02-pluggability-research-prompt.md` — inter-stage JSON artifacts "no schema, no validation" — [Resolved — Pydantic models in `src/doc_engine/pipeline/artifacts.py`, `scripts/schemas/*.schema.json`, `scripts/validate_artifacts.py`, SKILL.md data contracts section, `scripts/pipeline_validators.py`; `PipelineRunner` + `StageExecutor` in `src/doc_engine/pipeline/`; `run_pipeline_local.py` uses `PipelineRunner`. Residual: CI gates fixture `spring_signals` only, not live pipeline run artifacts.]
+- `MATURITY_ASSESSMENT.md` schema scorecard row — [Resolved — upgraded to Partially resolved with pointer to validate_artifacts + residual CI gap.]
+Files touched: claude/steering-prompts/02-pluggability-research-prompt.md, MATURITY_ASSESSMENT.md, hooks/require_hardened_tests.py, tests/test_prompt_contracts.py, README.md, .github/workflows/ci.yml, claude/session-log.md
+
+---
+
+## 2026-07-28 — STATUS.md sync + run_pipeline_local artifact gates
+
+Commit: uncommitted
+Tests: targeted B+A pytest suites passing; `check_repo_claims.py` OK
+Assumptions affected:
+- `STATUS.md` Pending section — still listed prompt 02 schema work as not built — [Resolved — moved B+A to Done; updated Next concrete action.]
+Files touched: STATUS.md, scripts/run_pipeline_local.py, claude/session-log.md
+
+---
+
+## 2026-07-28 — deterministic-only local run, Windows ast-grep fix, legacy signals compat
+
+Commit: uncommitted
+Tests: `test_scan_context_wiring.py` 6/6, `test_artifact_schemas.py` 8/8; `check_repo_claims.py` OK
+Assumptions affected:
+- `skills/document-spring-repo/SKILL.md` — local E2E via `run_pipeline_local.py` always mocks Stages 1–4 — [New info — `--deterministic-only` and `--signals-file` skip generative stages and reuse prior `spring_signals.json`.]
+Files touched: scripts/run_pipeline_local.py, src/doc_engine/scanning/_scanner_astgrep.py, src/doc_engine/pipeline/artifacts.py, scripts/schemas/spring_signals.schema.json, tests/test_scan_context_wiring.py, claude/session-log.md
+
+---
+
+## 2026-07-28 — PR #53: restore ast-grep-cli pin; land pipeline on snapshot branch
+
+Commit: uncommitted (pushing with PR #53)
+Tests: `ruff check scripts/` pass; `check_code_quality.py` OK after `--update`; `check_repo_claims.py` pending after prompt 08 verify flip
+Assumptions affected:
+- `claude/steering-prompts/08-dependency-pinning-task-prompt.md` — claimed `ast-grep-cli` was removed from `requirements.txt` — [Resolved — pin restored (`ast-grep-cli~=0.45.0`); verify predicates flipped to `contains`.]
+Files touched: requirements.txt, requirements-dev.txt, claude/steering-prompts/08-dependency-pinning-task-prompt.md, CONSTRAINTS.md, scripts/code_quality_baseline.json, scripts/test_*.py, scripts/spring_signal_scan.py, claude/session-log.md

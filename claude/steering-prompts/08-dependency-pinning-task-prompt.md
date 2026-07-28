@@ -1,9 +1,9 @@
 ---
 category: Dependency pinning (not a research prompt — implementation task)
-status: [Resolved — 2026-07-27] `requirements.txt` at plugin root pins `sqllineage~=1.5.8`, `pathspec~=1.1.1`, `semgrep~=1.171.0`; `.github/workflows/ci.yml` installs from it. `ast-grep` was replaced by the CodeQL CLI (a standalone binary release, not a Python package), so `ast-grep-cli` is no longer in `requirements.txt`. See `CONSTRAINTS.md` "Runtime prerequisites" items 1 and 4 and `MATURITY_ASSESSMENT.md` "Dependency reproducibility". `claude/session-log.md`'s 2026-07-25 pinning entry.
+status: [Resolved — 2026-07-28] `requirements.txt` at plugin root pins `ast-grep-cli~=0.45.0`, `sqllineage~=1.5.8`, `pathspec~=1.1.1`, `semgrep~=1.171.0`; `.github/workflows/ci.yml` installs from it and verifies the ast-grep PATH pin. CodeQL CLI remains a standalone binary (not a Python package). See `CONSTRAINTS.md` "Runtime prerequisites" items 1 and 4 and `MATURITY_ASSESSMENT.md` "Dependency reproducibility".
 related: CONSTRAINTS.md "Runtime prerequisites" items 1-4, MATURITY_ASSESSMENT.md "Dependency reproducibility" scorecard row and adoption gate checklist, .github/workflows/ci.yml
 verify:
-  - not_contains:requirements.txt:ast-grep-cli
+  - contains:requirements.txt:ast-grep-cli
   - contains:requirements.txt:sqllineage
   - contains:requirements.txt:pathspec
   - contains:requirements.txt:semgrep

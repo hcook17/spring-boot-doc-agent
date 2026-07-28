@@ -111,7 +111,7 @@ def signals_set(repo_path, normalizer=norm.tokens) -> FrozenSet[Member]:
         raise ScanFailed(f"{repo_path} is not a directory; refusing to score a "
                          f"delta against a scan that cannot have run")
     try:
-        result = spring_signal_scan.scan(str(path))
+        result = spring_signal_scan.scan(str(path), scanners=["filesystem", "ast-grep"])
     except Exception as exc:  # noqa: BLE001 - re-raised as the validity gate
         raise ScanFailed(f"scan of {repo_path} failed: {exc}") from exc
     members = set()

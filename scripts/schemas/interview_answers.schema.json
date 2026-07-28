@@ -1,0 +1,54 @@
+{
+  "$defs": {
+    "InterviewAnswerEntry": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "question": {
+          "title": "Question",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "answered",
+            "skipped"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "answer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Answer"
+        },
+        "date": {
+          "title": "Date",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "question",
+        "status",
+        "date"
+      ],
+      "title": "InterviewAnswerEntry",
+      "type": "object"
+    }
+  },
+  "description": "interview_answers.json \u2014 human-in-the-loop answers.",
+  "items": {
+    "$ref": "#/$defs/InterviewAnswerEntry"
+  },
+  "title": "InterviewAnswersArtifact",
+  "type": "array"
+}

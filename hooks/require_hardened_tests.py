@@ -60,6 +60,8 @@ TEST_EXEMPT = {
     "drift_match_normalizers.py": "re-derived by test_drift_normalization.py",
     "java_perturbations.py": "test infrastructure itself",
     "prompt_contracts.py": "exercised by test_prompt_contracts.py",
+    "validate_artifacts.py": "exercised by tests/test_artifact_schemas.py via doc_engine.pipeline.validation",
+    "pipeline_validators.py": "exercised by tests/test_pipeline_stages.py",
 }
 
 COMMIT_RE = re.compile(r"(^|[;&|]\s*)git\s+(-C\s+\S+\s+)?commit\b")
@@ -101,11 +103,18 @@ def unwired_suites(staged: List[str]) -> List[str]:
     if not workflow.is_file():
         return []
     text = workflow.read_text(encoding="utf-8")
-    return [f"{rel} is not named in ci.yml, so it would never run there."
-            for rel in staged
-            if Path(rel).name.startswith("test_")
-            and Path(rel).suffix == ".py"
-            and Path(rel).name not in text]
+    uses_pytest = "pytest tests/" in text
+    problems: List[str] = []
+    for rel in staged:
+        name = Path(rel).name
+        if not name.startswith("test_") or Path(rel).suffix != ".py":
+            continue
+        if name in text:
+            continue
+        if uses_pytest and (REPO_ROOT / "tests" / name).is_file():
+            continue
+        problems.append(f"{rel} is not named in ci.yml, so it would never run there.")
+    return problems
 
 
 def failing_gates() -> List[str]:

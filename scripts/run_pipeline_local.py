@@ -56,6 +56,13 @@ USAGE
     # compare drift against a real earlier scan instead of this run's own:
     python3 scripts/run_pipeline_local.py /abs/path/to/repo --prior-signals old_signals.json
 
+    # deterministic stages only (scan through capacity preflight; no mock LLM stages):
+    python3 scripts/run_pipeline_local.py /abs/path/to/repo --deterministic-only
+
+    # reuse an existing spring_signals.json and skip signal_scan:
+    python3 scripts/run_pipeline_local.py /abs/path/to/repo --deterministic-only \\
+        --signals-file /path/to/spring_signals.json
+
 Artifacts and run.log land in --out-dir (default: ./local-runs/<repo>-<stamp>/),
 never in the target repo, unless --docs-in-target-repo is passed.
 
@@ -72,12 +79,22 @@ import shutil
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+SRC_DIR = os.path.join(REPO_ROOT, "src")
 sys.path.insert(0, SCRIPT_DIR)
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
 
 from _shared_excludes import DEFAULT_EXCLUDED_DIRS  # noqa: E402
 from doc_tag_utils import VALID_DOC_FILES  # noqa: E402
+
+from doc_engine.pipeline.context import PipelineContext, StageKind  # noqa: E402
+from doc_engine.pipeline.executor import MockStageExecutor  # noqa: E402
+from doc_engine.pipeline.runner import PipelineRunner  # noqa: E402
+from doc_engine.pipeline.stages import build_stage_specs  # noqa: E402
 
 # The em dash the tag grammar requires, spelled as an escape rather than a
 # literal so a copy/paste through a lossy encoding can't silently downgrade it
@@ -859,6 +876,13 @@ def main():
     ap.add_argument("--keep-going", action="store_true",
                     help="continue after a failed prerequisite stage instead of "
                          "stopping")
+    ap.add_argument("--deterministic-only", action="store_true",
+                    help="run init + signal_scan (unless --signals-file) through "
+                         "capacity_preflight only; skip mocked LLM stages and "
+                         "doc-related gates")
+    ap.add_argument("--signals-file", default=None,
+                    help="reuse an existing spring_signals.json; copies into "
+                         "--out-dir and skips the signal_scan stage")
     args = ap.parse_args()
 
     repo_path = os.path.abspath(args.repo_path)
@@ -882,10 +906,15 @@ def main():
     py = sys.executable
     manifest = os.path.join(out_dir, "run_manifest.json")
     signals_path = os.path.join(out_dir, "spring_signals.json")
-    groups_path = os.path.join(out_dir, "groups.json")
-    edges_path = os.path.join(out_dir, "cross_group_edges.json")
     preflight_path = os.path.join(out_dir, "capacity_preflight_report.json")
-    scan_flags = ["--respect-gitignore"] if args.respect_gitignore else []
+
+    if args.signals_file:
+        signals_src = os.path.abspath(args.signals_file)
+        if not os.path.isfile(signals_src):
+            print(f"error: --signals-file not found: {signals_src}", file=sys.stderr)
+            return 2
+        shutil.copy2(signals_src, signals_path)
+        log(f"  reused signals: {signals_src} -> {signals_path}")
 
     log.rule("document-spring-repo — LOCAL END-TO-END RUN")
     log(f"  target repo   : {repo_path}")
@@ -893,136 +922,193 @@ def main():
     log(f"  docs output   : {docs_dir}"
         f"{'  (inside the target repo)' if args.docs_in_target_repo else '  (outside the target repo)'}")
     log(f"  python        : {py}")
-    log(f"  ast-grep      : {shutil.which('ast-grep') or 'NOT ON PATH — the signal scan will fail'}")
+    if args.signals_file:
+        log(f"  signals file  : {os.path.abspath(args.signals_file)} (signal_scan skipped)")
+    else:
+        log(f"  ast-grep      : {shutil.which('ast-grep') or 'NOT ON PATH — the signal scan will fail'}")
+    log(f"  mode          : {'deterministic-only' if args.deterministic_only else 'full (mock LLM stages)'}")
     log(f"  date          : {today}")
     log("")
-    log("  Stages 1-4 are MOCKED — no model runs. Their artifacts are")
-    log("  shape-faithful and their citations resolve, but the prose is")
-    log("  templated and documents nothing. Everything else is the real script.")
+    if args.deterministic_only:
+        log("  Deterministic stages only — no mocked LLM stages or doc gates.")
+    else:
+        log("  Stages 1-4 are MOCKED — no model runs. Their artifacts are")
+        log("  shape-faithful and their citations resolve, but the prose is")
+        log("  templated and documents nothing. Everything else is the real script.")
 
-    # ---------------- Stage 0 ----------------
-    log.rule("STAGE 0 — deterministic evidence gathering (real)")
-    runner.run("manifest init", [py, _script("run_manifest.py"), "init", repo_path,
-                                "--out", manifest], critical=True)
+    pipeline_ctx = PipelineContext(
+        repo_path=Path(repo_path),
+        out_dir=Path(out_dir),
+        manifest_path=Path(manifest),
+        docs_dir=Path(docs_dir),
+        python=py,
+        scripts_dir=Path(SCRIPT_DIR),
+        today=today,
+        respect_gitignore=args.respect_gitignore,
+        max_tokens=args.max_tokens,
+        existing_readme=find_existing_readme(repo_path),
+        log=log,
+    )
 
-    runner.run("manifest start signal_scan",
-               [py, _script("run_manifest.py"), "start-stage", manifest, STAGE_SIGNAL_SCAN],
-               quiet=True)
-    scan = runner.run("spring_signal_scan.py",
-                      [py, _script("spring_signal_scan.py"), repo_path,
-                       "--out", signals_path] + scan_flags, critical=True)
-    runner.run("manifest end signal_scan",
-               [py, _script("run_manifest.py"), "end-stage", manifest, STAGE_SIGNAL_SCAN,
-                "--status", "complete" if scan and scan.returncode == 0 else "failed"]
-               + ([] if scan and scan.returncode == 0
-                  else ["--error", "spring_signal_scan.py exited non-zero"]),
-               quiet=True)
+    def _ensure_pool(ctx: PipelineContext):
+        if ctx.pool is None and ctx.signals:
+            ctx.pool = load_citations(ctx.signals, str(ctx.repo_path))
+        return ctx.pool
 
-    runner.run("manifest start partition",
-               [py, _script("run_manifest.py"), "start-stage", manifest, STAGE_PARTITION],
-               quiet=True)
-    part = runner.run("partition_repo.py",
-                      [py, _script("partition_repo.py"), repo_path,
-                       "--max-tokens", str(args.max_tokens),
-                       "--out", groups_path] + scan_flags, critical=True)
-    runner.run("manifest end partition",
-               [py, _script("run_manifest.py"), "end-stage", manifest, STAGE_PARTITION,
-                "--status", "complete" if part and part.returncode == 0 else "failed"]
-               + ([] if part and part.returncode == 0
-                  else ["--error", "partition_repo.py exited non-zero"]),
-               quiet=True)
+    def handler_file_summarize(ctx: PipelineContext):
+        _ensure_pool(ctx)
+        return mock_file_summaries(
+            str(ctx.out_dir), ctx.groups, ctx.pool, ctx.edges, log,
+        )
 
-    # Needs both of the above, belongs to neither — so no manifest stage of its own.
-    runner.run("build_cross_group_edges.py",
-               [py, _script("build_cross_group_edges.py"), groups_path, signals_path,
-                "--out", edges_path], critical=True)
+    def handler_architect(ctx: PipelineContext):
+        _ensure_pool(ctx)
+        return mock_architecture(str(ctx.out_dir), ctx.groups, ctx.pool, log)
 
-    # Reuses the two files just produced rather than re-scanning and re-grouping.
-    runner.run("capacity_preflight.py",
-               [py, _script("capacity_preflight.py"), repo_path,
-                "--groups-file", groups_path, "--signals-file", signals_path,
-                "--max-tokens", str(args.max_tokens), "--out", preflight_path])
+    def handler_gap(ctx: PipelineContext):
+        _ensure_pool(ctx)
+        if not ctx.todos:
+            hits = sweep_todos(str(ctx.repo_path))
+            todo_path = ctx.out_dir / "todo_hits.json"
+            _write_json(str(todo_path), hits)
+            ctx.todos = hits
+        return mock_gap_and_interview(
+            str(ctx.out_dir), ctx.pool, ctx.todos, today, log,
+        )
+
+    def handler_doc_writer(ctx: PipelineContext):
+        _ensure_pool(ctx)
+        answers = _read_json(str(ctx.out_dir / "interview_answers.json"))
+        readme = ctx.existing_readme or find_existing_readme(str(ctx.repo_path))
+        return mock_docs(
+            str(ctx.docs_dir), ctx.pool, ctx.todos, answers, today, readme, log,
+        )
+
+    mock_executor = MockStageExecutor({
+        "file_summarize": handler_file_summarize,
+        "architect": handler_architect,
+        "gap_analysis_interview": handler_gap,
+        "doc_writer": handler_doc_writer,
+    })
+
+    all_specs = build_stage_specs()
+    deterministic_specs = [s for s in all_specs if s.kind == StageKind.DETERMINISTIC]
+    if args.signals_file:
+        deterministic_specs = [s for s in deterministic_specs if s.name != "signal_scan"]
+    generative_specs = [s for s in all_specs if s.kind == StageKind.GENERATIVE]
+
+    log.rule("STAGE 0 — deterministic (PipelineRunner, real scripts)")
+    det_runner = PipelineRunner(
+        generative_executor=MockStageExecutor({}),
+        stages=deterministic_specs,
+    )
+    det_results = det_runner.run(pipeline_ctx)
+    for stage_name, stage_result in det_results:
+        status = "OK" if stage_result.success else "FAIL"
+        runner.record(
+            f"pipeline:{stage_name}",
+            status,
+            0.0,
+            stage_result.detail or stage_result.error or "",
+        )
+        if not stage_result.success:
+            runner.aborted = True
 
     if runner.aborted:
         runner.table()
         log("")
-        log("Run aborted before the mocked stages — see above.")
+        log("Run aborted before later stages — see above.")
         log.close()
         return 1
 
-    signals = _read_json(signals_path)
-    groups = _read_json(groups_path)
-    edges = _read_json(edges_path)
-    pool = load_citations(signals, repo_path)
+    if pipeline_ctx.signals is None and os.path.isfile(signals_path):
+        pipeline_ctx.signals = _read_json(signals_path)
+
+    pool = load_citations(pipeline_ctx.signals, repo_path)
+    pipeline_ctx.pool = pool
     resolvable = sum(len(v) for v in pool.values())
     log("")
     log(f"  evidence pool: {resolvable} resolvable citation(s) across "
         f"{sum(1 for v in pool.values() if v)} non-empty bucket(s)")
-    log(f"  groups: {groups['num_groups']} covering "
-        f"{groups['total_files_considered']} file(s)")
+    if pipeline_ctx.groups:
+        log(f"  groups: {pipeline_ctx.groups['num_groups']} covering "
+            f"{pipeline_ctx.groups['total_files_considered']} file(s)")
 
-    def do_todos():
-        hits = sweep_todos(repo_path)
-        _write_json(os.path.join(out_dir, "todo_hits.json"), hits)
-        markers = {}
-        for hit in hits:
-            markers[hit["marker"]] = markers.get(hit["marker"], 0) + 1
-        log(f"  wrote todo_hits.json ({len(hits)} hit(s): {markers or 'none'})")
-        return f"{len(hits)} TODO/FIXME/XXX/HACK hit(s)"
+    if args.deterministic_only:
+        log.rule("GATES (deterministic artifacts)")
+        runner.run("validate_artifacts.py --all (B contract gate)",
+                   [py, _script("validate_artifacts.py"), "--all", out_dir], gate=True)
 
-    runner.mock("TODO/FIXME sweep (in-process, per SKILL.md Stage 0)", do_todos)
-    todos = _read_json(os.path.join(out_dir, "todo_hits.json"))
+        log.rule("FINALIZE (real)")
+        fin_argv = [
+            py, _script("run_manifest.py"), "finalize", manifest,
+            "--signals-file", signals_path,
+            "--preflight-file", preflight_path,
+        ]
+        runner.run("run_manifest.py finalize", fin_argv)
+        runner.run("run_manifest.py summary",
+                   [py, _script("run_manifest.py"), "summary", manifest])
 
-    # ---------------- Stages 1-4, mocked ----------------
-    log.rule("STAGES 1-4 — MOCKED subagent fan-out")
+        if not args.skip_drift:
+            log.rule("DRIFT CHECK (real) — pre-flight for a future re-run")
+            baseline = os.path.abspath(args.prior_signals) if args.prior_signals else signals_path
+            if not args.prior_signals:
+                log("  note: drift is measured against this run's own scan, so 'no drift' is")
+                log("        the expected result — it exercises the script, it doesn't tell")
+                log("        you anything about the repo. Use --prior-signals for a real check.")
+            runner.run("spring_drift_check.py",
+                       [py, _script("spring_drift_check.py"), repo_path, baseline,
+                        "--manifest", manifest,
+                        "--out", os.path.join(out_dir, "drift_report.json")])
 
-    num_groups = groups["num_groups"]
-    runner.run(f"manifest start file_summarize (fanout {num_groups})",
-               [py, _script("run_manifest.py"), "start-stage", manifest,
-                STAGE_FILE_SUMMARIZE, "--fanout", str(num_groups)], quiet=True)
-    runner.mock(f"Stage 1 MOCK file-summarizer x{num_groups}",
-                lambda: mock_file_summaries(out_dir, groups, pool, edges, log))
-    runner.run("manifest end file_summarize",
-               [py, _script("run_manifest.py"), "end-stage", manifest,
-                STAGE_FILE_SUMMARIZE, "--status", "complete"], quiet=True)
+        log.rule("ARTIFACT INVENTORY")
+        for root, dirs, files in os.walk(out_dir):
+            dirs.sort()
+            for name in sorted(files):
+                abspath = os.path.join(root, name)
+                rel = os.path.relpath(abspath, out_dir).replace(os.sep, "/")
+                log(f"  {os.path.getsize(abspath):>9,} B  {rel}")
 
-    runner.run(f"manifest start architect (fanout {num_groups + 1})",
-               [py, _script("run_manifest.py"), "start-stage", manifest,
-                STAGE_ARCHITECT, "--fanout", str(num_groups + 1)], quiet=True)
-    runner.mock(f"Stage 2 MOCK architect-segment x{num_groups} + architect-merge x1",
-                lambda: mock_architecture(out_dir, groups, pool, log))
-    runner.run("manifest end architect",
-               [py, _script("run_manifest.py"), "end-stage", manifest,
-                STAGE_ARCHITECT, "--status", "complete"], quiet=True)
+        runner.table()
+        failed = runner.gates_failed()
+        log("")
+        if failed:
+            log(f"RESULT: {len(failed)} gate(s) failed — {', '.join(r[0] for r in failed)}")
+        else:
+            log("RESULT: deterministic stages complete. Run generative stages via "
+                "Claude Code + document-spring-repo skill for real docs.")
+        log(f"Full transcript: {os.path.join(out_dir, 'run.log')}")
+        log.close()
+        return 1 if failed else 0
 
-    runner.run("manifest start gap_analysis_interview (fanout 1)",
-               [py, _script("run_manifest.py"), "start-stage", manifest,
-                STAGE_GAP_INTERVIEW, "--fanout", "1"], quiet=True)
-    runner.mock("Stage 3 MOCK gap-analyzer x1 + simulated interview",
-                lambda: mock_gap_and_interview(out_dir, pool, todos, today, log))
-    runner.run("manifest end gap_analysis_interview",
-               [py, _script("run_manifest.py"), "end-stage", manifest,
-                STAGE_GAP_INTERVIEW, "--status", "complete"], quiet=True)
+    log.rule("STAGES 1-4 — MOCKED subagent fan-out (PipelineRunner)")
+    gen_runner = PipelineRunner(generative_executor=mock_executor, stages=generative_specs)
+    gen_results = gen_runner.run(pipeline_ctx)
+    for stage_name, stage_result in gen_results:
+        status = "MOCK" if stage_result.success else "FAIL"
+        runner.record(
+            f"pipeline:{stage_name}",
+            status,
+            0.0,
+            stage_result.detail or stage_result.error or "",
+        )
+        if not stage_result.success:
+            runner.aborted = True
 
-    answers = _read_json(os.path.join(out_dir, "interview_answers.json"))
-    existing_readme = find_existing_readme(repo_path)
-    if existing_readme:
+    if existing_readme := find_existing_readme(repo_path):
         log("")
         log(f"  note: {existing_readme} already exists in the target repo. A real run "
             f"never overwrites it — the generated overview goes to docs/readme.md.")
 
-    runner.run("manifest start doc_writer (fanout 14)",
-               [py, _script("run_manifest.py"), "start-stage", manifest,
-                STAGE_DOC_WRITER, "--fanout", "14"], quiet=True)
-    runner.mock("Stage 4 MOCK doc-writer x14",
-                lambda: mock_docs(docs_dir, pool, todos, answers, today,
-                                  existing_readme, log))
-    runner.run("manifest end doc_writer",
-               [py, _script("run_manifest.py"), "end-stage", manifest,
-                STAGE_DOC_WRITER, "--status", "complete"], quiet=True)
-
     # ---------------- Gates and post-run checks ----------------
     log.rule("GATES AND POST-RUN CHECKS (real)")
+
+    runner.run("validate_artifacts.py --all (B contract gate)",
+               [py, _script("validate_artifacts.py"), "--all", out_dir], gate=True)
+
+    runner.run("pipeline_validators.py (summaries + gap_questions gate)",
+               [py, _script("pipeline_validators.py"), out_dir, "--target-repo", repo_path],
+               gate=True)
 
     gate_argv = [py, _script("check_pipeline_output.py"), docs_dir,
                  "--target-repo", repo_path]

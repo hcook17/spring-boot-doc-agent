@@ -1,0 +1,41 @@
+site_name: Repo Documentation
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.expand
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+
+nav:
+  - Readme: readme.md
+  - Architecture: architecture.md
+  - Integrations: integrations.md
+  - Authorization: authorization.md
+  - Database: database.md
+  - Operations: operations.md
+  - Observability: observability.md
+  - Troubleshooting: troubleshooting.md
+  - Configuration: configuration.md
+  - Change Impact: change_impact.md
+  - Glossary: glossary.md
+  - Local Development: local_development.md
+  - Testing: testing.md
+  - Known Limitations: known_limitations.md

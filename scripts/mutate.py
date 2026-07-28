@@ -110,13 +110,14 @@ class Mutator(NamedTuple):
 MUTATORS: List[Mutator] = [
     # --- structural: located by ast-grep, immune to reformatting -------------
     Mutator(
-        "secret-heuristic-stops-unquoting", "scripts/_secret_heuristics.py", "python",
+        "secret-heuristic-stops-unquoting",
+        "src/doc_engine/scanning/support/_secret_heuristics.py", "python",
         "PLACEHOLDER_VALUE_RE.match(_unquote($V))",
         "PLACEHOLDER_VALUE_RE.match($V)",
         "test_secret_heuristics.py",
         'quoted "${X}" was reported as a literal credential on a real build script'),
     Mutator(
-        "build-file-guard-loosened", "scripts/spring_signal_scan.py", "python",
+        "build-file-guard-loosened", "src/doc_engine/scanning/_scanner_filesystem.py", "python",
         'name.endswith(".gradle.kts")', 'ext == ".kts"',
         "test_spring_signal_scan.py",
         "a bare .kts is any Kotlin script; treating it as a build file puts "
@@ -138,7 +139,8 @@ MUTATORS: List[Mutator] = [
         "all five agents declared Grep until 0ee4033; check F exists to stop it "
         "coming back"),
     Mutator(
-        "rule-loses-its-args-form", "scripts/spring_ast_grep_rules.yml", "",
+        "rule-loses-its-args-form",
+        "src/doc_engine/scanning/resources/spring_ast_grep_rules.yml", "",
         '    - pattern: "@JoinColumn($$$ARGS)"\n', "",
         "test_rule_coverage.py",
         "a marker pattern and an argument-bearing one are disjoint node shapes; "
@@ -181,6 +183,24 @@ def materialize(dest: Path) -> None:
         target = dest / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
+    # Stage-0 tests and the installable package live outside scripts/; copy
+    # them from the working tree so mutation sandboxes match pytest CI even
+    # when a session has not yet committed every file under tests/ or src/.
+    for dirname in ("tests", "src"):
+        source_dir = REPO_ROOT / dirname
+        if source_dir.is_dir():
+            shutil.copytree(
+                source_dir,
+                dest / dirname,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+            )
+    scripts_dir = REPO_ROOT / "scripts"
+    if scripts_dir.is_dir():
+        dest_scripts = dest / "scripts"
+        dest_scripts.mkdir(parents=True, exist_ok=True)
+        for path in scripts_dir.glob("*.py"):
+            shutil.copy2(path, dest_scripts / path.name)
 
 
 def _apply_structural(path: Path, mutator: Mutator) -> Optional[str]:

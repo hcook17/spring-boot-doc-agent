@@ -291,8 +291,13 @@ def derive_test_suite_count(root: Path) -> str:
 
 
 def derive_test_method_count(root: Path) -> str:
+    workflow = root / ".github" / "workflows" / "ci.yml"
+    if workflow.is_file() and "pytest tests/" in workflow.read_text(encoding="utf-8"):
+        paths = sorted((root / "tests").glob("test_*.py"))
+    else:
+        paths = _test_suite_paths(root)
     total = 0
-    for path in _test_suite_paths(root):
+    for path in paths:
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and \
@@ -309,6 +314,11 @@ def _ci_run_lines(root: Path) -> List[str]:
 
 
 def derive_ci_test_steps(root: Path) -> str:
+    workflow = root / ".github" / "workflows" / "ci.yml"
+    if workflow.is_file() and "pytest tests/" in workflow.read_text(encoding="utf-8"):
+        tests_dir = root / "tests"
+        if tests_dir.is_dir():
+            return str(len(list(tests_dir.glob("test_*.py"))))
     pattern = re.compile(r"run:\s*python3?\s+scripts/(test_\w+\.py)")
     hits = {m.group(1) for line in _ci_run_lines(root)
             for m in [pattern.search(line)] if m}
@@ -333,7 +343,9 @@ def derive_predicate_count(root: Path) -> str:
 
 
 def derive_ast_grep_rule_count(root: Path) -> str:
-    rules = (root / "scripts" / "spring_ast_grep_rules.yml")
+    rules = root / "src" / "doc_engine" / "scanning" / "resources" / "spring_ast_grep_rules.yml"
+    if not rules.is_file():
+        rules = root / "scripts" / "spring_ast_grep_rules.yml"
     if not rules.is_file():
         return "0"
     return str(len(re.findall(r"^id:\s*[a-z0-9_]+__[a-z0-9_]+\s*$",
@@ -572,18 +584,20 @@ def resolve_reference(root: Path, token: str) -> Optional[str]:
 
 
 def collect_python_symbols(root: Path) -> Set[str]:
-    """Every function and method name defined under scripts/. Names, not
-    qualified paths: a doc citing `find_ast_grep()` should resolve wherever
-    it lives, and tracking moves between modules is not this check's job."""
+    """Every function and method name defined under scripts/ and src/doc_engine/."""
     names: Set[str] = set()
-    for path in sorted((root / "scripts").glob("*.py")):
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except SyntaxError:
+    search_roots = [root / "scripts", root / "src" / "doc_engine", root / "tests"]
+    for directory in search_roots:
+        if not directory.is_dir():
             continue
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                names.add(node.name)
+        for path in sorted(directory.rglob("*.py")):
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+            except SyntaxError:
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    names.add(node.name)
     return names
 
 
@@ -1066,10 +1080,13 @@ def check_ci_suite_coverage(root: Path) -> List[Finding]:
     if not workflow.is_file():
         return []
     text = workflow.read_text(encoding="utf-8")
+    uses_pytest = "pytest tests/" in text
     findings: List[Finding] = []
     for path in _test_suite_paths(root):
         name = path.name
         if name in CI_EXEMPT_SUITES:
+            continue
+        if uses_pytest and (root / "tests" / name).is_file():
             continue
         if f"scripts/{name}" not in text:
             findings.append(Finding(

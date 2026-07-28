@@ -1,0 +1,13 @@
+# Example doc-engine configuration (copy to .doc-engine.yml in your repo root).
+# CLI flags override these values when both are set.
+
+scanners:
+  - filesystem
+  - ast-grep
+  # - codeql   # uncomment when CodeQL CLI and a Java build are available
+
+sql_dialect: ansi
+respect_gitignore: true
+
+# build_command: "./gradlew --no-daemon clean compileJava"
+# site_name: "My Service Documentation"
