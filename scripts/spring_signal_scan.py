@@ -21,6 +21,7 @@ import _src_bootstrap  # noqa: F401
 from doc_engine.core.walk import compute_file_signature, dfs_walk
 from doc_engine.scanning._paths import ast_grep_rules_path
 from doc_engine.scanning._resolve_lineage import extract_sql_lineage, resolve_jpql_to_lineage
+from doc_engine.scanning._scanner_filesystem import CONFIG_NAME_PATTERNS
 from doc_engine.scanning.spring import (
     AstGrepError,
     AstGrepNotFoundError,
@@ -32,7 +33,6 @@ from doc_engine.scanning.spring import (
 from doc_engine.scanning.spring import (
     scanner_version as _scanner_version,
 )
-from doc_engine.scanning._scanner_filesystem import CONFIG_NAME_PATTERNS
 from doc_engine.scanning.support._codeql_runner import CodeQLError
 
 # Re-exports consumed by tests and sibling scripts that historically imported
