@@ -5722,6 +5722,101 @@
       "complexity": 1,
       "depth": 0
     },
+    "test_set_delta.py::ConfinedToRulesTest.test_another_rule_moving_is_residue": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ConfinedToRulesTest.test_the_named_rule_may_move": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ConfinedToTest.test_an_empty_file_list_permits_nothing": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ConfinedToTest.test_movement_inside_the_named_files_is_expected": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ConfinedToTest.test_movement_outside_them_is_residue": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::DeltaTest.test_addition_and_removal_are_separated": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::DeltaTest.test_delta_is_directional": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::DeltaTest.test_identical_sets_have_an_empty_delta": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::GrowsOnlyTest.test_a_removal_is_a_regression": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::GrowsOnlyTest.test_additions_are_expected": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::RelationsAreNotVacuousTest.test_every_registered_relation_rejects_something": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 2
+    },
+    "test_set_delta.py::ResidueDescriptionTest.test_describe_names_file_rule_and_direction": {
+      "statements": 5,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ScalingTest.test_a_short_count_is_reported_with_both_numbers": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 0
+    },
+    "test_set_delta.py::ScalingTest.test_counts_are_per_rule_not_per_set": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ScalingTest.test_exact_doubling_passes": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::UnchangedRelationTest.test_an_empty_delta_leaves_no_residue": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::UnchangedRelationTest.test_permits_nothing": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "test_set_delta.py::ValidityGateTest.test_a_failed_scan_raises_rather_than_reporting_an_empty_set": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "test_set_delta.py::s": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
     "test_spring_drift_check.py::JpqlLineageProvenanceTest._base_result": {
       "statements": 1,
       "complexity": 1,
