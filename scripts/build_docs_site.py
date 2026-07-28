@@ -22,14 +22,12 @@ Or deployed to GitHub Pages / Netlify / S3 as a static bundle.
 """
 
 import argparse
-import os
 import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from typing import List, Optional
-
 
 # Order matches the 14-file taxonomy in skills/document-spring-repo/references/doc-taxonomy.md
 NAV_ORDER = [

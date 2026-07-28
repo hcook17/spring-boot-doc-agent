@@ -761,6 +761,7 @@ def check_drift(repo_path, signals, manifest=None):
         baseline_provenance = {"source": "spring_signals.json"}
 
     import _src_bootstrap  # noqa: F401
+
     from doc_engine.core.context import ScanContext
 
     scan_context = ScanContext.build(repo_path)
@@ -800,7 +801,7 @@ def check_drift(repo_path, signals, manifest=None):
         scan_context=scan_context,
     )
     fresh_evidence_by_file = {}
-    for bucket_name, entries in fresh_signals.get("evidence", {}).items():
+    for _bucket_name, entries in fresh_signals.get("evidence", {}).items():
         for entry in entries:
             fresh_evidence_by_file.setdefault(entry.get("file", ""), []).append(entry)
     fresh_entity_map = fresh_signals.get("entity_table_map", {})

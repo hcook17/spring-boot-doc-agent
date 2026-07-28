@@ -11,13 +11,13 @@ import os
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 from typing import Any, Dict, List
 
 import _src_bootstrap  # noqa: F401
 
 from doc_engine.core.walk import compute_file_signature, dfs_walk
 from doc_engine.scanning._paths import ast_grep_rules_path
+from doc_engine.scanning._resolve_lineage import extract_sql_lineage, resolve_jpql_to_lineage
 from doc_engine.scanning.spring import (
     AstGrepError,
     AstGrepNotFoundError,
@@ -25,10 +25,32 @@ from doc_engine.scanning.spring import (
     CodeQLScannerError,
     detect_build_command,
     scan,
+)
+from doc_engine.scanning.spring import (
     scanner_version as _scanner_version,
 )
 from doc_engine.scanning.support._codeql_runner import CodeQLError
-from doc_engine.scanning._resolve_lineage import extract_sql_lineage, resolve_jpql_to_lineage
+
+# Re-exports consumed by tests and sibling scripts that historically imported
+# these symbols from this module rather than from doc_engine.
+__all__ = [
+    "AstGrepError",
+    "AstGrepNotFoundError",
+    "CodeQLError",
+    "CodeQLNotFoundError",
+    "CodeQLScannerError",
+    "RULE_FILE",
+    "SCRIPT_DIR",
+    "_scanner_version",
+    "compute_file_signature",
+    "detect_build_command",
+    "dfs_walk",
+    "extract_sql_lineage",
+    "main",
+    "resolve_jpql_to_lineage",
+    "run_ast_grep",
+    "scan",
+]
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RULE_FILE = ast_grep_rules_path()

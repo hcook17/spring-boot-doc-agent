@@ -108,15 +108,6 @@ def check_non_vacuity() -> List[str]:
                 f"the non-vacuity gate has nothing to run against"]
     counts = hit_counts(FIXTURE_DIR)
     problems = []
-
-
-def check_non_vacuity() -> List[str]:
-    """Every rule must match something in the fixture corpus."""
-    if not FIXTURE_DIR.is_dir():
-        return [f"fixture corpus {FIXTURE_DIR.name}/ is missing; "
-                f"the non-vacuity gate has nothing to run against"]
-    counts = hit_counts(FIXTURE_DIR)
-    problems = []
     for rule in rule_ids():
         if rule in FIXTURE_EXEMPT:
             continue

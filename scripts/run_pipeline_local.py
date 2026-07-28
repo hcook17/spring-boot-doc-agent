@@ -90,6 +90,7 @@ if SRC_DIR not in sys.path:
 
 from _shared_excludes import DEFAULT_EXCLUDED_DIRS  # noqa: E402
 from doc_tag_utils import VALID_DOC_FILES  # noqa: E402
+
 from doc_engine.pipeline.context import PipelineContext, StageKind  # noqa: E402
 from doc_engine.pipeline.executor import MockStageExecutor  # noqa: E402
 from doc_engine.pipeline.runner import PipelineRunner  # noqa: E402
@@ -905,10 +906,7 @@ def main():
     py = sys.executable
     manifest = os.path.join(out_dir, "run_manifest.json")
     signals_path = os.path.join(out_dir, "spring_signals.json")
-    groups_path = os.path.join(out_dir, "groups.json")
-    edges_path = os.path.join(out_dir, "cross_group_edges.json")
     preflight_path = os.path.join(out_dir, "capacity_preflight_report.json")
-    scan_flags = ["--respect-gitignore"] if args.respect_gitignore else []
 
     if args.signals_file:
         signals_src = os.path.abspath(args.signals_file)
