@@ -18,13 +18,24 @@ This closes the marketplace packaging gap created when F3/R3 moved `source` to `
 | Layer | What | Where |
 |-------|------|--------|
 | **Kernel** | `PipelineRunner`, scanning SDK, compliance profiles, CLI | `src/doc_engine/` (pip package `doc-engine`) |
-| **Pipeline tools** | Stage 0 scripts, gates, validators (today `scripts/`, strangling into `doc_engine.tools`) | Invoked by the CLI / `local_runner`, not by the Claude plugin |
+| **Pipeline tools** | Stage 0 tools, product gates, validators (strangling into `doc_engine.tools`; thin `scripts/` shims during transition) | Invoked by the CLI / `local_runner`, not by the Claude plugin |
 | **Adapters** | Optional entry points (Claude, GitHub Actions, Cursor) | `adapters/` |
 
 **Target-repo context** (customer Spring service) is never part of this tree:
 
 - `.doc-engine.yml` — `compliance_profile`, scanners, dialect
 - Pipeline artifacts + `certification.json` — written to `--out-dir` on each run
+
+## Product vs meta boundary
+
+This monorepo holds two runtimes. Mixing them into the installable package couples customer installs to this repo's self-check policy.
+
+| Runtime | May enter `doc_engine` / the wheel | Stays in `scripts/` (meta only) |
+|---------|-------------------------------------|----------------------------------|
+| **Product** | Stage 0 tools (`run_manifest`, `spring_signal_scan` / scanning SDK, `partition_repo`, `build_cross_group_edges`, `capacity_preflight`), product gates used by `live_gates` / certification (`check_pipeline_output`, `citation_coverage`, `check_no_secrets_leaked`, validators), runtime schemas and scan resources, `doc_tag_utils`, `build_docs_site` | — |
+| **Meta** | — | `check_repo_claims`, `check_code_quality`, `mutate`, `rule_coverage`, `semgrep_rule_coverage`, `check_llms_coverage`, research instruments (`stage0_oracle_compare`, …), and this repo's quality baselines |
+
+**Portable Stage 0 (the real strangler residual):** skills already invoke the CLI (A+C). What remains is that `build_stage_specs()` must not depend on a monorepo `scripts/` tree — deterministic stages run via package entrypoints so `pip install` works without cloning this repo.
 
 ## Portable install (any company, any repo)
 
@@ -99,7 +110,7 @@ External catalogs ([awesome-design-patterns](https://github.com/DovAmir/awesome-
 | Dataclass | `PipelineContext` | In-process orchestration state |
 | Pydantic | `artifacts.py`, compliance models | Artifact contracts |
 | Facade | `cli.py` | Single CLI entry |
-| Bootstrap | `tools/_bootstrap.py` | One sanctioned `sys.path` path into `scripts/` |
+| Bootstrap | ~~`tools/_bootstrap.py`~~ | Retired no-op; product tools are package modules |
 
 Legacy `Engine.generate_docs()` / `build_site()` are placeholders — use `doc-engine pipeline run` for real orchestration.
 

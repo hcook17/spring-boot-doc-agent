@@ -14,8 +14,11 @@ import os
 import sys
 from typing import Optional, Sequence
 
-from doc_engine.paths import scripts_dir
 from doc_engine.pipeline import gates
+
+MOD_CHECK_PIPELINE = "doc_engine.tools.check_pipeline_output"
+MOD_CITATION = "doc_engine.tools.citation_coverage"
+MOD_SECRETS = "doc_engine.tools.check_no_secrets_leaked"
 
 
 def run_live_gates(
@@ -34,7 +37,6 @@ def run_live_gates(
     repo_path = os.path.abspath(repo_path)
     docs_dir = os.path.abspath(docs_dir)
     py = sys.executable
-    script = scripts_dir()
 
     failures: list[str] = []
 
@@ -56,7 +58,8 @@ def run_live_gates(
 
     gate_argv = [
         py,
-        str(script / "check_pipeline_output.py"),
+        "-m",
+        MOD_CHECK_PIPELINE,
         docs_dir,
         "--target-repo",
         repo_path,
@@ -68,7 +71,8 @@ def run_live_gates(
 
     cc_argv = [
         py,
-        str(script / "citation_coverage.py"),
+        "-m",
+        MOD_CITATION,
         docs_dir,
         "--target-repo",
         repo_path,
@@ -80,7 +84,8 @@ def run_live_gates(
 
     secrets_argv = [
         py,
-        str(script / "check_no_secrets_leaked.py"),
+        "-m",
+        MOD_SECRETS,
         os.path.join(out_dir, "summaries.json"),
         docs_dir,
     ]

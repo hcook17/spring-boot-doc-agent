@@ -133,6 +133,47 @@ class CliFacadeSmokeTest(unittest.TestCase):
         self.assertIn("spring_signals.json", proc.stdout)
 
 
+class SkillSourceOfTruthTest(unittest.TestCase):
+    """Root skills/ is a synced mirror of adapters/claude/skills product skills."""
+
+    PRODUCT_SKILLS = (
+        "document-spring-repo",
+        "capacity-preflight",
+        "citation-coverage",
+        "semantic-pipeline-eval",
+    )
+
+    def test_root_product_skills_match_adapter_sot(self):
+        adapter = _adapter() / "skills"
+        root = repo_root() / "skills"
+        mismatches: list[str] = []
+        for name in self.PRODUCT_SKILLS:
+            for rel in (adapter / name).rglob("*"):
+                if not rel.is_file():
+                    continue
+                suffix = rel.relative_to(adapter / name)
+                other = root / name / suffix
+                if not other.is_file():
+                    mismatches.append(f"missing root mirror: skills/{name}/{suffix.as_posix()}")
+                    continue
+                if rel.read_bytes() != other.read_bytes():
+                    mismatches.append(
+                        f"drift: skills/{name}/{suffix.as_posix()} != "
+                        f"adapters/claude/skills/{name}/{suffix.as_posix()}"
+                    )
+        self.assertEqual(
+            mismatches,
+            [],
+            msg="skill SoT drift (edit adapters/claude/skills, then sync root skills/):\n"
+            + "\n".join(mismatches),
+        )
+
+    def test_document_spring_repo_references_present_in_both_trees(self):
+        for base in (_adapter() / "skills", repo_root() / "skills"):
+            tax = base / "document-spring-repo" / "references" / "doc-taxonomy.md"
+            self.assertTrue(tax.is_file(), f"missing {tax}")
+
+
 class GitHubActionContractTest(unittest.TestCase):
     def test_root_action_yml_declares_certification_outputs(self):
         text = (repo_root() / "action.yml").read_text(encoding="utf-8")

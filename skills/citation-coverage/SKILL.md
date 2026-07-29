@@ -141,10 +141,10 @@ After a live generative run, prefer the orchestrator gate suite (includes citati
 doc-engine pipeline gates --out-dir <run_dir> --target-repo <repo_path> --docs-dir docs/
 ```
 
-Or, from a **product monorepo checkout** (not `${CLAUDE_PLUGIN_ROOT}`):
+Or, after `pip install` of doc-engine:
 
 ```bash
-python3 scripts/citation_coverage.py docs/ --target-repo <repo_path>
+python -m doc_engine.tools.citation_coverage docs/ --target-repo <repo_path>
 ```
 
 **Do not** invoke deterministic tools via the plugin install tree (no `scripts/` under the marketplace plugin root).

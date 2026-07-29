@@ -38,7 +38,7 @@ This package orchestrates the document-spring-repo pipeline with a **ports and a
 
 | Port | Production adapter | Local / CI adapter |
 |------|-------------------|-------------------|
-| `SubprocessStageRunner` | runs `scripts/*.py` Stage 0 tools | same |
+| SubprocessStageRunner | runs Stage 0 via package entrypoints (`doc_engine.tools` / scanning); legacy `scripts/*.py` shims only during transition | same |
 | `StageExecutor` (generative) | **Claude Code** — SKILL dispatches `agents/*.md` via Task | `MockStageExecutor` |
 | `HttpLLMStageExecutor` | **not implemented** | stub only |
 
@@ -51,14 +51,14 @@ Production runs do not call `PipelineRunner` from Python inside Claude Code toda
 3. Calls `validate_artifacts.py` at stage boundaries (see SKILL.md data contracts).
 4. Runs `pipeline_validators.run_stage5_gate()` before doc-writer fan-out when `summaries.json` / `gap_questions.json` exist.
 
-Mapping generative stages to agents (under `adapters/claude/agents/` when installed via marketplace):
+Mapping generative stages to agents (SoT: `build_stage_specs()` / `generative_choreography()` in `stages.py`; under `adapters/claude/agents/` when installed via marketplace):
 
-| `generative_key` | Agent(s) |
-|------------------|----------|
-| `file_summarize` | `file-summarizer` (per group) |
-| `architect` | `architect-segment` + `architect-merge` |
-| `gap_analysis_interview` | `gap-analyzer` + live user interview (human — not inside `StageExecutor`) |
-| `doc_writer` | `doc-writer` (fourteen files) |
+| `generative_key` | Agent(s) | Human interview |
+|------------------|----------|-----------------|
+| `file_summarize` | `file-summarizer` (per group) | no |
+| `architect` | `architect-segment` + `architect-merge` | no |
+| `gap_analysis_interview` | `gap-analyzer` + `software-architect-and-testing` | yes (orchestrating thread) |
+| `doc_writer` | `doc-writer` (fourteen files) | no |
 
 Interview Q&A stays in the orchestrating thread by design (product differentiator).
 

@@ -875,3 +875,11 @@ Assumptions affected:
 - CONSTRAINTS.md ENFORCE=False temporary on check_llms_coverage — [Resolved — ENFORCE toggle removed; always advisory.]
 - Product package outside lint scope — [Resolved — ruff check scripts/ src/doc_engine/.]
 Files touched: scripts/check_code_quality.py, scripts/code_quality_baseline.json, scripts/check_llms_coverage.py, tests/test_check_code_quality.py, tests/test_check_llms_coverage.py, .github/workflows/ci.yml, .ruff.toml, CONSTRAINTS.md, STATUS.md, claude/steering-prompts/13-code-quality-research-prompt.md, src/doc_engine/**, claude/session-log.md
+## 2026-07-29 — Portable kernel: product vs meta, Stage 0 package ports, skill SoT
+Commit: uncommitted
+Tests: portable Stage 0 + adapter layout + pipeline runner green locally; full suite pending
+Assumptions affected:
+- claude/steering-prompts/02-pluggability-research-prompt.md — package invoke / stage graph — [Resolved — deterministic stages and product gates use python -m doc_engine.tools.*; meta CI stays in scripts/; boundary in docs/product-architecture.md]
+- Dual generative SoT — [Resolved — generative_choreography() on build_stage_specs(); skill cites SoT]
+- claude/steering-prompts/07-ci-scaffold-task-prompt.md — [New info — CI deterministic_only + artifact schema gate on spring fixture]
+Files touched: src/doc_engine/tools/*, pipeline/stages.py, live_gates.py, runner.py, local_runner.py, adapters/claude/skills/*, skills/*, tests/test_portable_stage0.py, test_adapter_layout.py, .github/workflows/ci.yml, STATUS.md, docs/product-architecture.md, claude/session-log.md
