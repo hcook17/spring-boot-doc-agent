@@ -486,6 +486,27 @@ class TestNotContainsPredicate(TreeCase):
         self.assertEqual(self.run_check(), 1)
 
 
+class TestUtf8Encoding(TreeCase):
+    """Check G — non-UTF-8 markdown must be a Finding, never a traceback."""
+
+    def test_non_utf8_markdown_reports_finding_without_raising(self) -> None:
+        # cp1252 × (0xd7) — the byte that crashed CI on session-log.md
+        path = self.dir / "README.md"
+        path.write_bytes(b"bad byte: \xd7\n")
+        findings = crc.check_utf8_markdown(self.dir, ["README.md"])
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].check, "G")
+        self.assertIn("byte offset", findings[0].message)
+        self.assertIn("UTF-8", findings[0].message)
+        # Full checker path: Finding, not UnicodeDecodeError
+        self.assertEqual(self.run_check(), 1)
+
+    def test_utf8_markdown_passes_encoding_check(self) -> None:
+        self.write("README.md", "See `scripts/widget.py` — em dash ok.\n")
+        self.assertEqual(crc.check_utf8_markdown(self.dir, ["README.md"]), [])
+        self.assertEqual(self.run_check(), 0)
+
+
 class TestBaseline(TreeCase):
     def test_baseline_absorbs_an_existing_finding_but_not_a_new_one(self) -> None:
         self.write("README.md", "See `scripts/nope.py`.\n")
