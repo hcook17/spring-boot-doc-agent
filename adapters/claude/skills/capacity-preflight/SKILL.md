@@ -27,15 +27,13 @@ Use `<run_dir>/spring_signals.json` and `<run_dir>/groups.json`. If you already 
 
 Capacity preflight still lives as a product-repo tool. Prefer running it from a product checkout (or after `pip install -e .` with scripts on the module path) via Stage 0's own `capacity_preflight` stage — it is already part of `deterministic_only` / certified Stage 0 (`build_stage_specs()` name `capacity_preflight`). Re-use `<run_dir>/capacity_preflight_report.json` when present.
 
-If you must recompute only the report against existing artifacts, run from the product monorepo:
+If you must recompute only the report against existing artifacts:
 
 ```bash
-python3 scripts/capacity_preflight.py <repo_path> \
+python -m doc_engine.tools.capacity_preflight <repo_path> \
     --groups-file <run_dir>/groups.json --signals-file <run_dir>/spring_signals.json \
     --out <run_dir>/capacity_preflight_report.json
 ```
-
-(That `scripts/` path is the **product checkout**, not `${CLAUDE_PLUGIN_ROOT}`.)
 
 (Omit `--groups-file`/`--signals-file` to have it run Stage 0's logic itself.) This script only *imports* `partition_repo`'s `build_groups`/`estimate_tokens`/`dfs_file_list` and `spring_signal_scan`'s `scan()` — it does not re-derive their arithmetic. It reports:
 

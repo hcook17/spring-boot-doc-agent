@@ -86,10 +86,6 @@ import time
 from pathlib import Path
 
 from doc_engine.paths import repo_root, scripts_dir
-from doc_engine.tools._bootstrap import ensure_scripts_importable
-
-ensure_scripts_importable()
-
 
 SCRIPT_DIR = str(scripts_dir())
 REPO_ROOT = str(repo_root())
@@ -286,7 +282,12 @@ def _quote(arg):
 
 
 def _script(name):
+    """Meta-repo script path (tests / transitional). Prefer ``_py_mod`` for product tools."""
     return os.path.join(SCRIPT_DIR, name)
+
+
+def _py_mod(module: str, *args: str) -> list[str]:
+    return [sys.executable, "-m", module, *args]
 
 
 def _artifact_inventory(log, out_dir):
@@ -356,12 +357,16 @@ def _run_drift_check(log, runner, py, repo_path, manifest, out_dir, args, signal
         log("        the expected result — it exercises the script, it doesn't tell")
         log("        you anything about the repo. Use --prior-signals for a real check.")
     runner.run(
-        "spring_drift_check.py",
-        [
-            py, _script("spring_drift_check.py"), repo_path, baseline,
-            "--manifest", manifest,
-            "--out", os.path.join(out_dir, "drift_report.json"),
-        ],
+        "spring_drift_check",
+        _py_mod(
+            "doc_engine.tools.spring_drift_check",
+            repo_path,
+            baseline,
+            "--manifest",
+            manifest,
+            "--out",
+            os.path.join(out_dir, "drift_report.json"),
+        ),
     )
 
 
@@ -627,15 +632,19 @@ def run_pipeline(args) -> int:
         )
 
         log.rule("FINALIZE (real)")
-        fin_argv = [
-            py, _script("run_manifest.py"), "finalize", manifest,
-            "--signals-file", signals_path,
-            "--preflight-file", preflight_path,
-        ]
-        runner.run("run_manifest.py finalize", fin_argv)
+        fin_argv = _py_mod(
+            "doc_engine.tools.run_manifest",
+            "finalize",
+            manifest,
+            "--signals-file",
+            signals_path,
+            "--preflight-file",
+            preflight_path,
+        )
+        runner.run("run_manifest finalize", fin_argv)
         runner.run(
-            "run_manifest.py summary",
-            [py, _script("run_manifest.py"), "summary", manifest],
+            "run_manifest summary",
+            _py_mod("doc_engine.tools.run_manifest", "summary", manifest),
         )
 
         _run_drift_check(log, runner, py, repo_path, manifest, out_dir, args, signals_path)
@@ -698,8 +707,12 @@ def run_pipeline(args) -> int:
         gate_id="pipeline_validators",
     )
 
-    gate_argv = [py, _script("check_pipeline_output.py"), docs_dir,
-                 "--target-repo", repo_path]
+    gate_argv = _py_mod(
+        "doc_engine.tools.check_pipeline_output",
+        docs_dir,
+        "--target-repo",
+        repo_path,
+    )
     if not args.docs_in_target_repo:
         gate_argv.append("--no-write-check")
         log("")
@@ -707,26 +720,34 @@ def run_pipeline(args) -> int:
         log("        the target repo. Re-run with --docs-in-target-repo to exercise")
         log("        the stray-write check for real.")
     runner.run(
-        "check_pipeline_output.py (Stage 4 GATE)",
+        "check_pipeline_output (Stage 4 GATE)",
         gate_argv,
         gate=True,
         gate_id="check_pipeline_output",
     )
 
-    cc_argv = [py, _script("citation_coverage.py"), docs_dir, "--target-repo", repo_path]
+    cc_argv = _py_mod(
+        "doc_engine.tools.citation_coverage",
+        docs_dir,
+        "--target-repo",
+        repo_path,
+    )
     if strict_citations_effective:
         cc_argv.append("--strict")
     runner.run(
-        "citation_coverage.py",
+        "citation_coverage",
         cc_argv,
         gate=strict_citations_effective,
         gate_id="citation_coverage",
     )
 
     runner.run(
-        "check_no_secrets_leaked.py",
-        [py, _script("check_no_secrets_leaked.py"),
-         os.path.join(out_dir, "summaries.json"), docs_dir],
+        "check_no_secrets_leaked",
+        _py_mod(
+            "doc_engine.tools.check_no_secrets_leaked",
+            os.path.join(out_dir, "summaries.json"),
+            docs_dir,
+        ),
         gate=True,
         gate_id="check_no_secrets_leaked",
     )
@@ -741,8 +762,8 @@ def run_pipeline(args) -> int:
         log("        elsewhere, so its docs subtest will skip; summaries and gap")
         log("        questions are still validated.")
     runner.run(
-        "test_pipeline_stages.py -v (real suite vs. mock artifacts)",
-        [py, _script("test_pipeline_stages.py"), "-v"],
+        "pytest tests/test_pipeline_stages.py -v (real suite vs. mock artifacts)",
+        [py, "-m", "pytest", os.path.join(REPO_ROOT, "tests", "test_pipeline_stages.py"), "-v"],
         gate=True,
         gate_id="test_pipeline_stages",
         env=env,
@@ -750,15 +771,24 @@ def run_pipeline(args) -> int:
 
     log.rule("FINALIZE (real)")
     runner.run(
-        "run_manifest.py finalize",
-        [py, _script("run_manifest.py"), "finalize", manifest,
-         "--signals-file", signals_path, "--docs-dir", docs_dir,
-         "--interview-file", os.path.join(out_dir, "interview_answers.json"),
-         "--preflight-file", preflight_path],
+        "run_manifest finalize",
+        _py_mod(
+            "doc_engine.tools.run_manifest",
+            "finalize",
+            manifest,
+            "--signals-file",
+            signals_path,
+            "--docs-dir",
+            docs_dir,
+            "--interview-file",
+            os.path.join(out_dir, "interview_answers.json"),
+            "--preflight-file",
+            preflight_path,
+        ),
     )
     runner.run(
-        "run_manifest.py summary",
-        [py, _script("run_manifest.py"), "summary", manifest],
+        "run_manifest summary",
+        _py_mod("doc_engine.tools.run_manifest", "summary", manifest),
     )
 
     _run_drift_check(log, runner, py, repo_path, manifest, out_dir, args, signals_path)

@@ -11,11 +11,7 @@ from __future__ import annotations
 
 import re
 
-from doc_engine.tools._bootstrap import ensure_scripts_importable
-
-ensure_scripts_importable()
-
-from doc_tag_utils import VALID_DOC_FILES  # noqa: E402
+from doc_engine.tools.doc_tag_utils import VALID_DOC_FILES
 
 # agents/file-summarizer.md step 4's exact enumerated list.
 VALID_SPRING_ROLES = frozenset({

@@ -5,7 +5,7 @@ description: Scan a Spring Boot repository, ask the user clarifying questions ab
 
 # Document Spring Repo
 
-Five conceptual stages. **Deterministic Stage 0 is owned by the `doc-engine` CLI** (stage graph SoT: `doc_engine.pipeline.build_stage_specs()`). This skill owns **live generative work** only: Task fan-out to agents, the interview, and post-run gates via the CLI.
+Five conceptual stages. **Stage graph SoT:** `doc_engine.pipeline.stages.build_stage_specs()` (deterministic argv + generative choreography metadata via `generative_choreography()`). This skill owns **live generative execution** only: Task fan-out to the agents named in that SoT, the interview when `requires_human_interview` is set, and post-run gates via the CLI.
 
 ## Prerequisites
 
@@ -14,8 +14,6 @@ Five conceptual stages. **Deterministic Stage 0 is owned by the `doc-engine` CLI
 3. Read `${CLAUDE_PLUGIN_ROOT}/skills/document-spring-repo/references/doc-taxonomy.md` before Stage 4.
 
 **Do not** invoke deterministic tools through the Claude plugin install tree — marketplace installs have no `scripts/` directory under the plugin root. Use `doc-engine pipeline …` only.
-
-Historical script names (`validate_artifacts.py`, `spring_drift_check.py`, `spring_signal_scan.py`, `partition_repo.py`, `run_manifest.py`, `pipeline_validators.py`, `check_pipeline_output.py`, …) still exist as thin shims under the **product** repo’s `scripts/` and/or as package modules; the skill invokes them only via the orchestrator, never via a plugin-local path.
 
 ## Orchestrator entry points (deterministic)
 
@@ -28,9 +26,9 @@ Historical script names (`validate_artifacts.py`, `spring_drift_check.py`, `spri
 | Gates after live generative stages | `doc-engine pipeline gates --out-dir <run_dir> --target-repo <repo_path> --docs-dir <repo_path>/docs` |
 | Certification check | `doc-engine certification verify <run_dir>/certification.json` |
 
-Stage names for `--until` come from `build_stage_specs()` (e.g. `signal_scan`, `partition`, `cross_group_edges`, `capacity_preflight`).
+Stage names for `--until` and generative agent bindings come from `build_stage_specs()` / `generative_choreography()` — do not maintain a second stage list here.
 
-Every `pipeline run` writes `certification.json` under `--out-dir`. **`certified: true` with `generative_executor: mock`** means structural wiring passed — not human-quality docs. Live Claude runs must complete Stages 1–4 below and then `pipeline gates`.
+Every `pipeline run` writes `certification.json` under `--out-dir`. **`certified: true` with `generative_executor: mock`** means structural wiring passed — not human-quality docs. Live Claude runs must complete generative stages below and then `pipeline gates`.
 
 Target repos may set `.doc-engine.yml`:
 
@@ -40,19 +38,19 @@ compliance_profile: certified
 
 ## Data contracts
 
-Artifacts cross stage boundaries. Shapes are enforced by Pydantic models in `doc_engine.pipeline.artifacts` (schemas also under `scripts/schemas/` in the product repo). The orchestrator validates at Stage 0 boundaries; after live Stages 1–4, run `doc-engine pipeline gates`.
+Artifacts cross stage boundaries. Shapes are enforced by Pydantic models in `doc_engine.pipeline.artifacts`. The orchestrator validates at Stage 0 boundaries; after live generative stages, run `doc-engine pipeline gates`.
 
 | Artifact | Producer | Consumers |
 |----------|----------|-----------|
-| `spring_signals.json` | Stage 0 (CLI) | Stages 1–4 |
-| `groups.json` | Stage 0 (CLI) | Stage 1 |
-| `cross_group_edges.json` | Stage 0 (CLI) | Stage 1 |
-| `summaries.json` | Stage 1 agents | Stages 2–4 |
-| `interview_answers.json` | Stage 3 interview | Stage 4 |
+| `spring_signals.json` | Stage 0 (CLI) | generative stages |
+| `groups.json` | Stage 0 (CLI) | file_summarize / architect |
+| `cross_group_edges.json` | Stage 0 (CLI) | file_summarize |
+| `summaries.json` | file_summarize agents | later generative stages |
+| `interview_answers.json` | gap_analysis_interview | doc_writer |
 
 Work in `--out-dir` (and `--docs-in-target-repo` for `docs/`). Manifest and signals land beside each other in the run directory.
 
-**Agents** — `file-summarizer`, `doc-writer`, `gap-analyzer`, `architect-segment`, `architect-merge`, `software-architect-and-testing` — are registered subagents under `${CLAUDE_PLUGIN_ROOT}/agents/`, dispatched by name via Task.
+**Agents** — bind via `generative_choreography()` (`file-summarizer`, `doc-writer`, `gap-analyzer`, `architect-segment`, `architect-merge`, `software-architect-and-testing`) under `${CLAUDE_PLUGIN_ROOT}/agents/`, dispatched by name via Task.
 
 ## Stage 0 — Deterministic evidence (CLI only)
 
@@ -63,39 +61,28 @@ doc-engine pipeline run <repo_path> \
   --docs-in-target-repo
 ```
 
-Optional drift pre-check before a full re-run: if you already have a prior `spring_signals.json`, the product tool `spring_drift_check.py` (monorepo `scripts/` shim / package path — not under the plugin root) can report what drifted. Prefer re-running Stage 0 when unsure. This remains an optional pre-flight: checking for drift before a full re-run — standalone, not CI-triggered.
+Optional drift pre-check: `python -m doc_engine.tools.spring_drift_check` (product package; historical shim `scripts/spring_drift_check.py` — not under the plugin root). Prefer re-running Stage 0 when unsure. Boundary validation uses `validate_artifacts.py` / `python -m doc_engine.tools.validate_artifacts`.
 
-Also grep for `TODO|FIXME|XXX|HACK` across the target repo yourself and keep the hits for `known_limitations.md`.
+Also search for `TODO|FIXME|XXX|HACK` across the target repo yourself and keep the hits for `known_limitations.md`.
 
-Read `spring_signals.json`, `groups.json`, and `cross_group_edges.json` from `<run_dir>` before Stage 1.
+Read `spring_signals.json`, `groups.json`, and `cross_group_edges.json` from `<run_dir>` before generative work.
 
-## Stage 1 — Parallel file summarization
+## Generative stages (live adapter)
 
-Wrap in one conceptual stage (orchestrator already recorded Stage 0 timing in `run_manifest.json`).
+Follow `generative_choreography()` order. Summary (must match the SoT — if prose and SoT disagree, SoT wins):
 
-For every group in `groups.json`, dispatch a `file-summarizer` subagent (`agents/file-summarizer.md`) concurrently. Pass: group file list, signal-scan slice for that group, that group’s `cross_group_edges.json` entry, and an absolute `output_path` (`summaries_group_<id>.json` under `<run_dir>`).
+1. **file_summarize** — agent `file-summarizer` per group → concatenate `summaries_group_*.json` into `summaries.json`.
+2. **architect** — `architect-segment` per group, then `architect-merge`.
+3. **gap_analysis_interview** — `gap-analyzer` + `software-architect-and-testing`, then **human interview in this thread** (`requires_human_interview`) → `interview_answers.json`.
+4. **doc_writer** — `doc-writer` × fourteen taxonomy files under `docs/`.
 
-Concatenate per-group files into `summaries.json` (from `<run_dir>`):
+Concatenate per-group summaries:
 
 ```bash
 python3 -c "import json,glob,os; d=os.environ['RUN_DIR']; json.dump([o for f in sorted(glob.glob(os.path.join(d,'summaries_group_*.json'))) for o in json.load(open(f))], open(os.path.join(d,'summaries.json'),'w'), indent=1)"
 ```
 
-(Set `RUN_DIR` to `<run_dir>`, or inline the path.)
-
-## Stage 2 — Parallel architecture (segment + merge)
-
-- **Segment:** dispatch `architect-segment` per group → `arch_fragment_<id>.md` in `<run_dir>`.
-- **Merge:** one `architect-merge` → `architecture_merged.md`.
-
-## Stage 3 — Gap analysis, architecture/testing review, live interview
-
-Dispatch in the same turn:
-
-- `gap-analyzer` → `gap_questions.json` (use taxonomy “Interview-worthy” notes).
-- `software-architect-and-testing` → `architecture_testing_review.json`.
-
-**Then — in this orchestrating thread** — ask the user gap-analyzer’s questions. Record answers into `interview_answers.json`:
+Interview answer shape:
 
 ```json
 [
@@ -104,9 +91,7 @@ Dispatch in the same turn:
 ]
 ```
 
-## Stage 4 — Parallel doc generation
-
-For each of the fourteen taxonomy files, dispatch `doc-writer` with a distinct `docs/<name>.md` `output_path`, paths to evidence artifacts, and taxonomy instructions. Never overwrite a root `README.md` — use `docs/readme.md` when a root README exists.
+Never overwrite a root `README.md` — use `docs/readme.md` when a root README exists.
 
 ## Finish (gates + certification)
 

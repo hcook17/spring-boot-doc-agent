@@ -50,7 +50,8 @@ class PipelineRunner:
             fanout = manifest_fanout(spec, context)
             start_argv = [
                 context.python,
-                str(context.script("run_manifest.py")),
+                "-m",
+                "doc_engine.tools.run_manifest",
                 "start-stage",
                 str(context.manifest_path),
                 spec.manifest_stage,
@@ -73,7 +74,8 @@ class PipelineRunner:
             status = "complete" if result.success else "failed"
             end_argv = [
                 context.python,
-                str(context.script("run_manifest.py")),
+                "-m",
+                "doc_engine.tools.run_manifest",
                 "end-stage",
                 str(context.manifest_path),
                 spec.manifest_stage,

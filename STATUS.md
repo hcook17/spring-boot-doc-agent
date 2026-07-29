@@ -2,7 +2,7 @@
 
 Current-state snapshot of `spring-boot-doc-agent`, edited in place — this file states what's true *right now*, not a history of how it got there. For the append-only history of individual commits and which `claude/steering-prompts/` assumptions they affect, see `claude/session-log.md`. The two are cross-linked, not duplicates: this file answers "where do things stand"; the log answers "what changed and when."
 
-Last updated: 2026-07-28.
+Last updated: 2026-07-29.
 
 > **Date convention:** dates in this repo are the local date of the commit (`git log --date=short`). A batch of entries written across 2026-07-23/24 were dated `2026-07-25`, one day ahead of every commit they describe. Historical entries in `claude/session-log.md` and `claude/tool-quirks.md` are left as written — silently rewriting dates in an append-only log is worse than an off-by-one — but new entries should use the commit's own date.
 
@@ -33,14 +33,18 @@ Last updated: 2026-07-28.
 
 ## Next concrete action
 
-Gate modernization (2026-07-29): size ratchet demoted; ruff+quality measure `src/doc_engine/`; llms coverage always advisory. **Deferred portfolio epics (do not mix into small PRs):**
+**Landed 2026-07-29 (portable-kernel track):** product vs meta boundary documented; skill SoT sync gate; Stage 0 + product gates as `python -m doc_engine.tools.*`; generative choreography metadata on `build_stage_specs()`; CI deterministic_only + artifact schema gate on the spring fixture.
 
-1. Finish **scripts → `doc_engine.tools` strangler** (single invoke surface).
-2. **Single skill SoT** (root `skills/` vs `adapters/claude/skills/` drift).
-3. Residual A+C: generative stage choreography still in skill prose vs `build_stage_specs()`.
-4. Live pipeline artifact gating in CI (maturity residual).
+Still open (do not mix into one mega-PR):
 
-`CONSTRAINTS.md` enterprise-readiness close-out order remains: branch protection + required reviews (repo-admin) → audit trail refinement → RBAC / multi-repo. Option C (HTTP LLM adapters) stays deferred — see `src/doc_engine/pipeline/adapters.md`.
+1. ~~Portable Stage 0~~ — done for product tools; thin `scripts/` shims remain for humans/CI transition.
+2. ~~Single skill SoT~~ — adapter SoT + root mirror hash gate.
+3. ~~Generative choreography SoT~~ — `generative_choreography()`; skill cites CLI/SoT.
+4. ~~Live deterministic artifact gating in CI~~ — CI step + `tests/test_portable_stage0.py`.
+
+Follow-ons: delete remaining product shims when nothing external needs them; fact-store Phase 1 (`claude/10-architecture-maturation-plan.md`) as a parallel arc; Option C HTTP deferred (`adapters.md`).
+
+`CONSTRAINTS.md` enterprise-readiness close-out order remains: branch protection + required reviews (repo-admin) → audit trail refinement → RBAC / multi-repo.
 
 ## Cross-links
 

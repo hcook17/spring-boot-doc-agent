@@ -44,6 +44,12 @@ class StageSpec:
     """Build subprocess argv for deterministic stages."""
     generative_key: str | None = None
     """Key passed to StageExecutor for generative stages."""
+    agent_names: tuple[str, ...] = ()
+    """Claude/Cursor agent ids for live generative adapters (empty for deterministic)."""
+    requires_human_interview: bool = False
+    """True when the stage includes live Q&A in the orchestrating thread."""
+    input_artifacts: tuple[str, ...] = ()
+    """Artifact filenames this stage consumes (documentation / adapter wiring)."""
 
 
 @dataclass

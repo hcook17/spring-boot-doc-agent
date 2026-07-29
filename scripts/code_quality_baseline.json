@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
-  "production_functions": 507,
-  "production_functions_annotated": 382,
+  "production_functions": 510,
+  "production_functions_annotated": 385,
   "limits_for_new_functions": {
     "statements": 143,
     "complexity": 51,
@@ -9,14 +9,8 @@
   },
   "unparseable": [],
   "docstring_violations": {
-    "scripts/build_cross_group_edges.py": "scripts/build_cross_group_edges.py: 'how to run it' is at docstring line 64; the contract is within 20. Move the Usage block above the rationale.",
-    "scripts/capacity_preflight.py": "scripts/capacity_preflight.py: 'how to run it' is at docstring line 61; the contract is within 20. Move the Usage block above the rationale.",
     "scripts/check_code_quality.py": "scripts/check_code_quality.py: 'how to run it' is at docstring line 27; the contract is within 20. Move the Usage block above the rationale.",
     "scripts/check_llms_coverage.py": "scripts/check_llms_coverage.py: 'how to run it' is at docstring line 36; the contract is within 20. Move the Usage block above the rationale.",
-    "scripts/check_no_secrets_leaked.py": "scripts/check_no_secrets_leaked.py: 'how to run it' is at docstring line 29; the contract is within 20. Move the Usage block above the rationale.",
-    "scripts/check_pipeline_output.py": "scripts/check_pipeline_output.py: 'how to run it' is at docstring line 40; the contract is within 20. Move the Usage block above the rationale.",
-    "scripts/partition_repo.py": "scripts/partition_repo.py: 'how to run it' is at docstring line 44; the contract is within 20. Move the Usage block above the rationale.",
-    "scripts/run_manifest.py": "scripts/run_manifest.py: 'how to run it' is at docstring line 62; the contract is within 20. Move the Usage block above the rationale.",
     "scripts/semantic_eval_helpers.py": "scripts/semantic_eval_helpers.py: 'how to run it' is at docstring line 44; the contract is within 20. Move the Usage block above the rationale.",
     "src/doc_engine/cli.py": "src/doc_engine/cli.py: runnable module, but its 1-line docstring never says how to run it",
     "src/doc_engine/pipeline/live_gates.py": "src/doc_engine/pipeline/live_gates.py: runnable module, but its 7-line docstring never says how to run it",
@@ -43,96 +37,6 @@
       "statements": 4,
       "complexity": 3,
       "depth": 1
-    },
-    "scripts/build_cross_group_edges.py::build_membership": {
-      "statements": 5,
-      "complexity": 3,
-      "depth": 2
-    },
-    "scripts/build_cross_group_edges.py::build_report": {
-      "statements": 41,
-      "complexity": 23,
-      "depth": 4
-    },
-    "scripts/build_cross_group_edges.py::is_cut": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/build_cross_group_edges.py::main": {
-      "statements": 17,
-      "complexity": 4,
-      "depth": 1
-    },
-    "scripts/build_cross_group_edges.py::parse_references": {
-      "statements": 19,
-      "complexity": 6,
-      "depth": 2
-    },
-    "scripts/build_cross_group_edges.py::resolve_targets": {
-      "statements": 14,
-      "complexity": 6,
-      "depth": 2
-    },
-    "scripts/build_docs_site.py::_build_nav": {
-      "statements": 5,
-      "complexity": 3,
-      "depth": 2
-    },
-    "scripts/build_docs_site.py::_copy_docs": {
-      "statements": 9,
-      "complexity": 4,
-      "depth": 2
-    },
-    "scripts/build_docs_site.py::_find_mkdocs_yml": {
-      "statements": 2,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/build_docs_site.py::_run_mkdocs": {
-      "statements": 4,
-      "complexity": 2,
-      "depth": 1
-    },
-    "scripts/build_docs_site.py::_write_mkdocs_config": {
-      "statements": 8,
-      "complexity": 3,
-      "depth": 1
-    },
-    "scripts/build_docs_site.py::_yaml_nav": {
-      "statements": 5,
-      "complexity": 3,
-      "depth": 2
-    },
-    "scripts/build_docs_site.py::main": {
-      "statements": 19,
-      "complexity": 2,
-      "depth": 1
-    },
-    "scripts/capacity_preflight.py::_load_or_build_edges": {
-      "statements": 8,
-      "complexity": 5,
-      "depth": 2
-    },
-    "scripts/capacity_preflight.py::_load_or_build_groups": {
-      "statements": 13,
-      "complexity": 8,
-      "depth": 2
-    },
-    "scripts/capacity_preflight.py::compute_preflight": {
-      "statements": 17,
-      "complexity": 6,
-      "depth": 1
-    },
-    "scripts/capacity_preflight.py::estimate_stage1_slice_tokens": {
-      "statements": 3,
-      "complexity": 3,
-      "depth": 0
-    },
-    "scripts/capacity_preflight.py::main": {
-      "statements": 34,
-      "complexity": 8,
-      "depth": 2
     },
     "scripts/check_code_quality.py::_is_production_module": {
       "statements": 2,
@@ -277,66 +181,6 @@
     "scripts/check_no_client_identifiers.py::main": {
       "statements": 28,
       "complexity": 7,
-      "depth": 2
-    },
-    "scripts/check_no_secrets_leaked.py::check": {
-      "statements": 12,
-      "complexity": 5,
-      "depth": 3
-    },
-    "scripts/check_no_secrets_leaked.py::iter_files": {
-      "statements": 9,
-      "complexity": 7,
-      "depth": 5
-    },
-    "scripts/check_no_secrets_leaked.py::main": {
-      "statements": 13,
-      "complexity": 5,
-      "depth": 2
-    },
-    "scripts/check_pipeline_output.py::check_all": {
-      "statements": 5,
-      "complexity": 3,
-      "depth": 1
-    },
-    "scripts/check_pipeline_output.py::check_file_set": {
-      "statements": 9,
-      "complexity": 4,
-      "depth": 1
-    },
-    "scripts/check_pipeline_output.py::check_tags_and_citations": {
-      "statements": 9,
-      "complexity": 5,
-      "depth": 3
-    },
-    "scripts/check_pipeline_output.py::check_target_repo_writes": {
-      "statements": 20,
-      "complexity": 12,
-      "depth": 2
-    },
-    "scripts/check_pipeline_output.py::exit_code": {
-      "statements": 1,
-      "complexity": 2,
-      "depth": 0
-    },
-    "scripts/check_pipeline_output.py::list_ignored_untracked": {
-      "statements": 4,
-      "complexity": 4,
-      "depth": 1
-    },
-    "scripts/check_pipeline_output.py::main": {
-      "statements": 24,
-      "complexity": 10,
-      "depth": 2
-    },
-    "scripts/check_pipeline_output.py::parse_porcelain": {
-      "statements": 9,
-      "complexity": 5,
-      "depth": 2
-    },
-    "scripts/check_pipeline_output.py::summarize_tags": {
-      "statements": 5,
-      "complexity": 3,
       "depth": 2
     },
     "scripts/check_repo_claims.py::_agent_definitions": {
@@ -639,91 +483,6 @@
       "complexity": 2,
       "depth": 0
     },
-    "scripts/citation_coverage.py::_claim_clause": {
-      "statements": 3,
-      "complexity": 2,
-      "depth": 0
-    },
-    "scripts/citation_coverage.py::_has_tag": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/citation_coverage.py::_named_artifacts": {
-      "statements": 6,
-      "complexity": 3,
-      "depth": 2
-    },
-    "scripts/citation_coverage.py::_read_lines": {
-      "statements": 2,
-      "complexity": 2,
-      "depth": 1
-    },
-    "scripts/citation_coverage.py::_strip_inline_code": {
-      "statements": 3,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/citation_coverage.py::check_docs": {
-      "statements": 10,
-      "complexity": 4,
-      "depth": 2
-    },
-    "scripts/citation_coverage.py::claim_symbols": {
-      "statements": 6,
-      "complexity": 4,
-      "depth": 2
-    },
-    "scripts/citation_coverage.py::find_miscased_tags": {
-      "statements": 6,
-      "complexity": 3,
-      "depth": 2
-    },
-    "scripts/citation_coverage.py::find_untagged_claims": {
-      "statements": 9,
-      "complexity": 4,
-      "depth": 2
-    },
-    "scripts/citation_coverage.py::find_weak_anchors": {
-      "statements": 30,
-      "complexity": 12,
-      "depth": 2
-    },
-    "scripts/citation_coverage.py::format_report": {
-      "statements": 22,
-      "complexity": 8,
-      "depth": 2
-    },
-    "scripts/citation_coverage.py::iter_claim_units": {
-      "statements": 19,
-      "complexity": 12,
-      "depth": 3
-    },
-    "scripts/citation_coverage.py::main": {
-      "statements": 16,
-      "complexity": 5,
-      "depth": 1
-    },
-    "scripts/citation_coverage.py::total_findings": {
-      "statements": 1,
-      "complexity": 2,
-      "depth": 0
-    },
-    "scripts/doc_tag_utils.py::count_tags_by_kind": {
-      "statements": 1,
-      "complexity": 2,
-      "depth": 0
-    },
-    "scripts/doc_tag_utils.py::find_malformed_tags": {
-      "statements": 9,
-      "complexity": 5,
-      "depth": 2
-    },
-    "scripts/doc_tag_utils.py::resolve_evidenced_citations": {
-      "statements": 13,
-      "complexity": 7,
-      "depth": 3
-    },
     "scripts/drift_match_normalizers.py::collapse_ws": {
       "statements": 3,
       "complexity": 2,
@@ -874,51 +633,6 @@
       "complexity": 3,
       "depth": 0
     },
-    "scripts/partition_repo.py::build_groups": {
-      "statements": 33,
-      "complexity": 20,
-      "depth": 4
-    },
-    "scripts/partition_repo.py::build_groups.carry_forward": {
-      "statements": 13,
-      "complexity": 5,
-      "depth": 2
-    },
-    "scripts/partition_repo.py::dfs_file_list": {
-      "statements": 3,
-      "complexity": 14,
-      "depth": 0
-    },
-    "scripts/partition_repo.py::dfs_file_list._relpath": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/partition_repo.py::dfs_file_list._walk": {
-      "statements": 24,
-      "complexity": 14,
-      "depth": 4
-    },
-    "scripts/partition_repo.py::estimate_tokens": {
-      "statements": 23,
-      "complexity": 9,
-      "depth": 2
-    },
-    "scripts/partition_repo.py::main": {
-      "statements": 30,
-      "complexity": 9,
-      "depth": 2
-    },
-    "scripts/partition_repo.py::relpath_posix": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/partition_repo.py::to_posix": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
     "scripts/prompt_contracts.py::_read": {
       "statements": 4,
       "complexity": 2,
@@ -991,96 +705,6 @@
     },
     "scripts/rule_coverage.py::write_baseline": {
       "statements": 2,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/run_manifest.py::_iso8601": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/run_manifest.py::_now_ms": {
-      "statements": 1,
-      "complexity": 2,
-      "depth": 0
-    },
-    "scripts/run_manifest.py::_read_json": {
-      "statements": 2,
-      "complexity": 2,
-      "depth": 1
-    },
-    "scripts/run_manifest.py::_run_git": {
-      "statements": 9,
-      "complexity": 3,
-      "depth": 1
-    },
-    "scripts/run_manifest.py::_write_json_atomic": {
-      "statements": 12,
-      "complexity": 5,
-      "depth": 2
-    },
-    "scripts/run_manifest.py::build_init_manifest": {
-      "statements": 3,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/run_manifest.py::compute_capacity_preflight_tie_in": {
-      "statements": 16,
-      "complexity": 4,
-      "depth": 2
-    },
-    "scripts/run_manifest.py::compute_evidence_tag_counts": {
-      "statements": 10,
-      "complexity": 5,
-      "depth": 2
-    },
-    "scripts/run_manifest.py::end_stage": {
-      "statements": 11,
-      "complexity": 5,
-      "depth": 2
-    },
-    "scripts/run_manifest.py::finalize_manifest": {
-      "statements": 27,
-      "complexity": 11,
-      "depth": 3
-    },
-    "scripts/run_manifest.py::format_summary": {
-      "statements": 29,
-      "complexity": 18,
-      "depth": 3
-    },
-    "scripts/run_manifest.py::git_commit_hash": {
-      "statements": 2,
-      "complexity": 2,
-      "depth": 0
-    },
-    "scripts/run_manifest.py::git_is_dirty": {
-      "statements": 2,
-      "complexity": 2,
-      "depth": 0
-    },
-    "scripts/run_manifest.py::load_file_signatures": {
-      "statements": 12,
-      "complexity": 5,
-      "depth": 2
-    },
-    "scripts/run_manifest.py::main": {
-      "statements": 66,
-      "complexity": 13,
-      "depth": 5
-    },
-    "scripts/run_manifest.py::make_run_id": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/run_manifest.py::parse_interview_file": {
-      "statements": 22,
-      "complexity": 9,
-      "depth": 3
-    },
-    "scripts/run_manifest.py::start_stage": {
-      "statements": 3,
       "complexity": 1,
       "depth": 0
     },
@@ -1253,106 +877,6 @@
       "statements": 1,
       "complexity": 1,
       "depth": 0
-    },
-    "scripts/spring_drift_check.py::_raw_query_entries_with_resolved_entity": {
-      "statements": 4,
-      "complexity": 4,
-      "depth": 2
-    },
-    "scripts/spring_drift_check.py::_recheck_build_signals": {
-      "statements": 18,
-      "complexity": 13,
-      "depth": 2
-    },
-    "scripts/spring_drift_check.py::_recheck_build_signals.identity": {
-      "statements": 13,
-      "complexity": 7,
-      "depth": 1
-    },
-    "scripts/spring_drift_check.py::_recheck_config_keys": {
-      "statements": 15,
-      "complexity": 6,
-      "depth": 2
-    },
-    "scripts/spring_drift_check.py::_recheck_entities": {
-      "statements": 13,
-      "complexity": 10,
-      "depth": 3
-    },
-    "scripts/spring_drift_check.py::_recheck_generic": {
-      "statements": 11,
-      "complexity": 4,
-      "depth": 2
-    },
-    "scripts/spring_drift_check.py::_recheck_queries": {
-      "statements": 13,
-      "complexity": 4,
-      "depth": 2
-    },
-    "scripts/spring_drift_check.py::_recheck_repositories": {
-      "statements": 17,
-      "complexity": 9,
-      "depth": 3
-    },
-    "scripts/spring_drift_check.py::_reverify_jpql_lineage_provenance": {
-      "statements": 27,
-      "complexity": 11,
-      "depth": 3
-    },
-    "scripts/spring_drift_check.py::all_citations": {
-      "statements": 7,
-      "complexity": 4,
-      "depth": 2
-    },
-    "scripts/spring_drift_check.py::check_drift": {
-      "statements": 63,
-      "complexity": 31,
-      "depth": 3
-    },
-    "scripts/spring_drift_check.py::classify_files": {
-      "statements": 9,
-      "complexity": 6,
-      "depth": 3
-    },
-    "scripts/spring_drift_check.py::drift_result": {
-      "statements": 4,
-      "complexity": 2,
-      "depth": 1
-    },
-    "scripts/spring_drift_check.py::load_manifest": {
-      "statements": 15,
-      "complexity": 8,
-      "depth": 2
-    },
-    "scripts/spring_drift_check.py::load_signals": {
-      "statements": 7,
-      "complexity": 3,
-      "depth": 1
-    },
-    "scripts/spring_drift_check.py::main": {
-      "statements": 26,
-      "complexity": 8,
-      "depth": 1
-    },
-    "scripts/spring_drift_check.py::tier1_scan": {
-      "statements": 10,
-      "complexity": 4,
-      "depth": 2
-    },
-    "scripts/spring_drift_check.py::tier2_recheck_file": {
-      "statements": 22,
-      "complexity": 9,
-      "depth": 4
-    },
-    "scripts/spring_signal_scan.py::main": {
-      "statements": 24,
-      "complexity": 7,
-      "depth": 1
-    },
-    "scripts/spring_signal_scan.py::run_ast_grep": {
-      "statements": 11,
-      "complexity": 5,
-      "depth": 1
     },
     "scripts/stage0_oracle_compare.py::SharedInputs.compute_digest": {
       "statements": 6,
@@ -1565,7 +1089,7 @@
       "depth": 0
     },
     "src/doc_engine/engine.py::Engine.build_site": {
-      "statements": 18,
+      "statements": 17,
       "complexity": 5,
       "depth": 3
     },
@@ -1730,7 +1254,7 @@
       "depth": 0
     },
     "src/doc_engine/pipeline/live_gates.py::run_live_gates": {
-      "statements": 28,
+      "statements": 27,
       "complexity": 7,
       "depth": 1
     },
@@ -1803,6 +1327,11 @@
       "statements": 7,
       "complexity": 3,
       "depth": 2
+    },
+    "src/doc_engine/pipeline/local_runner.py::_py_mod": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
     },
     "src/doc_engine/pipeline/local_runner.py::_quote": {
       "statements": 1,
@@ -1979,6 +1508,11 @@
       "complexity": 4,
       "depth": 2
     },
+    "src/doc_engine/pipeline/stages.py::_py_mod": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
     "src/doc_engine/pipeline/stages.py::_scan_flags": {
       "statements": 1,
       "complexity": 2,
@@ -1988,6 +1522,11 @@
       "statements": 1,
       "complexity": 9,
       "depth": 0
+    },
+    "src/doc_engine/pipeline/stages.py::generative_choreography": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 2
     },
     "src/doc_engine/pipeline/stages.py::manifest_fanout": {
       "statements": 9,
@@ -2490,8 +2029,98 @@
       "depth": 3
     },
     "src/doc_engine/tools/_bootstrap.py::ensure_scripts_importable": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "src/doc_engine/tools/build_cross_group_edges.py::build_membership": {
       "statements": 5,
       "complexity": 3,
+      "depth": 2
+    },
+    "src/doc_engine/tools/build_cross_group_edges.py::build_report": {
+      "statements": 41,
+      "complexity": 23,
+      "depth": 4
+    },
+    "src/doc_engine/tools/build_cross_group_edges.py::is_cut": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "src/doc_engine/tools/build_cross_group_edges.py::main": {
+      "statements": 17,
+      "complexity": 4,
+      "depth": 1
+    },
+    "src/doc_engine/tools/build_cross_group_edges.py::parse_references": {
+      "statements": 19,
+      "complexity": 6,
+      "depth": 2
+    },
+    "src/doc_engine/tools/build_cross_group_edges.py::resolve_targets": {
+      "statements": 14,
+      "complexity": 6,
+      "depth": 2
+    },
+    "src/doc_engine/tools/build_docs_site.py::_build_nav": {
+      "statements": 5,
+      "complexity": 3,
+      "depth": 2
+    },
+    "src/doc_engine/tools/build_docs_site.py::_copy_docs": {
+      "statements": 9,
+      "complexity": 4,
+      "depth": 2
+    },
+    "src/doc_engine/tools/build_docs_site.py::_find_mkdocs_yml": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "src/doc_engine/tools/build_docs_site.py::_run_mkdocs": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "src/doc_engine/tools/build_docs_site.py::_write_mkdocs_config": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 1
+    },
+    "src/doc_engine/tools/build_docs_site.py::_yaml_nav": {
+      "statements": 5,
+      "complexity": 3,
+      "depth": 2
+    },
+    "src/doc_engine/tools/build_docs_site.py::main": {
+      "statements": 19,
+      "complexity": 2,
+      "depth": 1
+    },
+    "src/doc_engine/tools/capacity_preflight.py::_load_or_build_edges": {
+      "statements": 8,
+      "complexity": 5,
+      "depth": 2
+    },
+    "src/doc_engine/tools/capacity_preflight.py::_load_or_build_groups": {
+      "statements": 13,
+      "complexity": 8,
+      "depth": 2
+    },
+    "src/doc_engine/tools/capacity_preflight.py::compute_preflight": {
+      "statements": 17,
+      "complexity": 6,
+      "depth": 1
+    },
+    "src/doc_engine/tools/capacity_preflight.py::estimate_stage1_slice_tokens": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 0
+    },
+    "src/doc_engine/tools/capacity_preflight.py::main": {
+      "statements": 34,
+      "complexity": 8,
       "depth": 2
     },
     "src/doc_engine/tools/certification.py::load_certification": {
@@ -2508,6 +2137,196 @@
       "statements": 9,
       "complexity": 4,
       "depth": 1
+    },
+    "src/doc_engine/tools/check_no_secrets_leaked.py::check": {
+      "statements": 12,
+      "complexity": 5,
+      "depth": 3
+    },
+    "src/doc_engine/tools/check_no_secrets_leaked.py::iter_files": {
+      "statements": 9,
+      "complexity": 7,
+      "depth": 5
+    },
+    "src/doc_engine/tools/check_no_secrets_leaked.py::main": {
+      "statements": 13,
+      "complexity": 5,
+      "depth": 2
+    },
+    "src/doc_engine/tools/check_pipeline_output.py::check_all": {
+      "statements": 5,
+      "complexity": 3,
+      "depth": 1
+    },
+    "src/doc_engine/tools/check_pipeline_output.py::check_file_set": {
+      "statements": 9,
+      "complexity": 4,
+      "depth": 1
+    },
+    "src/doc_engine/tools/check_pipeline_output.py::check_tags_and_citations": {
+      "statements": 9,
+      "complexity": 5,
+      "depth": 3
+    },
+    "src/doc_engine/tools/check_pipeline_output.py::check_target_repo_writes": {
+      "statements": 20,
+      "complexity": 12,
+      "depth": 2
+    },
+    "src/doc_engine/tools/check_pipeline_output.py::exit_code": {
+      "statements": 1,
+      "complexity": 2,
+      "depth": 0
+    },
+    "src/doc_engine/tools/check_pipeline_output.py::list_ignored_untracked": {
+      "statements": 4,
+      "complexity": 4,
+      "depth": 1
+    },
+    "src/doc_engine/tools/check_pipeline_output.py::main": {
+      "statements": 24,
+      "complexity": 10,
+      "depth": 2
+    },
+    "src/doc_engine/tools/check_pipeline_output.py::parse_porcelain": {
+      "statements": 9,
+      "complexity": 5,
+      "depth": 2
+    },
+    "src/doc_engine/tools/check_pipeline_output.py::summarize_tags": {
+      "statements": 5,
+      "complexity": 3,
+      "depth": 2
+    },
+    "src/doc_engine/tools/citation_coverage.py::_claim_clause": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 0
+    },
+    "src/doc_engine/tools/citation_coverage.py::_has_tag": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "src/doc_engine/tools/citation_coverage.py::_named_artifacts": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 2
+    },
+    "src/doc_engine/tools/citation_coverage.py::_read_lines": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "src/doc_engine/tools/citation_coverage.py::_strip_inline_code": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "src/doc_engine/tools/citation_coverage.py::check_docs": {
+      "statements": 10,
+      "complexity": 4,
+      "depth": 2
+    },
+    "src/doc_engine/tools/citation_coverage.py::claim_symbols": {
+      "statements": 6,
+      "complexity": 4,
+      "depth": 2
+    },
+    "src/doc_engine/tools/citation_coverage.py::find_miscased_tags": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 2
+    },
+    "src/doc_engine/tools/citation_coverage.py::find_untagged_claims": {
+      "statements": 9,
+      "complexity": 4,
+      "depth": 2
+    },
+    "src/doc_engine/tools/citation_coverage.py::find_weak_anchors": {
+      "statements": 30,
+      "complexity": 12,
+      "depth": 2
+    },
+    "src/doc_engine/tools/citation_coverage.py::format_report": {
+      "statements": 22,
+      "complexity": 8,
+      "depth": 2
+    },
+    "src/doc_engine/tools/citation_coverage.py::iter_claim_units": {
+      "statements": 19,
+      "complexity": 12,
+      "depth": 3
+    },
+    "src/doc_engine/tools/citation_coverage.py::main": {
+      "statements": 16,
+      "complexity": 5,
+      "depth": 1
+    },
+    "src/doc_engine/tools/citation_coverage.py::total_findings": {
+      "statements": 1,
+      "complexity": 2,
+      "depth": 0
+    },
+    "src/doc_engine/tools/doc_tag_utils.py::count_tags_by_kind": {
+      "statements": 1,
+      "complexity": 2,
+      "depth": 0
+    },
+    "src/doc_engine/tools/doc_tag_utils.py::find_malformed_tags": {
+      "statements": 9,
+      "complexity": 5,
+      "depth": 2
+    },
+    "src/doc_engine/tools/doc_tag_utils.py::resolve_evidenced_citations": {
+      "statements": 13,
+      "complexity": 7,
+      "depth": 3
+    },
+    "src/doc_engine/tools/partition_repo.py::build_groups": {
+      "statements": 33,
+      "complexity": 20,
+      "depth": 4
+    },
+    "src/doc_engine/tools/partition_repo.py::build_groups.carry_forward": {
+      "statements": 13,
+      "complexity": 5,
+      "depth": 2
+    },
+    "src/doc_engine/tools/partition_repo.py::dfs_file_list": {
+      "statements": 3,
+      "complexity": 14,
+      "depth": 0
+    },
+    "src/doc_engine/tools/partition_repo.py::dfs_file_list._relpath": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "src/doc_engine/tools/partition_repo.py::dfs_file_list._walk": {
+      "statements": 24,
+      "complexity": 14,
+      "depth": 4
+    },
+    "src/doc_engine/tools/partition_repo.py::estimate_tokens": {
+      "statements": 23,
+      "complexity": 9,
+      "depth": 2
+    },
+    "src/doc_engine/tools/partition_repo.py::main": {
+      "statements": 30,
+      "complexity": 9,
+      "depth": 2
+    },
+    "src/doc_engine/tools/partition_repo.py::relpath_posix": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "src/doc_engine/tools/partition_repo.py::to_posix": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
     },
     "src/doc_engine/tools/pipeline_validators.py::_evidence_problems": {
       "statements": 16,
@@ -2553,6 +2372,196 @@
       "statements": 19,
       "complexity": 9,
       "depth": 3
+    },
+    "src/doc_engine/tools/run_manifest.py::_iso8601": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "src/doc_engine/tools/run_manifest.py::_now_ms": {
+      "statements": 1,
+      "complexity": 2,
+      "depth": 0
+    },
+    "src/doc_engine/tools/run_manifest.py::_read_json": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "src/doc_engine/tools/run_manifest.py::_run_git": {
+      "statements": 9,
+      "complexity": 3,
+      "depth": 1
+    },
+    "src/doc_engine/tools/run_manifest.py::_write_json_atomic": {
+      "statements": 12,
+      "complexity": 5,
+      "depth": 2
+    },
+    "src/doc_engine/tools/run_manifest.py::build_init_manifest": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "src/doc_engine/tools/run_manifest.py::compute_capacity_preflight_tie_in": {
+      "statements": 16,
+      "complexity": 4,
+      "depth": 2
+    },
+    "src/doc_engine/tools/run_manifest.py::compute_evidence_tag_counts": {
+      "statements": 10,
+      "complexity": 5,
+      "depth": 2
+    },
+    "src/doc_engine/tools/run_manifest.py::end_stage": {
+      "statements": 11,
+      "complexity": 5,
+      "depth": 2
+    },
+    "src/doc_engine/tools/run_manifest.py::finalize_manifest": {
+      "statements": 27,
+      "complexity": 11,
+      "depth": 3
+    },
+    "src/doc_engine/tools/run_manifest.py::format_summary": {
+      "statements": 29,
+      "complexity": 18,
+      "depth": 3
+    },
+    "src/doc_engine/tools/run_manifest.py::git_commit_hash": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 0
+    },
+    "src/doc_engine/tools/run_manifest.py::git_is_dirty": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 0
+    },
+    "src/doc_engine/tools/run_manifest.py::load_file_signatures": {
+      "statements": 12,
+      "complexity": 5,
+      "depth": 2
+    },
+    "src/doc_engine/tools/run_manifest.py::main": {
+      "statements": 66,
+      "complexity": 13,
+      "depth": 5
+    },
+    "src/doc_engine/tools/run_manifest.py::make_run_id": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "src/doc_engine/tools/run_manifest.py::parse_interview_file": {
+      "statements": 22,
+      "complexity": 9,
+      "depth": 3
+    },
+    "src/doc_engine/tools/run_manifest.py::start_stage": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "src/doc_engine/tools/spring_drift_check.py::_raw_query_entries_with_resolved_entity": {
+      "statements": 4,
+      "complexity": 4,
+      "depth": 2
+    },
+    "src/doc_engine/tools/spring_drift_check.py::_recheck_build_signals": {
+      "statements": 18,
+      "complexity": 13,
+      "depth": 2
+    },
+    "src/doc_engine/tools/spring_drift_check.py::_recheck_build_signals.identity": {
+      "statements": 13,
+      "complexity": 7,
+      "depth": 1
+    },
+    "src/doc_engine/tools/spring_drift_check.py::_recheck_config_keys": {
+      "statements": 15,
+      "complexity": 6,
+      "depth": 2
+    },
+    "src/doc_engine/tools/spring_drift_check.py::_recheck_entities": {
+      "statements": 13,
+      "complexity": 10,
+      "depth": 3
+    },
+    "src/doc_engine/tools/spring_drift_check.py::_recheck_generic": {
+      "statements": 11,
+      "complexity": 4,
+      "depth": 2
+    },
+    "src/doc_engine/tools/spring_drift_check.py::_recheck_queries": {
+      "statements": 13,
+      "complexity": 4,
+      "depth": 2
+    },
+    "src/doc_engine/tools/spring_drift_check.py::_recheck_repositories": {
+      "statements": 17,
+      "complexity": 9,
+      "depth": 3
+    },
+    "src/doc_engine/tools/spring_drift_check.py::_reverify_jpql_lineage_provenance": {
+      "statements": 27,
+      "complexity": 11,
+      "depth": 3
+    },
+    "src/doc_engine/tools/spring_drift_check.py::all_citations": {
+      "statements": 7,
+      "complexity": 4,
+      "depth": 2
+    },
+    "src/doc_engine/tools/spring_drift_check.py::check_drift": {
+      "statements": 63,
+      "complexity": 31,
+      "depth": 3
+    },
+    "src/doc_engine/tools/spring_drift_check.py::classify_files": {
+      "statements": 9,
+      "complexity": 6,
+      "depth": 3
+    },
+    "src/doc_engine/tools/spring_drift_check.py::drift_result": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "src/doc_engine/tools/spring_drift_check.py::load_manifest": {
+      "statements": 15,
+      "complexity": 8,
+      "depth": 2
+    },
+    "src/doc_engine/tools/spring_drift_check.py::load_signals": {
+      "statements": 7,
+      "complexity": 3,
+      "depth": 1
+    },
+    "src/doc_engine/tools/spring_drift_check.py::main": {
+      "statements": 26,
+      "complexity": 8,
+      "depth": 1
+    },
+    "src/doc_engine/tools/spring_drift_check.py::tier1_scan": {
+      "statements": 10,
+      "complexity": 4,
+      "depth": 2
+    },
+    "src/doc_engine/tools/spring_drift_check.py::tier2_recheck_file": {
+      "statements": 22,
+      "complexity": 9,
+      "depth": 4
+    },
+    "src/doc_engine/tools/spring_signal_scan.py::main": {
+      "statements": 24,
+      "complexity": 7,
+      "depth": 1
+    },
+    "src/doc_engine/tools/spring_signal_scan.py::run_ast_grep": {
+      "statements": 11,
+      "complexity": 5,
+      "depth": 1
     },
     "src/doc_engine/tools/validate_artifacts.py::main": {
       "statements": 41,

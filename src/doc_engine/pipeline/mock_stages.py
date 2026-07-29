@@ -6,12 +6,8 @@ import json
 import os
 import re
 
-from doc_engine.tools._bootstrap import ensure_scripts_importable
-
-ensure_scripts_importable()
-
-from _shared_excludes import DEFAULT_EXCLUDED_DIRS  # noqa: E402
-from doc_tag_utils import VALID_DOC_FILES  # noqa: E402
+from doc_engine.core.excludes import DEFAULT_EXCLUDED_DIRS
+from doc_engine.tools.doc_tag_utils import VALID_DOC_FILES
 
 # The em dash the tag grammar requires, spelled as an escape rather than a
 # literal so a copy/paste through a lossy encoding can't silently downgrade it

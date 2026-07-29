@@ -177,6 +177,19 @@ jobs:
       - name: validate_artifacts.py (spring_signals fixture schema)
         run: python3 scripts/validate_artifacts.py spring_signals scripts/test_fixtures/spring_signals_fixture_expected.json
 
+      # Live deterministic Stage 0 against the committed spring_signals fixture
+      # tree, then schema-gate every known artifact the run produced. Requires
+      # portable package ports (python -m doc_engine.tools.*) — not scripts/ paths.
+      - name: portable Stage 0 (deterministic_only + artifact schema gate)
+        run: |
+          OUT=$(mktemp -d)
+          doc-engine pipeline run scripts/test_fixtures/spring_signals \
+            --out-dir "$OUT" \
+            --compliance-profile deterministic_only \
+            --skip-drift
+          python3 -m doc_engine.tools.validate_artifacts --all "$OUT"
+          test -f "$OUT/certification.json"
+
       # Non-blocking on purpose: a survivor count needs to be watched before
       # anyone can defend a threshold, the same reasoning recorded on
       # check_code_quality.py's USAGE_WITHIN_LINES. ENFORCE = False in the
