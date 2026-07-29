@@ -2,12 +2,23 @@
 
 This repository ships **doc-engine** — a portable orchestrator for documenting Spring Boot repositories — not a Claude-plugin-shaped monolith.
 
+## Locked design: A+C hybrid
+
+| Axis | Choice |
+|------|--------|
+| Claude skill role | **A — generative-only** (interview + Task agents). Deterministic tools are never invoked via `${CLAUDE_PLUGIN_ROOT}/scripts/`. |
+| Stage-graph SoT | **C — `build_stage_specs()` / compliance profiles**. Skills may cite `doc-engine pipeline run` profiles and optional `--until STAGE`; they must not duplicate per-script bash. |
+| Plugin contents | Agents, hooks, skills, SEARCH.md, short CONSTRAINTS stub only |
+| Public CLI facade | `pipeline run` (+ `--until`), `pipeline gates`, `certification verify`, `scan` |
+
+This closes the marketplace packaging gap created when F3/R3 moved `source` to `adapters/claude` without rewriting skills: the plugin cache has no `scripts/` tree, so plugin-local script paths cannot be the product contract.
+
 ## Three layers
 
 | Layer | What | Where |
 |-------|------|--------|
 | **Kernel** | `PipelineRunner`, scanning SDK, compliance profiles, CLI | `src/doc_engine/` (pip package `doc-engine`) |
-| **Pipeline tools** | Stage 0 scripts, gates, validators (today `scripts/`) | Bundled with the repo; moving into `doc_engine.tools` over time |
+| **Pipeline tools** | Stage 0 scripts, gates, validators (today `scripts/`, strangling into `doc_engine.tools`) | Invoked by the CLI / `local_runner`, not by the Claude plugin |
 | **Adapters** | Optional entry points (Claude, GitHub Actions, Cursor) | `adapters/` |
 
 **Target-repo context** (customer Spring service) is never part of this tree:
@@ -39,20 +50,28 @@ Profiles (`scan_only`, `deterministic_only`, `certified`) drive which stages and
 
 `generative_executor: mock` under `certified` means **structural** compliance (wiring + gates), not human-quality prose. Production Claude/Cursor runs should record `live` when real LLM stages execute.
 
+Live adapter flow after Stage 0:
+
+```bash
+doc-engine pipeline run <repo> --compliance-profile deterministic_only --out-dir <run>
+# … generative agents + interview …
+doc-engine pipeline gates --out-dir <run> --target-repo <repo> --docs-dir <docs>
+```
+
 ## Adapters
 
 | Adapter | Path | Role |
 |---------|------|------|
-| CLI | `doc-engine pipeline run` | Primary entry; writes `certification.json` |
+| CLI | `doc-engine pipeline run` / `pipeline gates` | Primary entry; writes / checks certification |
 | Certification | `doc-engine certification verify` | Exit 0 only when `certified: true` |
-| Local script | `scripts/run_pipeline_local.py` | Same orchestration; thin script entry |
+| Local script | `scripts/run_pipeline_local.py` | Thin shim → same orchestration |
 | GitHub | `adapters/github/` + root `action.yml` | CI gate on `certification.json` |
-| Claude Code | `adapters/claude/` | Plugin pack: agents, hooks, skills |
+| Claude Code | `adapters/claude/` | Plugin pack: agents, hooks, skills (generative only) |
 | Cursor | `adapters/cursor/` | Call the CLI from automations |
 
 Kernel code does **not** import from `adapters/claude/agents/` or resolve paths via `CLAUDE_PLUGIN_ROOT`. Adapters call the kernel.
 
-See also [`src/doc_engine/pipeline/adapters.md`](src/doc_engine/pipeline/adapters.md).
+See also [`src/doc_engine/pipeline/adapters.md`](../src/doc_engine/pipeline/adapters.md).
 
 ## Design pattern map (architectural)
 
@@ -84,6 +103,15 @@ External catalogs ([awesome-design-patterns](https://github.com/DovAmir/awesome-
 
 Legacy `Engine.generate_docs()` / `build_site()` are placeholders — use `doc-engine pipeline run` for real orchestration.
 
+## Import vs CLI boundaries
+
+| Consumer | Import | Invoke |
+|----------|--------|--------|
+| Unit/integration tests | `doc_engine.*` | In-process |
+| SKILL / operators | — | `doc-engine pipeline …` / `certification …` |
+| Legacy scripts | — | `scripts/*.py` thin shims → same `main()` |
+| Kitchen-sink | package + optional subprocess shims | Explicit boundary tests |
+
 ## Agent search policy
 
-Claude agents must not use text search for code citations. See [`adapters/claude/SEARCH.md`](adapters/claude/SEARCH.md) and [`docs/search-methodology-benchmark.md`](search-methodology-benchmark.md).
+Claude agents must not use text search for code citations. See [`adapters/claude/SEARCH.md`](../adapters/claude/SEARCH.md) and [`docs/search-methodology-benchmark.md`](search-methodology-benchmark.md).

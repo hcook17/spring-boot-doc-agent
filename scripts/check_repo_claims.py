@@ -9,10 +9,11 @@ Usage:
     python3 scripts/check_repo_claims.py --update    # re-baseline
     python3 scripts/check_repo_claims.py --metrics   # measure, never gate
 
-Five checks: derived blocks recompute, verify: predicates hold, references
-resolve, every test suite is wired into CI, and no CI step is named as a gate
-it cannot fail. Claims are read from a registry of corpora (CLAIM_CORPORA) --
-steering-prompt frontmatter and CONSTRAINTS.md's bracket tags today.
+Checks: derived blocks recompute, verify: predicates hold, references resolve,
+every test suite is wired into CI, no CI step is named as a gate it cannot fail,
+agents cannot regain Grep/raw network via Bash, and tracked markdown is UTF-8.
+Claims are read from a registry of corpora (CLAIM_CORPORA) -- steering-prompt
+frontmatter and CONSTRAINTS.md's bracket tags today.
 
 WHY THIS EXISTS
 This repo does not have a record-keeping problem. Its record is unusually
@@ -68,6 +69,8 @@ WHAT IS CHECKED
   C verify: predicates       — a steering prompt's status vs. decidable facts
   D CI suite coverage        — a test suite that CI never runs
   E gates that can fail      — an ENFORCE=False script named as if it blocks
+  F agent search / network   — Grep tool or raw curl/wget/git-clone via Bash
+  G UTF-8 text contract      — tracked markdown must be valid UTF-8 (no crash)
 
 WHAT IS NOT CHECKED, DELIBERATELY
 Whether a [Resolved] tag is *true*. Well-formedness is decidable; truth is
@@ -276,6 +279,48 @@ class Finding(NamedTuple):
     fingerprint: str
 
 
+def read_utf8(path: Path) -> str:
+    """Strict UTF-8 read for claim corpora.
+
+    Prefer running check_utf8_markdown() over a path list first so CI reports
+    a Finding instead of an uncaught UnicodeDecodeError traceback.
+    """
+    return path.read_bytes().decode("utf-8")
+
+
+# --------------------------------------------------------------------------
+# Check G -- tracked markdown must be valid UTF-8
+# --------------------------------------------------------------------------
+
+def check_utf8_markdown(root: Path, paths: Sequence[str]) -> List[Finding]:
+    """Fail closed on non-UTF-8 markdown with a diagnosable finding.
+
+    Windows PowerShell Add-Content defaults can inject cp1252 bytes (e.g. ×
+    as 0xd7) into session-log.md; without this check, Check A crashes mid-loop
+    and masks every other claim failure.
+    """
+    findings: List[Finding] = []
+    for rel in paths:
+        path = root / rel
+        if not path.is_file():
+            continue
+        raw = path.read_bytes()
+        try:
+            raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            findings.append(Finding(
+                "G",
+                rel,
+                1,
+                f"file is not valid UTF-8 at byte offset {exc.start} "
+                f"({exc.reason}); rewrite as UTF-8. On Windows PowerShell, "
+                f"append with -Encoding utf8 or Path.write_text(..., "
+                f"encoding='utf-8') — never Add-Content's default encoding.",
+                f"G:{rel}:utf8",
+            ))
+    return findings
+
+
 # --------------------------------------------------------------------------
 # Derivations. The closed set. Adding a number to prose means adding a
 # function here first, which is the point: it forces the author to say how
@@ -408,7 +453,7 @@ def tracked_markdown(root: Path) -> List[str]:
 def check_derived_blocks(root: Path, paths: Sequence[str]) -> List[Finding]:
     findings: List[Finding] = []
     for rel in paths:
-        text = (root / rel).read_text(encoding="utf-8")
+        text = read_utf8(root / rel)
         spans = fenced_spans(text)
         for match in DERIVED_RE.finditer(text):
             if in_fence(spans, match.start()):
@@ -1315,14 +1360,30 @@ def accepted_fingerprints(baseline: Optional[Dict[str, object]]) -> Set[str]:
 # Driver
 # --------------------------------------------------------------------------
 
-def collect_all(root: Path) -> Tuple[List[Finding], List[Finding]]:
-    """Returns (hard, baseline_eligible). Checks A, D, E and F are exact and
-    never ride the baseline: a wrong derived number, an unrun suite, a
-    mislabelled gate and an agent granted text search are all unambiguous and
-    all cheap to fix on the spot."""
+def utf8_readable_markdown(
+    root: Path,
+) -> Tuple[List[Finding], List[str]]:
+    """Encoding preflight for Check G; returns (findings, readable paths).
+
+    Keeps collect_all at its baseline statement/complexity budget: branching
+    and filtering live here, not in the driver.
+    """
     markdown = tracked_markdown(root)
+    encoding = check_utf8_markdown(root, markdown)
+    bad = {f.path for f in encoding}
+    readable = [p for p in markdown if p not in bad]
+    return encoding, readable
+
+
+def collect_all(root: Path) -> Tuple[List[Finding], List[Finding]]:
+    """Returns (hard, baseline_eligible). Checks A, D, E, F and G are exact and
+    never ride the baseline: a wrong derived number, an unrun suite, a
+    mislabelled gate, an agent granted text search, and a non-UTF-8 markdown
+    file are all unambiguous and all cheap to fix on the spot."""
+    encoding, markdown = utf8_readable_markdown(root)
     verify_failures, verify_missing = check_verify_predicates(root)
-    hard = (check_derived_blocks(root, markdown)
+    hard = (encoding
+            + check_derived_blocks(root, markdown)
             + check_ci_suite_coverage(root)
             + check_gate_honesty(root)
             + check_agent_search_tooling(root)

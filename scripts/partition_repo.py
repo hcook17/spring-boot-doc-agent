@@ -230,17 +230,18 @@ def build_groups(file_tokens, max_tokens, overlap_ratio):
     num_groups = max(1, math.ceil(total_tokens / max_tokens))
     target_per_group = total_tokens / num_groups
 
-    def carry_forward(closed_group, closed_tokens):
+    def carry_forward(closed_group, closed_tokens, overlap_ratio, carried_in_paths=frozenset()):
         """Build ~overlap_ratio worth of trailing tokens from a just-closed
-        group to seed the next one. Same oversized-trailing-file guard as
-        the previous check-after-append version: a candidate is never
-        added to the carry if doing so would, by itself, already reach
-        max_tokens."""
+        group to seed the next one. Files that entered the closed group only
+        via overlap from the prior group are not re-carried — that prevents
+        overlap cascading into three or more consecutive groups."""
         overlap_budget = closed_tokens * overlap_ratio
         carry, carried = [], 0
         for relpath2, tok2 in reversed(closed_group):
             if carried >= overlap_budget:
                 break
+            if relpath2 in carried_in_paths:
+                continue
             if carried + tok2 >= max_tokens:
                 break
             carry.append((relpath2, tok2))
@@ -251,6 +252,7 @@ def build_groups(file_tokens, max_tokens, overlap_ratio):
     groups = []
     current = []
     current_tokens = 0
+    carried_in_paths: frozenset[str] = frozenset()
     i = 0
     n = len(file_tokens)
 
@@ -267,7 +269,9 @@ def build_groups(file_tokens, max_tokens, overlap_ratio):
 
         if would_exceed_hard_cap or would_exceed_soft_target:
             groups.append(current)
-            carry, carried = carry_forward(current, current_tokens)
+            carry, carried = carry_forward(
+                current, current_tokens, overlap_ratio, carried_in_paths,
+            )
 
             # Zero-progress guard: if the entire just-closed group got
             # carried forward unchanged (carried == current_tokens, i.e.
@@ -295,6 +299,7 @@ def build_groups(file_tokens, max_tokens, overlap_ratio):
                     carry, carried = [], 0
 
             current, current_tokens = list(carry), carried
+            carried_in_paths = frozenset(relpath for relpath, _ in carry)
             continue  # re-evaluate the same file against the new group
 
         current.append((relpath, tok))

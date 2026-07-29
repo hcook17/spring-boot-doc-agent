@@ -23,7 +23,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  certify:
+  certify-scan-only:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -46,16 +46,45 @@ jobs:
           PROFILE="${{ github.event.inputs.compliance_profile || 'scan_only' }}"
           doc-engine pipeline run scripts/test_fixtures/spring_signals \
             --compliance-profile "$PROFILE" \
+            --out-dir pipeline-artifacts-scan \
+            --skip-drift \
+            --signals-file scripts/test_fixtures/spring_signals_fixture_expected.json
+
+      - name: Gate certification.json (scan_only)
+        run: doc-engine certification verify pipeline-artifacts-scan/certification.json
+
+  certify-certified:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install -e .
+
+      - name: Run pipeline (certified mock on fixture signals)
+        run: |
+          doc-engine pipeline run scripts/test_fixtures/spring_signals \
+            --compliance-profile certified \
             --out-dir pipeline-artifacts \
             --skip-drift \
             --signals-file scripts/test_fixtures/spring_signals_fixture_expected.json
 
-      - name: Gate certification.json
+      - name: Gate certification.json (certified)
         run: doc-engine certification verify pipeline-artifacts/certification.json
 
   pr-comment:
     if: github.event_name == 'pull_request'
-    needs: certify
+    needs: [certify-scan-only, certify-certified]
     runs-on: ubuntu-latest
     steps:
       - name: Comment certification result
@@ -66,5 +95,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: "Pipeline certification passed (`scan_only` on fixture signals). See `pipeline-artifacts/certification.json` in the workflow log artifacts if uploaded."
+              body: "Pipeline certification passed (`scan_only` + `certified` mock profiles on fixture signals). See workflow logs for `pipeline-artifacts-scan/` and `pipeline-artifacts/` certification.json."
             });

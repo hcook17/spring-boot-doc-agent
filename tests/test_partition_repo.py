@@ -128,6 +128,27 @@ class BuildGroupsTest(unittest.TestCase):
         self.assertEqual(len(groups), 3)
         self.assertEqual([[f for f, _ in g] for g in groups], [["small.txt"], ["giant.txt"], ["after.txt"]])
 
+    def test_overlap_carry_does_not_re_carry_seed_files(self):
+        """Files carried into a group must not be carried forward again at the next seam."""
+        # Mimics cascade: small files where overlap tail is mostly seed carry.
+        file_tokens = [
+            ("a.java", 400),
+            ("b.java", 400),
+            ("c.java", 400),
+            ("d.java", 400),
+            ("e.java", 400),
+        ]
+        groups = partition_repo.build_groups(file_tokens, max_tokens=1000, overlap_ratio=0.10)
+        membership: dict[str, set[int]] = {}
+        for idx, group in enumerate(groups):
+            for relpath, _ in group:
+                membership.setdefault(relpath, set()).add(idx)
+        for relpath, ids in membership.items():
+            if len(ids) > 1:
+                ordered = sorted(ids)
+                self.assertEqual(ordered, [ordered[0], ordered[0] + 1],
+                                 f"{relpath} spans non-adjacent groups: {ordered}")
+
     def test_strict_mode_zero_progress_guard_prevents_infinite_loop(self):
         """A group whose entire content gets carried forward unchanged,
         followed by a file that still doesn't fit even against that full

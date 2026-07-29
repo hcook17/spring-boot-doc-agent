@@ -73,7 +73,7 @@ reasoning recorded at the assertion:
   fixed  build_groups() could loop forever (see
          Ch06PartitioningTest.test_build_groups_terminates_*)
   open   overlap cascades past adjacent groups at small --max-tokens
-         (expectedFailure in Ch06)
+         (fixed: carry_forward no longer re-carries overlap seed files)
   fixed  `application-dev-local.yml` is now recognized as a config file
   open   a write into a gitignored path is invisible to the write-scope gate
 
@@ -115,8 +115,16 @@ from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT
 SCRIPT_DIR = SCRIPTS_DIR
 import partition_repo  # noqa: E402
 import run_manifest  # noqa: E402
-import run_pipeline_local  # noqa: E402  (reused for the four mocked LLM stages)
 import spring_signal_scan  # noqa: E402
+from doc_engine.pipeline.mock_stages import (  # noqa: E402
+    find_existing_readme,
+    load_citations,
+    mock_architecture,
+    mock_docs,
+    mock_file_summaries,
+    mock_gap_and_interview,
+    sweep_todos,
+)
 from _shared_excludes import DEFAULT_EXCLUDED_DIRS  # noqa: E402
 from doc_tag_utils import VALID_DOC_FILES  # noqa: E402
 
@@ -250,7 +258,7 @@ spring-boot = "3.2.0"
 [libraries]
 starter = { module = "org.springframework.boot:spring-boot-starter", version.ref = "spring-boot" }
 """)
-    _w(root, ".gitignore", "generated/\n*.log\n")
+    _w(root, ".gitignore", "/generated/\n*.log\n")
     _w(root, "Dockerfile", "FROM eclipse-temurin:21-jre\nCOPY app.jar /app.jar\n")
     _w(root, "docker-compose.yml", "services:\n  db:\n    image: postgres:16\n")
     _w(root, "ops/k8s/deployment.yaml",
@@ -416,8 +424,11 @@ public interface LedgerRepository extends JpaRepository<Invoice, Long> {
     _w(root, UNICODE_DIR_JAVA, _controller("com.acme.uni", "UniController", "uni"))
     _w(root, DEEP_JAVA, _service("com.acme.deep", "Leaf"))
 
-    # --- gitignored content (for the write-scope exploration) ---------------
-    _w(root, f"{GITIGNORED_DIR}/Big.json", "{\"generated\": true}\n")
+    # --- gitignored dir (empty until write-scope tests plant a stray) -------
+    # Do not seed ignored untracked files here: check_pipeline_output lists
+    # all ignored-untracked paths as write-scope violations, so a pre-seeded
+    # Big.json would fail a clean run. Root-only /generated/ in .gitignore
+    # keeps packages/ui/build/generated/ trackable for scan-exclusion tests.
 
     # --- build noise that must never be scanned, grouped, or cited ---------
     _w(root, "packages/ui/node_modules/leftpad/index.js", "module.exports = 1;\n")
@@ -503,33 +514,33 @@ def run_chain(repo, out_dir):
 
     quiet = lambda *a, **k: None  # noqa: E731
     today = datetime.date.today().isoformat()
-    pool = run_pipeline_local.load_citations(signals_data, repo)
-    todos = run_pipeline_local.sweep_todos(repo)
+    pool = load_citations(signals_data, repo)
+    todos = sweep_todos(repo)
     n = groups_data["num_groups"]
 
     record("start_file_summarize",
            _run(manifest_cmd("start-stage", manifest, "file_summarize", "--fanout", str(n))))
-    run_pipeline_local.mock_file_summaries(out_dir, groups_data, pool, edges_data, quiet)
+    mock_file_summaries(out_dir, groups_data, pool, edges_data, quiet)
     record("end_file_summarize",
            _run(manifest_cmd("end-stage", manifest, "file_summarize", "--status", "complete")))
 
     record("start_architect",
            _run(manifest_cmd("start-stage", manifest, "architect", "--fanout", str(n + 1))))
-    run_pipeline_local.mock_architecture(out_dir, groups_data, pool, quiet)
+    mock_architecture(out_dir, groups_data, pool, quiet)
     record("end_architect",
            _run(manifest_cmd("end-stage", manifest, "architect", "--status", "complete")))
 
     record("start_gap", _run(manifest_cmd("start-stage", manifest,
                                           "gap_analysis_interview", "--fanout", "1")))
-    run_pipeline_local.mock_gap_and_interview(out_dir, pool, todos, today, quiet)
+    mock_gap_and_interview(out_dir, pool, todos, today, quiet)
     record("end_gap", _run(manifest_cmd("end-stage", manifest,
                                         "gap_analysis_interview", "--status", "complete")))
 
     answers = json.load(open(os.path.join(out_dir, "interview_answers.json"), encoding="utf-8"))
     record("start_doc_writer",
            _run(manifest_cmd("start-stage", manifest, "doc_writer", "--fanout", "14")))
-    run_pipeline_local.mock_docs(docs, pool, todos, answers, today,
-                                 run_pipeline_local.find_existing_readme(repo), quiet)
+    mock_docs(docs, pool, todos, answers, today,
+              find_existing_readme(repo), quiet)
     record("end_doc_writer",
            _run(manifest_cmd("end-stage", manifest, "doc_writer", "--status", "complete")))
 
@@ -980,26 +991,8 @@ class Ch06PartitioningTest(unittest.TestCase):
                 where.setdefault(f, set()).add(g["id"])
         return where
 
-    @unittest.expectedFailure
     def test_overlap_never_spans_more_than_two_groups(self):
-        """KNOWN DEFECT — overlap cascades past adjacent groups.
-
-        The design is ~10% overlap between *adjacent* groups, and
-        test_partition_repo_real_world.py already asserts no file is counted
-        more than twice. Both are violated here: when a group is small enough
-        that its own ~10% tail consists of files that were themselves carried
-        *into* it, the carry propagates again, so a file lands in three
-        consecutive groups and is summarized three times.
-
-        Measured on this fixture: Crlf.java and Empty.java appear in groups
-        {1, 2, 3} at --max-tokens 2000. It does not reproduce at 1000 or 4000,
-        which is why no existing suite catches it — the real-world suite runs
-        at the 120000 default, where groups are never small enough.
-
-        Deterministic and platform-independent, so expectedFailure is safe
-        here: the day carry_forward stops re-carrying carried-in files, this
-        becomes an unexpected success and CI goes red pointing at this marker.
-        """
+        """Overlap must stay between adjacent groups only — no cascade into three."""
         for f, ids in self._membership().items():
             if len(ids) > 1:
                 with self.subTest(file=f):
@@ -1382,21 +1375,19 @@ class Ch12GateResponsibilityTest(unittest.TestCase):
         self.assertEqual(self._gate(_STATE["docs"]).returncode, 0,
                          "--no-write-check should remove exactly this control")
 
-    def test_a_stray_write_into_a_gitignored_path_is_invisible_to_the_gate(self):
-        """A hole in the only mechanical control on write scope: the check is
-        built on `git status --porcelain`, which never reports ignored paths.
-        A doc-writer that wrote into a gitignored directory therefore passes
-        silently. Pinned as a known limitation — if this ever starts failing,
-        the write check grew ignored-path awareness and CONSTRAINTS.md should
-        be updated with it."""
-        stray = os.path.join(_STATE["repo"], GITIGNORED_DIR, "oops.md")
+    def test_a_stray_write_into_a_gitignored_path_fails_the_gate(self):
+        """Ignored untracked paths are checked via git ls-files -o -i."""
+        ignored_dir = os.path.join(_STATE["repo"], GITIGNORED_DIR)
+        os.makedirs(ignored_dir, exist_ok=True)
+        stray = os.path.join(ignored_dir, "oops.md")
         with open(stray, "w", encoding="utf-8") as f:
             f.write("written outside docs/, into a gitignored directory\n")
         self.addCleanup(lambda: os.path.exists(stray) and os.remove(stray))
         proc = _run([PY, _script("check_pipeline_output.py"), _STATE["docs"],
                      "--target-repo", _STATE["repo"]])
-        self.assertEqual(proc.returncode, 0,
-                         "gate unexpectedly saw a write into a gitignored path")
+        self.assertEqual(proc.returncode, 1,
+                         "gate must report a write into a gitignored path")
+        self.assertIn("gitignored path", proc.stderr)
 
     def test_citation_coverage_is_a_worklist_by_default_and_a_gate_under_strict(self):
         """Three finding kinds, one strict run: a miscased tag the Stage-4 gate

@@ -56,21 +56,39 @@ flowchart LR
 
 ## Validation at boundaries
 
-After each artifact-producing stage, run:
+Prefer the CLI facade (A+C hybrid):
+
+```bash
+doc-engine pipeline run <repo> --compliance-profile deterministic_only --out-dir <run>
+doc-engine pipeline gates --out-dir <run> --target-repo <repo> --docs-dir <docs>
+```
+
+From a product checkout, thin shims still work:
 
 ```bash
 python3 scripts/validate_artifacts.py --all <run-directory>
 ```
 
-Mechanical shape gates (summaries, gap questions) live in `scripts/pipeline_validators.py`.
+Mechanical shape gates (summaries, gap questions) live in `doc_engine.tools.pipeline_validators` (`scripts/pipeline_validators.py` shim).
 
 Schemas: `scripts/schemas/*.schema.json` (derived from `doc_engine.pipeline.artifacts`).
+
+## Import vs CLI boundaries
+
+| Consumer | Import | Invoke |
+|----------|--------|--------|
+| Tests | `doc_engine.pipeline.*`, `doc_engine.tools.*` | In-process |
+| Claude skills | — | `doc-engine pipeline run\|gates`, `certification verify` only |
+| Operators / CI | — | same CLI, or `scripts/*.py` thin shims |
 
 ## Code entry points
 
 - `PipelineRunner` — `src/doc_engine/pipeline/runner.py`
 - `PipelineContext` — paths, repo, manifest, in-run state
 - `MockStageExecutor` — local E2E without LLM
-- `scripts/run_pipeline_local.py` — CLI wrapper + gates
+- `local_runner.py` — orchestration, gates wiring, certification finish; supports `--until STAGE`
+- `live_gates.py` — post-generative gate suite for live adapters
+- `mock_stages.py` — mock generative stage writers
+- `gates.py` — in-process mechanical gate runners (`validate_artifacts`, `pipeline_validators`)
 
-SKILL.md stage names map 1:1 to `build_stage_specs()` in `stages.py`.
+Stage graph SoT: `build_stage_specs()` in `stages.py`. Skills must not reintroduce per-script bash under the plugin root.

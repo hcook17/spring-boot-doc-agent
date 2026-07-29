@@ -338,3 +338,19 @@ Symptom: the background-task completion notification reported the command as `(e
 Cause: `BUILD_TOOL_RE` only matches `gradle\w*|\.\/gradlew|mvn\w*|\.\/mvnw|npm|yarn|pnpm|pytest|cargo|go\s+test|dotnet...|make|msbuild` — `python3 -m unittest` (or bare `python3 <script>.py`) is not in the list, so a command shaped exactly like the incident the hook was built from (`gradle ... | tail -30` then reading `$?`) sails through unflagged when the head is `python3 -m unittest` instead of `gradle`/`mvn`/etc. This repo's own test suites are invoked this way constantly, so this is a real, live gap in the hook's coverage, not a theoretical one.
 Workaround used this session: redirect to a file and check the actual command's exit code directly (`cmd > log.txt 2>&1; echo "EXITCODE=$?"`) rather than trusting a `| tail` pipeline's reported status, and — since the harness's own background-completion notification surfaces the *last* command's exit code, not necessarily the one that matters — always read the actual tail of output rather than trusting a reported "exit code 0" when a pipe was involved anywhere in the command.
 Fixed: `BUILD_TOOL_RE` now includes `python3?\s+-m\s+unittest` alongside the existing `pytest` alternative. Regression-verified in `scripts/test_check_pipe_exit_code.py::PythonUnittestRegressionTest`, which asserts both the exact command shape from the symptom above and a bare `python3 -m unittest | tail` are denied; confirmed the prior regex could not have matched either (no `python`/`unittest` alternative existed at all).
+
+---
+
+## 2026-07-29 — PowerShell Add-Content / default console encoding writes cp1252 bytes into UTF-8-only repo markdown (session-log CI crash)
+Tools/commands involved: Windows PowerShell `Add-Content`, `Out-File`, Cursor agent appends to `claude/session-log.md`; `scripts/check_repo_claims.py` Check A (`Path.read_text(encoding="utf-8")`)
+Status: [Resolved — write-path workaround + Check G preflight]
+Symptom: appending a session-log entry via PowerShell introduced non-UTF-8 bytes (e.g. `0xd7` = cp1252 multiplication sign, later control chars from escape interpretation). CI then failed with an uncaught `UnicodeDecodeError` inside `check_derived_blocks`, not a structured Finding — the whole claims check aborted and masked other drift.
+Diagnostic steps taken (re-runnable):
+    python -c "from pathlib import Path; Path('claude/session-log.md').read_bytes().decode('utf-8')"
+    # UnicodeDecodeError: 'utf-8' codec can't decode byte 0xd7 in position ...
+    python scripts/check_repo_claims.py
+    # previously: traceback; after Check G: Finding G with path + byte offset
+Resolution / workaround:
+1. **Write path:** never append session-log (or other tracked `.md`) with PowerShell `Add-Content` default encoding. Prefer `Path.write_text(..., encoding="utf-8")` / `Path.open(..., encoding="utf-8")` from Python, or PowerShell `Out-File -Encoding utf8` / `Add-Content -Encoding utf8`.
+2. **Read path:** `check_repo_claims.py` Check G preflights tracked markdown; non-UTF-8 yields a hard Finding (path, byte offset, hint) instead of a traceback. Skip unreadable files for later checks so one bad file does not hide the rest.
+Related: same class as the `subprocess text=True` / cp1252 console decoding note in the 2026-07-25 semgrep entry above — locale default vs UTF-8 contract, different surface.
