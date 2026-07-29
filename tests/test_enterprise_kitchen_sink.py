@@ -258,7 +258,7 @@ spring-boot = "3.2.0"
 [libraries]
 starter = { module = "org.springframework.boot:spring-boot-starter", version.ref = "spring-boot" }
 """)
-    _w(root, ".gitignore", "generated/\n*.log\n")
+    _w(root, ".gitignore", "/generated/\n*.log\n")
     _w(root, "Dockerfile", "FROM eclipse-temurin:21-jre\nCOPY app.jar /app.jar\n")
     _w(root, "docker-compose.yml", "services:\n  db:\n    image: postgres:16\n")
     _w(root, "ops/k8s/deployment.yaml",
@@ -424,8 +424,11 @@ public interface LedgerRepository extends JpaRepository<Invoice, Long> {
     _w(root, UNICODE_DIR_JAVA, _controller("com.acme.uni", "UniController", "uni"))
     _w(root, DEEP_JAVA, _service("com.acme.deep", "Leaf"))
 
-    # --- gitignored content (for the write-scope exploration) ---------------
-    _w(root, f"{GITIGNORED_DIR}/Big.json", "{\"generated\": true}\n")
+    # --- gitignored dir (empty until write-scope tests plant a stray) -------
+    # Do not seed ignored untracked files here: check_pipeline_output lists
+    # all ignored-untracked paths as write-scope violations, so a pre-seeded
+    # Big.json would fail a clean run. Root-only /generated/ in .gitignore
+    # keeps packages/ui/build/generated/ trackable for scan-exclusion tests.
 
     # --- build noise that must never be scanned, grouped, or cited ---------
     _w(root, "packages/ui/node_modules/leftpad/index.js", "module.exports = 1;\n")
@@ -1374,7 +1377,9 @@ class Ch12GateResponsibilityTest(unittest.TestCase):
 
     def test_a_stray_write_into_a_gitignored_path_fails_the_gate(self):
         """Ignored untracked paths are checked via git ls-files -o -i."""
-        stray = os.path.join(_STATE["repo"], GITIGNORED_DIR, "oops.md")
+        ignored_dir = os.path.join(_STATE["repo"], GITIGNORED_DIR)
+        os.makedirs(ignored_dir, exist_ok=True)
+        stray = os.path.join(ignored_dir, "oops.md")
         with open(stray, "w", encoding="utf-8") as f:
             f.write("written outside docs/, into a gitignored directory\n")
         self.addCleanup(lambda: os.path.exists(stray) and os.remove(stray))

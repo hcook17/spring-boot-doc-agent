@@ -64,8 +64,10 @@ class ClaudeAdapterPathResolveTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8", errors="replace")
             for match in PLUGIN_ROOT_REF.finditer(text):
                 rel = match.group(1).lstrip("/")
-                # Strip trailing punctuation leftover from prose.
-                rel = rel.rstrip(".,;:`\"')")
+                # Strip trailing punctuation leftover from prose, and JSON
+                # escape backslashes left when scanning hooks.json as text
+                # (raw `\"` → path ends with `\`).
+                rel = rel.rstrip(".,;:`\"')\\")
                 if rel.startswith("scripts/") or rel == "scripts":
                     continue  # covered by ban test
                 target = adapter / rel.replace("/", os.sep)
