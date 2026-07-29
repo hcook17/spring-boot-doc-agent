@@ -1,11 +1,9 @@
 # ruff configuration. Pinned via requirements-dev.txt (ruff~=0.16.0).
 #
-# This file owns lint and import order. It does NOT own function size or
-# complexity: scripts/check_code_quality.py owns those, because the useful
-# control here is a committed per-function baseline that can only improve,
-# and ruff has no equivalent. C901 is deliberately NOT selected -- two tools
-# reporting "complexity" with two different counting rules is how a number
-# gets copied between them and quietly means nothing.
+# This file owns lint and import order for scripts/ and src/doc_engine/.
+# Function size/complexity/depth are measured by scripts/check_code_quality.py
+# as *advisory* output only (schema v4); hard gates there are annotation
+# coverage and docstring orientation. C901 is deliberately NOT selected.
 
 # Derived from this repo's own distribution, not from a style guide: p99 of
 # all lines in scripts/ is 105 characters and p99.5 is 110. This codebase

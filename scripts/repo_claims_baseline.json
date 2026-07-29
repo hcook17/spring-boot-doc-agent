@@ -7,19 +7,27 @@
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#11:New info \u2014 the wording above ran ahead of the code",
+      "C-missing:CONSTRAINTS.md#10:Resolved",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#14:Violated and fixed",
+      "C-missing:CONSTRAINTS.md#11:Revised",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#15:New info \u2014 the stated scope held in principle but not on line 1",
+      "C-missing:CONSTRAINTS.md#13:New info \u2014 the wording above ran ahead of the code",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#16:Corrected 2026-07-24",
+      "C-missing:CONSTRAINTS.md#16:Violated and fixed",
+      "declares a status with no verify: predicates, so nothing checks it"
+    ],
+    [
+      "C-missing:CONSTRAINTS.md#17:New info \u2014 the stated scope held in principle but not on line 1",
+      "declares a status with no verify: predicates, so nothing checks it"
+    ],
+    [
+      "C-missing:CONSTRAINTS.md#18:Corrected 2026-07-24",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
@@ -43,19 +51,19 @@
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#6:Extended",
+      "C-missing:CONSTRAINTS.md#6:Revised",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#7:Resolved",
+      "C-missing:CONSTRAINTS.md#7:Extended",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#8:Reopened 2026-07-25 \u2014 the automated re-check was deleted as a security defect. This gap is open again",
+      "C-missing:CONSTRAINTS.md#8:Resolved",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#9:Resolved",
+      "C-missing:CONSTRAINTS.md#9:Reopened 2026-07-25 \u2014 the automated re-check was deleted as a security defect. This gap is open again",
       "declares a status with no verify: predicates, so nothing checks it"
     ]
   ]

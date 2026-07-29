@@ -158,27 +158,31 @@ class RatchetTest(unittest.TestCase):
             self.assertEqual(checker.compare(baseline, checker.measure_tree(scripts)), [])
             self.assertEqual(checker.exit_code([]), 0)
 
-    def test_a_function_growing_more_complex_fails(self):
+    def test_a_function_growing_more_complex_is_advisory_not_hard(self):
         with tempfile.TemporaryDirectory() as tmp:
             scripts = self._tree(tmp, self.SIMPLE)
             baseline = checker.measure_tree(scripts)
             (scripts / "mod.py").write_text(
                 "def f(a):\n    if a:\n        return 1\n    if a > 1:\n        return 3\n    return 2\n",
                 encoding="utf-8")
-            issues = checker.compare(baseline, checker.measure_tree(scripts))
-            self.assertTrue(any("regressed" in i and "complexity" in i for i in issues), issues)
-            self.assertEqual(checker.exit_code(issues), 1)
+            current = checker.measure_tree(scripts)
+            self.assertEqual(checker.compare(baseline, current), [])
+            advisories = checker.size_advisories(baseline, current)
+            self.assertTrue(any("complexity" in i for i in advisories), advisories)
+            self.assertEqual(checker.exit_code(checker.compare(baseline, current)), 0)
 
-    def test_a_function_doing_more_fails(self):
+    def test_a_function_doing_more_is_advisory_not_hard(self):
         with tempfile.TemporaryDirectory() as tmp:
             scripts = self._tree(tmp, self.SIMPLE)
             baseline = checker.measure_tree(scripts)
             body = "\n".join(f"    x{i} = {i}" for i in range(20))
             (scripts / "mod.py").write_text(
                 f"def f(a):\n{body}\n    if a:\n        return 1\n    return 2\n", encoding="utf-8")
-            issues = checker.compare(baseline, checker.measure_tree(scripts))
-            self.assertTrue(any("regressed" in i and "statements" in i for i in issues), issues)
-            self.assertEqual(checker.exit_code(issues), 1)
+            current = checker.measure_tree(scripts)
+            self.assertEqual(checker.compare(baseline, current), [])
+            advisories = checker.size_advisories(baseline, current)
+            self.assertTrue(any("statements" in i for i in advisories), advisories)
+            self.assertEqual(checker.exit_code([]), 0)
 
     def test_adding_comments_is_not_a_regression(self):
         """The metric is statements, not line span, precisely so that
@@ -223,7 +227,7 @@ class RatchetTest(unittest.TestCase):
             (scripts / "mod.py").write_text("def f(a):\n    return 2\n", encoding="utf-8")
             self.assertEqual(checker.compare(baseline, checker.measure_tree(scripts)), [])
 
-    def test_a_new_function_worse_than_anything_in_the_baseline_fails(self):
+    def test_a_new_function_worse_than_anything_is_advisory_not_hard(self):
         with tempfile.TemporaryDirectory() as tmp:
             scripts = self._tree(tmp, self.SIMPLE)
             baseline = checker.measure_tree(scripts)
@@ -233,9 +237,10 @@ class RatchetTest(unittest.TestCase):
                 + "    if a:\n        if b:\n            if c:\n                if d:\n                    return 1\n"
                 + "    return 0\n",
                 encoding="utf-8")
-            issues = checker.compare(baseline, checker.measure_tree(scripts))
-            self.assertTrue(any("new function" in i for i in issues), issues)
-            self.assertEqual(checker.exit_code(issues), 1)
+            current = checker.measure_tree(scripts)
+            self.assertEqual(checker.compare(baseline, current), [])
+            advisories = checker.size_advisories(baseline, current)
+            self.assertTrue(any("new function" in i for i in advisories), advisories)
 
     def test_a_new_function_within_existing_limits_passes(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -482,11 +487,17 @@ class BaselineRoundTripTest(unittest.TestCase):
 class CommittedBaselineTest(unittest.TestCase):
     def test_the_committed_baseline_matches_the_current_tree(self):
         """The real gate, run against this repo. If this fails, either
-        something regressed or the baseline needs --update -- the message
-        says which."""
+        annotation/docstring coverage regressed or the baseline needs
+        --update -- the message says which."""
         baseline = checker.load_baseline(checker.DEFAULT_BASELINE)
         self.assertIsNotNone(baseline, "no committed baseline; run with --update")
-        issues = checker.compare(baseline, checker.measure_tree(SCRIPT_DIR))
+        self.assertEqual(baseline.get("schema_version"), checker.SCHEMA_VERSION)
+        current = checker.measure_tree(
+            SCRIPT_DIR,
+            extra_roots=[SCRIPT_DIR, SCRIPT_DIR.parent / "src" / "doc_engine"],
+            repo_root=SCRIPT_DIR.parent,
+        )
+        issues = checker.compare(baseline, current)
         self.assertEqual(issues, [], "\n".join(issues))
 
 

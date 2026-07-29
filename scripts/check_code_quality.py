@@ -1,59 +1,37 @@
 #!/usr/bin/env python3
 """
-check_code_quality.py — a monotonic ratchet on function size, control-flow
-complexity, and type-annotation coverage across scripts/.
+check_code_quality.py — hard gates on annotation coverage and docstring
+orientation; advisory reporting on function size/complexity/depth.
 
 WHY THIS EXISTS
 Every other quality property in this repo is enforced by something: tags by
 check_pipeline_output.py, citations by citation_coverage.py, PR docs by
 check_llms_coverage.py, scan freshness by spring_drift_check.py. The code
 itself was enforced by nothing, and it shows in a way that is measurable
-rather than aesthetic:
+rather than aesthetic.
 
-  - 21 of 149 production functions carry any type annotation (14%), and the
-    distribution is the interesting part: it is all-or-nothing per module.
-    build_cross_group_edges.py (6/6), check_llms_coverage.py (7/7) and
-    check_pipeline_output.py (8/8) are fully annotated; every other module
-    is at zero. The convention exists and simply was never applied
-    backwards -- which is why the ratchet measures coverage rather than
-    demanding a number. Meanwhile the four JSON artifacts that flow between
-    pipeline stages are passed as bare dicts, read with chains like
-    signals["evidence"]["raw_queries"].
-  - 25 functions exceed complexity 10; the worst tracked one is
-    partition_repo.build_groups(), which is exactly where the carry_forward
-    termination bug lived (10-review-persona-and-standards.md section 1) and
-    where the 2026-07-24 kitchen-sink suite then found a second infinite
-    loop in the same guard.
+Schema v4 (2026-07-29) demotes per-function statements/complexity/depth from
+*blocking* CI to *advisory* output. A monotonic size ratchet taught
+extract-or `--update` theater (e.g. wiring Check G into collect_all) without
+catching the defects kitchen-sink found in build_groups. What stays hard:
 
-Complexity concentrates where defects actually land. That is the argument
-for bounding it, and it is an argument from this repo's own history rather
-than from a style guide.
+  - production type-annotation coverage must not fall
+  - runnable modules must orient the reader (Usage/Run with) near the top
 
-WHY A RATCHET AND NOT A LIMIT
-A fixed threshold on an existing codebase is either set above everything
-(enforces nothing) or below something (fails on day one and gets disabled).
-This records what is true today and fails only on *regression* — so the
-numbers can only improve, and improvements lock in via --update. Nothing
-here demands that scan() be refactored; it demands that it not get worse.
-
-The same reasoning as check_llms_coverage.py's ENFORCE toggle, reached the
-other way: that script cannot enforce because its heuristic is still blunt,
-so it reports. This one is local, deterministic, and has no such excuse, so
-it blocks. See exit_code() below.
+Size metrics are still measured and printed when they grow, so hotspots stay
+visible without forcing merge rituals.
 
 WHAT THIS DOES NOT DO
-It does not lint, format, or sort imports — that is ruff's job (.ruff.toml),
-and reimplementing 900 rules in stdlib would be silly. This script owns only
-the three metrics ruff cannot ratchet against a committed baseline.
-
-The complexity number below is this repo's own definition (see complexity()).
-It is NOT comparable to ruff's C901 or to radon's, which count differently;
-do not copy a threshold between them.
+It does not lint, format, or sort imports — that is ruff's job (.ruff.toml).
+The complexity number below is this repo's own definition; it is NOT
+comparable to ruff's C901 or radon.
 
 Run with:
     python3 scripts/check_code_quality.py
     python3 scripts/check_code_quality.py --update    # re-baseline
 """
+
+from __future__ import annotations
 
 import argparse
 import ast
@@ -62,72 +40,33 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
 DEFAULT_BASELINE = SCRIPT_DIR / "code_quality_baseline.json"
+DEFAULT_ROOTS = (SCRIPT_DIR, REPO_ROOT / "src" / "doc_engine")
 
-# 2: "lines" (raw span) replaced by "statements". A v1 baseline compared
-# against v2 measurements would silently pass everything, since every
-# function would look like a new key. Bumped so it is rejected instead.
-# 3: adds "docstring_violations". A v2 baseline has no such key, so every
-# pre-existing violation would read as new and fail the build on day one.
-SCHEMA_VERSION = 3
+# 2: "lines" (raw span) replaced by "statements".
+# 3: adds "docstring_violations".
+# 4: size/complexity/depth become advisory; measure scripts/ + src/doc_engine/.
+SCHEMA_VERSION = 4
 
-# "How do I run this" -- the one part of the docstring contract in
-# CONTRIBUTING.md that is mechanically decidable. Whether a first sentence is
-# a *good* summary is not, so it is not enforced.
 USAGE_RE = re.compile(r"^\s*(usage|run with|run)\s*:", re.IGNORECASE)
-
-# 20 sits in a gap in this repo's own distribution. Measured 2026-07-25, the
-# docstring line at which each runnable module states how to run it:
-#
-#   4 5 8 9 11 13 13 14 15 15 17 18 | 29 36 38 40 44 44 51 58 62 64 78 79 194
-#
-# Twelve modules orient the reader by line 18; thirteen bury it at 29 or
-# beyond; nothing lands between. No compliant module sits near the boundary,
-# so ordinary edits to a good docstring should not trip it.
-#
-# What this number is NOT, stated because it would be easy to over-trust:
-# in the threshold-derivation literature's terms this is *unsupervised*
-# natural-breaks clustering on a single system with n=25 -- the weakest
-# available basis. The canonical unsupervised method (Alves, Ypma & Visser,
-# ICSM 2010) aggregates across a benchmark of ~100 systems precisely because
-# single-system thresholds are unstable, and supervised methods key the
-# cut-point to a measured outcome, which needs labels this repo does not have.
-# The only outcome signal here is n=1: a reader reported the code hard to
-# follow, and the 194-line outlier is what they would hit first. That supports
-# the direction, not the exact cut.
-#
-# So treat it as a fact about the current population, not a constant:
-# RE-DERIVE it when the tree's shape changes rather than defending it. The
-# command that produced the numbers above is in CONTRIBUTING.md.
 USAGE_WITHIN_LINES = 20
 
-# Nodes that introduce a branch in the control-flow graph. BoolOp and
-# comprehension are counted because `a and b or c` and a filtered
-# comprehension are branches a reader has to hold in their head, even though
-# neither indents. Assert counts for the same reason.
 _BRANCH_NODES = (
     ast.If, ast.For, ast.AsyncFor, ast.While, ast.ExceptHandler,
     ast.With, ast.AsyncWith, ast.Assert, ast.IfExp,
 )
 
-# Nodes that add a level of visual indentation. Deliberately NOT the same
-# set as _BRANCH_NODES: `assert` and a ternary branch without nesting, and
-# Try nests without being a branch on its own (its handlers are).
 _NESTING_NODES = (
     ast.If, ast.For, ast.AsyncFor, ast.While, ast.With, ast.AsyncWith, ast.Try,
 )
 
 
 def complexity(node: ast.AST) -> int:
-    """Cyclomatic complexity: one, plus one per branch point.
-
-    Counts each extra operand of a BoolOp (so `a and b and c` is two, not
-    one) and each comprehension clause plus each of its filters. This is a
-    deliberate superset of textbook McCabe; see the module docstring's
-    warning about comparing it to other tools."""
+    """Cyclomatic complexity: one, plus one per branch point."""
     total = 1
     for child in ast.walk(node):
         if isinstance(child, _BRANCH_NODES):
@@ -140,12 +79,7 @@ def complexity(node: ast.AST) -> int:
 
 
 def nesting_depth(node: ast.AST, depth: int = 0) -> int:
-    """Deepest nesting of block statements inside this function.
-
-    Walks children directly rather than via ast.walk, because ast.walk
-    flattens the tree and loses the containment relationship this measures.
-    A nested function definition starts its own count -- its depth belongs
-    to it, not to its parent."""
+    """Deepest nesting of block statements inside this function."""
     deepest = depth
     for child in ast.iter_child_nodes(node):
         if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -156,23 +90,10 @@ def nesting_depth(node: ast.AST, depth: int = 0) -> int:
 
 
 def statement_count(node: ast.AST) -> int:
-    """How many statements this function executes, excluding its docstring
-    and excluding the bodies of functions nested inside it.
-
-    Deliberately NOT the line span (end_lineno - lineno). This repo writes
-    unusually heavy explanatory prose -- 38-54% of the larger modules is
-    comment or docstring, and that is a property worth keeping. A raw line
-    span makes adding an eight-line comment that explains a subtle bug read
-    as "this function got worse," which is exactly backwards, and a gate that
-    fires when you document something is a gate that gets deleted. Counting
-    statements measures how much the function *does*, which is what "too
-    long" is actually a proxy for.
-
-    Nested functions are excluded because they get their own baseline entry;
-    counting them twice would make a parent regress whenever its child grew."""
+    """How many statements this function executes, excluding docstring and
+    nested function bodies."""
     total = 0
     body = list(getattr(node, "body", []))
-    # Drop the docstring: it is an Expr wrapping a bare string constant.
     if body and isinstance(body[0], ast.Expr) and isinstance(
             getattr(body[0], "value", None), ast.Constant) and isinstance(
             body[0].value.value, str):
@@ -190,12 +111,7 @@ def statement_count(node: ast.AST) -> int:
 
 
 def is_annotated(node: ast.AST) -> bool:
-    """True if the function declares any type information at all.
-
-    Deliberately generous: a return annotation OR any annotated parameter
-    counts. A stricter "fully annotated" measure would read as 0% today and
-    give the ratchet nothing to hold on to. `self`/`cls` are excluded so
-    methods are not judged on a parameter nobody annotates."""
+    """True if the function declares any type information at all."""
     if getattr(node, "returns", None) is not None:
         return True
     args = node.args
@@ -212,10 +128,8 @@ def measure_source(source: str, relpath: str) -> Tuple[Dict[str, Dict[str, int]]
     """Measure every function in one module.
 
     Returns (functions, total_count, annotated_count). Keys are
-    "<relpath>::<qualname>" -- qualified, not line-numbered, so that editing
-    a file above a function does not invalidate its baseline entry. Two
-    functions sharing a qualname in one file (a conditional def, say) keep
-    the worse of the two, which is the safe direction for a ratchet."""
+    "<relpath>::<qualname>".
+    """
     tree = ast.parse(source)
     functions: Dict[str, Dict[str, int]] = {}
     total = 0
@@ -249,11 +163,7 @@ def measure_source(source: str, relpath: str) -> Tuple[Dict[str, Dict[str, int]]
 
 
 def has_cli_entry_point(tree: ast.AST) -> bool:
-    """True if the module has a top-level `if __name__ == "__main__":`.
-
-    Walks only the module body, not the whole tree: the guard is meaningful
-    at module level and a string "__main__" appearing anywhere else (a
-    docstring, an error message) must not count."""
+    """True if the module has a top-level `if __name__ == "__main__":`."""
     for node in getattr(tree, "body", []):
         if not isinstance(node, ast.If):
             continue
@@ -268,22 +178,11 @@ def has_cli_entry_point(tree: ast.AST) -> bool:
 
 
 def docstring_violation(source: str, relpath: str) -> Optional[str]:
-    """Why this module's docstring fails the orientation contract, or None.
-
-    The contract is in CONTRIBUTING.md: say what the module is, then how to
-    run it, then why it exists. Only the middle part is mechanically
-    checkable, so that is the only part enforced -- "does a reader find the
-    command near the top" is a decidable question; "is the first sentence a
-    good summary" is not.
-
-    Library modules are exempt by construction. doc_tag_utils.py,
-    _shared_excludes.py, _config_keys.py and _secret_heuristics.py are
-    imported and never run, so demanding a usage block from them would point
-    the check at the wrong thing -- which is its own anti-pattern here."""
+    """Why this module's docstring fails the orientation contract, or None."""
     try:
         tree = ast.parse(source)
     except SyntaxError:
-        return None  # reported separately by measure_tree as unparseable
+        return None
     if not has_cli_entry_point(tree):
         return None
     doc = ast.get_docstring(tree)
@@ -297,25 +196,20 @@ def docstring_violation(source: str, relpath: str) -> Optional[str]:
         (i + 1 for i, line in enumerate(lines) if USAGE_RE.match(line)), None
     )
     if where is None:
-        return (f"{relpath}: runnable module, but its {len(lines)}-line docstring "
-                f"never says how to run it")
-    return (f"{relpath}: 'how to run it' is at docstring line {where}; the contract is "
-            f"within {USAGE_WITHIN_LINES}. Move the Usage block above the rationale.")
+        return (f"{relpath}: runnable module, but its {len(lines)}-line "
+                f"docstring never says how to run it")
+    return (f"{relpath}: 'how to run it' is at docstring line {where}; "
+            f"the contract is within {USAGE_WITHIN_LINES}. Move the Usage "
+            f"block above the rationale.")
 
 
-def python_files(scripts_dir: Path) -> List[Path]:
-    """The *.py files this baseline should describe: the tracked ones.
+def _is_production_module(relpath: str) -> bool:
+    name = Path(relpath).name
+    return not name.startswith("test_")
 
-    Globbing the directory folds whatever happens to be sitting in the working
-    tree into a committed artifact, and that is not a hypothetical.
-    Regenerating this baseline while a concurrent session's untracked work was
-    present captured 93 of its functions and raised the annotation floor to
-    35.4% against a committed tree measuring 22.0% -- a gate that fails on its
-    first CI run, reporting a regression caused entirely by files that were
-    never in the commit.
 
-    Falls back to the glob outside a git checkout, so this still works on an
-    exported tarball. Top-level only: nested paths are fixtures, not modules."""
+def list_script_py_files(scripts_dir: Path) -> List[Path]:
+    """Top-level scripts/*.py only (historical surface)."""
     try:
         proc = subprocess.run(
             ["git", "-C", str(scripts_dir), "ls-files", "--", "*.py"],
@@ -332,20 +226,54 @@ def python_files(scripts_dir: Path) -> List[Path]:
     return [scripts_dir / name for name in names]
 
 
-def measure_tree(scripts_dir: Path) -> Dict[str, object]:
-    """Measure every *.py under scripts_dir, sorted for byte-stable output.
+def iter_modules(roots: Sequence[Path], repo_root: Path) -> List[Tuple[Path, str]]:
+    """(absolute path, repo-relative posix key) for every measured module."""
+    out: List[Tuple[Path, str]] = []
+    scripts = (repo_root / "scripts").resolve()
+    for root in roots:
+        root = root.resolve()
+        if not root.is_dir():
+            continue
+        if root == scripts:
+            for path in list_script_py_files(root):
+                out.append((path, f"scripts/{path.name}"))
+            continue
+        for path in sorted(root.rglob("*.py")):
+            if "__pycache__" in path.parts:
+                continue
+            try:
+                rel = path.relative_to(repo_root).as_posix()
+            except ValueError:
+                rel = path.name
+            out.append((path, rel))
+    return out
 
-    Sorted because this file is committed and diffed: an unsorted dict makes
-    every regeneration look like a change. Same reasoning that made
-    spring_signals.json sort entity_table_map (commit b2410fd)."""
+
+def measure_tree(
+    scripts_dir: Path,
+    extra_roots: Optional[Sequence[Path]] = None,
+    repo_root: Optional[Path] = None,
+) -> Dict[str, object]:
+    """Measure scripts_dir plus optional package roots.
+
+    When ``extra_roots`` is None (unit tests / --scripts-only), only the flat
+    top-level ``*.py`` files under ``scripts_dir`` are measured and keys stay
+    ``<filename>::qualname``. Production measurement passes ``extra_roots`` so
+    keys become repo-relative (``scripts/…``, ``src/doc_engine/…``).
+    """
+    root = repo_root or REPO_ROOT
     functions: Dict[str, Dict[str, int]] = {}
     total = 0
     annotated = 0
     unparseable: List[str] = []
     docstring_violations: Dict[str, str] = {}
 
-    for path in python_files(scripts_dir):
-        relpath = path.name
+    if extra_roots is None:
+        modules = [(p, p.name) for p in list_script_py_files(scripts_dir)]
+    else:
+        modules = iter_modules(list(extra_roots), root)
+
+    for path, relpath in modules:
         try:
             source = path.read_text(encoding="utf-8")
         except OSError as exc:
@@ -360,13 +288,7 @@ def measure_tree(scripts_dir: Path) -> Dict[str, object]:
         if violation is not None:
             docstring_violations[relpath] = violation
         functions.update(found)
-        # Size and complexity are ratcheted over everything, tests included --
-        # a test file rots the same way any other file does. Annotation
-        # coverage deliberately counts production modules only: test methods
-        # are never annotated by anyone, so including them would mean adding
-        # a suite lowers the ratio and fails the gate. A check that penalizes
-        # writing tests is a check that gets deleted.
-        if not relpath.startswith("test_"):
+        if _is_production_module(relpath):
             total += count
             annotated += ann
 
@@ -376,9 +298,6 @@ def measure_tree(scripts_dir: Path) -> Dict[str, object]:
 
     return {
         "schema_version": SCHEMA_VERSION,
-        # A count pair rather than a stored percentage: a float in a
-        # committed file churns on rounding, and compare() derives the ratio
-        # it needs anyway.
         "production_functions": total,
         "production_functions_annotated": annotated,
         "limits_for_new_functions": {
@@ -387,11 +306,6 @@ def measure_tree(scripts_dir: Path) -> Dict[str, object]:
             "depth": worst_depth,
         },
         "unparseable": sorted(unparseable),
-        # Keyed by module, not by message, and compared on keys alone. The
-        # messages carry line numbers, so comparing them would report a "new"
-        # violation every time an unrelated edit shifted a line. Keyed by
-        # module it also beats a count, which would let one module get fixed
-        # while another broke with no net change.
         "docstring_violations": dict(sorted(docstring_violations.items())),
         "functions": dict(sorted(functions.items())),
     }
@@ -404,15 +318,9 @@ def annotation_ratio(measured: Dict[str, object]) -> float:
     return int(measured["production_functions_annotated"]) / total  # type: ignore[arg-type]
 
 
-def compare(baseline: Dict[str, object], current: Dict[str, object]) -> List[str]:
-    """Every way the current tree is worse than the baseline.
-
-    Three separate failure modes, kept separate in the output because they
-    have different fixes: an existing function regressed, a new function
-    landed worse than anything that existed when the baseline was taken, or
-    annotation coverage fell."""
-    issues: List[str] = []
-
+def size_advisories(baseline: Dict[str, object], current: Dict[str, object]) -> List[str]:
+    """Non-blocking notes when size/complexity/depth grow."""
+    notes: List[str] = []
     base_functions: Dict[str, Dict[str, int]] = baseline.get("functions", {})  # type: ignore[assignment]
     cur_functions: Dict[str, Dict[str, int]] = current.get("functions", {})  # type: ignore[assignment]
     limits: Dict[str, int] = baseline.get("limits_for_new_functions", {})  # type: ignore[assignment]
@@ -423,17 +331,24 @@ def compare(baseline: Dict[str, object], current: Dict[str, object]) -> List[str
         if base is None:
             for metric, limit in sorted(limits.items()):
                 if cur.get(metric, 0) > limit:
-                    issues.append(
-                        f"new function {key} has {metric}={cur[metric]}, above the "
-                        f"worst that existed when the baseline was taken ({limit}). "
-                        f"Split it, or re-baseline deliberately with --update."
+                    notes.append(
+                        f"[advisory] new function {key} has {metric}={cur[metric]}, "
+                        f"above prior worst ({limit})"
                     )
             continue
         for metric in ("statements", "complexity", "depth"):
             if cur.get(metric, 0) > base.get(metric, 0):
-                issues.append(
-                    f"{key} regressed: {metric} {base[metric]} -> {cur[metric]}"
+                notes.append(
+                    f"[advisory] {key} grew: {metric} "
+                    f"{base[metric]} -> {cur[metric]}"
                 )
+    return notes
+
+
+def compare(baseline: Dict[str, object], current: Dict[str, object]) -> List[str]:
+    """Hard failures only: annotation coverage, new docstring violations,
+    unparseable modules. Size metrics are advisory (see size_advisories)."""
+    issues: List[str] = []
 
     base_ratio = annotation_ratio(baseline)
     cur_ratio = annotation_ratio(current)
@@ -456,9 +371,6 @@ def compare(baseline: Dict[str, object], current: Dict[str, object]) -> List[str
 
 
 def exit_code(issues: List[str]) -> int:
-    """Split out so the blocking behavior is unit-testable, exactly as
-    check_pipeline_output.py does. A gate whose failure path is never
-    executed in a test is a gate nobody has shown can fail."""
     return 1 if issues else 0
 
 
@@ -476,17 +388,21 @@ def write_baseline(path: Path, measured: Dict[str, object]) -> None:
         handle.write("\n")
 
 
-def main() -> int:
+def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     ap.add_argument("--scripts-dir", default=str(SCRIPT_DIR),
-                    help="directory of *.py to measure (default: this script's own directory)")
+                    help="scripts/ directory (default: this script's directory)")
+    ap.add_argument("--package-dir", default=str(REPO_ROOT / "src" / "doc_engine"),
+                    help="product package to measure alongside scripts/")
+    ap.add_argument("--scripts-only", action="store_true",
+                    help="measure only --scripts-dir (tests / legacy)")
     ap.add_argument("--baseline", default=str(DEFAULT_BASELINE),
                     help="the committed baseline to compare against")
     ap.add_argument("--update", action="store_true",
                     help="rewrite the baseline from the current tree instead of checking it")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     scripts_dir = Path(args.scripts_dir)
     if not scripts_dir.is_dir():
@@ -494,18 +410,25 @@ def main() -> int:
         return 2
 
     baseline_path = Path(args.baseline)
-    current = measure_tree(scripts_dir)
+    if args.scripts_only:
+        current = measure_tree(scripts_dir)
+    else:
+        roots = [scripts_dir]
+        package = Path(args.package_dir)
+        if package.is_dir():
+            roots.append(package)
+        current = measure_tree(scripts_dir, extra_roots=roots, repo_root=REPO_ROOT)
 
     if args.update:
         write_baseline(baseline_path, current)
         print(f"baseline written: {baseline_path}")
-        print(f"  {len(current['functions'])} functions ratcheted "  # type: ignore[arg-type]
-              f"(size/complexity/depth, tests included)")
+        print(f"  {len(current['functions'])} functions measured "  # type: ignore[arg-type]
+              f"(size/complexity/depth advisory; tests included)")
         print(f"  {current['production_functions_annotated']} of "
               f"{current['production_functions']} production functions annotated "
               f"({annotation_ratio(current):.1%})")
         limits = current["limits_for_new_functions"]  # type: ignore[index]
-        print(f"  ceiling for new functions: statements={limits['statements']}, "
+        print(f"  advisory ceiling for new functions: statements={limits['statements']}, "
               f"complexity={limits['complexity']}, depth={limits['depth']}")
         return 0
 
@@ -520,17 +443,23 @@ def main() -> int:
         return 2
 
     issues = compare(baseline, current)
+    advisories = size_advisories(baseline, current)
 
     if issues:
         print(f"code quality check failed ({len(issues)} issue(s)):", file=sys.stderr)
         for issue in issues:
             print(f"  - {issue}", file=sys.stderr)
-        print("\nNothing here asks for a refactor. It asks that these numbers not grow.",
+        print("\nHard failures are annotation coverage and docstring orientation.",
               file=sys.stderr)
     else:
-        print(f"OK: {len(current['functions'])} functions, none regressed against "  # type: ignore[arg-type]
-              f"the baseline. Annotation coverage {annotation_ratio(current):.1%} "
+        print(f"OK: {len(current['functions'])} functions measured. "  # type: ignore[arg-type]
+              f"Annotation coverage {annotation_ratio(current):.1%} "
               f"across {current['production_functions']} production functions.")
+
+    if advisories:
+        print(f"size/complexity advisories ({len(advisories)}):")
+        for note in advisories:
+            print(f"  {note}")
 
     return exit_code(issues)
 

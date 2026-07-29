@@ -3,18 +3,14 @@
 import hashlib
 import os
 import shutil
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from doc_engine.core.context import ScanContext
 from doc_engine.core.protocols import Scanner
-from doc_engine.core.walk import compute_file_signature, dfs_walk
 from doc_engine.scanning._merge_signals import SpringSignalMerger
 from doc_engine.scanning._orchestrator import run_scan
 from doc_engine.scanning._resolve_lineage import (
     SpringLineageResolver,
-    extract_sql_lineage,
-    resolve_jpql_to_lineage,
 )
 from doc_engine.scanning._scanner_registry import get_scanner, resolve_scanner_names
 from doc_engine.scanning.build_command import BuildCommandError, validate_build_command
@@ -66,7 +62,7 @@ def detect_build_command(repo_path: str) -> Optional[str]:
 def _combined_hash(scanners: List[Scanner]) -> str:
     hh = hashlib.sha256()
     for scanner in scanners:
-        hh.update(f"{scanner.name}:{scanner.version_hash()}".encode("utf-8"))
+        hh.update(f"{scanner.name}:{scanner.version_hash()}".encode())
     return hh.hexdigest()[:16]
 
 

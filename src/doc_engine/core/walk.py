@@ -4,7 +4,7 @@ import hashlib
 import os
 from typing import Any, Iterator, Optional
 
-from doc_engine.core.excludes import DEFAULT_EXCLUDED_DIRS, load_gitignore_spec
+from doc_engine.core.excludes import DEFAULT_EXCLUDED_DIRS
 
 JAVA_EXT = {".java"}
 

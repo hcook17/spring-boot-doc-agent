@@ -24,7 +24,7 @@ def _load_yaml(path: Path) -> Dict[str, Any]:
     except ImportError:
         raise RuntimeError(
             f"PyYAML is required to read {path.name}. Install with: pip install pyyaml"
-        )
+        ) from None
     with path.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
     return data if isinstance(data, dict) else {}

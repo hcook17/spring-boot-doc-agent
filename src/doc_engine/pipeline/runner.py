@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-from doc_engine.pipeline.artifacts import ARTIFACT_FILENAMES
 from doc_engine.pipeline.context import PipelineContext, StageKind, StageResult, StageSpec
 from doc_engine.pipeline.executor import MockStageExecutor, StageExecutor, SubprocessStageRunner
 from doc_engine.pipeline.stages import build_stage_specs, manifest_fanout

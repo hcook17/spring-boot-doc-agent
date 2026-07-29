@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
-import sys
-from pathlib import Path
 from typing import Callable, Optional
 
 from doc_engine.tools.pipeline_validators import run_stage5_gate

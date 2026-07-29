@@ -33,7 +33,7 @@ Supported files:
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 def _read_text_compat(text: str) -> str:

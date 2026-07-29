@@ -33,7 +33,14 @@ Last updated: 2026-07-28.
 
 ## Next concrete action
 
-`CONSTRAINTS.md`'s enterprise-readiness close-out order is now: ~~license~~ → ~~CI wiring~~ → ~~confidentiality/secret-redaction~~ → ~~dependency pinning~~ → ~~inter-stage schema contracts (prompt 02)~~ (all done) → **branch protection + required reviews** (next, repo-admin action) → audit trail refinement (`run_manifest.json`'s crash-before-`finalize` gap) → RBAC / multi-repo. For pipeline work specifically, Option C (HTTP LLM adapters) stays deferred — see `src/doc_engine/pipeline/adapters.md`.
+Gate modernization (2026-07-29): size ratchet demoted; ruff+quality measure `src/doc_engine/`; llms coverage always advisory. **Deferred portfolio epics (do not mix into small PRs):**
+
+1. Finish **scripts → `doc_engine.tools` strangler** (single invoke surface).
+2. **Single skill SoT** (root `skills/` vs `adapters/claude/skills/` drift).
+3. Residual A+C: generative stage choreography still in skill prose vs `build_stage_specs()`.
+4. Live pipeline artifact gating in CI (maturity residual).
+
+`CONSTRAINTS.md` enterprise-readiness close-out order remains: branch protection + required reviews (repo-admin) → audit trail refinement → RBAC / multi-repo. Option C (HTTP LLM adapters) stays deferred — see `src/doc_engine/pipeline/adapters.md`.
 
 ## Cross-links
 

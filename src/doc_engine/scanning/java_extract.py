@@ -40,7 +40,7 @@ def read_source_lines(repo_path: str, rel: str, start_line: int, max_lines: int 
     """Read up to max_lines from a Java source file starting at 1-indexed start_line."""
     full = os.path.join(repo_path, rel.replace("/", os.sep))
     try:
-        with open(full, "r", encoding="utf-8", errors="replace") as f:
+        with open(full, encoding="utf-8", errors="replace") as f:
             lines = f.readlines()
     except OSError:
         return ""

@@ -2,11 +2,11 @@
 
 from doc_engine.core.protocols import LineageResolver, Merger, Scanner, Signal
 from doc_engine.scanning import (
+    SpringLineageResolver,
+    SpringSignalMerger,
     get_scanner,
     resolve_scanner_names,
     run_scan,
-    SpringLineageResolver,
-    SpringSignalMerger,
 )
 
 __all__ = [

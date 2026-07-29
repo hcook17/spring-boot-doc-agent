@@ -10,9 +10,9 @@ from doc_engine.pipeline.context import (
     STAGE_GAP_INTERVIEW,
     STAGE_PARTITION,
     STAGE_SIGNAL_SCAN,
+    PipelineContext,
     StageKind,
     StageSpec,
-    PipelineContext,
 )
 
 

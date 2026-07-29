@@ -78,9 +78,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -92,13 +90,12 @@ from doc_engine.tools._bootstrap import ensure_scripts_importable
 
 ensure_scripts_importable()
 
-from _shared_excludes import DEFAULT_EXCLUDED_DIRS  # noqa: E402
-from doc_tag_utils import VALID_DOC_FILES  # noqa: E402
 
 SCRIPT_DIR = str(scripts_dir())
 REPO_ROOT = str(repo_root())
 
 from doc_engine.config.loader import load_repo_config  # noqa: E402
+from doc_engine.pipeline import gates  # noqa: E402
 from doc_engine.pipeline.compliance import (  # noqa: E402
     ComplianceProfile,
     build_certification_report,
@@ -109,11 +106,9 @@ from doc_engine.pipeline.compliance import (  # noqa: E402
 )
 from doc_engine.pipeline.context import PipelineContext, StageKind  # noqa: E402
 from doc_engine.pipeline.executor import MockStageExecutor  # noqa: E402
-from doc_engine.pipeline.runner import PipelineRunner  # noqa: E402
-from doc_engine.pipeline.stages import build_stage_specs  # noqa: E402
-
-from doc_engine.pipeline import gates
-from doc_engine.pipeline.mock_stages import (
+from doc_engine.pipeline.mock_stages import (  # noqa: E402
+    _read_json,
+    _write_json,
     find_existing_readme,
     load_citations,
     mock_architecture,
@@ -121,9 +116,10 @@ from doc_engine.pipeline.mock_stages import (
     mock_file_summaries,
     mock_gap_and_interview,
     sweep_todos,
-    _read_json,
-    _write_json,
 )
+from doc_engine.pipeline.runner import PipelineRunner  # noqa: E402
+from doc_engine.pipeline.stages import build_stage_specs  # noqa: E402
+
 
 class Log:
     """Tee to stdout and run.log.
