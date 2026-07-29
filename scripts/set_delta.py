@@ -53,10 +53,11 @@ import sys
 from pathlib import Path
 from typing import Callable, Dict, FrozenSet, List, NamedTuple, Sequence, Tuple
 
+from doc_engine.tools import spring_signal_scan
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import drift_match_normalizers as norm  # noqa: E402  # meta: same-dir
-from doc_engine.tools import spring_signal_scan
 
 
 class Member(NamedTuple):
