@@ -8,7 +8,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from doc_engine.paths import repo_root
 from doc_engine.pipeline.context import PipelineContext, StageKind
 from doc_engine.pipeline.stages import build_stage_specs
 
@@ -22,7 +21,6 @@ def _minimal_context(out: Path) -> PipelineContext:
         manifest_path=out / "run_manifest.json",
         docs_dir=out / "docs",
         python=sys.executable,
-        scripts_dir=repo_root() / "scripts",
         today="2026-07-29",
         log=lambda *_a, **_k: None,
     )

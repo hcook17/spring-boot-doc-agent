@@ -65,15 +65,15 @@ tolerated: a human (or a future session) can still run
 close it out.
 
 Usage:
-    python3 run_manifest.py init <repo_path> --out run_manifest.json
-    python3 run_manifest.py start-stage run_manifest.json signal_scan
-    python3 run_manifest.py end-stage run_manifest.json signal_scan --status complete
+    python -m doc_engine.tools.run_manifest init <repo_path> --out run_manifest.json
+    python -m doc_engine.tools.run_manifest start-stage run_manifest.json signal_scan
+    python -m doc_engine.tools.run_manifest end-stage run_manifest.json signal_scan --status complete
     ... (repeat start-stage/end-stage per stage) ...
-    python3 run_manifest.py finalize run_manifest.json \\
+    python -m doc_engine.tools.run_manifest finalize run_manifest.json \\
         --signals-file spring_signals.json --docs-dir docs/ \\
         --interview-file interview_answers.json \\
         --preflight-file capacity_preflight_report.json
-    python3 run_manifest.py summary run_manifest.json
+    python -m doc_engine.tools.run_manifest summary run_manifest.json
 """
 
 import argparse

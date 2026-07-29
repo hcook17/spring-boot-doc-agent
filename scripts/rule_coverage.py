@@ -37,9 +37,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-import spring_signal_scan  # noqa: E402
+from doc_engine.tools import spring_signal_scan
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PACK_DIR = SCRIPT_DIR.parent / "codeql" / "spring-signals"

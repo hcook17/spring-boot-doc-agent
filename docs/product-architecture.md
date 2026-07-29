@@ -18,7 +18,7 @@ This closes the marketplace packaging gap created when F3/R3 moved `source` to `
 | Layer | What | Where |
 |-------|------|--------|
 | **Kernel** | `PipelineRunner`, scanning SDK, compliance profiles, CLI | `src/doc_engine/` (pip package `doc-engine`) |
-| **Pipeline tools** | Stage 0 tools, product gates, validators (strangling into `doc_engine.tools`; thin `scripts/` shims during transition) | Invoked by the CLI / `local_runner`, not by the Claude plugin |
+| **Pipeline tools** | Stage 0 tools, product gates, validators — live under `doc_engine.tools` (one invoke surface) | Invoked by the CLI / `local_runner`, not by the Claude plugin |
 | **Adapters** | Optional entry points (Claude, GitHub Actions, Cursor) | `adapters/` |
 
 **Target-repo context** (customer Spring service) is never part of this tree:
@@ -35,7 +35,7 @@ This monorepo holds two runtimes. Mixing them into the installable package coupl
 | **Product** | Stage 0 tools (`run_manifest`, `spring_signal_scan` / scanning SDK, `partition_repo`, `build_cross_group_edges`, `capacity_preflight`), product gates used by `live_gates` / certification (`check_pipeline_output`, `citation_coverage`, `check_no_secrets_leaked`, validators), runtime schemas and scan resources, `doc_tag_utils`, `build_docs_site` | — |
 | **Meta** | — | `check_repo_claims`, `check_code_quality`, `mutate`, `rule_coverage`, `semgrep_rule_coverage`, `check_llms_coverage`, research instruments (`stage0_oracle_compare`, …), and this repo's quality baselines |
 
-**Portable Stage 0 (the real strangler residual):** skills already invoke the CLI (A+C). What remains is that `build_stage_specs()` must not depend on a monorepo `scripts/` tree — deterministic stages run via package entrypoints so `pip install` works without cloning this repo.
+**Portable Stage 0:** skills invoke the CLI (A+C). Deterministic stages run via package entrypoints (`python -m doc_engine.tools.*` / `doc-engine`) so `pip install` works without cloning this monorepo. Product tools are not dual-homed under `scripts/`.
 
 ## Portable install (any company, any repo)
 
@@ -75,7 +75,7 @@ doc-engine pipeline gates --out-dir <run> --target-repo <repo> --docs-dir <docs>
 |---------|------|------|
 | CLI | `doc-engine pipeline run` / `pipeline gates` | Primary entry; writes / checks certification |
 | Certification | `doc-engine certification verify` | Exit 0 only when `certified: true` |
-| Local script | `scripts/run_pipeline_local.py` | Thin shim → same orchestration |
+| Local runner | `python -m doc_engine.pipeline.local_runner` / `doc-engine pipeline run` | Same orchestration |
 | GitHub | `adapters/github/` + root `action.yml` | CI gate on `certification.json` |
 | Claude Code | `adapters/claude/` | Plugin pack: agents, hooks, skills (generative only) |
 | Cursor | `adapters/cursor/` | Call the CLI from automations |
@@ -94,7 +94,7 @@ See also [`src/doc_engine/pipeline/adapters.md`](../src/doc_engine/pipeline/adap
 | Plugin registry | `scanning/_scanner_registry.py` | Scanner backends |
 | Anti-corruption layer | `pipeline/artifacts.py`, `validation.py` | JSON boundary DTOs |
 | Gateway | `tools/certification.py`, compliance gates | Machine enforcement |
-| Strangler fig | `tools/`, `paths.py` | Absorbing `scripts/` incrementally |
+| Strangler fig (complete for product tools) | `tools/`, scanning SDK | Product left `scripts/`; meta CI stays there |
 | Twelve-factor config | `.doc-engine.yml`, CLI overrides | Portable target-repo policy |
 
 External catalogs ([awesome-design-patterns](https://github.com/DovAmir/awesome-design-patterns), [microservices.io](http://microservices.io/patterns)) inform naming only — this repo's constraints (`CONSTRAINTS.md`) are authoritative.
@@ -120,8 +120,8 @@ Legacy `Engine.generate_docs()` / `build_site()` are placeholders — use `doc-e
 |----------|--------|--------|
 | Unit/integration tests | `doc_engine.*` | In-process |
 | SKILL / operators | — | `doc-engine pipeline …` / `certification …` |
-| Legacy scripts | — | `scripts/*.py` thin shims → same `main()` |
-| Kitchen-sink | package + optional subprocess shims | Explicit boundary tests |
+| Operators / CI | — | `python -m doc_engine.tools.<mod>` or `doc-engine …` |
+| Kitchen-sink | package imports + `-m` subprocess | Explicit boundary tests |
 
 ## Agent search policy
 

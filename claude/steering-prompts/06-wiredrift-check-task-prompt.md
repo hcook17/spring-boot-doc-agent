@@ -4,8 +4,8 @@ status: resolved (2026-07-23, PR #3) — steps 3–4 landed: `spring_drift_check
 related: 03-constraints-research-prompt.md (Integration gap item), 04-analytics-logging-research-prompt.md (re-scoped item 1)
 note: this field read `not started` from PR #3 until 2026-07-24 — stale for the whole of that window, and flagged three separate times in `claude/session-log.md` before anyone corrected it. Both copies (repo and Claude project) carried the stale value.
 verify:
-  - contains:skills/document-spring-repo/SKILL.md:spring_drift_check.py
-  - contains:README.md:spring_drift_check.py
+  - contains:skills/document-spring-repo/SKILL.md:doc_engine.tools.spring_drift_check
+  - contains:README.md:doc_engine.tools.spring_drift_check
 ---
 
 # Task prompt: document and wire in the existing drift-check tool

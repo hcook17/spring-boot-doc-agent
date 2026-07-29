@@ -3,7 +3,7 @@
 One entry per output file. For each: what it's for, which evidence sources feed it, and — critically — what's safe to infer from code versus what genuinely needs a clarifying question. Getting that boundary wrong is the main failure mode of this whole pipeline: guessing at things like "known limitations" or "who owns this table" produces confident-sounding fiction. When evidence is thin, the doc-writer should write "not evidenced in code; not answered in interview" rather than fill the gap with a plausible guess.
 
 Evidence sources referenced below:
-- **signals** = `spring_signals.json` (deterministic AST scan via ast-grep — see `scripts/spring_signal_scan.py`)
+- **signals** = `spring_signals.json` (deterministic AST scan via ast-grep — see `src/doc_engine/tools/spring_signal_scan.py`)
 - **summaries** = the merged output of Stage 1 (`file-summarizer` subagents)
 - **arch** = the merged Mermaid diagram from Stage 2 (`architect-merge`)
 - **arch_test_review** = `architecture_testing_review.json` from Stage 3 (`software-architect-and-testing`) — DDIA- and Effective-Software-Testing-lens findings about the target repo, each still evidenced the ordinary way (a real `path:line`); only `architecture.md` and `testing.md` receive this
@@ -66,7 +66,7 @@ Not everything that's technically text in the repository carries the same eviden
 ## 9. configuration.md
 **Purpose**: what's configurable, where, and what the defaults mean.
 **Evidence**: signals.configuration (`@ConfigurationProperties`, `@Value`, `application*.yml/properties` files).
-**Interview-worthy**: which config values differ by environment in ways not visible in the repo (e.g. secrets injected at deploy time, values set only in a platform's config UI). Don't fabricate example values for secrets — say "value supplied at deploy time, not in repo" instead. This cuts both ways: also never echo a *real* secret value you find in the repo (e.g. a hardcoded credential in a dev/local profile) — `spring_signals.json`'s `redaction_zones` (see `scripts/_secret_heuristics.py`) flags lines that look like they carry one; write "credential value present, redacted" instead of quoting it, the same way you'd write "not in repo" for a deploy-time-injected one.
+**Interview-worthy**: which config values differ by environment in ways not visible in the repo (e.g. secrets injected at deploy time, values set only in a platform's config UI). Don't fabricate example values for secrets — say "value supplied at deploy time, not in repo" instead. This cuts both ways: also never echo a *real* secret value you find in the repo (e.g. a hardcoded credential in a dev/local profile) — `spring_signals.json`'s `redaction_zones` (see `src/doc_engine/scanning/support/_secret_heuristics.py`) flags lines that look like they carry one; write "credential value present, redacted" instead of quoting it, the same way you'd write "not in repo" for a deploy-time-injected one.
 
 ## 10. change_impact.md
 **Purpose**: "if you touch X, check Y" — a map from internal modules/tables/endpoints to what depends on them.

@@ -14,10 +14,10 @@ import sys
 import tempfile
 import unittest
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
+from doc_engine.scanning.support import _secret_heuristics as h
+from doc_engine.tools import check_no_secrets_leaked as checker
 
 SCRIPT_DIR = SCRIPTS_DIR
-import _secret_heuristics as h  # noqa: E402
-import check_no_secrets_leaked as checker  # noqa: E402
 
 
 class ScanTextForSecretsTest(unittest.TestCase):

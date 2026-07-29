@@ -14,10 +14,7 @@ import sys
 import tempfile
 import unittest
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-import citation_coverage as cc
+from doc_engine.tools import citation_coverage as cc
 
 
 class TestUntaggedClaims(unittest.TestCase):

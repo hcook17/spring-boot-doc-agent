@@ -11,9 +11,9 @@ import os
 import sys
 import unittest
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
+from doc_engine.scanning.support._config_keys import extract_config_keys
 
 SCRIPT_DIR = SCRIPTS_DIR
-from _config_keys import extract_config_keys  # noqa: E402
 
 
 class YamlKeyExtractionTest(unittest.TestCase):

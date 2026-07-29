@@ -5,7 +5,7 @@
 | Surface | Path / command | Role |
 |---------|----------------|------|
 | **CLI** | `doc-engine pipeline run <repo>` | Primary orchestrator; writes `certification.json` |
-| **Local script** | `python3 scripts/run_pipeline_local.py` | Same graph as CLI (thin script entry) |
+| **Local script** | `python -m doc_engine.pipeline.local_runner` | Same graph as CLI (local entry) |
 | **Certification gate** | `doc-engine certification verify <path>` | Exit 0 only when `certified: true` |
 | **GitHub Action** | Root `action.yml` + `adapters/github/` | CI composite: pipeline run + certification gate |
 | **Workflow snippet** | `adapters/github/workflow-snippet.yml` | Copy-paste for customer repos |
@@ -38,7 +38,7 @@ This package orchestrates the document-spring-repo pipeline with a **ports and a
 
 | Port | Production adapter | Local / CI adapter |
 |------|-------------------|-------------------|
-| SubprocessStageRunner | runs Stage 0 via package entrypoints (`doc_engine.tools` / scanning); legacy `scripts/*.py` shims only during transition | same |
+| SubprocessStageRunner | runs Stage 0 via package entrypoints (`python -m doc_engine.tools.*` / scanning) | same |
 | `StageExecutor` (generative) | **Claude Code** — SKILL dispatches `agents/*.md` via Task | `MockStageExecutor` |
 | `HttpLLMStageExecutor` | **not implemented** | stub only |
 
@@ -46,9 +46,9 @@ This package orchestrates the document-spring-repo pipeline with a **ports and a
 
 Production runs do not call `PipelineRunner` from Python inside Claude Code today. The SKILL orchestrator is equivalent when it:
 
-1. Runs the same subprocess commands as `build_stage_specs()` (`spring_signal_scan.py`, `partition_repo.py`, etc.).
+1. Runs the same Stage 0 entrypoints as `build_stage_specs()` (`python -m doc_engine.tools.spring_signal_scan`, `python -m doc_engine.tools.partition_repo`, etc.).
 2. Dispatches generative work to subagents with the artifact paths in `PipelineContext`.
-3. Calls `validate_artifacts.py` at stage boundaries (see SKILL.md data contracts).
+3. Calls `python -m doc_engine.tools.validate_artifacts` at stage boundaries (see SKILL.md data contracts).
 4. Runs `pipeline_validators.run_stage5_gate()` before doc-writer fan-out when `summaries.json` / `gap_questions.json` exist.
 
 Mapping generative stages to agents (SoT: `build_stage_specs()` / `generative_choreography()` in `stages.py`; under `adapters/claude/agents/` when installed via marketplace):
@@ -68,7 +68,7 @@ Interview Q&A stays in the orchestrating thread by design (product differentiato
 
 - Read agent prompts from `adapters/claude/agents/*.md` paths, not embedded Python strings.
 - Respect `CONSTRAINTS.md` network egress policy.
-- Honor artifact paths and run `validate_artifacts.py` after each write.
+- Honor artifact paths and run `python -m doc_engine.tools.validate_artifacts` after each write.
 - Do not duplicate Task parallelism — fan-out belongs in the adapter or an external worker pool.
 
 ## Retry and idempotency (Newman)

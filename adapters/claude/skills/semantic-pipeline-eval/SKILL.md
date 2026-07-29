@@ -9,7 +9,7 @@ description: Semantically evaluate a completed document-spring-repo pipeline run
 
 `scripts/test_pipeline_stages.py` already proves an `[Evidenced — path:line]` citation *resolves* to a real file/line, that `file-summarizer`/`gap-analyzer` output matches its required JSON shape, and that architecture-diagram node labels trace back to real names. It deliberately never judges whether the claim next to a resolved citation is actually *true*, whether a `[Confirmed — interview, <date>]` tag is really backed by a real interview answer, or whether two doc-writer files quietly disagree with each other. Those are genuine semantic-judgment tasks, not shape checks — this skill's job, not a re-implementation of that script's.
 
-Two of the four checks below only *sound* semantic and are actually mechanical — they're handled by `scripts/semantic_eval_helpers.py`, not by you:
+Two of the four checks below only *sound* semantic and are actually mechanical — they're handled by `doc_engine.tools.semantic_eval_helpers`, not by you:
 - unresolved `[Confirmed]` tags (no matching `interview_answers.json` entry)
 - Mermaid syntax findings (unbalanced brackets/subgraph-end/quotes, and edge endpoints that reference a node never labeled anywhere in the diagram — `find_undefined_node_refs()`, a purely structural check, deliberately distinct from `test_pipeline_stages.py`'s `find_untraceable_nodes()`, which checks whether an *existing* label traces back to a real file/class name)
 
@@ -28,7 +28,7 @@ A completed `document-spring-repo` run's output directory, same `PIPELINE_ARTIFA
 From a **product monorepo checkout** (not `${CLAUDE_PLUGIN_ROOT}`):
 
 ```bash
-python3 scripts/semantic_eval_helpers.py <artifacts_dir> --out mechanical_findings.json
+python -m doc_engine.tools.semantic_eval_helpers <artifacts_dir> --out mechanical_findings.json
 ```
 
 **Do not** invoke deterministic tools via the plugin install tree (no `scripts/` under the marketplace plugin root).
@@ -47,7 +47,7 @@ N = clamp(round(evidenced_claim_count_in_file * 0.15), min=3, max=12)
 
 The floor (3) guarantees every doc file gets a real spot-check even if it has only a handful of `[Evidenced]` claims; the ceiling (12) bounds worst-case cost on citation-dense files (`database.md`, `authorization.md`). All three numbers (0.15 ratio, floor 3, ceiling 12) are parameters, not hidden constants — override them for a given run if the user asks (e.g. "sample every claim in `authorization.md` this time," "use a 0.05 ratio on a huge doc set").
 
-**Before sampling, project this pass's own cost — do not exempt this skill from the same scalability discipline it's partly built to enforce elsewhere.** Compute, using the product checkout's `partition_repo` token estimator (the same one `capacity-preflight` uses — not a second implementation; import from the installed package or monorepo `scripts/`, never via the Claude plugin install tree):
+**Before sampling, project this pass's own cost — do not exempt this skill from the same scalability discipline it's partly built to enforce elsewhere.** Compute, using the product checkout's `partition_repo` token estimator (the same one `capacity-preflight` uses — not a second implementation; import from the installed package, never via the Claude plugin install tree):
 - `total_claims_sampled` = sum of per-file N above
 - projected tokens ≈ `total_claims_sampled` × (avg cited file:line window + surrounding lines + claim text, estimated via `partition_repo.estimate_tokens`-style chars/N) + Step 3's cross-doc-pass overhead (proportional to total doc-set size) + Step 4's per-flagged-item confirmation cost (count of Step 1's mechanical findings × a per-item estimate)
 

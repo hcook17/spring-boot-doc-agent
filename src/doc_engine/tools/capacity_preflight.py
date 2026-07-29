@@ -64,7 +64,7 @@ calibration (documented as such, not hidden) — this script surfaces
 numbers and warns; it never blocks or refuses to run the actual pipeline.
 
 Usage:
-    python3 capacity_preflight.py <repo_path> [--max-tokens 120000]
+    python -m doc_engine.tools.capacity_preflight <repo_path> [--max-tokens 120000]
         [--overlap 0.10] [--groups-file groups.json]
         [--signals-file spring_signals.json]
         [--edges-file cross_group_edges.json]

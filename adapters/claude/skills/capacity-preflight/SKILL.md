@@ -25,7 +25,7 @@ Use `<run_dir>/spring_signals.json` and `<run_dir>/groups.json`. If you already 
 
 ## Step 2 — derive the numbers
 
-Capacity preflight still lives as a product-repo tool. Prefer running it from a product checkout (or after `pip install -e .` with scripts on the module path) via Stage 0's own `capacity_preflight` stage — it is already part of `deterministic_only` / certified Stage 0 (`build_stage_specs()` name `capacity_preflight`). Re-use `<run_dir>/capacity_preflight_report.json` when present.
+Capacity preflight still lives as a product-repo tool. Prefer running it from a product checkout (or after `pip install -e .`) via Stage 0's own `capacity_preflight` stage — it is already part of `deterministic_only` / certified Stage 0 (`build_stage_specs()` name `capacity_preflight`). Re-use `<run_dir>/capacity_preflight_report.json` when present.
 
 If you must recompute only the report against existing artifacts:
 

@@ -2,8 +2,7 @@
 category: Analytics & logging (run-level telemetry)
 status: [Resolved — 2026-07-24/2026-07-25] premise largely stale as of 2026-07-23 (drift detection already built); item 1 (wiring `spring_drift_check.py` into `SKILL.md`/`README.md`) and item 2 (the still-open run-manifest half) are now both done — `scripts/run_manifest.py` exists, is CI-tested (for the current count run `python3 scripts/test_run_manifest.py` — the number that used to sit here was still accurate on 2026-07-25, but it is the same latent defect that made `01`'s go stale, so it is a command now), and `spring_drift_check.py` gained an optional `--manifest run_manifest.json` baseline flag on 2026-07-25. See `CONSTRAINTS.md` "Integration gaps" item 3 and `claude/session-log.md` entries for 2026-07-24/2026-07-25.
 verify:
-  - path_exists:scripts/run_manifest.py
-  - contains:scripts/spring_drift_check.py:doc_engine.tools.spring_drift_check
+  - path_exists:src/doc_engine/tools/run_manifest.py
   - contains:src/doc_engine/tools/spring_drift_check.py:--manifest
 ---
 

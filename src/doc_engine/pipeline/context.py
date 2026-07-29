@@ -66,7 +66,6 @@ class PipelineContext:
     manifest_path: Path
     docs_dir: Path
     python: str
-    scripts_dir: Path
     today: str
     respect_gitignore: bool = False
     max_tokens: int = 120000
@@ -85,6 +84,3 @@ class PipelineContext:
 
     def artifact_path(self, filename: str) -> Path:
         return self.out_dir / filename
-
-    def script(self, name: str) -> Path:
-        return self.scripts_dir / name

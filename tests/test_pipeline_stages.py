@@ -50,8 +50,6 @@ import os
 import sys
 import unittest
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
-
-SCRIPT_DIR = SCRIPTS_DIR
 # TAG_PATTERNS, TAG_WORD_SPAN, find_malformed_tags(), count_tags_by_kind(),
 # and VALID_DOC_FILES moved to doc_tag_utils.py so run_manifest.py's
 # evidence_tag_counts computation can import the exact same tag grammar
@@ -59,13 +57,13 @@ SCRIPT_DIR = SCRIPTS_DIR
 # suite enforces. Re-imported here under their original names so the rest
 # of this file (and its own tests, which assert against these names
 # directly) is unchanged.
-from doc_tag_utils import (  # noqa: E402
+from doc_engine.tools.doc_tag_utils import (
     VALID_DOC_FILES,
     count_tags_by_kind,
     find_malformed_tags,
     resolve_evidenced_citations,
 )
-from doc_engine.tools.pipeline_validators import (  # noqa: E402
+from doc_engine.tools.pipeline_validators import (
     FILE_SUMMARY_REQUIRED_KEYS,
     VALID_SPRING_ROLES,
     find_untraceable_nodes,
@@ -73,6 +71,8 @@ from doc_engine.tools.pipeline_validators import (  # noqa: E402
     validate_file_summarizer_entries,
     validate_gap_analyzer_questions,
 )
+
+SCRIPT_DIR = SCRIPTS_DIR
 
 class TagFormatTest(unittest.TestCase):
     def test_all_five_forms_recognized_and_not_flagged_malformed(self):

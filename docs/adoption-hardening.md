@@ -40,7 +40,7 @@ After a real completed run (live generative stages via Claude adapter):
 ## 4. Capacity preflight on largest intended repo
 
 ```bash
-python3 scripts/capacity_preflight.py /path/to/largest-service \
+python -m doc_engine.tools.capacity_preflight /path/to/largest-service \
   --groups-file ... --signals-file ... --out capacity_preflight_report.json
 ```
 

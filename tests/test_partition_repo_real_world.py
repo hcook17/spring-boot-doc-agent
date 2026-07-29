@@ -30,9 +30,9 @@ import os
 import sys
 import unittest
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
+from doc_engine.tools import partition_repo
 
 SCRIPT_DIR = SCRIPTS_DIR
-import partition_repo  # noqa: E402
 
 REAL_FIXTURE_DIR = os.environ.get("PARTITION_REPO_REAL_FIXTURE_DIR")
 MAX_TOKENS = int(os.environ.get("PARTITION_REPO_REAL_MAX_TOKENS", "2000"))

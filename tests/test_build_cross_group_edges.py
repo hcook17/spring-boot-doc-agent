@@ -24,9 +24,9 @@ import sys
 import unittest
 from pathlib import Path
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
+from doc_engine.tools import build_cross_group_edges as b
 
 SCRIPT_DIR = SCRIPTS_DIR
-import build_cross_group_edges as b  # noqa: E402
 
 
 def pkg_row(path, package):

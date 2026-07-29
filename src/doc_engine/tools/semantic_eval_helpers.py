@@ -44,7 +44,7 @@ at least `topic`, `question`, `status` ("answered" or "skipped"), and
 SKILL.md's Stage 3 description of what the orchestrator records.
 
 Run with:
-    python3 semantic_eval_helpers.py <artifacts_dir> [--target-repo <path>]
+    python -m doc_engine.tools.semantic_eval_helpers <artifacts_dir> [--target-repo <path>]
                                       [--out mechanical_findings.json]
 
 <artifacts_dir> is expected to contain interview_answers.json, docs/*.md,

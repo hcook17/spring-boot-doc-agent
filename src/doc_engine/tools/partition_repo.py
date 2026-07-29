@@ -47,7 +47,7 @@ validation pass in test_partition_repo_real_world.py that is what
 actually surfaced the second bug in the first place.
 
 Usage:
-    python3 partition_repo.py <repo_path> [--max-tokens 120000] [--overlap 0.10]
+    python -m doc_engine.tools.partition_repo <repo_path> [--max-tokens 120000] [--overlap 0.10]
                                [--out groups.json] [--exclude-dir NAME ...]
                                [--max-file-bytes 2000000]
 """

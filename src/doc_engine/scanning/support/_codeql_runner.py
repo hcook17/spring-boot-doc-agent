@@ -485,10 +485,10 @@ def scan_with_codeql(
 
 if __name__ == "__main__":
     # Simple CLI for quick manual testing of the runner.
-    # Usage: python3 scripts/_codeql_runner.py <repo_path> <build_command> [db_path]
+    # Usage: python -m doc_engine.scanning.support._codeql_runner <repo_path> <build_command> [db_path]
     # If db_path is provided, the database is kept there and reused if it exists.
     if len(sys.argv) < 3:
-        print("usage: python3 scripts/_codeql_runner.py <repo_path> <build_command> [db_path]")
+        print("usage: python -m doc_engine.scanning.support._codeql_runner <repo_path> <build_command> [db_path]")
         sys.exit(1)
     repo = Path(sys.argv[1])
     build = sys.argv[2]

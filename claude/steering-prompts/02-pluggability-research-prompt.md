@@ -4,8 +4,8 @@ status: resolved (2026-07-28) — references/ move (2026-07-23) and inter-stage 
 verify:
   - path_exists:skills/document-spring-repo/references/doc-taxonomy.md
   - path_absent:references
-  - path_exists:scripts/validate_artifacts.py
-  - path_exists:scripts/pipeline_validators.py
+  - path_exists:src/doc_engine/tools/validate_artifacts.py
+  - path_exists:src/doc_engine/tools/pipeline_validators.py
   - path_exists:scripts/schemas/spring_signals.schema.json
   - path_exists:src/doc_engine/pipeline/runner.py
   - contains:skills/document-spring-repo/SKILL.md:validate_artifacts.py

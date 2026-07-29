@@ -28,10 +28,9 @@ import tempfile
 import unittest
 from pathlib import Path
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
-
-import doc_tag_utils  # noqa: E402
-import prompt_contracts as pc  # noqa: E402
-from doc_engine.tools import pipeline_validators as pv  # noqa: E402
+from doc_engine.tools import doc_tag_utils
+from doc_engine.tools import pipeline_validators as pv
+import prompt_contracts as pc
 
 
 class ContractsMatchTheValidatorsTest(unittest.TestCase):

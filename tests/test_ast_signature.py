@@ -126,7 +126,7 @@ class RealModuleTest(unittest.TestCase):
         lines across three modules with zero changed lines outside the
         docstring; under t1 it would have staled every claim about them. This
         applies the same edit to a real module rather than a toy."""
-        target = SCRIPTS_DIR / "citation_coverage.py"
+        target = REPO_ROOT / "src" / "doc_engine" / "tools" / "citation_coverage.py"
         source = target.read_text(encoding="utf-8")
         tree = ast.parse(source)
         original = ast.get_docstring(tree)

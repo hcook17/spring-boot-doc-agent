@@ -63,13 +63,13 @@ doc-engine pipeline run <repo> --compliance-profile deterministic_only --out-dir
 doc-engine pipeline gates --out-dir <run> --target-repo <repo> --docs-dir <docs>
 ```
 
-From a product checkout, thin shims still work:
+From a product checkout:
 
 ```bash
-python3 scripts/validate_artifacts.py --all <run-directory>
+python -m doc_engine.tools.validate_artifacts --all <run-directory>
 ```
 
-Mechanical shape gates (summaries, gap questions) live in `doc_engine.tools.pipeline_validators` (`scripts/pipeline_validators.py` shim).
+Mechanical shape gates (summaries, gap questions) live in `doc_engine.tools.pipeline_validators`.
 
 Schemas: `scripts/schemas/*.schema.json` (derived from `doc_engine.pipeline.artifacts`).
 
@@ -79,7 +79,7 @@ Schemas: `scripts/schemas/*.schema.json` (derived from `doc_engine.pipeline.arti
 |----------|--------|--------|
 | Tests | `doc_engine.pipeline.*`, `doc_engine.tools.*` | In-process |
 | Claude skills | — | `doc-engine pipeline run\|gates`, `certification verify` only |
-| Operators / CI | — | same CLI, or `scripts/*.py` thin shims |
+| Operators / CI | — | same CLI, or `python -m doc_engine.tools.*` |
 
 ## Code entry points
 

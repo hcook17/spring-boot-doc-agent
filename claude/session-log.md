@@ -883,3 +883,22 @@ Assumptions affected:
 - Dual generative SoT — [Resolved — generative_choreography() on build_stage_specs(); skill cites SoT]
 - claude/steering-prompts/07-ci-scaffold-task-prompt.md — [New info — CI deterministic_only + artifact schema gate on spring fixture]
 Files touched: src/doc_engine/tools/*, pipeline/stages.py, live_gates.py, runner.py, local_runner.py, adapters/claude/skills/*, skills/*, tests/test_portable_stage0.py, test_adapter_layout.py, .github/workflows/ci.yml, STATUS.md, docs/product-architecture.md, claude/session-log.md
+
+## 2026-07-29 — CI workflow YAML parse gate; next arc = fact-store Phase 1
+Commit: uncommitted
+Tests: test_check_workflow_yaml.py 3/3; check_workflow_yaml.py OK on committed workflows
+Assumptions affected:
+- CI workflow validity — [Resolved — scripts/check_workflow_yaml.py + CI step; closes PR #57 unquoted-colon class]
+- Packaging arc next step — [New info — STATUS locks next engineering investment as fact-store Phase 1; packaging paused]
+Files touched: scripts/check_workflow_yaml.py, tests/test_check_workflow_yaml.py, requirements-dev.txt, .github/workflows/ci.yml, STATUS.md, claude/session-log.md
+
+## 2026-07-29 — Delete product scripts/ shims; one invoke surface
+Commit: uncommitted
+Tests: pytest tests/ (excl. kitchen-sink/real-world) 770 passed, 24 skipped; check_repo_claims OK; check_code_quality OK; rule_coverage OK
+Assumptions affected:
+- docs/product-architecture.md / STATUS — dual-home thin scripts/ product aliases until organic zero-use — [Resolved — product tools invoke only via python -m doc_engine.tools.* / doc-engine; 25 thin scripts/ product shims deleted; meta CI stays under scripts/]
+- claude/steering-prompts/02-pluggability-research-prompt.md — path_exists scripts/validate_artifacts.py / pipeline_validators.py — [Resolved — verify: retargeted to src/doc_engine/tools/]
+- claude/steering-prompts/03-constraints-research-prompt.md — path_exists scripts/spring_drift_check.py — [Resolved — verify: retargeted to src/doc_engine/tools/spring_drift_check.py]
+- claude/steering-prompts/04-analytics-logging-research-prompt.md — path_exists scripts/run_manifest.py — [Resolved — verify: retargeted to src/doc_engine/tools/run_manifest.py]
+- claude/steering-prompts/06-wiredrift-check-task-prompt.md — contains spring_drift_check.py string forms — [Still accurate — verify already cites doc_engine.tools.spring_drift_check]
+Files touched: scripts/ (product shims deleted), src/doc_engine/tools/*, tests/*, .github/workflows/ci.yml, docs-site.yml, STATUS.md, CONSTRAINTS.md, README.md, MATURITY_ASSESSMENT.md, docs/product-architecture.md, skills/*, adapters/claude/skills/*, adapters/claude/hooks/require_hardened_tests.py, claude/steering-prompts/02-04+06, claude/session-log.md

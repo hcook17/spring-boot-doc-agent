@@ -43,7 +43,7 @@ repo's CI has no target-repo pipeline run to check the output of. Run it by
 hand after a real run, or from the pipeline's own Output stage.
 
 Run with:
-    python3 scripts/check_pipeline_output.py <docs_dir> --target-repo <repo>
+    python -m doc_engine.tools.check_pipeline_output <docs_dir> --target-repo <repo>
 """
 
 import argparse

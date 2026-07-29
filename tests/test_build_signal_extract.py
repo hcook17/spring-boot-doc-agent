@@ -12,8 +12,7 @@ import sys
 import unittest
 from pathlib import Path
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
-
-import _build_signal_extract as bse  # noqa: E402
+from doc_engine.scanning.support import _build_signal_extract as bse
 
 
 class GradlePluginTest(unittest.TestCase):
