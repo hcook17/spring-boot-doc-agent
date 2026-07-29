@@ -67,6 +67,24 @@ def cmd_pipeline_run(args: argparse.Namespace) -> int:
     return run_pipeline(args)
 
 
+def cmd_pipeline_gates(args: argparse.Namespace) -> int:
+    from doc_engine.pipeline.live_gates import main as gates_main
+
+    argv = [
+        "--out-dir",
+        args.out_dir,
+        "--target-repo",
+        args.target_repo,
+    ]
+    if args.docs_dir:
+        argv.extend(["--docs-dir", args.docs_dir])
+    if args.strict_citations:
+        argv.append("--strict-citations")
+    if args.no_write_check:
+        argv.append("--no-write-check")
+    return gates_main(argv)
+
+
 def cmd_certification_verify(args: argparse.Namespace) -> int:
     from doc_engine.tools.certification import main as cert_main
 
@@ -79,7 +97,11 @@ def main() -> int:
 
     scan_ap = sub.add_parser("scan", help="Scan a repository and produce signals")
     scan_ap.add_argument("repo")
-    scan_ap.add_argument("--out", default="signals.json")
+    scan_ap.add_argument(
+        "--out",
+        default="spring_signals.json",
+        help="output path (default: spring_signals.json, same as Stage 0 / scripts/spring_signal_scan.py)",
+    )
     scan_ap.add_argument(
         "--scanners",
         default=None,
@@ -105,18 +127,31 @@ def main() -> int:
 
     pipeline_ap = sub.add_parser(
         "pipeline",
-        help="Run the full document-spring-repo pipeline (deterministic + mock LLM stages)",
+        help="Run the document-spring-repo pipeline (deterministic + optional gates)",
     )
     pipeline_sub = pipeline_ap.add_subparsers(dest="pipeline_command", required=True)
     run_ap = pipeline_sub.add_parser(
         "run",
-        help="Run locally against one target repo (see scripts/run_pipeline_local.py)",
+        help="Run locally against one target repo",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Deterministic stages use real scripts; Stages 1–4 are mocked unless "
-               "you drive generative work via an external adapter (Claude, Cursor, etc.).",
+        epilog="Deterministic stages use the package/scripts toolchain; "
+               "Stages 1–4 are mocked unless you drive generative work via an "
+               "external adapter (Claude, Cursor, etc.). Use --until STAGE to "
+               "truncate the graph from build_stage_specs().",
     )
     add_run_arguments(run_ap)
     run_ap.set_defaults(func=cmd_pipeline_run)
+
+    gates_ap = pipeline_sub.add_parser(
+        "gates",
+        help="Run mechanical gates on an existing run dir after live generative stages",
+    )
+    gates_ap.add_argument("--out-dir", required=True)
+    gates_ap.add_argument("--target-repo", required=True)
+    gates_ap.add_argument("--docs-dir", default=None)
+    gates_ap.add_argument("--strict-citations", action="store_true")
+    gates_ap.add_argument("--no-write-check", action="store_true")
+    gates_ap.set_defaults(func=cmd_pipeline_gates)
 
     cert_ap = sub.add_parser(
         "certification",

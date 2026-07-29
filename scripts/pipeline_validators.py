@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Thin shim — implementation in doc_engine.tools.pipeline_validators.
+"""CLI entry for pipeline artifact shape validators.
+
+Implementation: doc_engine.tools.pipeline_validators
 
 Usage:
     python3 scripts/pipeline_validators.py <run-directory> --target-repo <repo>
@@ -7,11 +9,7 @@ Usage:
 
 from __future__ import annotations
 
-import sys
-
-import doc_engine.tools.pipeline_validators as _impl
-
-sys.modules[__name__] = _impl
+from doc_engine.tools.pipeline_validators import main
 
 if __name__ == "__main__":
-    raise SystemExit(_impl.main())
+    raise SystemExit(main())

@@ -2,6 +2,11 @@
 end to end, against one target repo, with every stage's real command line and
 real output on screen and in a log file.
 
+A+C hybrid: Claude skills call ``doc-engine pipeline run`` / ``pipeline gates``
+(not plugin-local scripts). Stage graph SoT is ``build_stage_specs()``; use
+``--until STAGE`` to truncate. ``scripts/*.py`` remain thin shims; prefer
+in-process ``gates.py`` where already lifted.
+
 WHY THIS EXISTS
 The pipeline is normally driven by a live Claude Code session. Stage 0's
 scripts are ordinary subprocesses, but Stages 1–4 are subagent fan-outs that
@@ -418,6 +423,14 @@ def add_run_arguments(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--signals-file", default=None,
                     help="reuse an existing spring_signals.json; copies into "
                          "--out-dir and skips the signal_scan stage")
+    ap.add_argument(
+        "--until",
+        default=None,
+        metavar="STAGE",
+        help="stop after this stage name from build_stage_specs() "
+             "(e.g. signal_scan, partition, cross_group_edges). "
+             "Stage graph SoT remains stages.py — this only truncates.",
+    )
 
 
 def run_pipeline(args) -> int:
@@ -538,9 +551,19 @@ def run_pipeline(args) -> int:
     })
 
     all_specs = build_stage_specs()
-    selected_specs = stages_for_profile(
-        profile, all_specs, skip_signal_scan=skip_signal_scan,
-    )
+    until_stage = getattr(args, "until", None)
+    try:
+        selected_specs = stages_for_profile(
+            profile,
+            all_specs,
+            skip_signal_scan=skip_signal_scan,
+            until_stage=until_stage,
+        )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if until_stage:
+        log(f"  until stage   : {until_stage}")
     deterministic_specs = [s for s in selected_specs if s.kind == StageKind.DETERMINISTIC]
     generative_specs = [s for s in selected_specs if s.kind == StageKind.GENERATIVE]
 
@@ -596,7 +619,8 @@ def run_pipeline(args) -> int:
             success_lines=["RESULT: scan-only profile complete."],
         )
 
-    if profile == ComplianceProfile.DETERMINISTIC_ONLY:
+    # Deterministic-only profile, or --until truncated before any generative stage.
+    if profile == ComplianceProfile.DETERMINISTIC_ONLY or not generative_specs:
         log.rule("GATES (deterministic artifacts)")
         gates.run_gate_via_runner(
             runner,
@@ -621,11 +645,17 @@ def run_pipeline(args) -> int:
         _run_drift_check(log, runner, py, repo_path, manifest, out_dir, args, signals_path)
         _artifact_inventory(log, out_dir)
 
+        until_note = (
+            f" Stopped after --until {until_stage}."
+            if until_stage and profile == ComplianceProfile.CERTIFIED
+            else ""
+        )
         return _write_certification_and_finish(
             log, runner, profile, repo_path, out_dir, "none",
             success_lines=[
                 "RESULT: deterministic stages complete. Run generative stages via "
-                "Claude Code + document-spring-repo skill for real docs.",
+                "Claude Code + document-spring-repo skill for real docs."
+                + until_note,
             ],
         )
 

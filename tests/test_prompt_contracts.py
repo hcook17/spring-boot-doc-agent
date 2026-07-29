@@ -31,7 +31,7 @@ from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT
 
 import doc_tag_utils  # noqa: E402
 import prompt_contracts as pc  # noqa: E402
-import pipeline_validators as pv  # noqa: E402
+from doc_engine.tools import pipeline_validators as pv  # noqa: E402
 
 
 class ContractsMatchTheValidatorsTest(unittest.TestCase):

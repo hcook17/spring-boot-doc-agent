@@ -115,8 +115,16 @@ from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT
 SCRIPT_DIR = SCRIPTS_DIR
 import partition_repo  # noqa: E402
 import run_manifest  # noqa: E402
-import run_pipeline_local  # noqa: E402  (reused for the four mocked LLM stages)
 import spring_signal_scan  # noqa: E402
+from doc_engine.pipeline.mock_stages import (  # noqa: E402
+    find_existing_readme,
+    load_citations,
+    mock_architecture,
+    mock_docs,
+    mock_file_summaries,
+    mock_gap_and_interview,
+    sweep_todos,
+)
 from _shared_excludes import DEFAULT_EXCLUDED_DIRS  # noqa: E402
 from doc_tag_utils import VALID_DOC_FILES  # noqa: E402
 
@@ -503,33 +511,33 @@ def run_chain(repo, out_dir):
 
     quiet = lambda *a, **k: None  # noqa: E731
     today = datetime.date.today().isoformat()
-    pool = run_pipeline_local.load_citations(signals_data, repo)
-    todos = run_pipeline_local.sweep_todos(repo)
+    pool = load_citations(signals_data, repo)
+    todos = sweep_todos(repo)
     n = groups_data["num_groups"]
 
     record("start_file_summarize",
            _run(manifest_cmd("start-stage", manifest, "file_summarize", "--fanout", str(n))))
-    run_pipeline_local.mock_file_summaries(out_dir, groups_data, pool, edges_data, quiet)
+    mock_file_summaries(out_dir, groups_data, pool, edges_data, quiet)
     record("end_file_summarize",
            _run(manifest_cmd("end-stage", manifest, "file_summarize", "--status", "complete")))
 
     record("start_architect",
            _run(manifest_cmd("start-stage", manifest, "architect", "--fanout", str(n + 1))))
-    run_pipeline_local.mock_architecture(out_dir, groups_data, pool, quiet)
+    mock_architecture(out_dir, groups_data, pool, quiet)
     record("end_architect",
            _run(manifest_cmd("end-stage", manifest, "architect", "--status", "complete")))
 
     record("start_gap", _run(manifest_cmd("start-stage", manifest,
                                           "gap_analysis_interview", "--fanout", "1")))
-    run_pipeline_local.mock_gap_and_interview(out_dir, pool, todos, today, quiet)
+    mock_gap_and_interview(out_dir, pool, todos, today, quiet)
     record("end_gap", _run(manifest_cmd("end-stage", manifest,
                                         "gap_analysis_interview", "--status", "complete")))
 
     answers = json.load(open(os.path.join(out_dir, "interview_answers.json"), encoding="utf-8"))
     record("start_doc_writer",
            _run(manifest_cmd("start-stage", manifest, "doc_writer", "--fanout", "14")))
-    run_pipeline_local.mock_docs(docs, pool, todos, answers, today,
-                                 run_pipeline_local.find_existing_readme(repo), quiet)
+    mock_docs(docs, pool, todos, answers, today,
+              find_existing_readme(repo), quiet)
     record("end_doc_writer",
            _run(manifest_cmd("end-stage", manifest, "doc_writer", "--status", "complete")))
 

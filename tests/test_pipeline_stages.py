@@ -65,7 +65,7 @@ from doc_tag_utils import (  # noqa: E402
     find_malformed_tags,
     resolve_evidenced_citations,
 )
-from pipeline_validators import (  # noqa: E402
+from doc_engine.tools.pipeline_validators import (  # noqa: E402
     FILE_SUMMARY_REQUIRED_KEYS,
     VALID_SPRING_ROLES,
     find_untraceable_nodes,

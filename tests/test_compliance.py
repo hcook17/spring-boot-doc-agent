@@ -109,6 +109,25 @@ class StagesForProfileTest(unittest.TestCase):
         )
         self.assertEqual([s.name for s in specs], ["init_manifest"])
 
+    def test_until_truncates_inclusive(self):
+        specs = stages_for_profile(
+            ComplianceProfile.DETERMINISTIC_ONLY,
+            build_stage_specs(),
+            until_stage="partition",
+        )
+        self.assertEqual(
+            [s.name for s in specs],
+            ["init_manifest", "signal_scan", "partition"],
+        )
+
+    def test_until_unknown_raises(self):
+        with self.assertRaises(ValueError):
+            stages_for_profile(
+                ComplianceProfile.CERTIFIED,
+                build_stage_specs(),
+                until_stage="not_a_real_stage",
+            )
+
 
 class GatesRequiredForProfileTest(unittest.TestCase):
     def test_scan_only_gate_id(self):

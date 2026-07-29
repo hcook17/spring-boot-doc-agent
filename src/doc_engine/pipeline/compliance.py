@@ -95,8 +95,13 @@ def stages_for_profile(
     all_specs: list[StageSpec],
     *,
     skip_signal_scan: bool = False,
+    until_stage: str | None = None,
 ) -> list[StageSpec]:
-    """Return the stage graph subset required by a compliance profile."""
+    """Return the stage graph subset required by a compliance profile.
+
+    If ``until_stage`` is set, truncate after that stage name (inclusive).
+    Stage names come from ``build_stage_specs()`` — the single SoT for the graph.
+    """
     if profile == ComplianceProfile.CERTIFIED:
         specs = list(all_specs)
     elif profile == ComplianceProfile.DETERMINISTIC_ONLY:
@@ -107,6 +112,17 @@ def stages_for_profile(
 
     if skip_signal_scan:
         specs = [s for s in specs if s.name != "signal_scan"]
+
+    if until_stage:
+        names = [s.name for s in specs]
+        if until_stage not in names:
+            known = ", ".join(s.name for s in all_specs)
+            raise ValueError(
+                f"unknown --until stage {until_stage!r}; "
+                f"known stage names: {known}"
+            )
+        cut = names.index(until_stage) + 1
+        specs = specs[:cut]
     return specs
 
 

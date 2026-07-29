@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Thin shim — implementation in doc_engine.pipeline.local_runner.
+"""CLI entry for local pipeline runs.
+
+Implementation: doc_engine.pipeline.local_runner
 
 Usage:
     python3 scripts/run_pipeline_local.py /abs/path/to/spring-repo
@@ -7,11 +9,7 @@ Usage:
 
 from __future__ import annotations
 
-import sys
-
-import doc_engine.pipeline.local_runner as _impl
-
-sys.modules[__name__] = _impl
+from doc_engine.pipeline.local_runner import main
 
 if __name__ == "__main__":
-    raise SystemExit(_impl.main())
+    raise SystemExit(main())
