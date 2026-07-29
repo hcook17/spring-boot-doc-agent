@@ -85,9 +85,10 @@ import tempfile
 import time
 from datetime import datetime, timezone
 
-
-from doc_engine.tools import doc_tag_utils  # noqa: E402
-from doc_engine.tools import spring_signal_scan  # noqa: E402
+from doc_engine.tools import (
+    doc_tag_utils,  # noqa: E402
+    spring_signal_scan,  # noqa: E402
+)
 
 # ML Metadata's Execution.last_known_state enum vocabulary, reused verbatim
 # rather than inventing a bespoke one (see the research doc's design notes).

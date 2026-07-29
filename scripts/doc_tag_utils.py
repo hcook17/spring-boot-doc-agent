@@ -3,10 +3,10 @@
 
 from doc_engine.tools.doc_tag_utils import *  # noqa: F403
 from doc_engine.tools.doc_tag_utils import (  # noqa: F401
-    VALID_DOC_FILES,
     TAG_PATTERNS,
     TAG_WORD_SPAN,
-    find_malformed_tags,
+    VALID_DOC_FILES,
     count_tags_by_kind,
+    find_malformed_tags,
     resolve_evidenced_citations,
 )

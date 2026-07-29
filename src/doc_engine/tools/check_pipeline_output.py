@@ -52,7 +52,6 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-
 from doc_engine.tools.doc_tag_utils import (  # noqa: E402
     VALID_DOC_FILES,
     count_tags_by_kind,

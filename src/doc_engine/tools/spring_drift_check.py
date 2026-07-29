@@ -227,10 +227,9 @@ import os
 import sys
 from collections import Counter
 
-
-from doc_engine.tools import spring_signal_scan  # noqa: E402
 from doc_engine.scanning.support._build_signal_extract import extract_build_signals  # noqa: E402
 from doc_engine.scanning.support._config_keys import extract_config_keys  # noqa: E402
+from doc_engine.tools import spring_signal_scan  # noqa: E402
 
 # Every citation ends up with exactly one of these — nothing is ever
 # silently dropped from the report.

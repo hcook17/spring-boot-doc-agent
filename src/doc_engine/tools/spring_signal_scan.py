@@ -16,7 +16,6 @@ import subprocess
 import sys
 from typing import Any, Dict, List
 
-
 from doc_engine.core.walk import compute_file_signature, dfs_walk
 from doc_engine.paths import scripts_dir
 from doc_engine.scanning._paths import ast_grep_rules_path

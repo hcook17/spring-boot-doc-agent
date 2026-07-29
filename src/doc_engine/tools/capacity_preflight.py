@@ -78,10 +78,11 @@ import json
 import os
 import sys
 
-
-from doc_engine.tools import build_cross_group_edges  # noqa: E402
-from doc_engine.tools import partition_repo  # noqa: E402
-from doc_engine.tools import spring_signal_scan  # noqa: E402
+from doc_engine.tools import (
+    build_cross_group_edges,  # noqa: E402
+    partition_repo,  # noqa: E402
+    spring_signal_scan,  # noqa: E402
+)
 
 STAGE3_FIXED_FANOUT = 1   # gap-analyzer, always exactly one dispatch
 STAGE3_ARCH_TEST_REVIEW_FANOUT = 1  # software-architect-and-testing, always one

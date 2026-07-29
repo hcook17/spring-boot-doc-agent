@@ -39,7 +39,6 @@ import argparse
 import os
 import sys
 
-
 from doc_engine.scanning.support._secret_heuristics import scan_text_for_secrets  # noqa: E402
 
 CHECKED_EXTENSIONS = {".json", ".md"}
