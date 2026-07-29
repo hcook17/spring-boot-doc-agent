@@ -1360,23 +1360,35 @@ def accepted_fingerprints(baseline: Optional[Dict[str, object]]) -> Set[str]:
 # Driver
 # --------------------------------------------------------------------------
 
+def utf8_readable_markdown(
+    root: Path,
+) -> Tuple[List[Finding], List[str]]:
+    """Encoding preflight for Check G; returns (findings, readable paths).
+
+    Keeps collect_all at its baseline statement/complexity budget: branching
+    and filtering live here, not in the driver.
+    """
+    markdown = tracked_markdown(root)
+    encoding = check_utf8_markdown(root, markdown)
+    bad = {f.path for f in encoding}
+    readable = [p for p in markdown if p not in bad]
+    return encoding, readable
+
+
 def collect_all(root: Path) -> Tuple[List[Finding], List[Finding]]:
     """Returns (hard, baseline_eligible). Checks A, D, E, F and G are exact and
     never ride the baseline: a wrong derived number, an unrun suite, a
     mislabelled gate, an agent granted text search, and a non-UTF-8 markdown
     file are all unambiguous and all cheap to fix on the spot."""
-    markdown = tracked_markdown(root)
-    encoding = check_utf8_markdown(root, markdown)
-    bad = {f.path for f in encoding}
-    readable = [p for p in markdown if p not in bad]
+    encoding, markdown = utf8_readable_markdown(root)
     verify_failures, verify_missing = check_verify_predicates(root)
     hard = (encoding
-            + check_derived_blocks(root, readable)
+            + check_derived_blocks(root, markdown)
             + check_ci_suite_coverage(root)
             + check_gate_honesty(root)
             + check_agent_search_tooling(root)
             + verify_failures)
-    soft = check_references(root, readable) + verify_missing
+    soft = check_references(root, markdown) + verify_missing
     return hard, soft
 
 
