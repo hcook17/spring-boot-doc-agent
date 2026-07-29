@@ -4,8 +4,8 @@ real output on screen and in a log file.
 
 A+C hybrid: Claude skills call ``doc-engine pipeline run`` / ``pipeline gates``
 (not plugin-local scripts). Stage graph SoT is ``build_stage_specs()``; use
-``--until STAGE`` to truncate. ``scripts/*.py`` remain thin shims; prefer
-in-process ``gates.py`` where already lifted.
+``--until STAGE`` to truncate. Product tools live under ``doc_engine.tools``
+(``python -m``); prefer in-process ``gates.py`` where already lifted.
 
 WHY THIS EXISTS
 The pipeline is normally driven by a live Claude Code session. Stage 0's
