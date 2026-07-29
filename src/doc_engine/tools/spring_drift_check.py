@@ -758,8 +758,6 @@ def check_drift(repo_path, signals, manifest=None):
         old_signatures = signals.get("file_signatures", {})
         baseline_provenance = {"source": "spring_signals.json"}
 
-    import _src_bootstrap  # noqa: F401
-
     from doc_engine.core.context import ScanContext
 
     scan_context = ScanContext.build(repo_path)
