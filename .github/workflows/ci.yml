@@ -119,11 +119,10 @@ jobs:
       # side effect of adding a linter. Stated here with the number rather
       # than left as an unexplained absence.
 
-      # The monotonic ratchet on function size, complexity, nesting depth, and
-      # type-annotation coverage, compared against the committed
-      # scripts/code_quality_baseline.json. Fails only on regression -- it
-      # never asks for a refactor, only that these numbers not grow. Regenerate
-      # deliberately with `--update` when something genuinely improves.
+      # Annotation coverage + docstring orientation (hard); size/complexity/
+      # depth print as advisory only (schema v4). Baseline:
+      # scripts/code_quality_baseline.json. Regenerate with `--update` when
+      # annotation/docstring floors genuinely improve or the measured set grows.
       - name: check_code_quality.py (annotation + docstring hard; size advisory)
         run: python3 scripts/check_code_quality.py
 
@@ -197,9 +196,10 @@ jobs:
       # claude/llms/pr-N.md survives as a human-read convention: its commands
       # are for a person to run deliberately, never for CI to execute.
 
-      # Advisory only — check_llms_coverage.py never fails CI. Redesign the
+      # Advisory only -- check_llms_coverage.py never fails CI. Redesign the
       # exemption heuristic or delete this step; do not reintroduce ENFORCE.
-      - name: check_llms_coverage.py (advisory: merged PRs without claude/llms/pr-N.md)
+      # Name is quoted: an unquoted colon in a YAML scalar breaks the workflow.
+      - name: "check_llms_coverage.py (advisory: merged PRs without claude/llms/pr-N.md)"
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/check_llms_coverage.py
