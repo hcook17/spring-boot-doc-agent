@@ -40,7 +40,7 @@ class StageSpec:
     fanout: int | None = None
     outputs: tuple[str, ...] = ()
     """Artifact filenames produced (for boundary validation)."""
-    argv_builder: Callable[["PipelineContext"], list[str]] | None = None
+    argv_builder: Callable[[PipelineContext], list[str]] | None = None
     """Build subprocess argv for deterministic stages."""
     generative_key: str | None = None
     """Key passed to StageExecutor for generative stages."""

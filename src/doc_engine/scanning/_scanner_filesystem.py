@@ -14,11 +14,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from doc_engine.core.context import ScanContext
-from doc_engine.core.walk import compute_file_signature, dfs_walk
 from doc_engine.scanning._scanner_base import ScannerBackend
 from doc_engine.scanning.support._build_signal_extract import extract_build_signals
 from doc_engine.scanning.support._config_keys import extract_config_keys
 from doc_engine.scanning.support._secret_heuristics import scan_text_for_secrets
+
 BUILD_FILE_NAMES = {"pom.xml", "build.xml"}
 BUILD_EXTS = {".gradle", ".groovy"}
 CONFIG_NAME_PATTERNS = [
@@ -127,7 +127,6 @@ class FilesystemBackend(ScannerBackend):
         return "filesystem"
 
     def version_hash(self) -> str:
-        import hashlib
         h = hashlib.sha256()
         paths = [
             Path(__file__).resolve(),

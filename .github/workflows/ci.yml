@@ -108,8 +108,8 @@ jobs:
       # (derived from this repo's own p99.5, not from a style guide), and the
       # two deliberately-deferred rule families with their counts all live in
       # .ruff.toml. This step fails the build.
-      - name: ruff check (lint)
-        run: python3 -m ruff check --no-cache scripts/
+      - name: ruff check (lint scripts + src/doc_engine)
+        run: python3 -m ruff check --no-cache scripts/ src/doc_engine/
 
       # NOT wired, deliberately: `ruff format --check`. Measured 2026-07-24 --
       # 29 of 33 files in scripts/ would be reformatted. Adopting the
@@ -124,7 +124,7 @@ jobs:
       # scripts/code_quality_baseline.json. Fails only on regression -- it
       # never asks for a refactor, only that these numbers not grow. Regenerate
       # deliberately with `--update` when something genuinely improves.
-      - name: check_code_quality.py (ratchet)
+      - name: check_code_quality.py (annotation + docstring hard; size advisory)
         run: python3 scripts/check_code_quality.py
 
       # Reads this repo's claims about itself back: every steering prompt's
@@ -197,12 +197,9 @@ jobs:
       # claude/llms/pr-N.md survives as a human-read convention: its commands
       # are for a person to run deliberately, never for CI to execute.
 
-      # NOTE: this step reports only — check_llms_coverage.py has ENFORCE = False,
-      # so it prints findings and exits 0. The name says "reports", not "fails", on
-      # purpose: a step named as a gate that cannot fail is worse than no gate,
-      # because it reads as enforcement to anyone scanning the workflow. Rename
-      # this back to "fails on ..." in the same change that sets ENFORCE = True.
-      - name: check_llms_coverage.py (reports merged PRs with no claude/llms/pr-N.md; non-blocking)
+      # Advisory only — check_llms_coverage.py never fails CI. Redesign the
+      # exemption heuristic or delete this step; do not reintroduce ENFORCE.
+      - name: check_llms_coverage.py (advisory: merged PRs without claude/llms/pr-N.md)
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/check_llms_coverage.py

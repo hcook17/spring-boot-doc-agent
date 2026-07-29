@@ -39,17 +39,11 @@ Run with:
     python3 scripts/check_llms_coverage.py
 """
 
-# Temporarily non-blocking (2026-07-25, repo owner's call): a burst of rapid
-# solo merges outran the "write your own pr-N.md pre-merge" convention
-# (claude/llms/README.md) faster than that convention could take effect,
-# producing a chain of same-day "add pr-N.md" follow-up PRs the owner found
-# more disruptive than useful (see claude/session-log.md and CONSTRAINTS.md
-# item 4's addenda for the full history). Findings still print in full when
-# this is False — nothing about detection changes — only whether they fail
-# the build. Flip back to True once merge cadence settles down enough for
-# the pre-merge convention to actually apply, or once the exemption
-# heuristic itself gets the refinement flagged in CONSTRAINTS.md item 4.
-ENFORCE = False
+# Always advisory (2026-07-29 principal gate redesign). Detection remains
+# useful for humans/agents reading CI logs; failing the build on the current
+# "most-recently-merged exempt" heuristic was theater (ENFORCE=False for
+# months). Either delete this step later or redesign the exemption — do not
+# reintroduce a latent hard gate behind a toggle.
 
 import argparse
 import json
@@ -136,12 +130,9 @@ def check_coverage(merged_prs: List[dict], llms_dir: Path) -> List[str]:
     return issues
 
 
-def exit_code(issues: List[str], enforce: bool) -> int:
-    """Whether findings fail the build. Split out from main() so the
-    ENFORCE toggle's behavior is unit-testable without a live gh call."""
-    if not issues:
-        return 0
-    return 1 if enforce else 0
+def exit_code(issues: List[str]) -> int:
+    """Always advisory: findings never fail the build."""
+    return 0
 
 
 def main() -> int:
@@ -169,11 +160,11 @@ def main() -> int:
         print(f"OK: all {len(merged_prs)} merged PR(s) have an up-to-date claude/llms/pr-N.md{grace_note}.")
         return 0
 
-    label = "coverage check failed" if ENFORCE else "coverage check found issues (non-blocking, ENFORCE=False)"
-    print(f"claude/llms/ {label} ({len(issues)} issue(s)):", file=sys.stderr)
+    print(f"claude/llms/ coverage check found issues (advisory; never fails CI) "
+          f"({len(issues)} issue(s)):", file=sys.stderr)
     for issue in issues:
         print(f"  - {issue}", file=sys.stderr)
-    return exit_code(issues, ENFORCE)
+    return exit_code(issues)
 
 
 if __name__ == "__main__":

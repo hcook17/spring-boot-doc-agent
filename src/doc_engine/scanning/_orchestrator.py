@@ -17,7 +17,7 @@ def _combined_scanner_version(scanners: List[Scanner]) -> str:
     """Hash the active scanner names and their individual version hashes."""
     h = hashlib.sha256()
     for scanner in scanners:
-        h.update(f"{scanner.name}:{scanner.version_hash()}".encode("utf-8"))
+        h.update(f"{scanner.name}:{scanner.version_hash()}".encode())
     return h.hexdigest()[:16]
 
 

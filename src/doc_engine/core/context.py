@@ -7,8 +7,8 @@ future incremental scanners all need the same file inventory and signatures.
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from doc_engine.core.walk import JAVA_EXT, compute_file_signature, dfs_walk
 from doc_engine.core.excludes import load_gitignore_spec
+from doc_engine.core.walk import JAVA_EXT, compute_file_signature, dfs_walk
 
 
 @dataclass(frozen=True)

@@ -863,3 +863,15 @@ Assumptions affected:
 - CLAUDE.md / check_repo_claims reader contract — strict UTF-8 with no preflight — [Resolved — Check G emits Finding (path, byte offset, hint) instead of UnicodeDecodeError traceback; read_utf8 helper; skip unreadable md for later checks.]
 - Windows session-log append path — [New info — PowerShell Add-Content default encoding can inject cp1252; documented in claude/tool-quirks.md; prefer Python Path.write_text(encoding="utf-8").]
 Files touched: scripts/check_repo_claims.py, tests/test_check_repo_claims.py, claude/session-log.md, claude/tool-quirks.md
+
+---
+
+## 2026-07-29 — Principal gate redesign: size advisory, ruff on src/doc_engine, honest llms coverage
+
+Commit: uncommitted
+Tests: test_check_code_quality.py 61/61; test_check_llms_coverage.py; ruff scripts/+src/doc_engine clean; check_repo_claims OK
+Assumptions affected:
+- claude/steering-prompts/13-code-quality-research-prompt.md — monotonic size/complexity hard ratchet — [Resolved — schema v4: size/complexity/depth advisory; hard = annotation coverage + docstring orientation; measure scripts/ + src/doc_engine/.]
+- CONSTRAINTS.md ENFORCE=False temporary on check_llms_coverage — [Resolved — ENFORCE toggle removed; always advisory.]
+- Product package outside lint scope — [Resolved — ruff check scripts/ src/doc_engine/.]
+Files touched: scripts/check_code_quality.py, scripts/code_quality_baseline.json, scripts/check_llms_coverage.py, tests/test_check_code_quality.py, tests/test_check_llms_coverage.py, .github/workflows/ci.yml, .ruff.toml, CONSTRAINTS.md, STATUS.md, claude/steering-prompts/13-code-quality-research-prompt.md, src/doc_engine/**, claude/session-log.md

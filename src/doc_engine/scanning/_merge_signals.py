@@ -6,7 +6,7 @@ stages read the merged output exactly as they read a single-scanner output.
 """
 
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from doc_engine.core.protocols import Merger
 from doc_engine.scanning.java_extract import to_snake_case
