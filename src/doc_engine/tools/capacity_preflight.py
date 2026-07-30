@@ -88,7 +88,17 @@ Usage:
         [--group-warn-threshold 15] [--fanout-warn-threshold 40]
         [--slice-tokens-warn-threshold 30000]
         [--stage4-shared-tokens-warn-threshold 80000]
+        [--summaries-file summaries.json]
+        [--interview-answers-file interview_answers.json]
+        [--stage0-preflight-report capacity_preflight_report.json]
         [--out capacity_preflight_report.json]
+
+L2b — when --summaries-file is set, run post-artifact Stage-4 *measurement*
+(metric_kind measured_stage4_inputs) against on-disk summaries / optional
+interview_answers / optional signals. Stage-0 partial_proxy_pre_stage4 is
+unchanged for pre-run estimates. Do not invent interview sizes at Stage 0;
+do not change the default --stage4-shared-tokens-warn-threshold without a
+documented mid-size run. Cite rel-partition-bounds-fanout.
 """
 
 import argparse
@@ -118,6 +128,11 @@ STAGE4_PROXY_INCLUDED = (
 STAGE4_PROXY_OMITTED = (
     "interview_answers",
     "architecture_merge_beyond_summary_proxy",
+    "stage4_return_payloads",
+)
+
+# L2b measured mode: SoR = on-disk Stage-4 inputs. Returns stay omitted.
+STAGE4_MEASURED_ALWAYS_OMITTED = (
     "stage4_return_payloads",
 )
 
@@ -219,6 +234,13 @@ def estimate_stage1_slice_tokens(edges):
     }
 
 
+def _json_est_tokens(obj):
+    """Same chars/N heuristic as Stage-1 slices / Stage-0 signals."""
+    if obj is None:
+        return 0
+    return max(1, len(json.dumps(obj)) // partition_repo.CHARS_PER_TOKEN_DEFAULT)
+
+
 def estimate_stage4_shared_pool_tokens(groups_data, signals_data=None):
     """Partial Stage-0 *proxy* for Stage-4 shared-pool input — not a full bound.
 
@@ -235,18 +257,15 @@ def estimate_stage4_shared_pool_tokens(groups_data, signals_data=None):
     groups = groups_data.get("groups") or []
     summaries_est = sum(int(g.get("est_tokens") or 0) for g in groups)
     signals_omitted = signals_data is None
-    signals_est = 0
-    if signals_data is not None:
-        signals_est = max(
-            1,
-            len(json.dumps(signals_data)) // partition_repo.CHARS_PER_TOKEN_DEFAULT,
-        )
+    signals_est = _json_est_tokens(signals_data) if signals_data is not None else 0
     shared = summaries_est + signals_est
     return {
         "metric_kind": "partial_proxy_pre_stage4",
         "included_now": list(STAGE4_PROXY_INCLUDED),
         "omitted_not_estimated": list(STAGE4_PROXY_OMITTED),
         "summaries_est_tokens": summaries_est,
+        "interview_answers_est_tokens": 0,
+        "interview_answers_omitted": True,
         "signals_est_tokens": signals_est,
         "signals_omitted": signals_omitted,
         "shared_pool_upper_bound_est_tokens": shared,
@@ -257,6 +276,146 @@ def estimate_stage4_shared_pool_tokens(groups_data, signals_data=None):
             "summaries (overlap can inflate) + optional signals; omitted "
             "interview_answers / architecture_merge_beyond_summary_proxy / "
             "stage4_return_payloads; not a full Stage-4 upper_bound"
+        ),
+    }
+
+
+def measure_stage4_shared_pool_tokens(
+    summaries_data, interview_answers=None, signals_data=None,
+):
+    """L2b: measure Stage-4 shared-pool input from on-disk artifacts.
+
+    SoR = summaries.json (+ optional interview_answers.json / spring_signals.json).
+    ``metric_kind`` is ``measured_stage4_inputs``. Return payloads are never
+    estimated. Missing interview/signals are listed in omissions — do not invent
+    sizes. Numeric ``*_upper_bound_*`` names remain warn-threshold fields only.
+    """
+    if summaries_data is None:
+        raise ValueError("summaries_data is required for measured_stage4_inputs")
+    summaries_est = _json_est_tokens(summaries_data)
+    interview_omitted = interview_answers is None
+    interview_est = (
+        0 if interview_omitted else _json_est_tokens(interview_answers)
+    )
+    signals_omitted = signals_data is None
+    signals_est = 0 if signals_omitted else _json_est_tokens(signals_data)
+    shared = summaries_est + interview_est + signals_est
+
+    included = ["summaries"]
+    omitted = []
+    if interview_omitted:
+        omitted.append("interview_answers")
+    else:
+        included.append("interview_answers")
+    if signals_omitted:
+        omitted.append("spring_signals")
+    else:
+        included.append("spring_signals")
+    omitted.extend(STAGE4_MEASURED_ALWAYS_OMITTED)
+
+    return {
+        "metric_kind": "measured_stage4_inputs",
+        "included_now": included,
+        "omitted_not_estimated": omitted,
+        "summaries_est_tokens": summaries_est,
+        "interview_answers_est_tokens": interview_est,
+        "interview_answers_omitted": interview_omitted,
+        "signals_est_tokens": signals_est,
+        "signals_omitted": signals_omitted,
+        "shared_pool_upper_bound_est_tokens": shared,
+        "aggregate_input_upper_bound_est_tokens": shared * STAGE4_FIXED_FANOUT,
+        "return_payloads_estimated": False,
+        "note": (
+            "measured_stage4_inputs: chars/N of on-disk summaries"
+            f"{'' if interview_omitted else ' + interview_answers'}"
+            f"{'' if signals_omitted else ' + spring_signals'}; "
+            "omitted stage4_return_payloads"
+            f"{' / interview_answers' if interview_omitted else ''}"
+            f"{' / spring_signals' if signals_omitted else ''}; "
+            "not a claim that Stage-4 capacity risk is closed"
+        ),
+    }
+
+
+def compare_stage4_proxy_to_measured(proxy_pool, measured_pool):
+    """Derived view: Stage-0 proxy vs measured on-disk inputs (not a second SoR)."""
+    proxy_shared = int(proxy_pool.get("shared_pool_upper_bound_est_tokens") or 0)
+    measured_shared = int(measured_pool.get("shared_pool_upper_bound_est_tokens") or 0)
+    ratio = (
+        (measured_shared / proxy_shared) if proxy_shared > 0 else None
+    )
+    return {
+        "proxy_metric_kind": proxy_pool.get("metric_kind"),
+        "measured_metric_kind": measured_pool.get("metric_kind"),
+        "stage0_proxy_shared_est_tokens": proxy_shared,
+        "measured_shared_est_tokens": measured_shared,
+        "measured_over_proxy_ratio": ratio,
+        "proxy_summaries_est_tokens": proxy_pool.get("summaries_est_tokens"),
+        "measured_summaries_est_tokens": measured_pool.get("summaries_est_tokens"),
+        "measured_interview_answers_est_tokens": measured_pool.get(
+            "interview_answers_est_tokens"
+        ),
+        "note": (
+            "derived comparison only; measured SoR is on-disk Stage-4 inputs; "
+            "proxy SoR is group est_tokens + optional signals at Stage 0"
+        ),
+    }
+
+
+def _stage4_pool_fields(stage4_pool):
+    """Flatten a Stage-4 pool dict into report keys (proxy or measured)."""
+    return {
+        "stage4_metric_kind": stage4_pool["metric_kind"],
+        "stage4_included_now": stage4_pool["included_now"],
+        "stage4_omitted_not_estimated": stage4_pool["omitted_not_estimated"],
+        "stage4_shared_pool_upper_bound_est_tokens": (
+            stage4_pool["shared_pool_upper_bound_est_tokens"]
+        ),
+        "stage4_summaries_est_tokens": stage4_pool["summaries_est_tokens"],
+        "stage4_interview_answers_est_tokens": stage4_pool.get(
+            "interview_answers_est_tokens", 0
+        ),
+        "stage4_interview_answers_omitted": stage4_pool.get(
+            "interview_answers_omitted", True
+        ),
+        "stage4_signals_est_tokens": stage4_pool["signals_est_tokens"],
+        "stage4_signals_omitted": stage4_pool["signals_omitted"],
+        "stage4_aggregate_input_upper_bound_est_tokens": (
+            stage4_pool["aggregate_input_upper_bound_est_tokens"]
+        ),
+        "stage4_return_payloads_estimated": stage4_pool["return_payloads_estimated"],
+    }
+
+
+def _stage4_shared_pool_warning(stage4_pool, threshold):
+    if stage4_pool["shared_pool_upper_bound_est_tokens"] <= threshold:
+        return None
+    kind = stage4_pool["metric_kind"]
+    interview_note = ""
+    if stage4_pool.get("interview_answers_omitted"):
+        interview_note = ", interview_omitted"
+    elif stage4_pool.get("interview_answers_est_tokens"):
+        interview_note = (
+            f", interview≈{stage4_pool['interview_answers_est_tokens']}"
+        )
+    return {
+        "dimension": "stage4_shared_pool_upper_bound_est_tokens",
+        "value": stage4_pool["shared_pool_upper_bound_est_tokens"],
+        "threshold": threshold,
+        "message": (
+            f"Stage-4 shared-pool {kind} is "
+            f"~{stage4_pool['shared_pool_upper_bound_est_tokens']} "
+            f"est. tokens (summaries≈{stage4_pool['summaries_est_tokens']}"
+            f"{interview_note}, "
+            f"signals≈{stage4_pool['signals_est_tokens']}"
+            f"{', signals_omitted' if stage4_pool['signals_omitted'] else ''}), "
+            f"and each of {STAGE4_FIXED_FANOUT} doc-writers receives a pool "
+            f"(aggregate≈"
+            f"{stage4_pool['aggregate_input_upper_bound_est_tokens']}). "
+            f"Omitted (not estimated): "
+            f"{', '.join(stage4_pool['omitted_not_estimated'])}. "
+            f"Do not treat a quiet Stage-1 slice — or this metric — as "
+            f"closed Stage-4 capacity risk."
         ),
     }
 
@@ -333,28 +492,13 @@ def compute_preflight(repo_path, max_tokens=120000, overlap=0.10,
                 f"cut smaller groups, which shrinks each slice."
             ),
         })
-    if stage4_pool["shared_pool_upper_bound_est_tokens"] > stage4_shared_tokens_warn_threshold:
-        warnings.append({
-            "dimension": "stage4_shared_pool_upper_bound_est_tokens",
-            "value": stage4_pool["shared_pool_upper_bound_est_tokens"],
-            "threshold": stage4_shared_tokens_warn_threshold,
-            "message": (
-                f"Stage-4 shared-pool partial_proxy_pre_stage4 is "
-                f"~{stage4_pool['shared_pool_upper_bound_est_tokens']} "
-                f"est. tokens (summary_proxy≈{stage4_pool['summaries_est_tokens']}, "
-                f"signals≈{stage4_pool['signals_est_tokens']}"
-                f"{', signals_omitted' if stage4_pool['signals_omitted'] else ''}), "
-                f"and each of {STAGE4_FIXED_FANOUT} doc-writers receives a pool "
-                f"(aggregate proxy≈"
-                f"{stage4_pool['aggregate_input_upper_bound_est_tokens']}). "
-                f"Omitted (not estimated): "
-                f"{', '.join(stage4_pool['omitted_not_estimated'])}. "
-                f"Do not treat a quiet Stage-1 slice — or this proxy — as "
-                f"closed Stage-4 capacity risk."
-            ),
-        })
+    stage4_warn = _stage4_shared_pool_warning(
+        stage4_pool, stage4_shared_tokens_warn_threshold,
+    )
+    if stage4_warn:
+        warnings.append(stage4_warn)
 
-    return {
+    report = {
         "repo_path": groups_data.get("repo_path", repo_path),
         "num_groups": num_groups,
         "max_tokens_per_group": groups_data.get("max_tokens_per_group", max_tokens),
@@ -364,22 +508,101 @@ def compute_preflight(repo_path, max_tokens=120000, overlap=0.10,
         "stage1_slice_est_tokens_mean": slice_tokens["mean"],
         "stage1_slice_est_tokens_total": slice_tokens["total"],
         "stage1_slice_est_tokens_per_group": slice_tokens["per_group"],
-        "stage4_metric_kind": stage4_pool["metric_kind"],
-        "stage4_included_now": stage4_pool["included_now"],
-        "stage4_omitted_not_estimated": stage4_pool["omitted_not_estimated"],
-        "stage4_shared_pool_upper_bound_est_tokens": (
-            stage4_pool["shared_pool_upper_bound_est_tokens"]
-        ),
-        "stage4_summaries_est_tokens": stage4_pool["summaries_est_tokens"],
-        "stage4_signals_est_tokens": stage4_pool["signals_est_tokens"],
-        "stage4_signals_omitted": stage4_pool["signals_omitted"],
-        "stage4_aggregate_input_upper_bound_est_tokens": (
-            stage4_pool["aggregate_input_upper_bound_est_tokens"]
-        ),
-        "stage4_return_payloads_estimated": stage4_pool["return_payloads_estimated"],
+        **_stage4_pool_fields(stage4_pool),
         # Reported straight from the join rather than re-derived here, so the
         # broadcast-vs-shipped comparison has exactly one implementation.
         "edge_join_stats": edge_stats,
+        "warnings": warnings,
+    }
+    return report
+
+
+def compute_stage4_calibration(
+    repo_path,
+    summaries_data,
+    interview_answers=None,
+    signals_data=None,
+    groups_data=None,
+    stage0_preflight_report=None,
+    stage4_shared_tokens_warn_threshold=80_000,
+):
+    """L2b post-artifact calibration — measured Stage-4 inputs vs optional proxy.
+
+    Requires on-disk summaries. Interview/signals optional (listed omitted if
+    absent). When ``groups_data`` or a Stage-0 preflight report is supplied,
+    attach a derived proxy comparison. If **both** are supplied, the Stage-0
+    report wins and a warning is emitted (groups are ignored for the ratio).
+    Does not change Stage-0 defaults. Not invoked by the Stage 0 pipeline step.
+    """
+    measured = measure_stage4_shared_pool_tokens(
+        summaries_data,
+        interview_answers=interview_answers,
+        signals_data=signals_data,
+    )
+    warnings = []
+    stage4_warn = _stage4_shared_pool_warning(
+        measured, stage4_shared_tokens_warn_threshold,
+    )
+    if stage4_warn:
+        warnings.append(stage4_warn)
+
+    proxy_comparison = None
+    proxy_pool = None
+    proxy_source = None
+    both_proxy_sources = (
+        stage0_preflight_report is not None and groups_data is not None
+    )
+    if stage0_preflight_report is not None:
+        if both_proxy_sources:
+            warnings.append({
+                "dimension": "stage4_proxy_comparison_source",
+                "value": "stage0_preflight_report",
+                "threshold": "groups_file_ignored",
+                "message": (
+                    "Both a Stage-0 preflight report and groups_data were supplied "
+                    "for proxy comparison; using stage0_preflight_report "
+                    "(groups ignored for the measured/proxy ratio)."
+                ),
+            })
+        # Rebuild a pool-shaped dict from a prior Stage-0 report's flat fields.
+        proxy_pool = {
+            "metric_kind": stage0_preflight_report.get(
+                "stage4_metric_kind", "partial_proxy_pre_stage4"
+            ),
+            "summaries_est_tokens": stage0_preflight_report.get(
+                "stage4_summaries_est_tokens", 0
+            ),
+            "interview_answers_est_tokens": stage0_preflight_report.get(
+                "stage4_interview_answers_est_tokens", 0
+            ),
+            "signals_est_tokens": stage0_preflight_report.get(
+                "stage4_signals_est_tokens", 0
+            ),
+            "shared_pool_upper_bound_est_tokens": stage0_preflight_report.get(
+                "stage4_shared_pool_upper_bound_est_tokens", 0
+            ),
+        }
+        proxy_source = "stage0_preflight_report"
+    elif groups_data is not None:
+        # Compare against Stage-0 proxy recomputed from groups only (no signals)
+        # so the ratio highlights summary compression vs est_tokens, not a
+        # shared signals term on both sides.
+        proxy_pool = estimate_stage4_shared_pool_tokens(groups_data, None)
+        proxy_source = "groups_est_tokens_proxy"
+
+    if proxy_pool is not None:
+        proxy_comparison = compare_stage4_proxy_to_measured(proxy_pool, measured)
+        proxy_comparison["proxy_source"] = proxy_source
+
+    return {
+        "repo_path": (
+            (groups_data or {}).get("repo_path")
+            or (stage0_preflight_report or {}).get("repo_path")
+            or repo_path
+        ),
+        "mode": "stage4_calibration",
+        **_stage4_pool_fields(measured),
+        "stage4_proxy_comparison": proxy_comparison,
         "warnings": warnings,
     }
 
@@ -392,11 +615,23 @@ def main():
     ap.add_argument("--overlap", type=float, default=0.10,
                      help="Same meaning as partition_repo.py's --overlap (default: 0.10)")
     ap.add_argument("--groups-file", default=None,
-                     help="Existing groups.json to read instead of re-running partition_repo.py's own grouping")
+                     help=("Existing groups.json (Stage 0 path: partition input; "
+                           "L2b: optional proxy compare from group est_tokens — "
+                           "ignored for the ratio if --stage0-preflight-report is also set)"))
     ap.add_argument("--signals-file", default=None,
                      help="Existing spring_signals.json to join against instead of re-scanning")
     ap.add_argument("--edges-file", default=None,
                      help="Existing cross_group_edges.json to read instead of re-running the join (Stage 0 already writes this)")
+    ap.add_argument("--summaries-file", default=None,
+                     help=("L2b: existing summaries.json — when set, run post-artifact "
+                           "Stage-4 measurement (measured_stage4_inputs) instead of "
+                           "Stage-0 partial_proxy_pre_stage4"))
+    ap.add_argument("--interview-answers-file", default=None,
+                     help="L2b: existing interview_answers.json (optional; omitted if absent)")
+    ap.add_argument("--stage0-preflight-report", default=None,
+                     help=("L2b: prior capacity_preflight_report.json from Stage 0 for "
+                           "derived proxy-vs-measured comparison (wins over --groups-file "
+                           "when both are set; emits a warning)"))
     ap.add_argument("--group-warn-threshold", type=int, default=15,
                      help="Warn if num_groups exceeds this (default: 15, a stated heuristic guess)")
     ap.add_argument("--fanout-warn-threshold", type=int, default=40,
@@ -409,10 +644,11 @@ def main():
                            "--references-tokens-warn-threshold, whose 500000 default "
                            "measured the removed broadcast and does not carry over."))
     ap.add_argument("--stage4-shared-tokens-warn-threshold", type=int, default=80_000,
-                     help=("Warn if Stage-4 shared-pool partial_proxy_pre_stage4 est. "
-                           "tokens exceed this (default: 80000 — stated guess; "
-                           "source-token proxy + optional signals only; interview/"
-                           "returns omitted)."))
+                     help=("Warn if Stage-4 shared-pool est. tokens exceed this "
+                           "(default: 80000 — stated guess pending documented mid-size "
+                           "calibration; Stage-0 uses partial_proxy; L2b measured mode "
+                           "warns on on-disk input sizes. Interview/returns omitted at "
+                           "Stage 0; returns still omitted when measuring)."))
     ap.add_argument("--out", default=None, help="Optional path to write the report as JSON")
     args = ap.parse_args()
 
@@ -420,6 +656,63 @@ def main():
     if not os.path.isdir(repo_path):
         print(f"error: not a directory: {repo_path}", file=sys.stderr)
         sys.exit(1)
+
+    if args.summaries_file:
+        with open(args.summaries_file, encoding="utf-8") as f:
+            summaries_data = json.load(f)
+        interview_answers = None
+        if args.interview_answers_file:
+            with open(args.interview_answers_file, encoding="utf-8") as f:
+                interview_answers = json.load(f)
+        signals_data = None
+        if args.signals_file:
+            with open(args.signals_file, encoding="utf-8") as f:
+                signals_data = json.load(f)
+        groups_data = None
+        if args.groups_file:
+            groups_data = _load_or_build_groups(
+                repo_path, args.max_tokens, args.overlap, args.groups_file,
+            )
+        stage0_report = None
+        if args.stage0_preflight_report:
+            with open(args.stage0_preflight_report, encoding="utf-8") as f:
+                stage0_report = json.load(f)
+        report = compute_stage4_calibration(
+            repo_path,
+            summaries_data=summaries_data,
+            interview_answers=interview_answers,
+            signals_data=signals_data,
+            groups_data=groups_data,
+            stage0_preflight_report=stage0_report,
+            stage4_shared_tokens_warn_threshold=args.stage4_shared_tokens_warn_threshold,
+        )
+        if args.out:
+            with open(args.out, "w", encoding="utf-8") as f:
+                json.dump(report, f, indent=2)
+        cmp_ = report.get("stage4_proxy_comparison")
+        cmp_note = ""
+        if cmp_ and cmp_.get("measured_over_proxy_ratio") is not None:
+            cmp_note = (
+                f"; measured/proxy ratio≈{cmp_['measured_over_proxy_ratio']:.3f}"
+            )
+        print(
+            f"capacity-preflight (L2b measured_stage4_inputs): shared-pool ~"
+            f"{report['stage4_shared_pool_upper_bound_est_tokens']} est. tokens "
+            f"(summaries≈{report['stage4_summaries_est_tokens']}, "
+            f"interview≈{report['stage4_interview_answers_est_tokens']}"
+            f"{' omitted' if report['stage4_interview_answers_omitted'] else ''}, "
+            f"signals≈{report['stage4_signals_est_tokens']}"
+            f"{' omitted' if report['stage4_signals_omitted'] else ''}; "
+            f"omitted: {', '.join(report['stage4_omitted_not_estimated'])}"
+            f"{cmp_note})."
+        )
+        if report["warnings"]:
+            print(f"{len(report['warnings'])} warning(s):")
+            for w in report["warnings"]:
+                print(f"  - [{w['dimension']}] {w['message']}")
+        else:
+            print("No thresholds crossed.")
+        return
 
     groups_data = _load_or_build_groups(repo_path, args.max_tokens, args.overlap, args.groups_file)
     signals_data = None

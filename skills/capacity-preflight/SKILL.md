@@ -42,6 +42,27 @@ python -m doc_engine.tools.capacity_preflight <repo_path> \
 - **Stage-1 slice cost**: per-group `cross_group_edges.json` slice size (chars/N). Report `max` / `mean` / `total` — **max** bounds context risk.
 - **Stage-4 shared-pool `partial_proxy_pre_stage4`**: Stage 0 cannot see summaries or `interview_answers` yet. The report sums group `est_tokens` (source-token *proxy* for future summaries) + optional signals, sets `stage4_omitted_not_estimated` (includes `interview_answers`, architecture beyond that proxy, return payloads), and may set `stage4_signals_omitted`. Numeric `*_upper_bound_*` field names are warn-threshold numbers only — **not** a claim that Stage-4 capacity risk is closed. Quiet Stage-1 ≠ quiet Stage 4; quiet proxy ≠ closed L2.
 
+## Step 2b — L2b post-artifact Stage-4 measurement (after summaries exist)
+
+**Opt-in CLI only** — the Stage 0 `capacity_preflight` pipeline step does **not** run this mode. After Stage 1 (and optionally Stage 3 interview) have written artifacts:
+
+```bash
+python -m doc_engine.tools.capacity_preflight <repo_path> \
+    --summaries-file <run_dir>/summaries.json \
+    --interview-answers-file <run_dir>/interview_answers.json \
+    --signals-file <run_dir>/spring_signals.json \
+    --stage0-preflight-report <run_dir>/capacity_preflight_report.json \
+    --out <run_dir>/capacity_stage4_calibration.json
+```
+
+Or, instead of `--stage0-preflight-report`, pass `--groups-file <run_dir>/groups.json` to recompute the Stage-0 summary proxy from group `est_tokens` (signals are **not** re-added on that path, so the ratio highlights summary compression).
+
+- `--summaries-file` switches to `metric_kind: measured_stage4_inputs` (SoR = on-disk JSON chars/N).
+- Interview and signals are optional; missing ones are listed in `stage4_omitted_not_estimated` — never invented.
+- `stage4_return_payloads` stays omitted; capacity risk is **not** closed.
+- Prefer **one** of `--stage0-preflight-report` **or** `--groups-file` for the derived proxy comparison. If both are set, the Stage-0 report wins and a `stage4_proxy_comparison_source` warning is emitted.
+- Default `--stage4-shared-tokens-warn-threshold` remains **80000** until a documented mid-size run recalibrates it. Do not raise the default to silence warnings without that note.
+
 ## Step 3 — threshold checks
 
 The script warns (does not block) if any of the following, all **stated, tunable heuristic guesses pending real-world calibration**, are crossed:
@@ -49,19 +70,22 @@ The script warns (does not block) if any of the following, all **stated, tunable
 - group count exceeds `--group-warn-threshold` (default 15) — rationale: untested territory for practical Task-tool dispatch concurrency in a single turn
 - total fan-out exceeds `--fanout-warn-threshold` (default 40) — same rationale, compounded across stages
 - the *largest single* Stage-1 slice exceeds `--slice-tokens-warn-threshold` (default 30,000 — a quarter of the default 120,000 per-group budget, and a stated guess with one real-repo data point behind it, not a calibrated ceiling)
-- Stage-4 shared-pool **partial_proxy** exceeds `--stage4-shared-tokens-warn-threshold` (default 80,000 — stated guess; omits interview/returns)
+- Stage-4 shared-pool (**partial_proxy** at Stage 0, or **measured** when `--summaries-file` is set) exceeds `--stage4-shared-tokens-warn-threshold` (default 80,000 — stated guess; Stage 0 omits interview/returns; measured mode still omits returns)
 
 Every threshold is a CLI flag, not a hidden constant — override any of them if you have better information about this specific repo or environment.
 
 ## Output
 
-The script prints a short summary and, if `--out` was given, writes the same data as JSON. Present it to the user as a question, not a verdict: *"this repo would produce N groups and M total subagent dispatches, with a largest single Stage-1 edge slice of ~K tokens and a Stage-4 partial_proxy of ~P tokens (interview/returns not estimated) — proceed with the full run, split the repo with a smaller `--max-tokens`, or adjust thresholds?"* This skill has no authority to refuse the user's own request — it surfaces the number, it doesn't gate the run.
+The script prints a short summary and, if `--out` was given, writes the same data as JSON. Present it to the user as a question, not a verdict: *"this repo would produce N groups and M total subagent dispatches, with a largest single Stage-1 edge slice of ~K tokens and a Stage-4 partial_proxy of ~P tokens (interview/returns not estimated) — proceed with the full run, split the repo with a smaller `--max-tokens`, or adjust thresholds?"* After L2b measurement: surface measured shared-pool size and any proxy ratio, still as a question. This skill has no authority to refuse the user's own request — it surfaces the number, it doesn't gate the run.
 
 ## What this deliberately does not do
 
 - Does not change `partition_repo.py`'s own behavior, thresholds, or grouping logic.
 - Does not run any LLM stage itself — no `file-summarizer`/`architect-segment`/`gap-analyzer`/`doc-writer` dispatch happens here.
+- Does not wire L2b into the Stage 0 `capacity_preflight` pipeline argv — measurement stays a separate CLI after artifacts exist.
 - Does not validate whether the chars/N token heuristic matches Claude's real tokenizer — that calibration gap is named in `CONSTRAINTS.md` and stays open; this skill measures against the same heuristic, not a corrected one.
-- Does not estimate Stage-4 **return** payloads or post-Stage-1 summary/interview sizes — that is adoption-queue **L2b**, after those artifacts exist.
+- Does not invent Stage-0 interview token guesses; post-Stage-1 sizes are **measured** via `--summaries-file` (adoption-queue **L2b**).
+- Does not estimate Stage-4 **return** payloads — still omitted under `measured_stage4_inputs`.
+- Does not change the default 80k Stage-4 warn threshold without a documented mid-size calibration run.
 - Does not cap or gate the actual pipeline run — it warns, once, before you decide.
 - Does not claim Stage-4 capacity risk is closed.

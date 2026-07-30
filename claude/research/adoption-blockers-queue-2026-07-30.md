@@ -85,15 +85,15 @@ Prefer outcome-bound tests over substring-only `verify:` where the claim is beha
 
 **Work landed (measurement):** Stage-4 fan-out from `VALID_DOC_FILES`; partial proxy fields + omissions; `--stage4-shared-tokens-warn-threshold`; signals + `signals_omitted`; polarity + pipeline SoR mirror tests; domain 07 + operational `ch07`.
 
-**Still open for L2 (post-summary calibration — separate follow-up, not Stage 0):**
-- After Stage 1 writes summaries (and Stage 3 interview), measure **actual** JSON sizes for summaries + `interview_answers` + signals vs the Stage-0 proxy; keep `metric_kind: partial_proxy_pre_stage4` at Stage 0 forever for pre-run estimates.
-- Recalibrate `--stage4-shared-tokens-warn-threshold` only with numbers from a real mid-size run (document the run).
+**Still open for L2 (threshold calibration — not inventing numbers):**
+- Keep `metric_kind: partial_proxy_pre_stage4` at Stage 0 forever for pre-run estimates.
+- Recalibrate `--stage4-shared-tokens-warn-threshold` only with numbers from a real mid-size run (document the run). Default **80000** unchanged until then.
 - Do **not** invent interview token guesses at Stage 0.
 - Thin formal schema still L5 for `drift_report`.
 
-### L2b — Post-Stage-1 Stage-4 input calibration — **queued after #73**
+### L2b — Post-Stage-1 Stage-4 input calibration — **CLI measurement on PR #74; threshold open**
 
-**DDIA card:** same as L2; SoR = on-disk `summaries.json` / `interview_answers.json` / `spring_signals.json` after they exist. Derived = optional calibration report or extend preflight in a post-Stage-1 mode. Scope: measure real sizes + return-payload gap statement; never claim Stage-0 proxy is full Stage-4 load.
+**DDIA card:** same as L2; SoR = on-disk `summaries.json` / `interview_answers.json` / `spring_signals.json` after they exist. Derived = `compute_stage4_calibration` / `--summaries-file` → `measured_stage4_inputs` + optional `stage4_proxy_comparison`. **Not** part of the Stage 0 `capacity_preflight` pipeline argv — operators must run the CLI after artifacts exist. Scope: measure real sizes + return-payload gap; Stage-0 proxy unchanged; default 80k unchanged. If both `--stage0-preflight-report` and `--groups-file` are passed, the Stage-0 report wins for the proxy ratio (warning emitted). **Still open:** documented mid-size run, then decide whether to change the default.
 
 ### L3 — Claim-symbol single-token entities — **later (after L2 / L2b settled)**
 
