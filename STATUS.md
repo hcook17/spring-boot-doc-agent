@@ -2,7 +2,7 @@
 
 Current-state snapshot of `spring-boot-doc-agent`, edited in place — this file states what's true *right now*, not a history of how it got there. For the append-only history of individual commits and which `claude/steering-prompts/` assumptions they affect, see `claude/session-log.md`. The two are cross-linked, not duplicates: this file answers "where do things stand"; the log answers "what changed and when."
 
-Last updated: 2026-07-29.
+Last updated: 2026-07-30.
 
 > **Date convention:** dates in this repo are the local date of the commit (`git log --date=short`). A batch of entries written across 2026-07-23/24 were dated `2026-07-25`, one day ahead of every commit they describe. Historical entries in `claude/session-log.md` and `claude/tool-quirks.md` are left as written — silently rewriting dates in an append-only log is worse than an off-by-one — but new entries should use the commit's own date.
 
@@ -33,11 +33,13 @@ Last updated: 2026-07-29.
 
 ## Next concrete action
 
-Packaging / A+C / portable-kernel arc is **paused** on `main` (through PR #58). Do not open another packaging mega-PR.
+Packaging / A+C / portable-kernel arc is **paused** on `main` (through PR #58 / suite-layout follow-ons). Do not open another packaging mega-PR.
 
-**Chosen next engineering investment (do not mix):** **fact-store Phase 1** — `claude/10-architecture-maturation-plan.md` (materialized views over a repository fact store). Parallel, non-code: repo-admin **branch protection + required CI** on `main` (`CONSTRAINTS.md` enterprise item 6).
+**Research gate closed (2026-07-30):** Pre–Phase 1 spike → [`claude/research/fact-store-phase1-decision-memo-2026-07-30.md`](claude/research/fact-store-phase1-decision-memo-2026-07-30.md) (**REFINE**). Corpus + collation sit beside it. **Do not treat** [`claude/10-architecture-maturation-plan.md`](claude/10-architecture-maturation-plan.md) §0–1 or the JPA survey as current executable specs — outdated relative to portable kernel / packaging pause / contested map / scanner defaults; thesis only, revalidated externally.
 
-**Sequencing lock (do not fold):** Suite-layout hygiene (`pyproject.toml` `[tool.pytest.ini_options].testpaths` as the only suite-root SoT; delete thin pytest forwarders that used to live beside meta scripts; remove `.vs/` / `baseline-reference/`) is **layout/packaging only**. Do **not** mix broader deterministic-tool Pydantic/SPI/entry-point hardening into that PR. Schema/SPI scoping: `claude/deterministic-boundary-schemas-spi-research-2026-07-29.md` — implement only after / with fact-store Phase 1, not with pytest path cleanup.
+**Chosen next engineering investment (do not mix; start only when explicitly asked):** thin **dual-emit fact ledger** per the memo (§3), not a full walk of the maturation plan or JPA catalog. Parallel, non-code: repo-admin **branch protection + required CI** on `main` (`CONSTRAINTS.md` enterprise item 6).
+
+**Sequencing lock (do not fold):** Schema/SPI scoping (`claude/deterministic-boundary-schemas-spi-research-2026-07-29.md`) — implement only after / with fact-store Phase 1, not as a packaging sidecar.
 
 Later / not now: redesign or delete llms coverage step; Option C `HttpLLMStageExecutor` (named customer only); entry-point SPI / deepen untyped `dict` boundaries outside existing artifact validators (research before code).
 
