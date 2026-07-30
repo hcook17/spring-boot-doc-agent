@@ -14,6 +14,15 @@ def load_certification(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(f"{path} must contain a JSON object")
+    # Slice 2 — fail closed on shape before trusting certified: true.
+    from pydantic import ValidationError
+
+    from doc_engine.pipeline.compliance import CertificationReport
+
+    try:
+        CertificationReport.model_validate(data)
+    except ValidationError as exc:
+        raise ValueError(f"{path} failed certification schema: {exc}") from exc
     return data
 
 

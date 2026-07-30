@@ -21,10 +21,10 @@ Theme (review §10): controls that are real but one layer away from where they b
 - Add `--compliance-profile` to the `gates` subcommand; derive strict citation checking like `local_runner`.
 - Regression: non-strict vs certified profile exit codes on a planted weak citation set.
 
-## B4 — Wire unused DDIA findings validator
+## B4 — Wire unused DDIA findings validator — **done (schema-contracts-research)**
 
-- Call `validate_architecture_testing_review_findings` from `run_stage5_gate`.
-- Regression: malformed `architecture_testing_review.json` fails the live gate (not only unit tests of the helper).
+- ~~Call `validate_architecture_testing_review_findings` from `run_stage5_gate`.~~
+- ~~Regression: malformed `architecture_testing_review.json` fails the live gate (not only unit tests of the helper).~~ Covered by `Stage5ArchitectureTestingReviewGateTest` + Pydantic `ArchitectureTestingReviewArtifact` in `ARTIFACT_MODELS`.
 
 ## B5 — Stale current-state claims — **done (stale-claims-hygiene PR)**
 
@@ -34,4 +34,4 @@ Theme (review §10): controls that are real but one layer away from where they b
 
 ## Explicitly later (weeks — not this PR)
 
-Claim-symbol single-token entities; semgrep negative fixtures + FP ratchet; schemas for review/edges artifacts; Stage-4 fan-out in capacity_preflight; branch protection.
+Claim-symbol single-token entities; semgrep negative fixtures + FP ratchet; Stage-4 fan-out in capacity_preflight; branch protection; thin drift/capacity schemas (memo slice 5). Review/edges/gap/cert schema work landed with B4 on `schema-contracts-research` — see [`schema-contracts-decision-memo-2026-07-30.md`](schema-contracts-decision-memo-2026-07-30.md).

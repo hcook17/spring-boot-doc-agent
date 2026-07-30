@@ -996,3 +996,22 @@ Assumptions affected:
 - Glean prior-art corpus stale — [Still accurate as mechanism cite — no star re-measure; post-dual-emit banner added]
 - Ordinal claim keys churn C-missing baseline on every CONSTRAINTS edit — [Resolved — content-stable digest keys + refuse-revival tombstone for absent globs]
 Files touched: scripts/check_repo_claims.py, scripts/repo_claims_baseline.json, tests/test_check_repo_claims.py, CLAUDE.md, CONSTRAINTS.md, STATUS.md, README.md, src/doc_engine/tools/spring_drift_check.py, tests/test_enterprise_kitchen_sink.py, claude/research/fact-store-phase1-decision-memo-2026-07-30.md, claude/research/fact-store-prior-art-corpus-2026-07-30.md, claude/research/fact-store-approaches-collation-2026-07-30.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/10-architecture-maturation-plan.md, claude/jpa-hibernate-predicate-vocabulary-survey.md, claude/session-log.md
+
+## 2026-07-30
+
+## 2026-07-30 — Schema coverage research + facts closed contract (slice 1)
+Commit: uncommitted
+Tests: 33 passed, 1 skipped (test_artifact_schemas + test_artifact_serde_matrix + test_facts_ledger); check_repo_claims OK
+Assumptions affected:
+- External review schema coverage residual — [New info — corpus+collation+REFINE memo; slice 1 closes facts ledger]
+- deterministic-boundary note as sequencing SoT — [Resolved — superseded for order by schema-contracts-decision-memo]
+- facts.jsonl prose-only contract — [Resolved — Fact forbid + facts.schema.json + JSONL validate]
+Files touched: claude/research/schema-*.md, src/doc_engine/pipeline/artifacts.py, validation.py, scanning/facts.py, scripts/schemas/facts.schema.json, tests/test_artifact_*.py, claude/session-log.md
+
+## 2026-07-30 — Schema slices 2–4 + B4 Stage 5 wire
+Commit: uncommitted
+Tests: 98 passed, 4 skipped (artifact schemas/serde + pipeline_stages + compliance); check_repo_claims OK
+Assumptions affected:
+- Schema memo slices 2–4 / review without gate bite — [Resolved — cert/edges/gaps/review registered+exported; run_stage5_gate validates architecture_testing_review (B4)]
+- Adoption-blockers B4 open — [Resolved — Stage5ArchitectureTestingReviewGateTest]
+Files touched: src/doc_engine/pipeline/artifacts.py, src/doc_engine/tools/pipeline_validators.py, src/doc_engine/tools/certification.py, scripts/schemas/*.schema.json, tests/test_artifact_schemas.py, tests/test_artifact_serde_matrix.py, tests/test_pipeline_stages.py, claude/research/*, claude/session-log.md

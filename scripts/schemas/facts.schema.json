@@ -1,0 +1,99 @@
+{
+  "$defs": {
+    "Fact": {
+      "additionalProperties": false,
+      "description": "One facts.jsonl record \u2014 system-of-record row beside spring_signals.json.\n\nAll eight keys are always present. ``extra=forbid`` keeps the ledger from\nsilently growing undocumented columns (Ch5 explicit schema discipline).",
+      "properties": {
+        "predicate": {
+          "minLength": 1,
+          "title": "Predicate",
+          "type": "string"
+        },
+        "subject": {
+          "minLength": 1,
+          "title": "Subject",
+          "type": "string"
+        },
+        "object": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Object"
+        },
+        "qualifiers": {
+          "additionalProperties": true,
+          "title": "Qualifiers",
+          "type": "object"
+        },
+        "file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "File"
+        },
+        "line": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line"
+        },
+        "rule_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rule Id"
+        },
+        "scanner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scanner"
+        }
+      },
+      "required": [
+        "predicate",
+        "subject"
+      ],
+      "title": "Fact",
+      "type": "object"
+    }
+  },
+  "description": "facts.jsonl dual-emit ledger (schema_version=1); on disk: UTF-8 JSON Lines, one Fact object per line",
+  "items": {
+    "$ref": "#/$defs/Fact"
+  },
+  "title": "FactsArtifact",
+  "type": "array",
+  "x-doc-engine-schema-version": 1,
+  "x-doc-engine-encoding": "jsonl"
+}

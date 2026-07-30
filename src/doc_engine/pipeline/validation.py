@@ -8,13 +8,17 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from doc_engine.pipeline.artifacts import ARTIFACT_FILENAMES, ARTIFACT_MODELS
+from doc_engine.pipeline.artifacts import (
+    ARTIFACT_FILENAMES,
+    ARTIFACT_MODELS,
+    JSONL_ARTIFACTS,
+)
 
 
 class ArtifactValidationError(Exception):
     """Raised when an artifact fails schema validation."""
 
-    def __init__(self, artifact: str, path: Path, error: ValidationError):
+    def __init__(self, artifact: str, path: Path, error: BaseException | str):
         self.artifact = artifact
         self.path = path
         self.error = error
@@ -24,6 +28,25 @@ class ArtifactValidationError(Exception):
 def load_json(path: Path) -> Any:
     with path.open(encoding="utf-8") as fh:
         return json.load(fh)
+
+
+def load_jsonl_objects(path: Path, *, artifact: str = "facts") -> list[Any]:
+    """Load a JSON Lines file as a list of decoded objects (skip blank lines)."""
+    rows: list[Any] = []
+    with path.open(encoding="utf-8") as fh:
+        for lineno, line in enumerate(fh, start=1):
+            text = line.strip()
+            if not text:
+                continue
+            try:
+                rows.append(json.loads(text))
+            except json.JSONDecodeError as exc:
+                raise ArtifactValidationError(
+                    artifact,
+                    path,
+                    f"invalid JSON on line {lineno}: {exc.msg}",
+                ) from exc
+    return rows
 
 
 def validate_artifact_data(artifact: str, data: Any) -> BaseModel:
@@ -40,7 +63,10 @@ def validate_artifact_file(artifact: str, path: Path) -> BaseModel:
     path = path.resolve()
     if not path.is_file():
         raise FileNotFoundError(path)
-    data = load_json(path)
+    if artifact in JSONL_ARTIFACTS:
+        data = load_jsonl_objects(path, artifact=artifact)
+    else:
+        data = load_json(path)
     model = ARTIFACT_MODELS[artifact]
     try:
         return model.model_validate(data)

@@ -1,17 +1,21 @@
 """Tests for pipeline artifact Pydantic schemas."""
 
 import json
-from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
 from doc_engine.pipeline.artifacts import (
     ARTIFACT_FILENAMES,
+    ARTIFACT_MODELS,
+    FACTS_LEDGER_SCHEMA_VERSION,
+    Fact,
+    FactsArtifact,
     GroupsArtifact,
     InterviewAnswersArtifact,
     SpringSignalsArtifact,
     SummariesArtifact,
+    export_json_schemas,
 )
 from doc_engine.pipeline.validation import (
     ArtifactValidationError,
@@ -95,4 +99,137 @@ def test_validate_artifacts_in_dir_empty(tmp_path):
 
 
 def test_artifact_filenames_cover_models():
-    assert set(ARTIFACT_FILENAMES) == {"spring_signals", "groups", "summaries", "interview_answers"}
+    assert set(ARTIFACT_FILENAMES) == set(ARTIFACT_MODELS)
+    assert set(ARTIFACT_FILENAMES) == {
+        "spring_signals", "groups", "summaries", "interview_answers", "facts",
+        "certification", "cross_group_edges", "gap_questions", "architecture_testing_review",
+    }
+
+
+def test_fact_closed_world_rejects_unknown_key():
+    with pytest.raises(ValidationError):
+        Fact.model_validate({
+            "predicate": "MAPS_TO",
+            "subject": "User",
+            "object": "users",
+            "qualifiers": {},
+            "file": "User.java",
+            "line": 1,
+            "rule_id": None,
+            "scanner": "ast-grep",
+            "extra_column": "nope",
+        })
+
+
+def test_fact_rejects_line_below_one():
+    with pytest.raises(ValidationError):
+        Fact.model_validate({
+            "predicate": "EVIDENCE",
+            "subject": "A.java",
+            "object": "@Entity",
+            "qualifiers": {},
+            "file": "A.java",
+            "line": 0,
+            "rule_id": None,
+            "scanner": None,
+        })
+
+
+def test_facts_jsonl_file_validates(tmp_path):
+    from doc_engine.scanning.facts import facts_from_signals, write_facts_jsonl
+
+    signals = {
+        "scanners": ["ast-grep"],
+        "evidence": {
+            "entities": [{
+                "file": "A.java",
+                "line": 3,
+                "match": "@Entity",
+                "rule_id": "persistence__entity",
+            }]
+        },
+        "entity_table_map": {
+            "A": {"file": "A.java", "table": "a", "table_name_source": "default"}
+        },
+    }
+    path = tmp_path / "facts.jsonl"
+    write_facts_jsonl(path, facts_from_signals(signals))
+    model = validate_artifact_file("facts", path)
+    assert isinstance(model, FactsArtifact)
+    assert len(model.root) >= 2
+
+
+def test_facts_jsonl_rejects_invalid_line(tmp_path):
+    path = tmp_path / "facts.jsonl"
+    path.write_text('{"predicate":"X","subject":"s"}\nnot-json\n', encoding="utf-8")
+    with pytest.raises(ArtifactValidationError, match="invalid JSON on line 2"):
+        validate_artifact_file("facts", path)
+
+
+def test_facts_schema_export_marks_jsonl_encoding():
+    schema = export_json_schemas()["facts"]
+    assert schema["x-doc-engine-schema-version"] == FACTS_LEDGER_SCHEMA_VERSION
+    assert schema["x-doc-engine-encoding"] == "jsonl"
+    exported = json.loads(
+        (REPO_ROOT / "scripts" / "schemas" / "facts.schema.json").read_text(encoding="utf-8")
+    )
+    assert exported["x-doc-engine-encoding"] == "jsonl"
+
+
+def test_certification_schema_file_and_round_trip(tmp_path):
+    from doc_engine.pipeline.compliance import (
+        ComplianceProfile,
+        GateRecord,
+        StageRecord,
+        build_certification_report,
+        write_certification_json,
+    )
+
+    report = build_certification_report(
+        ComplianceProfile.DETERMINISTIC_ONLY,
+        repo_path="/repo",
+        out_dir=str(tmp_path),
+        stages=[StageRecord(name="signal_scan", status="ok")],
+        gates=[GateRecord(id="validate_artifacts_all", label="all", status="ok")],
+    )
+    path = write_certification_json(tmp_path, report)
+    model = validate_artifact_file("certification", path)
+    assert model.certified is True
+    assert (REPO_ROOT / "scripts" / "schemas" / "certification.schema.json").is_file()
+
+
+def test_cross_group_edges_minimal_validates():
+    from doc_engine.pipeline.artifacts import CrossGroupEdgesArtifact
+
+    CrossGroupEdgesArtifact.model_validate({
+        "schema_version": 1,
+        "num_groups": 1,
+        "references_rows": 0,
+        "stats": {},
+        "groups": {"0": {"outbound": [], "inbound": [], "same_package_outside": []}},
+    })
+
+
+def test_gap_questions_rejects_unknown_blocks_file():
+    from doc_engine.pipeline.artifacts import GapQuestionsArtifact
+
+    with pytest.raises(ValidationError):
+        GapQuestionsArtifact.model_validate([{
+            "blocks_file": "not_a_doc",
+            "topic": "t",
+            "question": "q",
+            "evidence": "A.java:1",
+        }])
+
+
+def test_architecture_testing_review_validates_array():
+    from doc_engine.pipeline.artifacts import ArchitectureTestingReviewArtifact
+
+    ArchitectureTestingReviewArtifact.model_validate([{
+        "lens": "ddia",
+        "concept": "c",
+        "claim": "x",
+        "evidence": [{"line": 1, "what": "w"}],
+        "severity": "informational",
+        "external_research": None,
+    }])

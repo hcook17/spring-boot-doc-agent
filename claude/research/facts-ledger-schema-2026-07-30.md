@@ -1,10 +1,13 @@
 # Facts ledger schema (Phase 1 dual-emit)
 
 Companion to [`fact-store-phase1-decision-memo-2026-07-30.md`](fact-store-phase1-decision-memo-2026-07-30.md) §3.
+Closed-contract formalization: [`schema-contracts-decision-memo-2026-07-30.md`](schema-contracts-decision-memo-2026-07-30.md) slice 1.
 
 **Artifact:** `facts.jsonl` — UTF-8 JSON Lines, one fact object per line, written beside `spring_signals.json` by `python -m doc_engine.tools.spring_signal_scan`.
 
-**Not** a required certification gate in Phase 1. Existing `entity_table_map` / evidence bags remain the Path A contract.
+**Contract:** Pydantic `Fact` / `FactsArtifact` (`extra=forbid`) in `doc_engine.pipeline.artifacts`; JSON Schema export [`scripts/schemas/facts.schema.json`](../../scripts/schemas/facts.schema.json); validate via `python -m doc_engine.tools.validate_artifacts facts <path>` or `--all <dir>`. Ledger version constant `FACTS_LEDGER_SCHEMA_VERSION = 1` (export annotation `x-doc-engine-schema-version`; not a per-line wire field).
+
+**Not** a required certification gate replacing Path A. Existing `entity_table_map` / evidence bags remain the Path A contract; facts validate when present under `--all`.
 
 ## Record fields
 
@@ -15,17 +18,18 @@ Companion to [`fact-store-phase1-decision-memo-2026-07-30.md`](fact-store-phase1
 | `object` | string or null | Evidence: match text. Maps: table name |
 | `qualifiers` | object | May include `bucket`, `status`, `table_name_source` |
 | `file` | string or null | Source path |
-| `line` | int or null | 1-based when known |
+| `line` | int or null | 1-based when known (`< 1` rejected) |
 | `rule_id` | string or null | Stage 0 rule id when known |
 | `scanner` | string or null | Row scanner, else comma-joined `signals.scanners` |
 
-All eight keys are always present.
+All eight keys are always present. Unknown keys are **rejected**.
 
 ## Emission rules
 
 1. Each `evidence[*][]` hit → one fact (`predicate` = `rule_id` or `EVIDENCE`).
 2. Each `entity_table_map` entry → `MAPS_TO`. If `status == "contested"` and `candidates` is non-empty → **one `MAPS_TO` per candidate** (derived stub).
 3. Facts are sorted by `(predicate, subject, object, file, line)`.
+4. `write_facts_jsonl` validates each row through `Fact` before encode (write-time bite).
 
 Implementation: `doc_engine.scanning.facts` (`facts_from_signals`, `write_facts_jsonl`, `fact_emit_counts`).
 

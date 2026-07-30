@@ -6,12 +6,19 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
 
+from doc_engine.pipeline.compliance import CertificationReport
+from doc_engine.tools.doc_tag_utils import VALID_DOC_FILES
+
 VALID_SPRING_ROLES = frozenset({
     "controller", "service", "repository", "entity", "config", "security",
     "messaging-producer", "messaging-consumer", "test", "other",
 })
 
 InterviewStatus = Literal["answered", "skipped"]
+ReviewLens = Literal["ddia", "testing"]
+ReviewSeverity = Literal["informational", "worth-flagging"]
+ResearchTier = Literal["A", "B", "C"]
+ResearchVerdict = Literal["CONFIRMED", "PLAUSIBLE", "REFUTED", "UNRESOLVED"]
 
 
 class EvidenceMatch(BaseModel):
@@ -128,11 +135,161 @@ class InterviewAnswersArtifact(RootModel[list[InterviewAnswerEntry]]):
     """interview_answers.json — human-in-the-loop answers."""
 
 
+# Phase 1 dual-emit ledger — closed record shape (DDIA SoR; additive evolution only).
+# Bump FACTS_LEDGER_SCHEMA_VERSION when breaking the eight-field contract.
+# Sequencing: claude/research/schema-contracts-decision-memo-2026-07-30.md slice 1.
+FACTS_LEDGER_SCHEMA_VERSION = 1
+
+
+class Fact(BaseModel):
+    """One facts.jsonl record — system-of-record row beside spring_signals.json.
+
+    All eight keys are always present. ``extra=forbid`` keeps the ledger from
+    silently growing undocumented columns (Ch5 explicit schema discipline).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    predicate: str = Field(min_length=1)
+    subject: str = Field(min_length=1)
+    object: str | None = None
+    qualifiers: dict[str, Any] = Field(default_factory=dict)
+    file: str | None = None
+    line: int | None = None
+    rule_id: str | None = None
+    scanner: str | None = None
+
+    @field_validator("line")
+    @classmethod
+    def line_positive_when_set(cls, value: int | None) -> int | None:
+        if value is not None and value < 1:
+            raise ValueError("line must be >= 1 when present")
+        return value
+
+
+class FactsArtifact(RootModel[list[Fact]]):
+    """facts.jsonl — ordered list of Fact records (JSON Lines on disk)."""
+
+
+# --- Slice 2–4: certification + derived edges + LLM views (schema-contracts memo) ---
+
+
+class CrossGroupEdgeArc(BaseModel):
+    """One cut arc in cross_group_edges.json (outbound/inbound)."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    from_: str = Field(alias="from")
+    to: str
+    via: str | None = None
+    confidence: str | None = None
+    static_import: bool | None = None
+
+
+class SamePackageOutside(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    package: str
+    files_in_group: list[str]
+    files_outside_group: list[str]
+
+
+class CrossGroupBucket(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    outbound: list[CrossGroupEdgeArc | dict[str, Any]] = Field(default_factory=list)
+    inbound: list[CrossGroupEdgeArc | dict[str, Any]] = Field(default_factory=list)
+    same_package_outside: list[SamePackageOutside | dict[str, Any]] = Field(default_factory=list)
+
+
+class CrossGroupEdgesArtifact(BaseModel):
+    """cross_group_edges.json — Stage 0 partitioned join (derived)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    schema_version: int = 1
+    repo_path: str | None = None
+    num_groups: int
+    references_rows: int | None = None
+    stats: dict[str, Any] = Field(default_factory=dict)
+    groups: dict[str, CrossGroupBucket | dict[str, Any]]
+
+
+class GapQuestionEntry(BaseModel):
+    """One gap-analyzer question object."""
+
+    model_config = ConfigDict(extra="allow")
+
+    blocks_file: str
+    topic: str = Field(min_length=1)
+    question: str = Field(min_length=1)
+    evidence: str = Field(min_length=1)
+
+    @field_validator("blocks_file")
+    @classmethod
+    def blocks_file_in_fourteen(cls, value: str) -> str:
+        if value not in VALID_DOC_FILES:
+            raise ValueError(f"blocks_file {value!r} not one of the fourteen output files")
+        return value
+
+
+class GapQuestionsArtifact(RootModel[list[GapQuestionEntry]]):
+    """gap_questions.json — Stage 3 gap-analyzer output."""
+
+
+class ReviewEvidenceAnchor(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    line: int = Field(ge=1)
+    what: str = Field(min_length=1)
+    file: str | None = None
+
+
+class ReviewResearchSource(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    tier: ResearchTier
+    identifier: str | None = None
+    url: str | None = None
+    checked_date: str | None = None
+    what_it_showed: str | None = None
+
+
+class ReviewExternalResearch(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    question: str | None = None
+    sources: list[ReviewResearchSource | dict[str, Any]] = Field(default_factory=list)
+    verdict: ResearchVerdict | None = None
+
+
+class ArchitectureTestingReviewFinding(BaseModel):
+    """One software-architect-and-testing finding."""
+
+    model_config = ConfigDict(extra="allow")
+
+    lens: ReviewLens
+    concept: str = Field(min_length=1)
+    claim: str = Field(min_length=1)
+    evidence: list[ReviewEvidenceAnchor] = Field(min_length=1)
+    severity: ReviewSeverity
+    external_research: ReviewExternalResearch | dict[str, Any] | None = None
+
+
+class ArchitectureTestingReviewArtifact(RootModel[list[ArchitectureTestingReviewFinding]]):
+    """architecture_testing_review.json — JSON array of findings."""
+
+
 ARTIFACT_MODELS: dict[str, type[BaseModel]] = {
     "spring_signals": SpringSignalsArtifact,
     "groups": GroupsArtifact,
     "summaries": SummariesArtifact,
     "interview_answers": InterviewAnswersArtifact,
+    "facts": FactsArtifact,
+    "certification": CertificationReport,
+    "cross_group_edges": CrossGroupEdgesArtifact,
+    "gap_questions": GapQuestionsArtifact,
+    "architecture_testing_review": ArchitectureTestingReviewArtifact,
 }
 
 ARTIFACT_FILENAMES: dict[str, str] = {
@@ -140,12 +297,29 @@ ARTIFACT_FILENAMES: dict[str, str] = {
     "groups": "groups.json",
     "summaries": "summaries.json",
     "interview_answers": "interview_answers.json",
+    "facts": "facts.jsonl",
+    "certification": "certification.json",
+    "cross_group_edges": "cross_group_edges.json",
+    "gap_questions": "gap_questions.json",
+    "architecture_testing_review": "architecture_testing_review.json",
 }
+
+# Artifacts stored as JSON Lines (one object per line), not a single JSON value.
+JSONL_ARTIFACTS: frozenset[str] = frozenset({"facts"})
 
 
 def export_json_schemas() -> dict[str, dict[str, Any]]:
     """Return JSON Schema dicts for each artifact type."""
     schemas: dict[str, dict[str, Any]] = {}
     for name, model in ARTIFACT_MODELS.items():
-        schemas[name] = model.model_json_schema()
+        schema = model.model_json_schema()
+        if name == "facts":
+            schema["title"] = "FactsArtifact"
+            schema["description"] = (
+                f"facts.jsonl dual-emit ledger (schema_version={FACTS_LEDGER_SCHEMA_VERSION}); "
+                "on disk: UTF-8 JSON Lines, one Fact object per line"
+            )
+            schema["x-doc-engine-schema-version"] = FACTS_LEDGER_SCHEMA_VERSION
+            schema["x-doc-engine-encoding"] = "jsonl"
+        schemas[name] = schema
     return schemas

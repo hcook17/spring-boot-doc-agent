@@ -1,0 +1,43 @@
+{
+  "$defs": {
+    "GapQuestionEntry": {
+      "additionalProperties": true,
+      "description": "One gap-analyzer question object.",
+      "properties": {
+        "blocks_file": {
+          "title": "Blocks File",
+          "type": "string"
+        },
+        "topic": {
+          "minLength": 1,
+          "title": "Topic",
+          "type": "string"
+        },
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "evidence": {
+          "minLength": 1,
+          "title": "Evidence",
+          "type": "string"
+        }
+      },
+      "required": [
+        "blocks_file",
+        "topic",
+        "question",
+        "evidence"
+      ],
+      "title": "GapQuestionEntry",
+      "type": "object"
+    }
+  },
+  "description": "gap_questions.json \u2014 Stage 3 gap-analyzer output.",
+  "items": {
+    "$ref": "#/$defs/GapQuestionEntry"
+  },
+  "title": "GapQuestionsArtifact",
+  "type": "array"
+}

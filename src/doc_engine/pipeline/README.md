@@ -72,6 +72,7 @@ python -m doc_engine.tools.validate_artifacts --all <run-directory>
 Mechanical shape gates (summaries, gap questions) live in `doc_engine.tools.pipeline_validators`.
 
 Schemas: `scripts/schemas/*.schema.json` (derived from `doc_engine.pipeline.artifacts`).
+`facts.jsonl` is JSON Lines (`JSONL_ARTIFACTS`); other registered artifacts are single JSON values.
 
 ## Import vs CLI boundaries
 
