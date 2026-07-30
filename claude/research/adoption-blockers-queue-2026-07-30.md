@@ -91,13 +91,13 @@ Prefer outcome-bound tests over substring-only `verify:` where the claim is beha
 - Do **not** invent interview token guesses at Stage 0.
 - Thin formal schema still L5 for `drift_report`.
 
-### L2b — Post-Stage-1 Stage-4 input calibration — **CLI measurement on PR #74; threshold open**
+### L2b — Post-Stage-1 Stage-4 input calibration — **CLI on main; default retained (research closed)**
 
-**DDIA card:** same as L2; SoR = on-disk `summaries.json` / `interview_answers.json` / `spring_signals.json` after they exist. Derived = `compute_stage4_calibration` / `--summaries-file` → `measured_stage4_inputs` + optional `stage4_proxy_comparison`. **Not** part of the Stage 0 `capacity_preflight` pipeline argv — operators must run the CLI after artifacts exist. Scope: measure real sizes + return-payload gap; Stage-0 proxy unchanged; default 80k unchanged. If both `--stage0-preflight-report` and `--groups-file` are passed, the Stage-0 report wins for the proxy ratio (warning emitted). **Still open:** documented mid-size run, then decide whether to change the default.
+**DDIA card:** same as L2; SoR = on-disk Stage-4 inputs after they exist. Measurement mode **merged** (PR #74). **Calibration research (2026-07-30):** [`l2b-stage4-threshold-calibration-2026-07-30.md`](l2b-stage4-threshold-calibration-2026-07-30.md) — two independent arXiv reviews (2604.01664 ContextBudget; 2508.04903 RCR-Router), GitHub+DeepWiki (LiteLLM, LangGraph), prompt-11 BFS/DFS. **Decision: retain default 80000.** Changing the default still requires a documented mid-size `measured_stage4_inputs` run (frontier). Returns still omitted.
 
-### L3 — Claim-symbol single-token entities — **later (after L2 / L2b settled)**
+### L3 — Claim-symbol single-token entities — **next (research/ADR before code)**
 
-**DDIA card:** domain `02-encoding-and-evolution`; open `schema-evolution-and-data-outlives-code`, `encoding-and-compatibility`, `rel-schema-outlives-writers`. SoR = facts / claim keys. Larger fact-store redesign — research/ADR before code; do not fold into L2. Cite Phase-1 fact-store lock.
+**DDIA card:** domain `02-encoding-and-evolution`; open `schema-evolution-and-data-outlives-code`, `encoding-and-compatibility`, `rel-schema-outlives-writers`. SoR = facts / claim keys. Larger fact-store redesign — research/ADR before code; do not fold into L2. Cite Phase-1 fact-store lock. **Unlock:** L2b threshold *default* decision closed (retain); mid-size run still open for *changing* 80k but does not block L3 research.
 
 ### L4 — Branch protection (human) — **deferred until later (owner)**
 
