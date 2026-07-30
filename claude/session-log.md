@@ -1023,3 +1023,32 @@ Assumptions affected:
 - STATUS product vs meta scripts boundary — [Still accurate — product stays in doc_engine; meta nested under scripts/{ci,ratchets,coverage,fixtures,schemas}]
 - Flat scripts/*.py invoke paths in CI/hooks/verify: — [Resolved — recursive path updates; no dual-home shims]
 Files touched: scripts/** (layout), src/doc_engine/paths.py, tests/conftest.py, .github/workflows/*, adapters/claude/hooks/require_hardened_tests.py, CLAUDE.md, CONSTRAINTS.md, STATUS.md, steering verify predicates, scripts/README.md, claude/session-log.md
+
+## 2026-07-30 — PE pre-PR gate (compose + rare touches)
+Commit: uncommitted
+Tests: 24 targeted (pre_pr + workflow ramp + verify_certification); pre_pr --fast pass; --auto standard pytest pass
+Assumptions affected:
+- Local fail-closed before PR — [New info — `scripts/ci/pre_pr.py` + `.githooks/pre-push`; CI still merge second line]
+- Workflow security while Actions stay tag-pinned — [New info — severity ramp in `check_workflow_yaml.py`; medium `actions/*@vN` advisory only]
+- `test_verify_certification` pre-slice dict fixtures — [Resolved — reuse `build_certification_report` / `write_certification_json`; incomplete dict fails schema gate]
+Phase 2 backlog (pick one scanner stack after SHA-pin):
+- SHA-pin all `uses:` (`uses: …@sha # vX.Y.Z`); then johnbillion (actionlint + zizmor SARIF ± poutine/octoscan) or i9wa4 (actionlint + ghalint + pinact --check + zizmor)
+- ghalint: `persist-credentials: false`, `timeout-minutes`
+- Harden-Runner `egress-policy: audit` first; gitleaks with baseline; delta mutation annotations (mutate stays advisory until watched); Meta ACH = research only
+Files touched: scripts/ci/pre_pr.py, scripts/ci/check_workflow_yaml.py, .githooks/pre-push, .github/workflows/ci.yml, tests/test_pre_pr.py, tests/test_check_workflow_yaml.py, tests/test_verify_certification.py, scripts/README.md, CONTRIBUTING.md, claude/session-log.md
+
+## 2026-07-30 — tests/ subdirectory layout (mirror scripts/)
+Commit: uncommitted
+Tests: 150 passed (suite_layout + pre_pr + require_hardened + check_repo_claims); suite_layout discovers 51 nested suites; pre_pr --fast pass
+Assumptions affected:
+- Flat `tests/test_*.py` inventory / `suite_layout.glob` — [Resolved — taxonomy `tests/{ci,ratchets,coverage,doc_engine,adapters}/`; `suite_paths`/`suite_file_for_module` use `rglob`]
+- `verify:` / current-state docs citing flat suite paths — [Resolved — nested paths; `tests/` added to `OWN_PATH_PREFIXES`]
+Files touched: tests/** (layout + README), scripts/ci/suite_layout.py, scripts/ci/check_repo_claims.py, adapters/claude/hooks/require_hardened_tests.py, CONSTRAINTS.md, STATUS.md, MATURITY_ASSESSMENT.md, README.md, steering verify paths, scripts/README.md, claude/session-log.md
+
+## 2026-07-30 — certification verify tests vs schema gate
+Commit: uncommitted
+Tests: 36/36 (verify_certification + compliance + certification schema round-trip)
+Assumptions affected:
+- Hand-rolled `{"certified": True}` fixtures still valid after CertificationReport.model_validate — [Resolved — tests mint via build_certification_report/write_certification_json; incomplete dicts assert schema failure]
+- Empty gate audit can certify when profile_gate_ids non-empty — [Resolved — build_certification_report treats missing required gates as failures]
+Files touched: src/doc_engine/pipeline/compliance.py, tests/doc_engine/test_verify_certification.py, tests/doc_engine/test_compliance.py, claude/session-log.md

@@ -26,8 +26,8 @@ Do **not** recreate `baseline-reference/`. Verify the live tree with `pytest tes
 Bundled alongside this document, under `baseline-reference/`, were five files confirmed correct as of 2026-07-23. For each: diff against the live path, overwrite on mismatch, then run:
 
 ```bash
-pytest tests/test_partition_repo.py -v
-pytest tests/test_spring_signal_scan.py -v
+pytest tests/doc_engine/test_partition_repo.py -v
+pytest tests/doc_engine/test_spring_signal_scan.py -v
 ```
 
 </details>
@@ -123,8 +123,8 @@ This keeps the local name `EXCLUDED_DIRS` so `dfs_walk()` and `run_ast_grep()` n
 
 **Acceptance:**
 ```bash
-python3 scripts/test_partition_repo.py -v
-python3 scripts/test_spring_signal_scan.py -v
+python3 tests/doc_engine/test_partition_repo.py -v
+python3 tests/doc_engine/test_spring_signal_scan.py -v
 ```
 Both suites green. Additionally, spot-check the fix actually closes the gap it's meant to close — create a throwaway `vendor/Probe.java` containing `@Entity` in a scratch test repo, run `spring_signal_scan.py` against it, and confirm `vendor/Probe.java` produces zero entries anywhere in the output (it did produce entries before this change).
 
@@ -345,7 +345,7 @@ def build_groups(file_tokens, max_tokens, overlap_ratio):
     return groups
 ```
 
-**New regression test** — add to `scripts/test_partition_repo.py`, matching the existing file's style (it already has `test_final_group_no_longer_unbounded` and `test_overlap_skips_oversized_trailing_file` for the two previous bugs in this same function; read those first for exact conventions to match):
+**New regression test** — add to `tests/doc_engine/test_partition_repo.py`, matching the existing file's style (it already has `test_final_group_no_longer_unbounded` and `test_overlap_skips_oversized_trailing_file` for the two previous bugs in this same function; read those first for exact conventions to match):
 
 ```python
 def test_strict_mode_zero_progress_guard_prevents_infinite_loop(self):
@@ -369,9 +369,9 @@ Also re-run the two *existing* regression tests for the previous two bugs in thi
 
 **Acceptance:**
 ```bash
-python3 scripts/test_partition_repo.py -v
+python3 tests/doc_engine/test_partition_repo.py -v
 ```
-All tests green, including the new one and both pre-existing regression tests. If a real-world fixture is configured, also re-run `test_partition_repo_real_world.py` and expect it to still pass (strict mode should only ever produce equal-or-more groups with equal-or-less overshoot than before, never break an assertion that was about *content*, only ones that were specifically about the old bound).
+All tests green, including the new one and both pre-existing regression tests. If a real-world fixture is configured, also re-run `tests/doc_engine/test_partition_repo_real_world.py` and expect it to still pass (strict mode should only ever produce equal-or-more groups with equal-or-less overshoot than before, never break an assertion that was about *content*, only ones that were specifically about the old bound).
 
 ---
 
@@ -408,7 +408,7 @@ The fix: one more ast-grep rule — a plain `import_declaration` capture (no nar
 
 **Acceptance:**
 ```bash
-python3 scripts/test_spring_signal_scan.py -v
+python3 tests/doc_engine/test_spring_signal_scan.py -v
 ```
 Green, plus a new assertion (add to that file, matching its existing conventions) that scans a small fixture with two files in different fictional "groups" — one importing the other — and confirms the `references` bucket contains an entry for the import. Since `file-summarizer.md`/`SKILL.md` changes aren't covered by the Python test suite at all, the acceptance for those two is a live pipeline run against a real small repo, checking by hand that at least one cross-group relationship shows up in a `file-summarizer` result that would have been invisible under the old group-scoped-only step 3 — this is the one item in this whole list where "run the actual pipeline once against a real target" is the only real verification available, so budget time for that rather than treating a clean test-suite run alone as sufficient sign-off.
 
@@ -418,8 +418,8 @@ Green, plus a new assertion (add to that file, matching its existing conventions
 
 Re-run both full test suites one more time end to end:
 ```bash
-python3 scripts/test_partition_repo.py -v
-python3 scripts/test_spring_signal_scan.py -v
+python3 tests/doc_engine/test_partition_repo.py -v
+python3 tests/doc_engine/test_spring_signal_scan.py -v
 ```
 
 This repo doesn't appear to enforce a specific commit-message or branch-naming convention of its own (no `CLAUDE.md`/`CONTRIBUTING.md` was found describing one as of this document being written — check again yourself in case that's changed). Absent one, plain hygiene: do this work on its own branch, and keep each of the six items as its own commit so a reviewer (or a future you) can bisect if one of them turns out to need a follow-up fix, the same way this plugin's own history has needed several already.

@@ -153,8 +153,8 @@ DERIVED_RE = re.compile(
 # file, in the one module whose stated purpose is making "don't write the
 # same fact twice" enforceable. Now they agree by construction.
 OWN_PATH_PREFIXES = (
-    "scripts/", "agents/", "adapters/", "skills/", "claude/", ".github/",
-    ".claude/", ".claude-plugin/",
+    "scripts/", "tests/", "agents/", "adapters/", "skills/", "claude/",
+    ".github/", ".claude/", ".claude-plugin/",
 )
 
 _OWN_PREFIX_ALT = "|".join(re.escape(prefix) for prefix in OWN_PATH_PREFIXES)

@@ -1,5 +1,26 @@
 # Contributing
 
+## Local pre-PR gate (principal-engineer push hook)
+
+Before opening a PR, push is the practical choke point (`gh pr create` cannot be
+hooked by git). Enable the committed hooks once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+`.githooks/pre-push` runs `python scripts/ci/pre_pr.py --auto` (path-risk
+routing over the same hard suites CI runs). Details and tiers:
+[`scripts/README.md`](scripts/README.md).
+
+Emergency bypass (always logged under `.git/pre-pr-bypass.log`):
+
+```bash
+PRE_PR_SKIP=1 PRE_PR_SKIP_REASON='short justification here' git push
+```
+
+`PRE_PR_SKIP` alone is rejected. Prefer fixing the failing suite.
+
 ## Write-then-verify: never trust a write tool's success response alone
 
 **Rule:** after any file write made through a device bridge, remote tool, or subagent whose only view of the filesystem is a bridged connection, the very next action is re-reading that file's actual content directly. A "written" response, a byte count, or a reported mtime is not evidence the live file changed — only a direct re-read is.

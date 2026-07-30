@@ -1,10 +1,10 @@
 # Search methodology benchmark
 
-Recorded expectations for `tests/test_search_methodology.py`. The goal is **citation precision**, not search speed.
+Recorded expectations for `tests/doc_engine/test_search_methodology.py`. The goal is **citation precision**, not search speed.
 
 ## Fixture
 
-`scripts/fixtures/spring_signals/` — billing demo service used by `test_spring_signal_scan.py`.
+`scripts/fixtures/spring_signals/` — billing demo service used by `tests/doc_engine/test_spring_signal_scan.py`.
 
 ## Cases
 

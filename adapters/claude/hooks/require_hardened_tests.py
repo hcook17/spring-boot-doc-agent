@@ -24,7 +24,7 @@ Speed is a correctness property here: a gate slow enough to resent is a gate
 people route around. The full suite takes about two minutes, so it is NOT run.
 These four are all fast, and each maps to a failure this repo has actually had:
 
-  1. a staged scripts/*.py with no tests/test_*.py sibling  -- code added untested
+  1. a staged scripts/*.py with no test_<module>.py under tests/  -- code added untested
   2. a staged test_*.py outside pyproject testpaths         -- wrapper revival
   3. check_repo_claims.py                             -- a claim nothing reads back
   4. check_code_quality.py                            -- a silent complexity ratchet break
@@ -64,9 +64,9 @@ SKILL = "directional-tests"
 # the convention here. Each needs a reason, the same shape as
 # check_repo_claims.CI_EXEMPT_SUITES.
 TEST_EXEMPT = {
-    "drift_match_normalizers.py": "re-derived by test_drift_normalization.py",
+    "drift_match_normalizers.py": "re-derived by tests/ratchets/test_drift_normalization.py",
     "java_perturbations.py": "test infrastructure itself",
-    "prompt_contracts.py": "exercised by test_prompt_contracts.py",
+    "prompt_contracts.py": "exercised by tests/ci/test_prompt_contracts.py",
     "regenerate_fixture_snapshot.py": "operator helper; exercised manually / CI snapshot step",
     "generate_signal_mermaid.py": "operator helper for fixture visualization",
 }

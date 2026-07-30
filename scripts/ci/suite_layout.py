@@ -62,12 +62,20 @@ def uses_pytest_discovery(root: Path) -> bool:
 
 
 def suite_paths(root: Path) -> List[Path]:
-    """All ``test_*.py`` files under declared suite roots."""
+    """All ``test_*.py`` files under declared suite roots (recursive).
+
+    Suites live in taxonomy subdirs (``tests/ci/``, ``tests/doc_engine/``, …);
+    non-recursive ``glob`` would silently under-count after that layout.
+    """
     found: List[Path] = []
     for rel in suite_roots(root):
         directory = root / rel
-        if directory.is_dir():
-            found.extend(sorted(directory.glob("test_*.py")))
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.rglob("test_*.py")):
+            if "__pycache__" in path.parts:
+                continue
+            found.append(path)
     return found
 
 
@@ -75,14 +83,25 @@ def suite_file_for_module(root: Path, module_filename: str) -> Path | None:
     """Path to ``test_<module>`` under a declared root, if it exists.
 
     Leading-underscore modules historically drop the underscore in the suite
-    name (``_ast_signature.py`` → ``test_ast_signature.py``).
+    name (``_ast_signature.py`` → ``test_ast_signature.py``). Search is
+    recursive so a suite in ``tests/ratchets/`` still pairs with
+    ``scripts/ratchets/set_delta.py``.
     """
     candidates = [f"test_{module_filename}"]
     if module_filename.startswith("_"):
         candidates.append(f"test_{module_filename.lstrip('_')}")
     for rel in suite_roots(root):
+        directory = root / rel
+        if not directory.is_dir():
+            continue
         for name in candidates:
-            candidate = root / rel / name
-            if candidate.is_file():
-                return candidate
+            direct = directory / name
+            if direct.is_file():
+                return direct
+            hits = sorted(
+                p for p in directory.rglob(name)
+                if "__pycache__" not in p.parts
+            )
+            if hits:
+                return hits[0]
     return None

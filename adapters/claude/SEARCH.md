@@ -23,4 +23,4 @@ Do not debate which tool to use inside Claude agents — follow this table.
 
 ## Benchmark
 
-See [`docs/search-methodology-benchmark.md`](../../docs/search-methodology-benchmark.md) and `tests/test_search_methodology.py` for fixture-backed proof that ast-grep beats text grep on citation precision for this corpus.
+See [`docs/search-methodology-benchmark.md`](../../docs/search-methodology-benchmark.md) and `tests/doc_engine/test_search_methodology.py` for fixture-backed proof that ast-grep beats text grep on citation precision for this corpus.
