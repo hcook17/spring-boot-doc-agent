@@ -93,7 +93,7 @@ Prefer outcome-bound tests over substring-only `verify:` where the claim is beha
 
 ### L2b — Post-Stage-1 Stage-4 input calibration — **CLI on main; default retained (research closed)**
 
-**DDIA card:** same as L2; SoR = on-disk Stage-4 inputs after they exist. Measurement mode **merged** (PR #74). **Calibration research (2026-07-30):** [`l2b-stage4-threshold-calibration-2026-07-30.md`](l2b-stage4-threshold-calibration-2026-07-30.md) — two independent arXiv reviews (2604.01664 ContextBudget; 2508.04903 RCR-Router), GitHub+DeepWiki (LiteLLM, LangGraph), prompt-11 BFS/DFS. **Decision: retain default 80000.** Changing the default still requires a documented mid-size `measured_stage4_inputs` run (frontier). Returns still omitted.
+**DDIA card:** same as L2; SoR = on-disk Stage-4 inputs after they exist. Measurement mode **merged** (PR #74). **Calibration research (2026-07-30):** [`l2b-stage4-threshold-calibration-2026-07-30.md`](l2b-stage4-threshold-calibration-2026-07-30.md) — two independent **spring/summer 2026** arXiv reviews (2604.01664 ContextBudget; **2607.24653 Kimi K3**), GitHub+DeepWiki (LiteLLM, LangGraph, Kimi-K3), prompt-11 BFS/DFS. **Decision: retain default 80000.** (Aug 2025 RCR-Router demoted.) Changing the default still requires a documented mid-size `measured_stage4_inputs` run (frontier). Returns still omitted.
 
 ### L3 — Claim-symbol single-token entities — **ADR proposed (research; no code)**
 
