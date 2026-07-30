@@ -20,8 +20,6 @@ Run with:
     pytest tests/test_check_repo_claims.py -v
 """
 
-from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
-
 import json
 import re
 import shutil
@@ -32,6 +30,9 @@ import unittest
 from pathlib import Path
 
 import check_repo_claims as crc  # noqa: E402
+
+from tests.conftest import REPO_ROOT
+
 
 def build_tree(root: Path) -> None:
     """A miniature repo with the shape the checker cares about. Deliberately
@@ -778,6 +779,53 @@ class TestPredicateRegistry(unittest.TestCase):
         passed, why = crc.evaluate_predicate(REPO_ROOT, "exec_shell:rm -rf /")
         self.assertFalse(passed)
         self.assertIn("unknown predicate", why)
+
+    def test_called_by_detects_static_call(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            mod = root / "pkg"
+            mod.mkdir()
+            (mod / "callee.py").write_text(
+                "def helper():\n    return 1\n",
+                encoding="utf-8",
+            )
+            (mod / "caller.py").write_text(
+                "from callee import helper\n\ndef run():\n    return helper()\n",
+                encoding="utf-8",
+            )
+            passed, why = crc.evaluate_predicate(
+                root, "called_by:helper:pkg/caller.py"
+            )
+            self.assertTrue(passed, why)
+            passed_missing, _ = crc.evaluate_predicate(
+                root, "called_by:helper:pkg/callee.py"
+            )
+            self.assertFalse(passed_missing)
+
+    def test_called_by_rejects_markdown_supplied_paths_malformed(self) -> None:
+        passed, why = crc.evaluate_predicate(REPO_ROOT, "called_by:only_one_part")
+        self.assertFalse(passed)
+        self.assertIn("malformed", why)
+
+    def test_behavior_unknown_key_fails_closed(self) -> None:
+        passed, why = crc.evaluate_predicate(
+            REPO_ROOT, "behavior:not_a_registered_key"
+        )
+        self.assertFalse(passed)
+        self.assertIn("unknown behavior key", why)
+
+    def test_behavior_registered_keys_hold_on_repo(self) -> None:
+        for key in sorted(crc.BEHAVIOR_CHECKS):
+            passed, why = crc.evaluate_predicate(REPO_ROOT, f"behavior:{key}")
+            self.assertTrue(passed, f"behavior:{key} failed: {why}")
+
+    def test_behavior_key_cannot_be_a_shell_command_from_markdown(self) -> None:
+        """Documents select keys; they cannot smuggle argv (verify_llms_docs)."""
+        passed, why = crc.evaluate_predicate(
+            REPO_ROOT, "behavior:rm -rf /"
+        )
+        self.assertFalse(passed)
+        self.assertIn("unknown behavior key", why)
 
     def test_no_predicate_prefix_is_a_prefix_of_another(self):
         """The invariant the registry creates a need for. Dispatch is

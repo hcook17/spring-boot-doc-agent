@@ -774,6 +774,126 @@ def _eval_not_contains(root: Path, operand: str) -> Tuple[bool, str]:
         f"{target} still contains {literal!r}"
 
 
+def _call_names_in_module(path: Path) -> Set[str]:
+    """Return simple names and attribute tails used as call callees in a module.
+
+    Static only: getattr / importlib / string dispatch is unproven, not absent —
+    same honesty bar as ast-grep silent zeros.
+    """
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except SyntaxError as exc:
+        raise ValueError(f"{path} does not parse: {exc}") from exc
+    names: Set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if isinstance(func, ast.Name):
+            names.add(func.id)
+        elif isinstance(func, ast.Attribute):
+            names.add(func.attr)
+    return names
+
+
+def _eval_called_by(root: Path, operand: str) -> Tuple[bool, str]:
+    """``called_by:<qualname>:<module_path>`` — qualname is called in module.
+
+    Qualname is matched as a bare ``Name`` or as the final ``Attribute`` of a
+    call (``mod.fn()`` / ``self.fn()``). Does not prove dynamic dispatch.
+    """
+    qualname, sep, module_path = operand.partition(":")
+    qualname, module_path = qualname.strip(), module_path.strip()
+    if not sep or not qualname or not module_path:
+        return False, (
+            f"malformed called_by:{operand!r}; expected "
+            f"called_by:<qualname>:<module_path>"
+        )
+    # Allow dotted qualnames; match on the final segment for Attribute calls.
+    simple = qualname.rsplit(".", 1)[-1]
+    path = _resolve_repo_path(root, module_path)
+    if not path.is_file():
+        return False, f"{module_path} does not exist, so calls to {qualname!r} cannot be checked"
+    try:
+        names = _call_names_in_module(path)
+    except ValueError as exc:
+        return False, str(exc)
+    if simple in names or qualname in names:
+        return True, ""
+    return False, (
+        f"{qualname!r} is not called in {module_path} "
+        f"(static AST; dynamic dispatch is unproven, not absent)"
+    )
+
+
+def _behavior_signal_scan_declares_facts_jsonl(root: Path) -> Tuple[bool, str]:
+    """Stage graph lists facts.jsonl on signal_scan (dual-emit contract)."""
+    stages_path = root / "src" / "doc_engine" / "pipeline" / "stages.py"
+    if not stages_path.is_file():
+        return False, "src/doc_engine/pipeline/stages.py missing"
+    # Import via path so the checker does not require an installed wheel.
+    sys.path.insert(0, str(root / "src"))
+    try:
+        from doc_engine.pipeline.stages import build_stage_specs  # noqa: E402
+    except Exception as exc:  # noqa: BLE001
+        return False, f"cannot import build_stage_specs: {exc}"
+    for spec in build_stage_specs():
+        if spec.name == "signal_scan" and "facts.jsonl" in spec.outputs:
+            return True, ""
+    return False, "signal_scan outputs do not include facts.jsonl"
+
+
+def _behavior_runner_missing_output_is_stage_result(root: Path) -> Tuple[bool, str]:
+    """PipelineRunner maps missing declared outputs to StageResult, not crash."""
+    path = root / "src" / "doc_engine" / "pipeline" / "runner.py"
+    if not path.is_file():
+        return False, "src/doc_engine/pipeline/runner.py missing"
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except SyntaxError as exc:
+        return False, f"runner.py does not parse: {exc}"
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ExceptHandler):
+            continue
+        typ = node.type
+        names: List[str] = []
+        if isinstance(typ, ast.Name):
+            names = [typ.id]
+        elif isinstance(typ, ast.Tuple):
+            names = [elt.id for elt in typ.elts if isinstance(elt, ast.Name)]
+        if "FileNotFoundError" not in names:
+            continue
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Constant) and sub.value == "missing_required_output":
+                return True, ""
+    return False, (
+        "runner.py has no except FileNotFoundError that sets "
+        "detail='missing_required_output'"
+    )
+
+
+# Closed outcome-bound keys — documents select a key; this file owns the check.
+# Never accept a pytest node id or shell string from markdown (verify_llms_docs hazard).
+BEHAVIOR_CHECKS: Dict[str, Callable[[Path], Tuple[bool, str]]] = {
+    "signal_scan_declares_facts_jsonl": _behavior_signal_scan_declares_facts_jsonl,
+    "runner_missing_output_is_stage_result": _behavior_runner_missing_output_is_stage_result,
+}
+
+
+def _eval_behavior(root: Path, operand: str) -> Tuple[bool, str]:
+    """``behavior:<key>`` — run a pre-registered check owned by this file."""
+    key = operand.strip()
+    if not key:
+        return False, "malformed behavior: predicate (empty key)"
+    handler = BEHAVIOR_CHECKS.get(key)
+    if handler is None:
+        return False, (
+            f"unknown behavior key {key!r}; expected one of "
+            f"{', '.join(sorted(BEHAVIOR_CHECKS))}"
+        )
+    return handler(root)
+
+
 def evaluate_predicate(root: Path, predicate: str) -> Tuple[bool, str]:
     """Returns (passed, explanation).
 
@@ -842,6 +962,8 @@ PREDICATE_HANDLERS: Dict[str, Callable[[Path, str], Tuple[bool, str]]] = {
     "contains:": _eval_contains,
     "not_contains:": _eval_not_contains,
     "unchanged_since:": _eval_unchanged_since,
+    "called_by:": _eval_called_by,
+    "behavior:": _eval_behavior,
 }
 
 # Derived, so it cannot drift from the registry. No prefix may be a proper
