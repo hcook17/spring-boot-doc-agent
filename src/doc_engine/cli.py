@@ -113,7 +113,10 @@ def main() -> int:
     scan_ap.add_argument("--db-path", default=None)
     scan_ap.set_defaults(func=cmd_scan)
 
-    docs_ap = sub.add_parser("docs", help="Generate a docs bundle from signals")
+    docs_ap = sub.add_parser(
+        "docs",
+        help="Placeholder docs bundle from signals (prefer: doc-engine pipeline run)",
+    )
     docs_ap.add_argument("signals")
     docs_ap.add_argument("--out", default="docs.json")
     docs_ap.add_argument("--interview", default=None, help="Path to interview answers JSON")

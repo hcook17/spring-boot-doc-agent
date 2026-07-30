@@ -1973,11 +1973,6 @@
       "complexity": 7,
       "depth": 3
     },
-    "src/doc_engine/tools/_bootstrap.py::ensure_scripts_importable": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
     "src/doc_engine/tools/build_cross_group_edges.py::build_membership": {
       "statements": 5,
       "complexity": 3,

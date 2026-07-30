@@ -1,6 +1,6 @@
 # Root `skills/` mirror
 
-**System of record:** [`adapters/claude/skills/`](../adapters/claude/skills/).
+**Start here for product skills:** [`adapters/claude/skills/`](../adapters/claude/skills/) (system of record).
 
 Marketplace packaging uses `adapters/claude` (see `.claude-plugin/marketplace.json`). This root tree is a **synced mirror** of the product skills Cursor/local workflows may resolve without the adapter path:
 

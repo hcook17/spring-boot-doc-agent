@@ -924,8 +924,25 @@ Assumptions affected:
 Files touched: scripts/suite_layout.py, scripts/check_repo_claims.py, adapters/claude/hooks/require_hardened_tests.py, tests/test_suite_layout.py, tests/test_check_repo_claims.py, tests/test_require_hardened_tests.py, STATUS.md, claude/deterministic-boundary-schemas-spi-research-2026-07-29.md, claude/session-log.md
 
 ## 2026-07-29 — Mutate harness resolves suites under tests/ (PR #60 CI)
-Commit: uncommitted
-Tests: 23/23 test_mutate.py passed
+Commit: 4e66634
+Tests: 23/23 test_mutate.py passed; CI green then merge
 Assumptions affected:
 - mutate.py expected_caught_by under scripts/ — [Resolved — resolve via suite_layout + pytest; false "killed" when suite path missing]
 Files touched: scripts/mutate.py, tests/test_mutate.py, claude/session-log.md
+
+## 2026-07-29 — Scope clarity cleanup (post-packaging docs + dead bootstraps)
+Commit: uncommitted
+Tests: check_repo_claims + ruff + check_code_quality (after staging deletes); targeted pytest if hooks/claims touched
+Assumptions affected:
+- `claude/10-architecture-maturation-plan.md` Phase 0.1 PORTING/local_ci as current work — [New info — banner: superseded by portable-kernel CI; §0 + Phase 1–3 still product thesis]
+- `claude/steering-prompts/07-ci-scaffold-task-prompt.md` body as implementable brief — [Still accurate as historical; body banner added — do not re-add verify_llms_docs]
+- Current-state docs citing root `agents/` / bare `scripts/<product>.py` / `skills/tool-quirks` — [Resolved — retargeted to adapters/claude + `python -m doc_engine.tools.*`]
+- Unused `scripts/_src_bootstrap.py` / `tools/_bootstrap.py` — [Resolved — deleted]
+Files touched: README.md, CLAUDE.md, CONSTRAINTS.md, STATUS.md, MATURITY_ASSESSMENT.md, IMPLEMENTATION_HANDOFF.md, docs/product-architecture.md, skills/README.md, skill reference mirrors, claude/10-architecture-maturation-plan.md, claude/steering-prompts/07-*, claude/tool-quirks.md, src/doc_engine/cli.py, scripts/_src_bootstrap.py (deleted), src/doc_engine/tools/_bootstrap.py (deleted), scripts/code_quality_baseline.json, claude/session-log.md
+
+## 2026-07-29 — Stage 0 scanner voice: default ast-grep; CodeQL opt-in
+Commit: uncommitted
+Tests: check_repo_claims (expected)
+Assumptions affected:
+- CONSTRAINTS Runtime item 1 "CodeQL hard for Stage 0" — [Resolved — default is filesystem+ast-grep; CodeQL via --scanners; capacity_preflight does not require CodeQL]
+Files touched: CONSTRAINTS.md, README.md, claude/session-log.md

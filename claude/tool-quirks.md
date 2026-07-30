@@ -1,6 +1,6 @@
 # Tool and environment quirks
 
-Append-only index of odd behavior in the *ambient tools/environment* used to work on this repo (`gh`, `git`, MCP tools, the shell, Windows-specific path handling) — not this plugin's own document-generation logic. See `skills/tool-quirks/SKILL.md` for when to check this before investigating, and when/how to add an entry. Distinct from `claude/session-log.md` (steering-prompt impact) and `claude/llms/` (this repo's own PR-verification commands).
+Append-only index of odd behavior in the *ambient tools/environment* used to work on this repo (`gh`, `git`, MCP tools, the shell, Windows-specific path handling) — not this plugin's own document-generation logic. See `adapters/claude/skills/tool-quirks/SKILL.md` for when to check this before investigating, and when/how to add an entry. Distinct from `claude/session-log.md` (steering-prompt impact) and `claude/llms/` (this repo's own PR-verification commands).
 
 Newest entries at the bottom.
 

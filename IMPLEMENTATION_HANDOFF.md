@@ -1,5 +1,7 @@
 # Implementation handoff: spring-boot-doc-agent, six agreed fixes
 
+> **Historical (completed).** All six items landed (PR #1 era). This file is the origin story for write-then-verify and the six fixes — not live product instructions. Current product layout: [`docs/product-architecture.md`](docs/product-architecture.md). Agents live under `adapters/claude/agents/`; Stage 0 tools under `src/doc_engine/tools/`. Do not recreate `baseline-reference/`.
+
 *Prepared 2026-07-23 by a Cowork session, for a Claude Code CLI session running directly against this repo on disk. Read this whole file before making any changes — items are ordered so later ones don't depend on earlier ones being incomplete, but Step 0 is a hard prerequisite for all of them.*
 
 ## Why this document exists, and why you (not the Cowork session that wrote it) are implementing it
@@ -30,7 +32,7 @@ pytest tests/test_spring_signal_scan.py -v
 
 </details>
 
-Two other files were, per the review history, correctly delivered already and don't need reconciliation, but it costs nothing to sanity-check them along the way since you'll have both scripts' test suites running anyway: `agents/architect-merge.md` and `agents/architect-segment.md` should each have complete YAML frontmatter (`name`, `description`, `tools: Read, Grep, Glob`) and zero occurrences of the literal strings `{README}` or `{REPO}`. If either check fails, treat it as a new problem worth flagging, not something to silently patch over while you're in there for something else.
+Two other files were, per the review history, correctly delivered already and don't need reconciliation, but it costs nothing to sanity-check them along the way since you'll have both scripts' test suites running anyway: `adapters/claude/agents/architect-merge.md` and `adapters/claude/agents/architect-segment.md` should each have complete YAML frontmatter (`name`, `description`, `tools: Read, Grep, Glob`) and zero occurrences of the literal strings `{README}` or `{REPO}`. If either check fails, treat it as a new problem worth flagging, not something to silently patch over while you're in there for something else.
 
 ## A note on how literally to follow the six items below
 
