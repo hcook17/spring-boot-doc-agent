@@ -1,0 +1,1123 @@
+{
+  "schema_version": 1,
+  "last_refined": "2026-07-30",
+  "$comment": "Machine index for docs/design/ddia-north-star. Bodies live in markdown; keep 1:1 by id. Sync test enforces.",
+  "entries": [
+    {
+      "tags": [
+        "epub",
+        "taxonomy",
+        "ncx",
+        "sect",
+        "leaf"
+      ],
+      "related": [],
+      "path": "meta/taxonomy.md",
+      "id": "taxonomy",
+      "kind": "taxonomy",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "domain",
+        "sor",
+        "derived"
+      ],
+      "related": [
+        "sor-vs-derived",
+        "materialized-views-and-caches",
+        "rel-sor-feeds-views",
+        "domain-derived-data-processing"
+      ],
+      "path": "domains/01-data-flow-and-truth/README.md",
+      "id": "domain-data-flow-and-truth",
+      "kind": "domain",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "domain",
+        "encoding",
+        "schema"
+      ],
+      "related": [
+        "encoding-and-compatibility",
+        "schema-evolution-and-data-outlives-code",
+        "rel-schema-outlives-writers"
+      ],
+      "path": "domains/02-encoding-and-evolution/README.md",
+      "id": "domain-encoding-and-evolution",
+      "kind": "domain",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "domain",
+        "replication",
+        "lww"
+      ],
+      "related": [
+        "replication-lag-and-lww",
+        "rel-conflict-vs-recompute"
+      ],
+      "path": "domains/03-replication-and-conflicts/README.md",
+      "id": "domain-replication-and-conflicts",
+      "kind": "domain",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "domain",
+        "integrity",
+        "audit"
+      ],
+      "related": [
+        "transactions-and-integrity-lite",
+        "trust-but-verify-and-auditability",
+        "rel-gate-needs-witness"
+      ],
+      "path": "domains/04-integrity-and-verification/README.md",
+      "id": "domain-integrity-and-verification",
+      "kind": "domain",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "domain",
+        "maintainability",
+        "evolvability"
+      ],
+      "related": [
+        "maintainability-operability-evolvability",
+        "refactor-sequencing",
+        "claims-and-status-drift"
+      ],
+      "path": "domains/05-maintainability-and-change/README.md",
+      "id": "domain-maintainability-and-change",
+      "kind": "domain",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "domain",
+        "consistency",
+        "consensus"
+      ],
+      "related": [
+        "consistency-and-consensus-lite"
+      ],
+      "path": "domains/06-consistency-and-coordination/README.md",
+      "id": "domain-consistency-and-coordination",
+      "kind": "domain",
+      "completeness": "partial",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "domain",
+        "partitioning",
+        "skew",
+        "fanout",
+        "rebalancing"
+      ],
+      "related": [
+        "partition-key-and-hotspots",
+        "secondary-indexes-cross-partition",
+        "rel-partition-bounds-fanout",
+        "ch07"
+      ],
+      "path": "domains/07-partitioning-and-skew/README.md",
+      "id": "domain-partitioning-and-skew",
+      "kind": "domain",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "domain",
+        "transactions",
+        "concurrency",
+        "isolation"
+      ],
+      "related": [
+        "transactions-and-integrity-lite",
+        "trust-but-verify-and-auditability",
+        "domain-integrity-and-verification",
+        "ch08"
+      ],
+      "path": "domains/08-transactions-and-concurrency/README.md",
+      "id": "domain-transactions-and-concurrency",
+      "kind": "domain",
+      "completeness": "partial",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "domain",
+        "batch",
+        "stream",
+        "derived",
+        "etl"
+      ],
+      "related": [
+        "batch-vs-stream-derived-state",
+        "rel-batch-feeds-serving",
+        "materialized-views-and-caches",
+        "sor-vs-derived",
+        "ch10",
+        "ch11",
+        "ch12"
+      ],
+      "path": "domains/09-derived-data-processing/README.md",
+      "id": "domain-derived-data-processing",
+      "kind": "domain",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "domain",
+        "reliability",
+        "scalability",
+        "maintainability",
+        "goals"
+      ],
+      "related": [
+        "maintainability-operability-evolvability",
+        "refactor-sequencing",
+        "domain-maintainability-and-change",
+        "ch13",
+        "ch14"
+      ],
+      "path": "domains/10-reliability-scalability-goals/README.md",
+      "id": "domain-reliability-scalability-goals",
+      "kind": "domain",
+      "completeness": "partial",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "materialized-view",
+        "cache",
+        "fan-out",
+        "read-model"
+      ],
+      "related": [
+        "sor-vs-derived",
+        "batch-vs-stream-derived-state",
+        "coverage-gates"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 2,
+          "title": "Materializing and Updating Timelines",
+          "fragment": "sec_introduction_materializing"
+        },
+        {
+          "chapter": 12,
+          "title": "Maintaining materialized views"
+        }
+      ],
+      "path": "domains/01-data-flow-and-truth/concepts/materialized-views-and-caches.md",
+      "id": "materialized-views-and-caches",
+      "kind": "concept",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "sor",
+        "derived",
+        "redundancy",
+        "cache",
+        "index"
+      ],
+      "related": [
+        "materialized-views-and-caches",
+        "trust-but-verify-and-auditability",
+        "choosing-sor-vs-view",
+        "rel-sor-feeds-views",
+        "dev-certification-derived-view",
+        "dev-coverage-denominator-codeql"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 1,
+          "title": "Systems of Record and Derived Data",
+          "fragment": "sec_introduction_derived"
+        }
+      ],
+      "path": "domains/01-data-flow-and-truth/concepts/system-of-record-vs-derived.md",
+      "id": "sor-vs-derived",
+      "kind": "concept",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "encoding",
+        "json",
+        "schema",
+        "rpc",
+        "compatibility"
+      ],
+      "related": [
+        "schema-evolution-and-data-outlives-code"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 5,
+          "title": "The Merits of Schemas"
+        },
+        {
+          "chapter": 5,
+          "title": "Modes of Dataflow"
+        }
+      ],
+      "path": "domains/02-encoding-and-evolution/concepts/encoding-and-compatibility.md",
+      "id": "encoding-and-compatibility",
+      "kind": "concept",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "schema",
+        "evolution",
+        "compatibility",
+        "baseline"
+      ],
+      "related": [
+        "encoding-and-compatibility",
+        "claims-and-status-drift"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 5,
+          "title": "Schema evolution rules"
+        },
+        {
+          "chapter": 5,
+          "title": "Different values written at different times"
+        }
+      ],
+      "path": "domains/02-encoding-and-evolution/concepts/schema-evolution-and-data-outlives-code.md",
+      "id": "schema-evolution-and-data-outlives-code",
+      "kind": "concept",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "replication",
+        "lww",
+        "conflict",
+        "lag"
+      ],
+      "related": [
+        "sor-vs-derived",
+        "consistency-and-consensus-lite",
+        "choosing-sor-vs-view"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 6,
+          "title": "Last write wins (discarding concurrent writes)"
+        },
+        {
+          "chapter": 6,
+          "title": "Problems with Replication Lag"
+        }
+      ],
+      "path": "domains/03-replication-and-conflicts/concepts/replication-lag-and-lww.md",
+      "id": "replication-lag-and-lww",
+      "kind": "concept",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "transactions",
+        "isolation",
+        "lost-update",
+        "write-skew"
+      ],
+      "related": [
+        "consistency-and-consensus-lite",
+        "trust-but-verify-and-auditability"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 8,
+          "title": "Preventing Lost Updates"
+        },
+        {
+          "chapter": 8,
+          "title": "Write Skew and Phantoms"
+        }
+      ],
+      "path": "domains/04-integrity-and-verification/concepts/transactions-and-integrity-lite.md",
+      "id": "transactions-and-integrity-lite",
+      "kind": "concept",
+      "completeness": "partial",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "audit",
+        "integrity",
+        "end-to-end",
+        "verification"
+      ],
+      "related": [
+        "sor-vs-derived",
+        "coverage-gates",
+        "transactions-and-integrity-lite"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 13,
+          "title": "Trust, but Verify"
+        },
+        {
+          "chapter": 13,
+          "title": "Designing for auditability"
+        },
+        {
+          "chapter": 13,
+          "title": "The End-to-End Argument for Databases"
+        }
+      ],
+      "path": "domains/04-integrity-and-verification/concepts/trust-but-verify-and-auditability.md",
+      "id": "trust-but-verify-and-auditability",
+      "kind": "concept",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "maintainability",
+        "operability",
+        "evolvability",
+        "simplicity"
+      ],
+      "related": [
+        "refactor-sequencing",
+        "architecture-decision-review"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 2,
+          "title": "Operability: Making Life Easy for Operations"
+        },
+        {
+          "chapter": 2,
+          "title": "Simplicity: Managing Complexity"
+        },
+        {
+          "chapter": 2,
+          "title": "Evolvability: Making Change Easy"
+        }
+      ],
+      "path": "domains/05-maintainability-and-change/concepts/maintainability-operability-evolvability.md",
+      "id": "maintainability-operability-evolvability",
+      "kind": "concept",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "consistency",
+        "consensus",
+        "linearizability",
+        "coordination"
+      ],
+      "related": [
+        "replication-lag-and-lww",
+        "transactions-and-integrity-lite",
+        "sor-vs-derived"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 10,
+          "title": "Linearizability"
+        },
+        {
+          "chapter": 10,
+          "title": "Consensus"
+        }
+      ],
+      "path": "domains/06-consistency-and-coordination/concepts/consistency-and-consensus-lite.md",
+      "id": "consistency-and-consensus-lite",
+      "kind": "concept",
+      "completeness": "partial",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "partition",
+        "skew",
+        "hotspot",
+        "key"
+      ],
+      "related": [
+        "secondary-indexes-cross-partition",
+        "rel-partition-bounds-fanout",
+        "maintainability-operability-evolvability",
+        "ch07"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 7,
+          "title": "Partitioning of Key-Value Data"
+        },
+        {
+          "chapter": 7,
+          "title": "Partitioning and Replication"
+        }
+      ],
+      "path": "domains/07-partitioning-and-skew/concepts/partition-key-and-hotspots.md",
+      "id": "partition-key-and-hotspots",
+      "kind": "concept",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "partition",
+        "secondary-index",
+        "scatter-gather"
+      ],
+      "related": [
+        "partition-key-and-hotspots",
+        "rel-partition-bounds-fanout",
+        "materialized-views-and-caches",
+        "ch07"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 7,
+          "title": "Partitioning and Secondary Indexes"
+        }
+      ],
+      "path": "domains/07-partitioning-and-skew/concepts/secondary-indexes-cross-partition.md",
+      "id": "secondary-indexes-cross-partition",
+      "kind": "concept",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "batch",
+        "stream",
+        "etl",
+        "event-log",
+        "immutability"
+      ],
+      "related": [
+        "materialized-views-and-caches",
+        "sor-vs-derived",
+        "trust-but-verify-and-auditability",
+        "rel-batch-feeds-serving",
+        "domain-derived-data-processing"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 11,
+          "title": "Serving Derived Data"
+        },
+        {
+          "chapter": 12,
+          "title": "State, Streams, and Immutability"
+        }
+      ],
+      "path": "domains/09-derived-data-processing/concepts/batch-vs-stream-derived-state.md",
+      "id": "batch-vs-stream-derived-state",
+      "kind": "concept",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "relationship",
+        "sor",
+        "derived"
+      ],
+      "related": [
+        "sor-vs-derived",
+        "materialized-views-and-caches",
+        "choosing-sor-vs-view",
+        "dev-certification-derived-view"
+      ],
+      "path": "domains/01-data-flow-and-truth/relationships/sor-feeds-views.md",
+      "id": "rel-sor-feeds-views",
+      "kind": "relationship",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "relationship",
+        "schema",
+        "evolution"
+      ],
+      "related": [
+        "schema-evolution-and-data-outlives-code",
+        "encoding-and-compatibility"
+      ],
+      "path": "domains/02-encoding-and-evolution/relationships/schema-outlives-writers.md",
+      "id": "rel-schema-outlives-writers",
+      "kind": "relationship",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "relationship",
+        "conflict",
+        "lww"
+      ],
+      "related": [
+        "replication-lag-and-lww",
+        "sor-vs-derived",
+        "rel-sor-feeds-views"
+      ],
+      "path": "domains/03-replication-and-conflicts/relationships/conflict-vs-recompute.md",
+      "id": "rel-conflict-vs-recompute",
+      "kind": "relationship",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "relationship",
+        "gate",
+        "audit"
+      ],
+      "related": [
+        "trust-but-verify-and-auditability",
+        "coverage-gates",
+        "dev-fp-ratchet-separate-from-recall"
+      ],
+      "path": "domains/04-integrity-and-verification/relationships/gate-needs-witness.md",
+      "id": "rel-gate-needs-witness",
+      "kind": "relationship",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "relationship",
+        "partition",
+        "fanout",
+        "capacity"
+      ],
+      "related": [
+        "partition-key-and-hotspots",
+        "secondary-indexes-cross-partition",
+        "claims-and-status-drift",
+        "ch07"
+      ],
+      "path": "domains/07-partitioning-and-skew/relationships/partition-bounds-fanout.md",
+      "id": "rel-partition-bounds-fanout",
+      "kind": "relationship",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "relationship",
+        "batch",
+        "serving",
+        "derived"
+      ],
+      "related": [
+        "batch-vs-stream-derived-state",
+        "materialized-views-and-caches",
+        "rel-sor-feeds-views",
+        "ch11"
+      ],
+      "path": "domains/09-derived-data-processing/relationships/batch-feeds-serving.md",
+      "id": "rel-batch-feeds-serving",
+      "kind": "relationship",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "review",
+        "architecture",
+        "adr"
+      ],
+      "related": [
+        "trust-but-verify-and-auditability",
+        "maintainability-operability-evolvability",
+        "choosing-sor-vs-view"
+      ],
+      "path": "playbooks/architecture-decision-review.md",
+      "id": "architecture-decision-review",
+      "kind": "playbook",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "sor",
+        "derived",
+        "decision"
+      ],
+      "related": [
+        "sor-vs-derived",
+        "replication-lag-and-lww",
+        "materialized-views-and-caches"
+      ],
+      "path": "playbooks/choosing-sor-vs-view.md",
+      "id": "choosing-sor-vs-view",
+      "kind": "playbook",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "claims",
+        "status",
+        "drift",
+        "verify"
+      ],
+      "related": [
+        "sor-vs-derived",
+        "schema-evolution-and-data-outlives-code",
+        "maintainability-operability-evolvability"
+      ],
+      "path": "playbooks/claims-and-status-drift.md",
+      "id": "claims-and-status-drift",
+      "kind": "playbook",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "coverage",
+        "semgrep",
+        "ratchet",
+        "fixtures"
+      ],
+      "related": [
+        "materialized-views-and-caches",
+        "trust-but-verify-and-auditability",
+        "batch-vs-stream-derived-state"
+      ],
+      "path": "playbooks/coverage-gates.md",
+      "id": "coverage-gates",
+      "kind": "playbook",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "refactor",
+        "sequencing",
+        "blast-radius"
+      ],
+      "related": [
+        "maintainability-operability-evolvability",
+        "schema-evolution-and-data-outlives-code",
+        "coverage-gates"
+      ],
+      "path": "playbooks/refactor-sequencing.md",
+      "id": "refactor-sequencing",
+      "kind": "playbook",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "chapter",
+        "ch01",
+        "sor",
+        "tradeoffs"
+      ],
+      "related": [
+        "sor-vs-derived",
+        "batch-vs-stream-derived-state",
+        "maintainability-operability-evolvability",
+        "domain-data-flow-and-truth"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 1,
+          "title": "Trade-Offs in Data Systems Architecture"
+        }
+      ],
+      "path": "chapters/ch01.md",
+      "id": "ch01",
+      "kind": "chapter",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "chapter",
+        "ch02"
+      ],
+      "related": [
+        "encoding-and-compatibility",
+        "schema-evolution-and-data-outlives-code",
+        "domain-encoding-and-evolution"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 2,
+          "title": "Data Models and Query Languages"
+        }
+      ],
+      "path": "chapters/ch02.md",
+      "id": "ch02",
+      "kind": "chapter",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "chapter",
+        "ch03"
+      ],
+      "related": [
+        "encoding-and-compatibility",
+        "materialized-views-and-caches",
+        "batch-vs-stream-derived-state"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 3,
+          "title": "Storage and Retrieval"
+        }
+      ],
+      "path": "chapters/ch03.md",
+      "id": "ch03",
+      "kind": "chapter",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "chapter",
+        "ch04"
+      ],
+      "related": [
+        "encoding-and-compatibility",
+        "schema-evolution-and-data-outlives-code",
+        "ch05",
+        "rel-schema-outlives-writers"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 4,
+          "title": "Encoding and Evolution (bridge)"
+        }
+      ],
+      "path": "chapters/ch04.md",
+      "id": "ch04",
+      "kind": "chapter",
+      "completeness": "partial",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "chapter",
+        "ch05"
+      ],
+      "related": [
+        "encoding-and-compatibility",
+        "schema-evolution-and-data-outlives-code",
+        "rel-schema-outlives-writers",
+        "domain-encoding-and-evolution"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 5,
+          "title": "Encoding and Evolution"
+        }
+      ],
+      "path": "chapters/ch05.md",
+      "id": "ch05",
+      "kind": "chapter",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "chapter",
+        "ch06"
+      ],
+      "related": [
+        "replication-lag-and-lww",
+        "rel-conflict-vs-recompute",
+        "domain-replication-and-conflicts"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 6,
+          "title": "Replication"
+        }
+      ],
+      "path": "chapters/ch06.md",
+      "id": "ch06",
+      "kind": "chapter",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "chapter",
+        "ch07",
+        "partitioning",
+        "skew"
+      ],
+      "related": [
+        "partition-key-and-hotspots",
+        "secondary-indexes-cross-partition",
+        "rel-partition-bounds-fanout",
+        "domain-partitioning-and-skew"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 7,
+          "title": "Partitioning"
+        }
+      ],
+      "path": "chapters/ch07.md",
+      "id": "ch07",
+      "kind": "chapter",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "chapter",
+        "ch08"
+      ],
+      "related": [
+        "transactions-and-integrity-lite",
+        "trust-but-verify-and-auditability",
+        "domain-transactions-and-concurrency"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 8,
+          "title": "Transactions"
+        }
+      ],
+      "path": "chapters/ch08.md",
+      "id": "ch08",
+      "kind": "chapter",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "chapter",
+        "ch09"
+      ],
+      "related": [
+        "consistency-and-consensus-lite",
+        "maintainability-operability-evolvability",
+        "domain-consistency-and-coordination"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 9,
+          "title": "The Trouble with Distributed Systems"
+        }
+      ],
+      "path": "chapters/ch09.md",
+      "id": "ch09",
+      "kind": "chapter",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "chapter",
+        "ch10",
+        "batch"
+      ],
+      "related": [
+        "batch-vs-stream-derived-state",
+        "ch11",
+        "domain-derived-data-processing",
+        "rel-batch-feeds-serving"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 10,
+          "title": "Batch Processing"
+        }
+      ],
+      "path": "chapters/ch10.md",
+      "id": "ch10",
+      "kind": "chapter",
+      "completeness": "partial",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "chapter",
+        "ch11",
+        "batch",
+        "etl"
+      ],
+      "related": [
+        "batch-vs-stream-derived-state",
+        "materialized-views-and-caches",
+        "sor-vs-derived",
+        "rel-sor-feeds-views",
+        "rel-batch-feeds-serving",
+        "domain-derived-data-processing"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 11,
+          "title": "Batch Processing"
+        }
+      ],
+      "path": "chapters/ch11.md",
+      "id": "ch11",
+      "kind": "chapter",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "chapter",
+        "ch12",
+        "stream",
+        "events"
+      ],
+      "related": [
+        "batch-vs-stream-derived-state",
+        "sor-vs-derived",
+        "rel-batch-feeds-serving",
+        "domain-derived-data-processing"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 12,
+          "title": "Stream Processing"
+        }
+      ],
+      "path": "chapters/ch12.md",
+      "id": "ch12",
+      "kind": "chapter",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "chapter",
+        "ch13"
+      ],
+      "related": [
+        "sor-vs-derived",
+        "batch-vs-stream-derived-state",
+        "trust-but-verify-and-auditability",
+        "domain-reliability-scalability-goals"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 13,
+          "title": "The Future of Data Systems"
+        }
+      ],
+      "path": "chapters/ch13.md",
+      "id": "ch13",
+      "kind": "chapter",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "chapter",
+        "ch14"
+      ],
+      "related": [
+        "maintainability-operability-evolvability",
+        "refactor-sequencing",
+        "domain-reliability-scalability-goals"
+      ],
+      "epub_anchors": [
+        {
+          "chapter": 14,
+          "title": "Reliability, Scalability, Maintainability"
+        }
+      ],
+      "path": "chapters/ch14.md",
+      "id": "ch14",
+      "kind": "chapter",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "deviation",
+        "certification",
+        "derived",
+        "lww"
+      ],
+      "related": [
+        "sor-vs-derived",
+        "materialized-views-and-caches",
+        "replication-lag-and-lww",
+        "choosing-sor-vs-view"
+      ],
+      "path": "deviations/dev-certification-derived-view.md",
+      "id": "dev-certification-derived-view",
+      "kind": "deviation",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "deviation",
+        "coverage",
+        "codeql",
+        "sor"
+      ],
+      "related": [
+        "coverage-gates",
+        "sor-vs-derived",
+        "claims-and-status-drift",
+        "schema-evolution-and-data-outlives-code"
+      ],
+      "path": "deviations/dev-coverage-denominator-codeql.md",
+      "id": "dev-coverage-denominator-codeql",
+      "kind": "deviation",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    },
+    {
+      "tags": [
+        "deviation",
+        "semgrep",
+        "ratchet",
+        "fp"
+      ],
+      "related": [
+        "coverage-gates",
+        "trust-but-verify-and-auditability",
+        "schema-evolution-and-data-outlives-code"
+      ],
+      "path": "deviations/dev-fp-ratchet-separate-from-recall.md",
+      "id": "dev-fp-ratchet-separate-from-recall",
+      "kind": "deviation",
+      "completeness": "operational",
+      "last_refined": "2026-07-30"
+    }
+  ]
+}

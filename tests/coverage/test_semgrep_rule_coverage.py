@@ -158,6 +158,52 @@ class TestRatchet(unittest.TestCase):
         self.assertTrue(sc.check_ratchet(collections.Counter()))
 
 
+class TestFpRatchet(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.real_fp = sc.FP_BASELINE_FILE
+        self.real_neg = sc.NEGATIVE_FIXTURE_DIR
+        sc.FP_BASELINE_FILE = Path(self.tmp.name) / "fp_baseline.json"
+
+    def tearDown(self) -> None:
+        sc.FP_BASELINE_FILE = self.real_fp
+        sc.NEGATIVE_FIXTURE_DIR = self.real_neg
+        self.tmp.cleanup()
+
+    def fp_baseline(self, counts: dict) -> None:
+        sc.FP_BASELINE_FILE.write_text(json.dumps({
+            "schema_version": sc.SCHEMA_VERSION,
+            "corpus": "fake",
+            "counts": counts,
+        }), encoding="utf-8")
+
+    def test_a_rising_fp_count_is_a_regression(self) -> None:
+        self.fp_baseline({"a__b": 0})
+        self.assertTrue(sc.check_fp_ratchet(collections.Counter({"a__b": 2})))
+
+    def test_falling_fp_counts_pass(self) -> None:
+        self.fp_baseline({"a__b": 3})
+        self.assertEqual(sc.check_fp_ratchet(collections.Counter({"a__b": 1})), [])
+
+    def test_missing_fp_baseline_fails_closed(self) -> None:
+        # file absent
+        problems = sc.check_fp_ratchet(collections.Counter())
+        self.assertTrue(any("missing" in p for p in problems), problems)
+
+    def test_missing_negative_dir_fails(self) -> None:
+        sc.NEGATIVE_FIXTURE_DIR = Path(self.tmp.name) / "no-negatives"
+        self.assertTrue(any("missing" in p for p in sc.check_fp_ratchet()))
+
+    def test_committed_negatives_pass_fp_ratchet(self) -> None:
+        try:
+            sc.find_semgrep()
+        except sc.SemgrepNotFoundError:
+            self.skipTest("semgrep not on PATH")
+        sc.FP_BASELINE_FILE = self.real_fp
+        sc.NEGATIVE_FIXTURE_DIR = self.real_neg
+        self.assertEqual(sc.check_fp_ratchet(), [])
+
+
 class TestExitCodes(unittest.TestCase):
     """Assert the exit code, not an internal list -- the exit code is what CI
     actually reads."""
@@ -172,6 +218,23 @@ class TestExitCodes(unittest.TestCase):
 
     def test_a_missing_target_directory_exits_two(self) -> None:
         self.assertEqual(sc.main(["no-such-directory-here"]), 2)
+
+    def test_update_fp_baseline_writes_file(self) -> None:
+        try:
+            sc.find_semgrep()
+        except sc.SemgrepNotFoundError:
+            self.skipTest("semgrep not on PATH")
+        with tempfile.TemporaryDirectory() as tmp:
+            real = sc.FP_BASELINE_FILE
+            try:
+                sc.FP_BASELINE_FILE = Path(tmp) / "fp.json"
+                self.assertEqual(sc.main(["--update-fp-baseline"]), 0)
+                self.assertTrue(sc.FP_BASELINE_FILE.is_file())
+                payload = json.loads(sc.FP_BASELINE_FILE.read_text(encoding="utf-8"))
+                self.assertEqual(payload["corpus"], "semgrep_rule_fixtures_negative")
+                self.assertEqual(payload["schema_version"], sc.SCHEMA_VERSION)
+            finally:
+                sc.FP_BASELINE_FILE = real
 
 
 if __name__ == "__main__":

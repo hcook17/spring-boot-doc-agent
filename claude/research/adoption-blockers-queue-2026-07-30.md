@@ -1,8 +1,29 @@
 # Adoption blockers queue (post dual-emit) — 2026-07-30
 
-Queued from the external principal review (`spring-boot-doc-agent-review.md`) after Phase 1 dual-emit. **Do not fold into the dual-emit PR.** Next engineering PR after `facts.jsonl` lands on `main`.
+Queued from the external principal review (`spring-boot-doc-agent-review.md`) after Phase 1 dual-emit. **Do not fold into the dual-emit PR.**
 
 Theme (review §10): controls that are real but one layer away from where they bite.
+
+North-star (design SoR): [`docs/design/ddia-north-star/`](../../docs/design/ddia-north-star/). Blindspot note: [`coverage-sor-derived-blindspot-2026-07-30.md`](coverage-sor-derived-blindspot-2026-07-30.md).
+
+Every open L-item below carries a **DDIA card** (domain, ids, SoR vs derived, upstream check). Deviations live under [`docs/design/ddia-north-star/deviations/`](../../docs/design/ddia-north-star/deviations/).
+
+## DDIA north-star thorough campaign (N-wave) — **honesty pass for this slice; campaign not complete**
+
+| Wave | Status | Delivered |
+|------|--------|-----------|
+| Foundation | honesty pass | Depth gate + operational ratchet + prior-art; anti-Goodhart uniqueness/domain-ownership — not a proof of decision-readiness |
+| A | honesty pass | Domain `07` + `ch07`; L2 **proxy** landed (capacity risk **not** closed) |
+| B | honesty pass | Domain `09`; id-stable `batch-vs-stream`; `ch01`/`ch11`/`ch12` operational; `ch10` demoted bridge |
+| C | honesty pass | Encoding/replication chapters deepened; domain `08` remains **partial** (hollow until local concept) |
+| D | honesty pass | Domain `10` remains **partial** (hollow); `ch09`/`ch13`/`ch14` operational |
+| E | honesty pass / campaign open | Slice honesty (UTF-8, STATUS/queue, demotions, depth gate) landed; thorough catalog campaign **not** complete while hollow domains/bridges remain |
+
+Honest residual `partial`: domains `06`, `08`, `10`; `ch04`, `ch10`; lite concepts.
+
+## Standing claim-pinning policy (B5 residual — not open work)
+
+Prefer outcome-bound tests over substring-only `verify:` where the claim is behavioral. Closed vocabulary includes `called_by:` and `behavior:<key>` (pre-registered in `check_repo_claims.py`, like `DERIVATIONS`). Product wiring that needs runtime shape lives in [`tests/ci/test_control_wiring.py`](../../tests/ci/test_control_wiring.py). Attach live `verify:` / `behavior:` only when the underlying wiring is already true (same rule for L2+ and future claims). Weak substring `contains:` is a weak witness — cite `trust-but-verify-and-auditability` / `rel-gate-needs-witness`.
 
 ## B1 — Client identifier purge + repo-wide denylist — **done**
 
@@ -21,7 +42,7 @@ Theme (review §10): controls that are real but one layer away from where they b
 - ~~Treat `certification.json` as a recomputable fold over stage/gate facts (`StageRecord.executor`; schema_version stays 1 — bump only on breaking changes).~~
 - ~~Live gates **derive** stages (keep deterministic, drop mock generative, append `generative_external`) — not LWW merge + stamp.~~
 - ~~Fold rules: stage `fail` always fails; `skipped` fails only if required by profile; `mock_under_live` consistency.~~
-- Design note: [`certification-derived-view-2026-07-30.md`](certification-derived-view-2026-07-30.md).
+- Design note: [`certification-derived-view-2026-07-30.md`](certification-derived-view-2026-07-30.md). Deviation: `dev-certification-derived-view`.
 
 ## B3 — Strict citations on the live gates path — **done**
 
@@ -38,8 +59,54 @@ Theme (review §10): controls that are real but one layer away from where they b
 
 - ~~README / drift docstring: tier-2 is full-repo filter, not per-file ast-grep subprocess.~~ Corrected: tier 1 hash → one fresh `scan()` → per-citation compare against filtered bag.
 - ~~`CONSTRAINTS.md`: overlap-cascade / `carry_forward` / CI enumeration warnings that outlived the fixes.~~ Overlap `[Resolved]` (`carried_in_paths`); CI is `pytest tests/` / `testpaths`; STATUS `ENFORCE` prose aligned; Phase 1 memo §5 gate closed; content-stable claim keys stop ordinal baseline churn.
-- Prefer outcome-bound tests over substring-only `verify:` where the claim is behavioral. Closed vocabulary includes `called_by:` and `behavior:<key>` (pre-registered in `check_repo_claims.py`, like `DERIVATIONS`); product wiring that needs runtime shape lives in `tests/test_control_wiring.py`. Attach live `verify:` for Phase B claims only when the underlying wiring is true.
+- Residual policy: see **Standing claim-pinning policy** above (not an open todo).
 
-## Explicitly later (weeks — not this PR)
+## Later queue (numbered)
 
-Claim-symbol single-token entities; semgrep negative fixtures + FP ratchet; Stage-4 fan-out in capacity_preflight; branch protection; thin drift/capacity schemas (memo slice 5). Review/edges/gap/cert schema work landed with B4 on `schema-contracts-research` — see [`schema-contracts-decision-memo-2026-07-30.md`](schema-contracts-decision-memo-2026-07-30.md).
+### L1 — Semgrep negative fixtures + FP ratchet — **done**
+
+- Positive non-vacuity retained; hermetic negatives under `scripts/coverage/semgrep_rule_fixtures_negative/`.
+- `check_fp_ratchet` (counts must not **rise**) vs `semgrep_rule_fp_baseline.json`; `--update-fp-baseline`.
+- Cite `coverage-gates` / `trust-but-verify-and-auditability` / `dev-fp-ratchet-separate-from-recall`.
+- Real-corpus semgrep **recall** baseline still absent (do not invent client names).
+
+### L2 — Capacity Stage-4 load vs post–cross-group-edges reality — **open (proxy landed, risk not closed)**
+
+**DDIA card**
+
+| Axis | Value |
+|------|--------|
+| Domain | `07-partitioning-and-skew`, `01-data-flow-and-truth`, `05-maintainability-and-change` |
+| Open | `rel-partition-bounds-fanout`, `partition-key-and-hotspots`, `rel-sor-feeds-views`, `claims-and-status-drift`, `ch07` |
+| SoR | Pipeline dispatch graph (`VALID_DOC_FILES` / `manifest_fanout`, SKILL generative choreography) + group token estimates + Stage-0 edges for Stage-1 slices; Stage-4 real inputs = summaries + interview_answers + signals (`stages.py`) |
+| Derived | `capacity_preflight_report.json` / CLI warnings (`stage4_metric_kind: partial_proxy_pre_stage4`; `stage4_omitted_not_estimated` includes interview; numeric `*_upper_bound_*` fields are warn thresholds only) |
+| Upstream | After edges replaced Stage-1 broadcast, Stage-1 slice looks fine while Stage-4 still ships merged evidence — Stage-0 can only **proxy** future summary size from group `est_tokens` + optional signals. |
+| Deviation | None for measuring a proxy; claiming Stage-4 risk closed while omissions are non-empty would need a deviation (do not) |
+
+**Work landed (measurement):** Stage-4 fan-out from `VALID_DOC_FILES`; partial proxy fields + omissions; `--stage4-shared-tokens-warn-threshold`; signals + `signals_omitted`; polarity + pipeline SoR mirror tests; domain 07 + operational `ch07`.
+
+**Still open for L2 (post-summary calibration — separate follow-up, not Stage 0):**
+- After Stage 1 writes summaries (and Stage 3 interview), measure **actual** JSON sizes for summaries + `interview_answers` + signals vs the Stage-0 proxy; keep `metric_kind: partial_proxy_pre_stage4` at Stage 0 forever for pre-run estimates.
+- Recalibrate `--stage4-shared-tokens-warn-threshold` only with numbers from a real mid-size run (document the run).
+- Do **not** invent interview token guesses at Stage 0.
+- Thin formal schema still L5 for `drift_report`.
+
+### L2b — Post-Stage-1 Stage-4 input calibration — **queued after #73**
+
+**DDIA card:** same as L2; SoR = on-disk `summaries.json` / `interview_answers.json` / `spring_signals.json` after they exist. Derived = optional calibration report or extend preflight in a post-Stage-1 mode. Scope: measure real sizes + return-payload gap statement; never claim Stage-0 proxy is full Stage-4 load.
+
+### L3 — Claim-symbol single-token entities — **later (after L2 / L2b settled)**
+
+**DDIA card:** domain `02-encoding-and-evolution`; open `schema-evolution-and-data-outlives-code`, `encoding-and-compatibility`, `rel-schema-outlives-writers`. SoR = facts / claim keys. Larger fact-store redesign — research/ADR before code; do not fold into L2. Cite Phase-1 fact-store lock.
+
+### L4 — Branch protection (human) — **parallel (repo-admin; not agent)**
+
+**DDIA card:** domain `05-maintainability-and-change`; open `maintainability-operability-evolvability`, `trust-but-verify-and-auditability`. `CONSTRAINTS.md` enterprise item 6 — `gh api` repo-admin; **not agent**. Choosing not to require CI would need a written deviation.
+
+### L5 — Thin drift schema — **after L2 / L2b**
+
+**DDIA card:** domain `02-encoding-and-evolution`; open `encoding-and-compatibility`, schema memo slice 5. Scope: primarily **`drift_report`** (residual capacity fields only if L2 did not touch them). Additive + `schema_version` per `rel-schema-outlives-writers`; do not invent fields without writers.
+
+### L6 — Coverage SoR hygiene follow-ons — **after L2 / L2b**
+
+**DDIA card:** domains `01` + `04`; cite `dev-coverage-denominator-codeql`, `coverage-gates`, `rel-gate-needs-witness`. Work: `rule_coverage_baseline.json` schema_version regenerate if needed; optional `codeql_rule_count` derivation; residual doc debt. **Do not** invent client-named semgrep recall baseline (`dev-fp-ratchet-separate-from-recall`).
