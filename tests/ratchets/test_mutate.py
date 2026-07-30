@@ -84,6 +84,19 @@ class RegistryAnchorsTest(unittest.TestCase):
                     f"{m.name} names a suite that does not exist",
                 )
 
+    def test_resolve_suite_path_finds_nested_taxonomy_suites(self) -> None:
+        """Regression: flat tests/<name> lookup broke after tests/ nesting."""
+        for suite, fragment in (
+            ("test_set_delta.py", "ratchets"),
+            ("test_secret_heuristics.py", "doc_engine"),
+            ("test_check_repo_claims.py", "ci"),
+        ):
+            with self.subTest(suite=suite):
+                path = mutate.resolve_suite_path(mutate.REPO_ROOT, suite)
+                self.assertTrue(path.is_file(), suite)
+                self.assertIn(fragment, path.as_posix())
+                self.assertEqual(path.name, suite)
+
     def test_every_mutator_states_why(self) -> None:
         """A survivor report is only actionable if it says what stopped being
         defended. An empty `why` makes the report a name and a shrug."""

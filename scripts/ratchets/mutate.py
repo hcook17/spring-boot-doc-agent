@@ -263,12 +263,17 @@ def apply_mutation(root: Path, mutator: Mutator) -> Optional[str]:
 
 
 def resolve_suite_path(root: Path, suite: str) -> Path:
-    """Resolve ``test_*.py`` under pyproject testpaths (not scripts/)."""
+    """Resolve ``test_*.py`` under pyproject testpaths (recursive, not scripts/).
+
+    Suites live in taxonomy subdirs after the tests/ reorg; flat
+    ``tests/<name>`` lookup would miss ``tests/ratchets/test_set_delta.py``.
+    Delegates to ``suite_layout.suite_file_for_module`` (rglob).
+    """
     name = Path(suite).name
-    for rel in suite_layout.suite_roots(root):
-        candidate = root / rel / name
-        if candidate.is_file():
-            return candidate
+    module = name[len("test_"):] if name.startswith("test_") else name
+    found = suite_layout.suite_file_for_module(root, module)
+    if found is not None:
+        return found
     raise FileNotFoundError(
         f"suite {name!r} not found under "
         f"{', '.join(suite_layout.suite_roots(root))}"
