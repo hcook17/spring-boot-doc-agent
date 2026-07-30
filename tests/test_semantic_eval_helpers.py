@@ -3,7 +3,7 @@
 Unit tests for semantic_eval_helpers.py's two mechanical checks —
 find_unmatched_confirmed_tags() and check_mermaid_syntax() — plus run()'s
 end-to-end artifacts-directory wiring against a small synthetic fixture
-tree (built in a tempdir, not scripts/test_fixtures/spring_signals/: that
+tree (built in a tempdir, not scripts/fixtures/spring_signals/: that
 fixture is a source-code tree for ast-grep/token-estimation tests, not a
 pipeline-output tree with docs/*.md + interview_answers.json, so reusing it
 here would be forcing a fit rather than genuine reuse).

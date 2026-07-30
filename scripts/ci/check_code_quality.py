@@ -27,8 +27,8 @@ The complexity number below is this repo's own definition; it is NOT
 comparable to ruff's C901 or radon.
 
 Run with:
-    python3 scripts/check_code_quality.py
-    python3 scripts/check_code_quality.py --update    # re-baseline
+    python3 scripts/ci/check_code_quality.py
+    python3 scripts/ci/check_code_quality.py --update    # re-baseline
 """
 
 from __future__ import annotations
@@ -42,10 +42,13 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from doc_engine.paths import repo_root, scripts_dir
+
 SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SCRIPT_DIR.parent
-DEFAULT_BASELINE = SCRIPT_DIR / "code_quality_baseline.json"
-DEFAULT_ROOTS = (SCRIPT_DIR, REPO_ROOT / "src" / "doc_engine")
+REPO_ROOT = repo_root()
+SCRIPTS_DIR = scripts_dir()
+DEFAULT_BASELINE = SCRIPTS_DIR / "ratchets" / "code_quality_baseline.json"
+DEFAULT_ROOTS = (SCRIPTS_DIR, REPO_ROOT / "src" / "doc_engine")
 
 # 2: "lines" (raw span) replaced by "statements".
 # 3: adds "docstring_violations".
@@ -208,22 +211,27 @@ def _is_production_module(relpath: str) -> bool:
     return not name.startswith("test_")
 
 
-def list_script_py_files(scripts_dir: Path) -> List[Path]:
-    """Top-level scripts/*.py only (historical surface)."""
+def list_script_py_files(scripts_root: Path) -> List[Path]:
+    """Tracked ``*.py`` under ``scripts_root`` (nested layout or flat test dirs)."""
     try:
         proc = subprocess.run(
-            ["git", "-C", str(scripts_dir), "ls-files", "--", "*.py"],
+            ["git", "-C", str(scripts_root), "ls-files", "--", "*.py"],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
     except OSError:
-        return sorted(scripts_dir.glob("*.py"))
+        return sorted(scripts_root.glob("*.py"))
     if proc.returncode != 0:
-        return sorted(scripts_dir.glob("*.py"))
+        return sorted(scripts_root.glob("*.py"))
     names = sorted(
-        line.strip() for line in proc.stdout.splitlines()
-        if line.strip().endswith(".py") and "/" not in line.strip()
+        line.strip().replace("\\", "/")
+        for line in proc.stdout.splitlines()
+        if line.strip().endswith(".py") and "__pycache__" not in line
     )
-    return [scripts_dir / name for name in names]
+    if not names:
+        return sorted(scripts_root.glob("*.py"))
+    # Flat unit-test trees list bare filenames; nested production lists
+    # ``ci/foo.py``. Prefer basename keys only when every entry is top-level.
+    return [scripts_root / name for name in names]
 
 
 def iter_modules(roots: Sequence[Path], repo_root: Path) -> List[Tuple[Path, str]]:
@@ -236,7 +244,8 @@ def iter_modules(roots: Sequence[Path], repo_root: Path) -> List[Tuple[Path, str
             continue
         if root == scripts:
             for path in list_script_py_files(root):
-                out.append((path, f"scripts/{path.name}"))
+                rel = path.relative_to(scripts).as_posix()
+                out.append((path, f"scripts/{rel}"))
             continue
         for path in sorted(root.rglob("*.py")):
             if "__pycache__" in path.parts:
@@ -269,7 +278,12 @@ def measure_tree(
     docstring_violations: Dict[str, str] = {}
 
     if extra_roots is None:
+        # Prefer git-tracked files under scripts_dir (unit tests assert
+        # untracked modules never enter the baseline); fall back to top-level
+        # ``*.py`` outside a checkout.
         modules = [(p, p.name) for p in list_script_py_files(scripts_dir)]
+        if not modules:
+            modules = [(p, p.name) for p in sorted(scripts_dir.glob("*.py"))]
     else:
         modules = iter_modules(list(extra_roots), root)
 
@@ -392,8 +406,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    ap.add_argument("--scripts-dir", default=str(SCRIPT_DIR),
-                    help="scripts/ directory (default: this script's directory)")
+    ap.add_argument("--scripts-dir", default=str(SCRIPTS_DIR),
+                    help="scripts/ directory (default: repo scripts/)")
     ap.add_argument("--package-dir", default=str(REPO_ROOT / "src" / "doc_engine"),
                     help="product package to measure alongside scripts/")
     ap.add_argument("--scripts-only", action="store_true",

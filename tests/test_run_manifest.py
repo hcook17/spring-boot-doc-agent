@@ -12,7 +12,7 @@ exercising init/start-stage/end-stage/finalize together, including the
 retry case (a stage that failed and was restarted) and the partial-run
 case (a stage never ended before finalize).
 
-Reuses scripts/test_fixtures/spring_signals/ (the same fixture
+Reuses scripts/fixtures/spring_signals/ (the same fixture
 test_spring_signal_scan.py, test_pipeline_stages.py, and
 test_capacity_preflight.py already share) for the fresh-file-signature-scan
 test, rather than building a second fixture tree.
@@ -35,7 +35,7 @@ from doc_engine.tools import run_manifest, spring_signal_scan
 
 SCRIPT_DIR = SCRIPTS_DIR
 RUN_MANIFEST_CMD = [sys.executable, "-m", "doc_engine.tools.run_manifest"]
-SCHEMA_PATH = os.path.join(SCRIPT_DIR, "run_manifest.schema.json")
+SCHEMA_PATH = os.path.join(SCRIPT_DIR, "schemas", "run_manifest.schema.json")
 
 with open(SCHEMA_PATH, encoding="utf-8") as _f:
     _SCHEMA = json.load(_f)

@@ -191,7 +191,7 @@ class TestNoShellExecution(TreeCase):
         ever grows an argument that isn't a literal. Today the only one is
         `git ls-files`."""
         import ast
-        tree = ast.parse((REPO_ROOT / "scripts" / "check_repo_claims.py")
+        tree = ast.parse((REPO_ROOT / "scripts" / "ci" / "check_repo_claims.py")
                          .read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
@@ -941,7 +941,7 @@ class TestRealRepo(unittest.TestCase):
 
     def test_real_repo_passes(self) -> None:
         result = subprocess.run(
-            [sys.executable, str(REPO_ROOT / "scripts" / "check_repo_claims.py")],
+            [sys.executable, str(REPO_ROOT / "scripts" / "ci" / "check_repo_claims.py")],
             capture_output=True, text=True, encoding="utf-8", errors="replace")
         self.assertEqual(result.returncode, 0,
                          f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}")

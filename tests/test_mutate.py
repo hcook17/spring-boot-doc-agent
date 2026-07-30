@@ -165,7 +165,7 @@ class SurvivorDetectionTest(unittest.TestCase):
     def test_a_mutation_no_suite_catches_is_reported_as_survived(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mutate_selftest_") as tmp:
             harmless = mutate.Mutator(
-                "harmless-comment-edit", "scripts/set_delta.py", "",
+                "harmless-comment-edit", "scripts/ratchets/set_delta.py", "",
                 "THE RESIDUE IS THE FINDING", "THE RESIDUE IS THE FINDING.",
                 "test_set_delta.py",
                 "editing a docstring changes no behaviour, so nothing should catch it")
@@ -245,7 +245,7 @@ class SandboxIsolationTest(unittest.TestCase):
             dest = Path(tmp) / "copy"
             dest.mkdir()
             mutate.materialize(dest)
-            self.assertTrue((dest / "scripts" / "set_delta.py").is_file())
+            self.assertTrue((dest / "scripts" / "ratchets" / "set_delta.py").is_file())
             # The working tree carries an untracked target repo of ~101MB;
             # copying it per mutation would make this harness unusable.
             self.assertFalse((dest / "ocs-api-service-develop").exists())

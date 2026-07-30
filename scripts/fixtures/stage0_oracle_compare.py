@@ -2,7 +2,7 @@
 """Score source-level engines against the bytecode oracle, and attribute every miss to a cause.
 
 Run with:
-  python3 scripts/stage0_oracle_compare.py <path> --oracle oracle.json [--out report.json]
+  python3 scripts/fixtures/stage0_oracle_compare.py <path> --oracle oracle.json [--out report.json]
 
 WHAT THIS ANSWERS
 -----------------
@@ -33,7 +33,7 @@ entity set, the same intermediate-resolution closure. The multi-pass driver is w
 parameterised by engine rather than reimplemented per arm. The only permitted difference is the
 pattern language, because that is the variable under test - an "engine win" that turned out to be
 a preprocessing artifact would be worse than no measurement, since it would look like evidence.
-For Arm C (semgrep), scripts/spring_semgrep_rules.yml is valid --semgrep-rules input.
+For Arm C (semgrep), scripts/coverage/spring_semgrep_rules.yml is valid --semgrep-rules input.
 
 CONFIDENTIALITY
 ---------------

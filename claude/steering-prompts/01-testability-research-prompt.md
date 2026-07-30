@@ -24,7 +24,7 @@ Search GitHub, applying the shared standards' star/push/DeepWiki methodology, fo
 
 A fixture-based pipeline test, mechanical wherever possible:
 
-1. A small synthetic Spring Boot repo fixture (mirroring `scripts/test_fixtures/spring_signals/`) sized to exercise all five agent stages.
+1. A small synthetic Spring Boot repo fixture (mirroring `scripts/fixtures/spring_signals/`) sized to exercise all five agent stages.
 2. Structural assertions, none requiring an LLM to grade: every substantive claim ends in one of the five required tags from `doc-writer.md`'s Rule 1; every `[Evidenced — path:line]` tag cites a real file/line; `Unknown` count doesn't silently balloon past a sane threshold; `gap-analyzer`'s question count is bounded and grouped by file; the merged architecture diagram's node names trace back to `summaries.json` entries.
 3. Only fall back to LLM-as-judge for genuinely qualitative judgments, with as narrow a rubric as possible.
 

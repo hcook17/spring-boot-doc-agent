@@ -8,11 +8,11 @@
 #
 # Same id convention as spring_ast_grep_rules.yml: "<bucket>__<subkind>",
 # bucket in {architecture_ddia, testing_est} mapping to the two lenses in
-# agents/software-architect-and-testing.md. scripts/semgrep_rule_coverage.py
+# agents/software-architect-and-testing.md. scripts/coverage/semgrep_rule_coverage.py
 # parses ids with the same regex rule_coverage.py uses for the ast-grep file.
 #
-# Every rule below is verified to fire against scripts/semgrep_rule_fixtures/
-# (python3 scripts/semgrep_rule_coverage.py) -- a rule nobody can make fire is
+# Every rule below is verified to fire against scripts/coverage/semgrep_rule_fixtures/
+# (python3 scripts/coverage/semgrep_rule_coverage.py) -- a rule nobody can make fire is
 # not coverage, same standard CONSTRAINTS.md's "Known precision tradeoffs"
 # item 10 already holds the ast-grep ruleset to.
 

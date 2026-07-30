@@ -2,7 +2,7 @@
 """Read the agent prompts' output contracts back out of the prompts themselves.
 
 Usage:
-    python3 scripts/prompt_contracts.py          # print every parsed contract
+    python3 scripts/ci/prompt_contracts.py          # print every parsed contract
 
 WHY THIS EXISTS
 
@@ -42,7 +42,9 @@ import sys
 from pathlib import Path
 from typing import FrozenSet
 
-_root = Path(__file__).resolve().parent.parent
+from doc_engine.paths import repo_root
+
+_root = repo_root()
 AGENTS_DIR = _root / "adapters" / "claude" / "agents"
 if not AGENTS_DIR.is_dir():
     AGENTS_DIR = _root / "agents"

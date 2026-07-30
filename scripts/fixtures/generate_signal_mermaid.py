@@ -8,7 +8,7 @@ Produces two diagrams:
    bucket and rule.
 
 Usage:
-    python3 scripts/generate_signal_mermaid.py <spring_signals.json> [out.md]
+    python3 scripts/fixtures/generate_signal_mermaid.py <spring_signals.json> [out.md]
 """
 
 import json
@@ -163,7 +163,7 @@ def generate_flow_graph(data: Dict) -> str:
 
 def main() -> int:
     if len(sys.argv) < 2:
-        print("usage: python3 scripts/generate_signal_mermaid.py <spring_signals.json> [out.md]", file=sys.stderr)
+        print("usage: python3 scripts/fixtures/generate_signal_mermaid.py <spring_signals.json> [out.md]", file=sys.stderr)
         return 1
 
     signals_path = sys.argv[1]

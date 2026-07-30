@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for scripts/suite_layout.py."""
+"""Tests for scripts/ci/suite_layout.py."""
 
 from pathlib import Path
 import tempfile

@@ -131,7 +131,7 @@ Already prescribed independently at `10-plan:117` and `:156`. One-line fix plus 
 Keep this PR to fix + test only.
 
 **A2. Add a determinism probe (stdlib, CI-wireable).** Run `scan()` twice over
-`scripts/test_fixtures/spring_signals/` in one test and assert the serialized JSON is
+`scripts/fixtures/spring_signals/` in one test and assert the serialized JSON is
 byte-identical. This is what reprotest buys, at a fraction of the cost, inside the harness
 that already exists. `10-plan:67` names this as the cheapest first step and states that
 until it exists, "every claim about drift attribution here is unfounded."
@@ -306,7 +306,7 @@ end-to-end against one real service.** You are about to spend three weeks re-sha
 core data structure on fixture-derived evidence." `MATURITY_ASSESSMENT.md:14`, `:16`, `:18`
 and `STATUS.md:20` independently confirm that `capacity_preflight.py`, `run_manifest.py`,
 and `semantic-pipeline-eval` have only ever run against
-`scripts/test_fixtures/spring_signals/`.
+`scripts/fixtures/spring_signals/`.
 
 Every item in this plan is infrastructure layered on a system its own docs say has never
 been exercised on a real repository. That objection applies to the report as a whole,

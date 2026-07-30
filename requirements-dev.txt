@@ -11,12 +11,12 @@
 # ruff rather than flake8 + black + isort: one binary covering all three,
 # 48.8k stars, last release 0.16.0 on 2026-07-23 (checked against the GitHub
 # API on 2026-07-24, not a blog post). Its C901 complexity rule is enabled in
-# .ruff.toml but is NOT the ratchet -- see scripts/check_code_quality.py,
+# .ruff.toml but is NOT the ratchet -- see scripts/ci/check_code_quality.py,
 # which owns the committed per-function baseline ruff has no equivalent for.
 ruff~=0.16.0
 pytest~=8.3.0
 
-# Workflow YAML parse gate (scripts/check_workflow_yaml.py). Catches the PR #57
+# Workflow YAML parse gate (scripts/ci/check_workflow_yaml.py). Catches the PR #57
 # class: unquoted colons in step names that make Actions reject the file.
 PyYAML~=6.0.2
 

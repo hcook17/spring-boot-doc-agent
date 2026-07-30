@@ -39,6 +39,10 @@
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
+      "C-missing:CONSTRAINTS.md#794a0f8b9379673b",
+      "declares a status with no verify: predicates, so nothing checks it"
+    ],
+    [
       "C-missing:CONSTRAINTS.md#7e2aa4f71983d0be",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
@@ -56,10 +60,6 @@
     ],
     [
       "C-missing:CONSTRAINTS.md#c0c63f220d15fa73",
-      "declares a status with no verify: predicates, so nothing checks it"
-    ],
-    [
-      "C-missing:CONSTRAINTS.md#ceda397d39191bb6",
       "declares a status with no verify: predicates, so nothing checks it"
     ]
   ]

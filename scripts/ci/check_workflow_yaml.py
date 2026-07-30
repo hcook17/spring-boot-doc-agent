@@ -6,7 +6,7 @@ made Actions reject the whole workflow file before any job ran. Presence of
 PyYAML is a requirements-dev pin; this script fails closed if it is missing.
 
 Run with:
-    python3 scripts/check_workflow_yaml.py
+    python3 scripts/ci/check_workflow_yaml.py
 """
 
 from __future__ import annotations
@@ -23,7 +23,9 @@ except ImportError:  # pragma: no cover - CI installs requirements-dev
     )
     raise SystemExit(2) from None
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+from doc_engine.paths import repo_root
+
+REPO_ROOT = repo_root()
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 
 

@@ -1,6 +1,6 @@
 ---
 name: verify-state-claims
-description: Read before writing or editing any claim about this repo's own current state — a count, a `status:` field, a `[Resolved]` tag, a path or symbol reference, or a CI step name. Also read when a session is about to assert that something is done, fixed, absent, or unaffected. Run `python3 scripts/check_repo_claims.py` before the final commit of any session touching scripts/, agents/, or skills/. Covers the failure this repo calls the assume-spiral: a claim gets written, nothing reads it back, and later work compounds it. Distinct from claude/tool-quirks.md (ambient tool behavior) and claude/session-log.md (steering-prompt impact) — this is about the claims themselves.
+description: Read before writing or editing any claim about this repo's own current state — a count, a `status:` field, a `[Resolved]` tag, a path or symbol reference, or a CI step name. Also read when a session is about to assert that something is done, fixed, absent, or unaffected. Run `python3 scripts/ci/check_repo_claims.py` before the final commit of any session touching scripts/, agents/, or skills/. Covers the failure this repo calls the assume-spiral: a claim gets written, nothing reads it back, and later work compounds it. Distinct from claude/tool-quirks.md (ambient tool behavior) and claude/session-log.md (steering-prompt impact) — this is about the claims themselves.
 ---
 
 # Verifying claims about this repo's own state
@@ -14,7 +14,7 @@ Three forms, in order of preference:
 1. **The command that recomputes it.** `MATURITY_ASSESSMENT.md` does this: "for the
    current inventory run `ls tests/test_*.py`" instead of a number.
 2. **A `derived:` block**, when a number genuinely has to sit in prose. Add the key to
-   `DERIVATIONS` in `scripts/check_repo_claims.py` first.
+   `DERIVATIONS` in `scripts/ci/check_repo_claims.py` first.
 3. **A `verify:` predicate** in frontmatter, when the claim is a status.
 
 If a claim fits none of these, that is the signal it is a *judgment*, not a fact. Tag it
@@ -44,8 +44,8 @@ real end-to-end run.
 ## Before your final commit
 
 ```
-python3 scripts/check_repo_claims.py
-python3 scripts/check_repo_claims.py --fix    # if a derived: block drifted
+python3 scripts/ci/check_repo_claims.py
+python3 scripts/ci/check_repo_claims.py --fix    # if a derived: block drifted
 ```
 
 It resolves `verify:` predicates, recomputes `derived:` blocks, resolves backticked repo

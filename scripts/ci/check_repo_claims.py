@@ -4,10 +4,10 @@ check_repo_claims.py — makes a stale claim about this repo's own state
 impossible to commit, rather than recorded after the fact.
 
 Usage:
-    python3 scripts/check_repo_claims.py
-    python3 scripts/check_repo_claims.py --fix       # rewrite derived blocks
-    python3 scripts/check_repo_claims.py --update    # re-baseline
-    python3 scripts/check_repo_claims.py --metrics   # measure, never gate
+    python3 scripts/ci/check_repo_claims.py
+    python3 scripts/ci/check_repo_claims.py --fix       # rewrite derived blocks
+    python3 scripts/ci/check_repo_claims.py --update    # re-baseline
+    python3 scripts/ci/check_repo_claims.py --metrics   # measure, never gate
 
 Checks: derived blocks recompute, verify: predicates hold, references resolve,
 every test suite is wired into CI, no CI step is named as a gate it cannot fail,
@@ -103,14 +103,19 @@ import sys
 from pathlib import Path
 from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Set, Tuple
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+from doc_engine.paths import repo_root, scripts_dir, scripts_meta_path_entries
+
+for _entry in scripts_meta_path_entries():
+    if _entry not in sys.path:
+        sys.path.insert(0, _entry)
 
 import _ast_signature  # noqa: E402
 import suite_layout  # noqa: E402
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SCRIPT_DIR.parent
-DEFAULT_BASELINE = SCRIPT_DIR / "repo_claims_baseline.json"
+REPO_ROOT = repo_root()
+SCRIPTS_DIR = scripts_dir()
+DEFAULT_BASELINE = SCRIPTS_DIR / "ratchets" / "repo_claims_baseline.json"
 
 SCHEMA_VERSION = 1
 
@@ -331,7 +336,7 @@ def check_utf8_markdown(root: Path, paths: Sequence[str]) -> List[Finding]:
 # --------------------------------------------------------------------------
 
 def _test_suite_paths(root: Path) -> List[Path]:
-    """Suite SoT is pyproject.toml testpaths (see scripts/suite_layout.py)."""
+    """Suite SoT is pyproject.toml testpaths (see scripts/ci/suite_layout.py)."""
     return suite_layout.suite_paths(root)
 
 
@@ -396,7 +401,7 @@ def derive_semgrep_rule_count(root: Path) -> str:
     """semgrep analog of derive_ast_grep_rule_count above -- same reasoning,
     different id shape: a `- id:` YAML list item under `rules:`, not a bare
     top-level `id:` in a `---`-separated multi-document file."""
-    rules = (root / "scripts" / "spring_semgrep_rules.yml")
+    rules = (root / "scripts" / "coverage" / "spring_semgrep_rules.yml")
     if not rules.is_file():
         return "0"
     return str(len(re.findall(r"^\s*-\s*id:\s*[a-z0-9_]+__[a-z0-9_]+\s*$",
@@ -1325,7 +1330,9 @@ def check_gate_honesty(root: Path) -> List[Finding]:
         return []
     lines = workflow.read_text(encoding="utf-8").splitlines()
     findings: List[Finding] = []
-    for script in sorted((root / "scripts").glob("*.py")):
+    for script in sorted((root / "scripts").rglob("*.py")):
+        if "__pycache__" in script.parts:
+            continue
         source = script.read_text(encoding="utf-8")
         if not re.search(r"^ENFORCE\s*=\s*False", source, re.MULTILINE):
             continue

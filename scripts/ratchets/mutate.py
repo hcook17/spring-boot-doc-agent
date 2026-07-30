@@ -2,9 +2,9 @@
 """Break things on purpose, in a sandbox, and report which tests failed to notice.
 
 Usage:
-    python3 scripts/mutate.py                 # run every mutator
-    python3 scripts/mutate.py --filter grep   # only mutators whose name matches
-    python3 scripts/mutate.py --update        # rewrite the survivor baseline
+    python3 scripts/ratchets/mutate.py                 # run every mutator
+    python3 scripts/ratchets/mutate.py --filter grep   # only mutators whose name matches
+    python3 scripts/ratchets/mutate.py --update        # rewrite the survivor baseline
 
 ENFORCE = False -- see the CI step name, which says "non-blocking".
 
@@ -65,10 +65,16 @@ import tempfile
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional
 
-import suite_layout
+from doc_engine.paths import repo_root, scripts_dir, scripts_meta_path_entries
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-BASELINE_FILE = Path(__file__).resolve().parent / "mutation_baseline.json"
+for _entry in scripts_meta_path_entries():
+    if _entry not in sys.path:
+        sys.path.insert(0, _entry)
+
+import suite_layout  # noqa: E402
+
+REPO_ROOT = repo_root()
+BASELINE_FILE = scripts_dir() / "ratchets" / "mutation_baseline.json"
 SCHEMA_VERSION = 1
 
 ENFORCE = False
@@ -125,7 +131,7 @@ MUTATORS: List[Mutator] = [
         "a bare .kts is any Kotlin script; treating it as a build file puts "
         "arbitrary Kotlin into operations.md"),
     Mutator(
-        "relation-permits-everything", "scripts/set_delta.py", "python",
+        "relation-permits-everything", "scripts/ratchets/set_delta.py", "python",
         "return lambda member, direction: False",
         "return lambda member, direction: True",
         "test_set_delta.py",
@@ -197,12 +203,16 @@ def materialize(dest: Path) -> None:
                 dirs_exist_ok=True,
                 ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
             )
-    scripts_dir = REPO_ROOT / "scripts"
-    if scripts_dir.is_dir():
-        dest_scripts = dest / "scripts"
-        dest_scripts.mkdir(parents=True, exist_ok=True)
-        for path in scripts_dir.glob("*.py"):
-            shutil.copy2(path, dest_scripts / path.name)
+    scripts_root = REPO_ROOT / "scripts"
+    if scripts_root.is_dir():
+        shutil.copytree(
+            scripts_root,
+            dest / "scripts",
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns(
+                "__pycache__", "*.pyc", ".claude", ".gradle", "target",
+            ),
+        )
 
 
 def _apply_structural(path: Path, mutator: Mutator) -> Optional[str]:
@@ -306,7 +316,7 @@ def write_baseline(outcomes: List[Outcome]) -> None:
             "Mutations that no suite currently catches. Each entry is a test "
             "gap someone accepted, not a bug. Shrinking this file is always "
             "correct; growing it needs a reason in the PR that does it. "
-            "Regenerate with: python3 scripts/mutate.py --update"
+            "Regenerate with: python3 scripts/ratchets/mutate.py --update"
         ),
         "accepted_survivors": {o.name: o.detail
                                for o in outcomes if o.status == "survived"},

@@ -2,8 +2,8 @@
 """Classify how the evidence set changed, into expected and unexplained.
 
 Usage:
-    python3 scripts/set_delta.py <repo-a> <repo-b>            # report the delta
-    python3 scripts/set_delta.py <repo-a> <repo-b> --relation unchanged
+    python3 scripts/ratchets/set_delta.py <repo-a> <repo-b>            # report the delta
+    python3 scripts/ratchets/set_delta.py <repo-a> <repo-b> --relation unchanged
 
 WHY THIS EXISTS
 

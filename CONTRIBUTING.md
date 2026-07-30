@@ -48,9 +48,9 @@ everything that was there before.
 - Lead a comment with what it does, then justify: `# `bare` matches unbackticked repo paths.` before
   the paragraph explaining which incident made that necessary. The justification is why the comment
   survives review; the summary line is why anyone can skim past it.
-- This is enforced, not merely encouraged: `scripts/check_code_quality.py` fails when a module with a
+- This is enforced, not merely encouraged: `scripts/ci/check_code_quality.py` fails when a module with a
   `__main__` entry point has no `Usage:` block near the top. It ratchets against
-  `scripts/code_quality_baseline.json`, so modules that predate the rule are recorded rather than
+  `scripts/ratchets/code_quality_baseline.json`, so modules that predate the rule are recorded rather than
   blocking, and no *new* violation can land.
 
 **On the "near the top" number, and re-deriving it.** `USAGE_WITHIN_LINES = 20` was read off this

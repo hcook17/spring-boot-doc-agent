@@ -8,7 +8,7 @@ _load_or_build_groups()/_load_or_build_edges() genuinely delegate to
 partition_repo.py/build_cross_group_edges.py's own functions on a real
 fixture tree rather than re-implementing DFS/token-estimation/join logic —
 reusing
-scripts/test_fixtures/spring_signals/ (the same fixture
+scripts/fixtures/spring_signals/ (the same fixture
 test_spring_signal_scan.py, test_pipeline_stages.py, and
 test_spring_drift_check.py already share) rather than building a second
 fixture tree, per this project's own stated anti-duplication norm

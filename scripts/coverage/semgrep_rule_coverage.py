@@ -2,17 +2,17 @@
 """Proves every semgrep rule can actually fire, and ratchets real-corpus hits.
 
 Usage:
-    python3 scripts/semgrep_rule_coverage.py                 # non-vacuity gate (CI)
-    python3 scripts/semgrep_rule_coverage.py <repo>           # corpus backtest
-    python3 scripts/semgrep_rule_coverage.py <repo> --update  # rewrite the baseline
+    python3 scripts/coverage/semgrep_rule_coverage.py                 # non-vacuity gate (CI)
+    python3 scripts/coverage/semgrep_rule_coverage.py <repo>           # corpus backtest
+    python3 scripts/coverage/semgrep_rule_coverage.py <repo> --update  # rewrite the baseline
 
 Same two-mode split as rule_coverage.py (the ast-grep analog), for the same
-reason: **non-vacuity** (no argument) runs scripts/spring_semgrep_rules.yml
-against the committed scripts/semgrep_rule_fixtures/ corpus and fails if any
+reason: **non-vacuity** (no argument) runs scripts/coverage/spring_semgrep_rules.yml
+against the committed scripts/coverage/semgrep_rule_fixtures/ corpus and fails if any
 rule matches nothing -- a rule nobody can make fire is not coverage, whether
 the tool behind it is ast-grep or semgrep. **Backtest** (with a path) reports
 hit counts against a real repository and ratchets against
-scripts/semgrep_rule_coverage_baseline.json; it is a dev-machine-only step,
+scripts/coverage/semgrep_rule_coverage_baseline.json; it is a dev-machine-only step,
 same as rule_coverage.py's, since a real corpus is too large to commit.
 
 A REAL QUIRK THIS MODULE WORKS AROUND
@@ -150,7 +150,7 @@ def write_baseline(target: Path, counts: collections.Counter[str]) -> None:
             "a rule that used to fire and now fires zero times is a "
             "regression. Rising counts are always fine and do not need a "
             "re-measure. Regenerate with: "
-            "python3 scripts/semgrep_rule_coverage.py <repo> --update"
+            "python3 scripts/coverage/semgrep_rule_coverage.py <repo> --update"
         ),
         "corpus": target.name,
         "counts": dict(sorted(counts.items())),

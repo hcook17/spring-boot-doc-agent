@@ -41,7 +41,7 @@ import unittest
 from pathlib import Path
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
 
-FIXTURES = SCRIPTS_DIR / "rule_fixtures"
+FIXTURES = SCRIPTS_DIR / "coverage" / "rule_fixtures"
 
 import java_perturbations as perturb  # noqa: E402
 import set_delta as sd  # noqa: E402

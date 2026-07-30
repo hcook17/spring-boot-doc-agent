@@ -6,7 +6,7 @@ drift when nothing drifted, and would a different match-identity fix it?
 Usage:
     pytest tests/test_drift_normalization.py -v
 
-Skips itself if scripts/test_fixtures/spring_signals/ or the ast-grep binary is
+Skips itself if scripts/fixtures/spring_signals/ or the ast-grep binary is
 absent, following the same pattern as test_spring_signal_scan.py.
 
 WHAT THIS SUITE OWNS, AND WHAT IT DOES NOT
@@ -76,7 +76,7 @@ import java_perturbations as perturb
 
 SCRIPT_DIR = SCRIPTS_DIR
 
-FIXTURES = os.path.join(SCRIPT_DIR, "test_fixtures", "spring_signals")
+FIXTURES = os.path.join(SCRIPT_DIR, "fixtures", "spring_signals")
 CONFIRMING = ("confirmed_still_present", "unchanged")
 
 # Filled by setUpModule.

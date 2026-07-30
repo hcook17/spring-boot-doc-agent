@@ -2,8 +2,8 @@
 """Gate the aggregate layer of a bytecode-oracle run before it can cross into tracked files.
 
 Usage:
-    python3 scripts/check_no_client_identifiers.py <aggregate.json>
-    python3 scripts/check_no_client_identifiers.py <aggregate.json> --against-checkout <path>
+    python3 scripts/ci/check_no_client_identifiers.py <aggregate.json>
+    python3 scripts/ci/check_no_client_identifiers.py <aggregate.json> --against-checkout <path>
 
 WHY THIS EXISTS
 ---------------

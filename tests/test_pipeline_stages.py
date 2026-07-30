@@ -33,7 +33,7 @@ process outside a live session — so it validates two things instead:
 
 The fixture repo used for file/line resolution below is the same one
 spring_signal_scan.py's own test suite already uses
-(scripts/test_fixtures/spring_signals/) — deliberately reused rather than
+(scripts/fixtures/spring_signals/) — deliberately reused rather than
 building a second one, since a second independently-maintained fixture tree
 is exactly the kind of two-sources-of-truth drift this project's own history
 (IMPLEMENTATION_HANDOFF.md item 1, item 4) has already hit twice.

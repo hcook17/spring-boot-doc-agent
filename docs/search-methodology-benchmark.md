@@ -4,7 +4,7 @@ Recorded expectations for `tests/test_search_methodology.py`. The goal is **cita
 
 ## Fixture
 
-`scripts/test_fixtures/spring_signals/` — billing demo service used by `test_spring_signal_scan.py`.
+`scripts/fixtures/spring_signals/` — billing demo service used by `test_spring_signal_scan.py`.
 
 ## Cases
 

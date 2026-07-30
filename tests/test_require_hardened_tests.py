@@ -80,13 +80,13 @@ class MissingTestSuiteTest(unittest.TestCase):
     def test_a_script_with_tests_dir_suite_passes(self) -> None:
         """CI SoT is tests/; a scripts/ module is covered by tests/test_*.py."""
         self.assertEqual(
-            gate.missing_test_suites(["scripts/check_repo_claims.py"]), [])
+            gate.missing_test_suites(["scripts/ci/check_repo_claims.py"]), [])
 
     def test_a_test_file_is_not_itself_required_to_have_a_test(self) -> None:
         self.assertEqual(gate.missing_test_suites(["scripts/test_anything.py"]), [])
 
     def test_an_exempt_module_is_allowed(self) -> None:
-        self.assertEqual(gate.missing_test_suites(["scripts/prompt_contracts.py"]), [])
+        self.assertEqual(gate.missing_test_suites(["scripts/ci/prompt_contracts.py"]), [])
 
     def test_every_exemption_states_a_reason(self) -> None:
         """An exemption without a reason is indistinguishable from an

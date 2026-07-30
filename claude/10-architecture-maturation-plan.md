@@ -134,7 +134,7 @@ The elegant move: convert *confidently wrong* into *honestly silent* without tou
   **[Audited 2026-07-24 — two of three now done, one still fully open.]**
   - `.vs/` — **still open, exactly as described.** `.gitignore` has `.vscode/` (line 4) but no `.vs/`, and five `.vs/` files are tracked (`VSWorkspaceState.json`, `slnx.sqlite`, a `FileContentIndex/*.vsidx`, `v17/.wsuo`, `v17/DocumentLayout.json`).
   - `UNLICENSED` — **[Resolved — PR #29, `add3083`]** `README.md` now states `plugin.json`'s license is MIT, matching the root `LICENSE`. Note the pointer `README.md:92` is stale in two ways: the content is fixed, and the sentence moved to `README.md:94` (`:92` is now the `## Before you use this for real` heading).
-  - CI step label — **[Resolved — PR #29, `add3083`, via the "rename" branch]** the step is now `check_llms_coverage.py (reports merged PRs with no claude/llms/pr-N.md; non-blocking)` with a comment explaining the rename and when to revert it. `ENFORCE = False` is unchanged at `scripts/check_llms_coverage.py:52` — deliberately, since "rename **or** enforce" is satisfied and flipping the toggle is a policy call tied to backfilling `pr-21..27.md`.
+  - CI step label — **[Resolved — PR #29, `add3083`, via the "rename" branch]** the step is now `check_llms_coverage.py (reports merged PRs with no claude/llms/pr-N.md; non-blocking)` with a comment explaining the rename and when to revert it. `ENFORCE = False` is unchanged at `scripts/ci/check_llms_coverage.py:52` — deliberately, since "rename **or** enforce" is satisfied and flipping the toggle is a policy call tied to backfilling `pr-21..27.md`.
 
 ---
 

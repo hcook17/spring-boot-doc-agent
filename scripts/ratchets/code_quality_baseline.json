@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
-  "production_functions": 508,
-  "production_functions_annotated": 384,
+  "production_functions": 534,
+  "production_functions_annotated": 410,
   "limits_for_new_functions": {
     "statements": 143,
     "complexity": 51,
@@ -9,8 +9,8 @@
   },
   "unparseable": [],
   "docstring_violations": {
-    "scripts/check_code_quality.py": "scripts/check_code_quality.py: 'how to run it' is at docstring line 27; the contract is within 20. Move the Usage block above the rationale.",
-    "scripts/check_llms_coverage.py": "scripts/check_llms_coverage.py: 'how to run it' is at docstring line 36; the contract is within 20. Move the Usage block above the rationale.",
+    "scripts/ci/check_code_quality.py": "scripts/ci/check_code_quality.py: 'how to run it' is at docstring line 27; the contract is within 20. Move the Usage block above the rationale.",
+    "scripts/ci/check_llms_coverage.py": "scripts/ci/check_llms_coverage.py: 'how to run it' is at docstring line 36; the contract is within 20. Move the Usage block above the rationale.",
     "src/doc_engine/cli.py": "src/doc_engine/cli.py: runnable module, but its 1-line docstring never says how to run it",
     "src/doc_engine/pipeline/live_gates.py": "src/doc_engine/pipeline/live_gates.py: runnable module, but its 7-line docstring never says how to run it",
     "src/doc_engine/pipeline/local_runner.py": "src/doc_engine/pipeline/local_runner.py: 'how to run it' is at docstring line 52; the contract is within 20. Move the Usage block above the rationale.",
@@ -18,905 +18,975 @@
     "src/doc_engine/tools/semantic_eval_helpers.py": "src/doc_engine/tools/semantic_eval_helpers.py: 'how to run it' is at docstring line 44; the contract is within 20. Move the Usage block above the rationale."
   },
   "functions": {
-    "scripts/_ast_signature.py::_strip_docstrings": {
-      "statements": 7,
-      "complexity": 7,
-      "depth": 2
-    },
-    "scripts/_ast_signature.py::signature": {
-      "statements": 3,
-      "complexity": 2,
-      "depth": 1
-    },
-    "scripts/_ast_signature.py::signature_of_source": {
-      "statements": 9,
-      "complexity": 4,
-      "depth": 1
-    },
-    "scripts/_ast_signature.py::split_signature": {
-      "statements": 4,
-      "complexity": 3,
-      "depth": 1
-    },
-    "scripts/check_code_quality.py::_is_production_module": {
+    "scripts/ci/check_code_quality.py::_is_production_module": {
       "statements": 2,
       "complexity": 1,
       "depth": 0
     },
-    "scripts/check_code_quality.py::annotation_ratio": {
+    "scripts/ci/check_code_quality.py::annotation_ratio": {
       "statements": 4,
       "complexity": 2,
       "depth": 1
     },
-    "scripts/check_code_quality.py::compare": {
+    "scripts/ci/check_code_quality.py::compare": {
       "statements": 12,
       "complexity": 4,
       "depth": 1
     },
-    "scripts/check_code_quality.py::complexity": {
+    "scripts/ci/check_code_quality.py::complexity": {
       "statements": 9,
       "complexity": 5,
       "depth": 4
     },
-    "scripts/check_code_quality.py::docstring_violation": {
+    "scripts/ci/check_code_quality.py::docstring_violation": {
       "statements": 17,
       "complexity": 9,
       "depth": 2
     },
-    "scripts/check_code_quality.py::exit_code": {
+    "scripts/ci/check_code_quality.py::exit_code": {
       "statements": 1,
       "complexity": 2,
       "depth": 0
     },
-    "scripts/check_code_quality.py::has_cli_entry_point": {
+    "scripts/ci/check_code_quality.py::has_cli_entry_point": {
       "statements": 11,
       "complexity": 9,
       "depth": 2
     },
-    "scripts/check_code_quality.py::is_annotated": {
+    "scripts/ci/check_code_quality.py::is_annotated": {
       "statements": 9,
       "complexity": 6,
       "depth": 1
     },
-    "scripts/check_code_quality.py::iter_modules": {
-      "statements": 19,
+    "scripts/ci/check_code_quality.py::iter_modules": {
+      "statements": 20,
       "complexity": 8,
       "depth": 3
     },
-    "scripts/check_code_quality.py::list_script_py_files": {
+    "scripts/ci/check_code_quality.py::list_script_py_files": {
       "statements": 8,
-      "complexity": 7,
+      "complexity": 11,
       "depth": 1
     },
-    "scripts/check_code_quality.py::load_baseline": {
+    "scripts/ci/check_code_quality.py::load_baseline": {
       "statements": 5,
       "complexity": 3,
       "depth": 2
     },
-    "scripts/check_code_quality.py::main": {
+    "scripts/ci/check_code_quality.py::main": {
       "statements": 47,
       "complexity": 11,
       "depth": 2
     },
-    "scripts/check_code_quality.py::measure_source": {
+    "scripts/ci/check_code_quality.py::measure_source": {
       "statements": 6,
       "complexity": 7,
       "depth": 0
     },
-    "scripts/check_code_quality.py::measure_source.visit": {
+    "scripts/ci/check_code_quality.py::measure_source.visit": {
       "statements": 16,
       "complexity": 7,
       "depth": 3
     },
-    "scripts/check_code_quality.py::measure_tree": {
+    "scripts/ci/check_code_quality.py::measure_tree": {
       "statements": 31,
       "complexity": 12,
       "depth": 2
     },
-    "scripts/check_code_quality.py::nesting_depth": {
+    "scripts/ci/check_code_quality.py::nesting_depth": {
       "statements": 7,
       "complexity": 4,
       "depth": 2
     },
-    "scripts/check_code_quality.py::size_advisories": {
+    "scripts/ci/check_code_quality.py::size_advisories": {
       "statements": 16,
       "complexity": 7,
       "depth": 4
     },
-    "scripts/check_code_quality.py::statement_count": {
+    "scripts/ci/check_code_quality.py::statement_count": {
       "statements": 13,
       "complexity": 9,
       "depth": 2
     },
-    "scripts/check_code_quality.py::write_baseline": {
+    "scripts/ci/check_code_quality.py::write_baseline": {
       "statements": 3,
       "complexity": 2,
       "depth": 1
     },
-    "scripts/check_llms_coverage.py::check_coverage": {
+    "scripts/ci/check_llms_coverage.py::check_coverage": {
       "statements": 16,
       "complexity": 6,
       "depth": 2
     },
-    "scripts/check_llms_coverage.py::existing_docs": {
+    "scripts/ci/check_llms_coverage.py::existing_docs": {
       "statements": 6,
       "complexity": 3,
       "depth": 2
     },
-    "scripts/check_llms_coverage.py::exit_code": {
+    "scripts/ci/check_llms_coverage.py::exit_code": {
       "statements": 1,
       "complexity": 1,
       "depth": 0
     },
-    "scripts/check_llms_coverage.py::get_merged_prs": {
+    "scripts/ci/check_llms_coverage.py::get_merged_prs": {
       "statements": 4,
       "complexity": 2,
       "depth": 1
     },
-    "scripts/check_llms_coverage.py::main": {
+    "scripts/ci/check_llms_coverage.py::main": {
       "statements": 22,
       "complexity": 6,
       "depth": 1
     },
-    "scripts/check_llms_coverage.py::most_recently_merged": {
+    "scripts/ci/check_llms_coverage.py::most_recently_merged": {
       "statements": 3,
       "complexity": 2,
       "depth": 1
     },
-    "scripts/check_llms_coverage.py::parse_frontmatter": {
+    "scripts/ci/check_llms_coverage.py::parse_frontmatter": {
       "statements": 9,
       "complexity": 4,
       "depth": 2
     },
-    "scripts/check_no_client_identifiers.py::_denylist_pass": {
+    "scripts/ci/check_no_client_identifiers.py::_denylist_pass": {
       "statements": 13,
       "complexity": 10,
       "depth": 2
     },
-    "scripts/check_no_client_identifiers.py::_walk": {
+    "scripts/ci/check_no_client_identifiers.py::_walk": {
       "statements": 27,
       "complexity": 20,
       "depth": 6
     },
-    "scripts/check_no_client_identifiers.py::main": {
+    "scripts/ci/check_no_client_identifiers.py::main": {
       "statements": 28,
       "complexity": 7,
       "depth": 2
     },
-    "scripts/check_repo_claims.py::_agent_definitions": {
+    "scripts/ci/check_repo_claims.py::_agent_definitions": {
       "statements": 5,
       "complexity": 3,
       "depth": 2
     },
-    "scripts/check_repo_claims.py::_ci_run_lines": {
+    "scripts/ci/check_repo_claims.py::_behavior_runner_missing_output_is_stage_result": {
+      "statements": 22,
+      "complexity": 13,
+      "depth": 3
+    },
+    "scripts/ci/check_repo_claims.py::_behavior_signal_scan_declares_facts_jsonl": {
+      "statements": 12,
+      "complexity": 6,
+      "depth": 2
+    },
+    "scripts/ci/check_repo_claims.py::_call_names_in_module": {
+      "statements": 14,
+      "complexity": 6,
+      "depth": 3
+    },
+    "scripts/ci/check_repo_claims.py::_ci_run_lines": {
       "statements": 4,
       "complexity": 2,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::_declared_tools": {
+    "scripts/ci/check_repo_claims.py::_declared_tools": {
       "statements": 4,
       "complexity": 4,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::_eval_contains": {
+    "scripts/ci/check_repo_claims.py::_eval_behavior": {
+      "statements": 7,
+      "complexity": 3,
+      "depth": 1
+    },
+    "scripts/ci/check_repo_claims.py::_eval_called_by": {
+      "statements": 15,
+      "complexity": 8,
+      "depth": 1
+    },
+    "scripts/ci/check_repo_claims.py::_eval_contains": {
       "statements": 8,
       "complexity": 3,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::_eval_not_contains": {
+    "scripts/ci/check_repo_claims.py::_eval_not_contains": {
       "statements": 8,
       "complexity": 3,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::_eval_path_absent": {
+    "scripts/ci/check_repo_claims.py::_eval_path_absent": {
       "statements": 2,
       "complexity": 1,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::_eval_path_exists": {
+    "scripts/ci/check_repo_claims.py::_eval_path_exists": {
       "statements": 2,
       "complexity": 1,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::_eval_unchanged_since": {
+    "scripts/ci/check_repo_claims.py::_eval_unchanged_since": {
       "statements": 18,
       "complexity": 8,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::_resolve_repo_path": {
+    "scripts/ci/check_repo_claims.py::_resolve_repo_path": {
       "statements": 7,
       "complexity": 4,
       "depth": 3
     },
-    "scripts/check_repo_claims.py::_test_suite_paths": {
+    "scripts/ci/check_repo_claims.py::_test_suite_paths": {
       "statements": 1,
       "complexity": 1,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::accepted_fingerprints": {
+    "scripts/ci/check_repo_claims.py::accepted_fingerprints": {
       "statements": 6,
       "complexity": 6,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::apply_affirm": {
+    "scripts/ci/check_repo_claims.py::apply_affirm": {
       "statements": 10,
       "complexity": 6,
       "depth": 2
     },
-    "scripts/check_repo_claims.py::apply_affirm.replace": {
+    "scripts/ci/check_repo_claims.py::apply_affirm.replace": {
       "statements": 10,
       "complexity": 4,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::apply_fix": {
+    "scripts/ci/check_repo_claims.py::apply_fix": {
       "statements": 10,
       "complexity": 5,
       "depth": 2
     },
-    "scripts/check_repo_claims.py::apply_fix.replace": {
+    "scripts/ci/check_repo_claims.py::apply_fix.replace": {
       "statements": 4,
       "complexity": 3,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::check_agent_search_tooling": {
+    "scripts/ci/check_repo_claims.py::check_agent_search_tooling": {
       "statements": 24,
       "complexity": 15,
       "depth": 3
     },
-    "scripts/check_repo_claims.py::check_ci_suite_coverage": {
-      "statements": 15,
-      "complexity": 7,
-      "depth": 2
+    "scripts/ci/check_repo_claims.py::check_ci_suite_coverage": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 1
     },
-    "scripts/check_repo_claims.py::check_derived_blocks": {
+    "scripts/ci/check_repo_claims.py::check_derived_blocks": {
       "statements": 17,
       "complexity": 6,
       "depth": 3
     },
-    "scripts/check_repo_claims.py::check_gate_honesty": {
-      "statements": 18,
-      "complexity": 8,
+    "scripts/ci/check_repo_claims.py::check_gate_honesty": {
+      "statements": 20,
+      "complexity": 9,
       "depth": 3
     },
-    "scripts/check_repo_claims.py::check_references": {
+    "scripts/ci/check_repo_claims.py::check_references": {
       "statements": 25,
       "complexity": 13,
       "depth": 4
     },
-    "scripts/check_repo_claims.py::check_utf8_markdown": {
+    "scripts/ci/check_repo_claims.py::check_utf8_markdown": {
       "statements": 11,
       "complexity": 4,
       "depth": 2
     },
-    "scripts/check_repo_claims.py::check_verify_predicates": {
+    "scripts/ci/check_repo_claims.py::check_verify_predicates": {
       "statements": 11,
       "complexity": 5,
       "depth": 3
     },
-    "scripts/check_repo_claims.py::claim_metrics": {
+    "scripts/ci/check_repo_claims.py::claim_body_lead": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "scripts/ci/check_repo_claims.py::claim_metrics": {
       "statements": 17,
       "complexity": 8,
       "depth": 3
     },
-    "scripts/check_repo_claims.py::collect_all": {
+    "scripts/ci/check_repo_claims.py::claim_stable_key": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "scripts/ci/check_repo_claims.py::collect_all": {
       "statements": 5,
       "complexity": 1,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::collect_claims": {
+    "scripts/ci/check_repo_claims.py::collect_claims": {
       "statements": 6,
       "complexity": 4,
       "depth": 3
     },
-    "scripts/check_repo_claims.py::collect_python_symbols": {
+    "scripts/ci/check_repo_claims.py::collect_python_symbols": {
       "statements": 14,
       "complexity": 7,
       "depth": 4
     },
-    "scripts/check_repo_claims.py::derive_ast_grep_rule_count": {
+    "scripts/ci/check_repo_claims.py::derive_ast_grep_rule_count": {
       "statements": 6,
       "complexity": 3,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::derive_ci_test_steps": {
-      "statements": 8,
-      "complexity": 7,
-      "depth": 2
-    },
-    "scripts/check_repo_claims.py::derive_pipeline_agent_count": {
-      "statements": 4,
-      "complexity": 2,
-      "depth": 0
-    },
-    "scripts/check_repo_claims.py::derive_predicate_count": {
+    "scripts/ci/check_repo_claims.py::derive_ci_test_steps": {
       "statements": 1,
       "complexity": 1,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::derive_semgrep_rule_count": {
+    "scripts/ci/check_repo_claims.py::derive_pipeline_agent_count": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 0
+    },
+    "scripts/ci/check_repo_claims.py::derive_predicate_count": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "scripts/ci/check_repo_claims.py::derive_semgrep_rule_count": {
       "statements": 4,
       "complexity": 2,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::derive_steering_prompt_count": {
+    "scripts/ci/check_repo_claims.py::derive_steering_prompt_count": {
       "statements": 2,
       "complexity": 1,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::derive_test_method_count": {
-      "statements": 11,
-      "complexity": 7,
+    "scripts/ci/check_repo_claims.py::derive_test_method_count": {
+      "statements": 7,
+      "complexity": 5,
       "depth": 3
     },
-    "scripts/check_repo_claims.py::derive_test_suite_count": {
+    "scripts/ci/check_repo_claims.py::derive_test_suite_count": {
       "statements": 1,
       "complexity": 1,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::evaluate_predicate": {
+    "scripts/ci/check_repo_claims.py::evaluate_predicate": {
       "statements": 4,
       "complexity": 3,
       "depth": 2
     },
-    "scripts/check_repo_claims.py::exit_code": {
+    "scripts/ci/check_repo_claims.py::exit_code": {
       "statements": 1,
       "complexity": 2,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::extract_bracket_tag_claims": {
+    "scripts/ci/check_repo_claims.py::extract_bracket_tag_claims": {
       "statements": 13,
       "complexity": 9,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::extract_bracket_tag_claims.fenced": {
+    "scripts/ci/check_repo_claims.py::extract_bracket_tag_claims.fenced": {
       "statements": 1,
       "complexity": 2,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::extract_frontmatter_claims": {
+    "scripts/ci/check_repo_claims.py::extract_frontmatter_claims": {
       "statements": 8,
       "complexity": 3,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::fenced_spans": {
+    "scripts/ci/check_repo_claims.py::fenced_spans": {
       "statements": 1,
       "complexity": 2,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::format_metrics": {
+    "scripts/ci/check_repo_claims.py::format_metrics": {
       "statements": 5,
       "complexity": 3,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::format_mirror_debt": {
+    "scripts/ci/check_repo_claims.py::format_mirror_debt": {
       "statements": 6,
       "complexity": 3,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::in_fence": {
+    "scripts/ci/check_repo_claims.py::in_fence": {
       "statements": 1,
       "complexity": 2,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::is_current_state_doc": {
+    "scripts/ci/check_repo_claims.py::is_current_state_doc": {
       "statements": 1,
       "complexity": 3,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::is_own_path": {
+    "scripts/ci/check_repo_claims.py::is_own_path": {
       "statements": 5,
       "complexity": 5,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::live_method_prompts": {
+    "scripts/ci/check_repo_claims.py::live_method_prompts": {
       "statements": 2,
       "complexity": 3,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::load_baseline": {
+    "scripts/ci/check_repo_claims.py::load_baseline": {
       "statements": 3,
       "complexity": 2,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::main": {
+    "scripts/ci/check_repo_claims.py::main": {
       "statements": 33,
       "complexity": 10,
       "depth": 3
     },
-    "scripts/check_repo_claims.py::mirror_debt": {
+    "scripts/ci/check_repo_claims.py::mirror_debt": {
       "statements": 10,
       "complexity": 4,
       "depth": 2
     },
-    "scripts/check_repo_claims.py::normalize_status": {
+    "scripts/ci/check_repo_claims.py::normalize_status": {
       "statements": 3,
       "complexity": 2,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::parse_frontmatter": {
+    "scripts/ci/check_repo_claims.py::parse_frontmatter": {
       "statements": 24,
       "complexity": 9,
       "depth": 2
     },
-    "scripts/check_repo_claims.py::read_utf8": {
+    "scripts/ci/check_repo_claims.py::read_utf8": {
       "statements": 1,
       "complexity": 1,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::report": {
+    "scripts/ci/check_repo_claims.py::report": {
       "statements": 8,
       "complexity": 3,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::resolve_reference": {
+    "scripts/ci/check_repo_claims.py::resolve_reference": {
       "statements": 29,
       "complexity": 15,
       "depth": 4
     },
-    "scripts/check_repo_claims.py::run_action_mode": {
+    "scripts/ci/check_repo_claims.py::run_action_mode": {
       "statements": 18,
       "complexity": 7,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::tracked_files": {
+    "scripts/ci/check_repo_claims.py::tracked_files": {
       "statements": 5,
       "complexity": 4,
       "depth": 1
     },
-    "scripts/check_repo_claims.py::tracked_markdown": {
+    "scripts/ci/check_repo_claims.py::tracked_markdown": {
       "statements": 1,
       "complexity": 3,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::utf8_readable_markdown": {
+    "scripts/ci/check_repo_claims.py::utf8_readable_markdown": {
       "statements": 5,
       "complexity": 4,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::write_baseline": {
+    "scripts/ci/check_repo_claims.py::write_baseline": {
       "statements": 2,
       "complexity": 2,
       "depth": 0
     },
-    "scripts/check_repo_claims.py::write_mirror_state": {
+    "scripts/ci/check_repo_claims.py::write_mirror_state": {
       "statements": 4,
       "complexity": 2,
       "depth": 0
     },
-    "scripts/drift_match_normalizers.py::collapse_ws": {
-      "statements": 3,
-      "complexity": 2,
-      "depth": 1
+    "scripts/ci/check_workflow_yaml.py::check_workflows": {
+      "statements": 24,
+      "complexity": 9,
+      "depth": 3
     },
-    "scripts/drift_match_normalizers.py::first_line": {
-      "statements": 3,
-      "complexity": 2,
-      "depth": 1
-    },
-    "scripts/drift_match_normalizers.py::strip_ws_outside_strings": {
-      "statements": 10,
+    "scripts/ci/check_workflow_yaml.py::main": {
+      "statements": 8,
       "complexity": 3,
+      "depth": 2
+    },
+    "scripts/ci/prompt_contracts.py::_read": {
+      "statements": 4,
+      "complexity": 2,
       "depth": 1
     },
-    "scripts/drift_match_normalizers.py::tokens": {
-      "statements": 4,
+    "scripts/ci/prompt_contracts.py::_split_list": {
+      "statements": 2,
       "complexity": 4,
-      "depth": 1
+      "depth": 0
     },
-    "scripts/generate_signal_mermaid.py::_entity_name_from_path": {
+    "scripts/ci/prompt_contracts.py::doc_files": {
       "statements": 4,
       "complexity": 2,
       "depth": 1
     },
-    "scripts/generate_signal_mermaid.py::_extract_mapped_by": {
-      "statements": 4,
+    "scripts/ci/prompt_contracts.py::file_summary_keys": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 1
+    },
+    "scripts/ci/prompt_contracts.py::main": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 2
+    },
+    "scripts/ci/prompt_contracts.py::spring_roles": {
+      "statements": 7,
+      "complexity": 3,
+      "depth": 1
+    },
+    "scripts/ci/suite_layout.py::suite_file_for_module": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 2
+    },
+    "scripts/ci/suite_layout.py::suite_paths": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 2
+    },
+    "scripts/ci/suite_layout.py::suite_roots": {
+      "statements": 10,
+      "complexity": 6,
+      "depth": 1
+    },
+    "scripts/ci/suite_layout.py::uses_pytest_discovery": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 1
+    },
+    "scripts/coverage/rule_coverage.py::check_non_vacuity": {
+      "statements": 13,
+      "complexity": 7,
+      "depth": 2
+    },
+    "scripts/coverage/rule_coverage.py::check_ratchet": {
+      "statements": 14,
+      "complexity": 7,
+      "depth": 2
+    },
+    "scripts/coverage/rule_coverage.py::hit_counts": {
+      "statements": 8,
+      "complexity": 4,
+      "depth": 3
+    },
+    "scripts/coverage/rule_coverage.py::load_baseline": {
+      "statements": 3,
       "complexity": 2,
       "depth": 1
     },
-    "scripts/generate_signal_mermaid.py::_extract_relation_type": {
+    "scripts/coverage/rule_coverage.py::main": {
+      "statements": 32,
+      "complexity": 8,
+      "depth": 3
+    },
+    "scripts/coverage/rule_coverage.py::report": {
       "statements": 7,
-      "complexity": 3,
+      "complexity": 6,
       "depth": 1
     },
-    "scripts/generate_signal_mermaid.py::_extract_target_entity": {
-      "statements": 7,
-      "complexity": 3,
-      "depth": 1
+    "scripts/coverage/rule_coverage.py::rule_ids": {
+      "statements": 13,
+      "complexity": 5,
+      "depth": 2
     },
-    "scripts/generate_signal_mermaid.py::_load_signals": {
+    "scripts/coverage/rule_coverage.py::write_baseline": {
       "statements": 2,
-      "complexity": 2,
-      "depth": 1
+      "complexity": 1,
+      "depth": 0
     },
-    "scripts/generate_signal_mermaid.py::_sanitize_mermaid_id": {
+    "scripts/coverage/semgrep_rule_coverage.py::_normalize_check_id": {
       "statements": 1,
       "complexity": 1,
       "depth": 0
     },
-    "scripts/generate_signal_mermaid.py::generate_er_diagram": {
+    "scripts/coverage/semgrep_rule_coverage.py::check_non_vacuity": {
+      "statements": 13,
+      "complexity": 7,
+      "depth": 2
+    },
+    "scripts/coverage/semgrep_rule_coverage.py::check_ratchet": {
+      "statements": 14,
+      "complexity": 7,
+      "depth": 2
+    },
+    "scripts/coverage/semgrep_rule_coverage.py::find_semgrep": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "scripts/coverage/semgrep_rule_coverage.py::hit_counts": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 2
+    },
+    "scripts/coverage/semgrep_rule_coverage.py::load_baseline": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "scripts/coverage/semgrep_rule_coverage.py::main": {
+      "statements": 32,
+      "complexity": 8,
+      "depth": 3
+    },
+    "scripts/coverage/semgrep_rule_coverage.py::report": {
+      "statements": 7,
+      "complexity": 6,
+      "depth": 1
+    },
+    "scripts/coverage/semgrep_rule_coverage.py::rule_ids": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "scripts/coverage/semgrep_rule_coverage.py::run_semgrep": {
+      "statements": 9,
+      "complexity": 3,
+      "depth": 1
+    },
+    "scripts/coverage/semgrep_rule_coverage.py::write_baseline": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "scripts/fixtures/generate_signal_mermaid.py::_entity_name_from_path": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "scripts/fixtures/generate_signal_mermaid.py::_extract_mapped_by": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "scripts/fixtures/generate_signal_mermaid.py::_extract_relation_type": {
+      "statements": 7,
+      "complexity": 3,
+      "depth": 1
+    },
+    "scripts/fixtures/generate_signal_mermaid.py::_extract_target_entity": {
+      "statements": 7,
+      "complexity": 3,
+      "depth": 1
+    },
+    "scripts/fixtures/generate_signal_mermaid.py::_load_signals": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 1
+    },
+    "scripts/fixtures/generate_signal_mermaid.py::_sanitize_mermaid_id": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "scripts/fixtures/generate_signal_mermaid.py::generate_er_diagram": {
       "statements": 41,
       "complexity": 12,
       "depth": 2
     },
-    "scripts/generate_signal_mermaid.py::generate_flow_graph": {
+    "scripts/fixtures/generate_signal_mermaid.py::generate_flow_graph": {
       "statements": 26,
       "complexity": 7,
       "depth": 3
     },
-    "scripts/generate_signal_mermaid.py::main": {
+    "scripts/fixtures/generate_signal_mermaid.py::main": {
       "statements": 21,
       "complexity": 4,
       "depth": 1
     },
-    "scripts/java_perturbations.py::add_comment": {
-      "statements": 9,
-      "complexity": 4,
-      "depth": 2
-    },
-    "scripts/java_perturbations.py::blank_lines": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/java_perturbations.py::broken_wrap_annotation_args": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/java_perturbations.py::broken_wrap_annotation_args.repl": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/java_perturbations.py::reindent": {
-      "statements": 8,
-      "complexity": 3,
-      "depth": 2
-    },
-    "scripts/java_perturbations.py::wrap_annotation_args": {
-      "statements": 25,
-      "complexity": 8,
-      "depth": 3
-    },
-    "scripts/mutate.py::_apply_literal": {
-      "statements": 5,
-      "complexity": 2,
-      "depth": 1
-    },
-    "scripts/mutate.py::_apply_structural": {
-      "statements": 6,
-      "complexity": 3,
-      "depth": 1
-    },
-    "scripts/mutate.py::apply_mutation": {
-      "statements": 6,
-      "complexity": 3,
-      "depth": 1
-    },
-    "scripts/mutate.py::evaluate": {
-      "statements": 9,
-      "complexity": 3,
-      "depth": 1
-    },
-    "scripts/mutate.py::load_baseline": {
-      "statements": 6,
-      "complexity": 3,
-      "depth": 1
-    },
-    "scripts/mutate.py::main": {
-      "statements": 19,
-      "complexity": 9,
-      "depth": 1
-    },
-    "scripts/mutate.py::materialize": {
-      "statements": 17,
-      "complexity": 7,
-      "depth": 2
-    },
-    "scripts/mutate.py::report": {
-      "statements": 15,
-      "complexity": 15,
-      "depth": 2
-    },
-    "scripts/mutate.py::run_suite": {
-      "statements": 2,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/mutate.py::tracked_files": {
-      "statements": 4,
-      "complexity": 4,
-      "depth": 1
-    },
-    "scripts/mutate.py::write_baseline": {
-      "statements": 2,
-      "complexity": 3,
-      "depth": 0
-    },
-    "scripts/prompt_contracts.py::_read": {
-      "statements": 4,
-      "complexity": 2,
-      "depth": 1
-    },
-    "scripts/prompt_contracts.py::_split_list": {
-      "statements": 2,
-      "complexity": 4,
-      "depth": 0
-    },
-    "scripts/prompt_contracts.py::doc_files": {
-      "statements": 4,
-      "complexity": 2,
-      "depth": 1
-    },
-    "scripts/prompt_contracts.py::file_summary_keys": {
-      "statements": 8,
-      "complexity": 3,
-      "depth": 1
-    },
-    "scripts/prompt_contracts.py::main": {
-      "statements": 8,
-      "complexity": 3,
-      "depth": 2
-    },
-    "scripts/prompt_contracts.py::spring_roles": {
-      "statements": 7,
-      "complexity": 3,
-      "depth": 1
-    },
-    "scripts/regenerate_fixture_snapshot.py::main": {
+    "scripts/fixtures/regenerate_fixture_snapshot.py::main": {
       "statements": 12,
       "complexity": 4,
       "depth": 1
     },
-    "scripts/rule_coverage.py::check_non_vacuity": {
-      "statements": 13,
-      "complexity": 7,
-      "depth": 2
-    },
-    "scripts/rule_coverage.py::check_ratchet": {
-      "statements": 14,
-      "complexity": 7,
-      "depth": 2
-    },
-    "scripts/rule_coverage.py::hit_counts": {
-      "statements": 8,
-      "complexity": 4,
-      "depth": 3
-    },
-    "scripts/rule_coverage.py::load_baseline": {
-      "statements": 3,
-      "complexity": 2,
-      "depth": 1
-    },
-    "scripts/rule_coverage.py::main": {
-      "statements": 32,
-      "complexity": 8,
-      "depth": 3
-    },
-    "scripts/rule_coverage.py::report": {
-      "statements": 7,
-      "complexity": 6,
-      "depth": 1
-    },
-    "scripts/rule_coverage.py::rule_ids": {
-      "statements": 13,
-      "complexity": 5,
-      "depth": 2
-    },
-    "scripts/rule_coverage.py::write_baseline": {
-      "statements": 2,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/semgrep_rule_coverage.py::_normalize_check_id": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/semgrep_rule_coverage.py::check_non_vacuity": {
-      "statements": 13,
-      "complexity": 7,
-      "depth": 2
-    },
-    "scripts/semgrep_rule_coverage.py::check_ratchet": {
-      "statements": 14,
-      "complexity": 7,
-      "depth": 2
-    },
-    "scripts/semgrep_rule_coverage.py::find_semgrep": {
-      "statements": 4,
-      "complexity": 2,
-      "depth": 1
-    },
-    "scripts/semgrep_rule_coverage.py::hit_counts": {
-      "statements": 8,
-      "complexity": 3,
-      "depth": 2
-    },
-    "scripts/semgrep_rule_coverage.py::load_baseline": {
-      "statements": 3,
-      "complexity": 2,
-      "depth": 1
-    },
-    "scripts/semgrep_rule_coverage.py::main": {
-      "statements": 32,
-      "complexity": 8,
-      "depth": 3
-    },
-    "scripts/semgrep_rule_coverage.py::report": {
-      "statements": 7,
-      "complexity": 6,
-      "depth": 1
-    },
-    "scripts/semgrep_rule_coverage.py::rule_ids": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/semgrep_rule_coverage.py::run_semgrep": {
-      "statements": 9,
-      "complexity": 3,
-      "depth": 1
-    },
-    "scripts/semgrep_rule_coverage.py::write_baseline": {
-      "statements": 2,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/set_delta.py::Delta.is_empty": {
-      "statements": 1,
-      "complexity": 2,
-      "depth": 0
-    },
-    "scripts/set_delta.py::Residue.describe": {
-      "statements": 3,
-      "complexity": 3,
-      "depth": 0
-    },
-    "scripts/set_delta.py::Residue.is_empty": {
-      "statements": 1,
-      "complexity": 2,
-      "depth": 0
-    },
-    "scripts/set_delta.py::check_scaling": {
-      "statements": 7,
-      "complexity": 3,
-      "depth": 2
-    },
-    "scripts/set_delta.py::classify": {
-      "statements": 1,
-      "complexity": 5,
-      "depth": 0
-    },
-    "scripts/set_delta.py::compare": {
-      "statements": 2,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/set_delta.py::confined_to": {
-      "statements": 2,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/set_delta.py::confined_to_rules": {
-      "statements": 2,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/set_delta.py::counts_by_rule": {
-      "statements": 4,
-      "complexity": 2,
-      "depth": 1
-    },
-    "scripts/set_delta.py::delta": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/set_delta.py::grows_only": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/set_delta.py::main": {
-      "statements": 21,
-      "complexity": 5,
-      "depth": 1
-    },
-    "scripts/set_delta.py::signals_set": {
-      "statements": 12,
-      "complexity": 6,
-      "depth": 2
-    },
-    "scripts/set_delta.py::unchanged": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
-    "scripts/stage0_oracle_compare.py::SharedInputs.compute_digest": {
+    "scripts/fixtures/stage0_oracle_compare.py::SharedInputs.compute_digest": {
       "statements": 6,
       "complexity": 2,
       "depth": 1
     },
-    "scripts/stage0_oracle_compare.py::assign_cause": {
+    "scripts/fixtures/stage0_oracle_compare.py::assign_cause": {
       "statements": 10,
       "complexity": 6,
       "depth": 1
     },
-    "scripts/stage0_oracle_compare.py::build_interface_graph": {
+    "scripts/fixtures/stage0_oracle_compare.py::build_interface_graph": {
       "statements": 18,
       "complexity": 6,
       "depth": 2
     },
-    "scripts/stage0_oracle_compare.py::compare_q1": {
+    "scripts/fixtures/stage0_oracle_compare.py::compare_q1": {
       "statements": 10,
       "complexity": 4,
       "depth": 2
     },
-    "scripts/stage0_oracle_compare.py::extract_stage0_rule": {
+    "scripts/fixtures/stage0_oracle_compare.py::extract_stage0_rule": {
       "statements": 8,
       "complexity": 4,
       "depth": 2
     },
-    "scripts/stage0_oracle_compare.py::fqcn_for": {
+    "scripts/fixtures/stage0_oracle_compare.py::fqcn_for": {
       "statements": 2,
       "complexity": 1,
       "depth": 0
     },
-    "scripts/stage0_oracle_compare.py::list_java_files": {
+    "scripts/fixtures/stage0_oracle_compare.py::list_java_files": {
       "statements": 1,
       "complexity": 1,
       "depth": 0
     },
-    "scripts/stage0_oracle_compare.py::load_salt": {
+    "scripts/fixtures/stage0_oracle_compare.py::load_salt": {
       "statements": 7,
       "complexity": 3,
       "depth": 1
     },
-    "scripts/stage0_oracle_compare.py::main": {
+    "scripts/fixtures/stage0_oracle_compare.py::main": {
       "statements": 82,
       "complexity": 22,
       "depth": 4
     },
-    "scripts/stage0_oracle_compare.py::parse_supertypes": {
+    "scripts/fixtures/stage0_oracle_compare.py::parse_supertypes": {
       "statements": 26,
       "complexity": 11,
       "depth": 4
     },
-    "scripts/stage0_oracle_compare.py::print_table": {
+    "scripts/fixtures/stage0_oracle_compare.py::print_table": {
       "statements": 14,
       "complexity": 7,
       "depth": 1
     },
-    "scripts/stage0_oracle_compare.py::pseudonym": {
+    "scripts/fixtures/stage0_oracle_compare.py::pseudonym": {
       "statements": 4,
       "complexity": 1,
       "depth": 0
     },
-    "scripts/stage0_oracle_compare.py::reaches_spring_data": {
+    "scripts/fixtures/stage0_oracle_compare.py::reaches_spring_data": {
       "statements": 12,
       "complexity": 6,
       "depth": 4
     },
-    "scripts/stage0_oracle_compare.py::run_astgrep": {
+    "scripts/fixtures/stage0_oracle_compare.py::run_astgrep": {
       "statements": 10,
       "complexity": 5,
       "depth": 2
     },
-    "scripts/stage0_oracle_compare.py::run_semgrep": {
+    "scripts/fixtures/stage0_oracle_compare.py::run_semgrep": {
       "statements": 7,
       "complexity": 4,
       "depth": 1
     },
-    "scripts/stage0_oracle_compare.py::summarise": {
+    "scripts/fixtures/stage0_oracle_compare.py::summarise": {
       "statements": 6,
       "complexity": 8,
       "depth": 1
     },
-    "scripts/stage0_oracle_compare.py::validate_rows": {
+    "scripts/fixtures/stage0_oracle_compare.py::validate_rows": {
       "statements": 10,
       "complexity": 4,
       "depth": 2
+    },
+    "scripts/ratchets/_ast_signature.py::_strip_docstrings": {
+      "statements": 7,
+      "complexity": 7,
+      "depth": 2
+    },
+    "scripts/ratchets/_ast_signature.py::signature": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "scripts/ratchets/_ast_signature.py::signature_of_source": {
+      "statements": 9,
+      "complexity": 4,
+      "depth": 1
+    },
+    "scripts/ratchets/_ast_signature.py::split_signature": {
+      "statements": 4,
+      "complexity": 3,
+      "depth": 1
+    },
+    "scripts/ratchets/drift_match_normalizers.py::collapse_ws": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "scripts/ratchets/drift_match_normalizers.py::first_line": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "scripts/ratchets/drift_match_normalizers.py::strip_ws_outside_strings": {
+      "statements": 10,
+      "complexity": 3,
+      "depth": 1
+    },
+    "scripts/ratchets/drift_match_normalizers.py::tokens": {
+      "statements": 4,
+      "complexity": 4,
+      "depth": 1
+    },
+    "scripts/ratchets/java_perturbations.py::add_comment": {
+      "statements": 9,
+      "complexity": 4,
+      "depth": 2
+    },
+    "scripts/ratchets/java_perturbations.py::blank_lines": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "scripts/ratchets/java_perturbations.py::broken_wrap_annotation_args": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "scripts/ratchets/java_perturbations.py::broken_wrap_annotation_args.repl": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "scripts/ratchets/java_perturbations.py::reindent": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 2
+    },
+    "scripts/ratchets/java_perturbations.py::wrap_annotation_args": {
+      "statements": 25,
+      "complexity": 8,
+      "depth": 3
+    },
+    "scripts/ratchets/mutate.py::_apply_literal": {
+      "statements": 5,
+      "complexity": 2,
+      "depth": 1
+    },
+    "scripts/ratchets/mutate.py::_apply_structural": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 1
+    },
+    "scripts/ratchets/mutate.py::apply_mutation": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 1
+    },
+    "scripts/ratchets/mutate.py::evaluate": {
+      "statements": 9,
+      "complexity": 3,
+      "depth": 1
+    },
+    "scripts/ratchets/mutate.py::load_baseline": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 1
+    },
+    "scripts/ratchets/mutate.py::main": {
+      "statements": 19,
+      "complexity": 9,
+      "depth": 1
+    },
+    "scripts/ratchets/mutate.py::materialize": {
+      "statements": 14,
+      "complexity": 6,
+      "depth": 2
+    },
+    "scripts/ratchets/mutate.py::report": {
+      "statements": 15,
+      "complexity": 15,
+      "depth": 2
+    },
+    "scripts/ratchets/mutate.py::resolve_suite_path": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 2
+    },
+    "scripts/ratchets/mutate.py::run_suite": {
+      "statements": 3,
+      "complexity": 1,
+      "depth": 0
+    },
+    "scripts/ratchets/mutate.py::tracked_files": {
+      "statements": 4,
+      "complexity": 4,
+      "depth": 1
+    },
+    "scripts/ratchets/mutate.py::write_baseline": {
+      "statements": 2,
+      "complexity": 3,
+      "depth": 0
+    },
+    "scripts/ratchets/set_delta.py::Delta.is_empty": {
+      "statements": 1,
+      "complexity": 2,
+      "depth": 0
+    },
+    "scripts/ratchets/set_delta.py::Residue.describe": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 0
+    },
+    "scripts/ratchets/set_delta.py::Residue.is_empty": {
+      "statements": 1,
+      "complexity": 2,
+      "depth": 0
+    },
+    "scripts/ratchets/set_delta.py::check_scaling": {
+      "statements": 7,
+      "complexity": 3,
+      "depth": 2
+    },
+    "scripts/ratchets/set_delta.py::classify": {
+      "statements": 1,
+      "complexity": 5,
+      "depth": 0
+    },
+    "scripts/ratchets/set_delta.py::compare": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "scripts/ratchets/set_delta.py::confined_to": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "scripts/ratchets/set_delta.py::confined_to_rules": {
+      "statements": 2,
+      "complexity": 1,
+      "depth": 0
+    },
+    "scripts/ratchets/set_delta.py::counts_by_rule": {
+      "statements": 4,
+      "complexity": 2,
+      "depth": 1
+    },
+    "scripts/ratchets/set_delta.py::delta": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "scripts/ratchets/set_delta.py::grows_only": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "scripts/ratchets/set_delta.py::main": {
+      "statements": 21,
+      "complexity": 5,
+      "depth": 1
+    },
+    "scripts/ratchets/set_delta.py::signals_set": {
+      "statements": 12,
+      "complexity": 6,
+      "depth": 2
+    },
+    "scripts/ratchets/set_delta.py::unchanged": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
     },
     "src/doc_engine/cli.py::_load_json": {
       "statements": 2,
@@ -1093,7 +1163,22 @@
       "complexity": 1,
       "depth": 0
     },
+    "src/doc_engine/paths.py::scripts_meta_path_entries": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 0
+    },
+    "src/doc_engine/pipeline/artifacts.py::Fact.line_positive_when_set": {
+      "statements": 3,
+      "complexity": 3,
+      "depth": 1
+    },
     "src/doc_engine/pipeline/artifacts.py::FileSummaryEntry.spring_role_valid": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 1
+    },
+    "src/doc_engine/pipeline/artifacts.py::GapQuestionEntry.blocks_file_in_fourteen": {
       "statements": 3,
       "complexity": 2,
       "depth": 1
@@ -1104,9 +1189,9 @@
       "depth": 1
     },
     "src/doc_engine/pipeline/artifacts.py::export_json_schemas": {
-      "statements": 4,
-      "complexity": 2,
-      "depth": 1
+      "statements": 10,
+      "complexity": 3,
+      "depth": 2
     },
     "src/doc_engine/pipeline/compliance.py::_stage_status_from_runner": {
       "statements": 5,
@@ -1444,13 +1529,13 @@
       "depth": 2
     },
     "src/doc_engine/pipeline/runner.py::PipelineRunner._validate_outputs": {
-      "statements": 10,
+      "statements": 11,
       "complexity": 6,
       "depth": 2
     },
     "src/doc_engine/pipeline/runner.py::PipelineRunner.run": {
-      "statements": 17,
-      "complexity": 4,
+      "statements": 23,
+      "complexity": 5,
       "depth": 2
     },
     "src/doc_engine/pipeline/stages.py::_py_mod": {
@@ -1488,14 +1573,19 @@
       "complexity": 2,
       "depth": 1
     },
+    "src/doc_engine/pipeline/validation.py::load_jsonl_objects": {
+      "statements": 11,
+      "complexity": 5,
+      "depth": 3
+    },
     "src/doc_engine/pipeline/validation.py::validate_artifact_data": {
       "statements": 7,
       "complexity": 3,
       "depth": 1
     },
     "src/doc_engine/pipeline/validation.py::validate_artifact_file": {
-      "statements": 9,
-      "complexity": 3,
+      "statements": 11,
+      "complexity": 4,
       "depth": 1
     },
     "src/doc_engine/pipeline/validation.py::validate_artifacts_in_dir": {
@@ -1737,6 +1827,51 @@
       "statements": 12,
       "complexity": 8,
       "depth": 1
+    },
+    "src/doc_engine/scanning/facts.py::_default_scanner": {
+      "statements": 4,
+      "complexity": 4,
+      "depth": 1
+    },
+    "src/doc_engine/scanning/facts.py::_fact": {
+      "statements": 1,
+      "complexity": 2,
+      "depth": 0
+    },
+    "src/doc_engine/scanning/facts.py::_facts_from_evidence": {
+      "statements": 15,
+      "complexity": 12,
+      "depth": 3
+    },
+    "src/doc_engine/scanning/facts.py::_maps_to_from_entity_table_map": {
+      "statements": 24,
+      "complexity": 21,
+      "depth": 5
+    },
+    "src/doc_engine/scanning/facts.py::_sort_key": {
+      "statements": 2,
+      "complexity": 6,
+      "depth": 0
+    },
+    "src/doc_engine/scanning/facts.py::fact_emit_counts": {
+      "statements": 12,
+      "complexity": 6,
+      "depth": 3
+    },
+    "src/doc_engine/scanning/facts.py::facts_from_signals": {
+      "statements": 10,
+      "complexity": 5,
+      "depth": 1
+    },
+    "src/doc_engine/scanning/facts.py::facts_path_for_signals_out": {
+      "statements": 1,
+      "complexity": 1,
+      "depth": 0
+    },
+    "src/doc_engine/scanning/facts.py::write_facts_jsonl": {
+      "statements": 8,
+      "complexity": 3,
+      "depth": 2
     },
     "src/doc_engine/scanning/java_extract.py::extract_entity": {
       "statements": 12,
@@ -2025,7 +2160,7 @@
     },
     "src/doc_engine/tools/build_docs_site.py::_write_mkdocs_config": {
       "statements": 8,
-      "complexity": 3,
+      "complexity": 4,
       "depth": 1
     },
     "src/doc_engine/tools/build_docs_site.py::_yaml_nav": {
@@ -2064,8 +2199,8 @@
       "depth": 2
     },
     "src/doc_engine/tools/certification.py::load_certification": {
-      "statements": 6,
-      "complexity": 3,
+      "statements": 12,
+      "complexity": 4,
       "depth": 1
     },
     "src/doc_engine/tools/certification.py::main": {
@@ -2294,9 +2429,9 @@
       "depth": 2
     },
     "src/doc_engine/tools/pipeline_validators.py::run_stage5_gate": {
-      "statements": 16,
-      "complexity": 7,
-      "depth": 2
+      "statements": 25,
+      "complexity": 12,
+      "depth": 3
     },
     "src/doc_engine/tools/pipeline_validators.py::validate_architecture_testing_review_findings": {
       "statements": 32,
@@ -2539,7 +2674,7 @@
       "depth": 4
     },
     "src/doc_engine/tools/spring_signal_scan.py::main": {
-      "statements": 24,
+      "statements": 29,
       "complexity": 7,
       "depth": 1
     },

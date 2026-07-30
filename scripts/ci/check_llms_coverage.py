@@ -36,7 +36,7 @@ non-interactively (same requirement verify_llms_docs.py's `gh pr view` calls
 already have — see .github/workflows/ci.yml).
 
 Run with:
-    python3 scripts/check_llms_coverage.py
+    python3 scripts/ci/check_llms_coverage.py
 """
 
 # Always advisory (2026-07-29 principal gate redesign). Detection remains
@@ -53,8 +53,10 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from doc_engine.paths import repo_root
+
 SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SCRIPT_DIR.parent
+REPO_ROOT = repo_root()
 DEFAULT_LLMS_DIR = REPO_ROOT / "claude" / "llms"
 
 FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)

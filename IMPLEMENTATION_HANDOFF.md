@@ -16,7 +16,7 @@ It does mean, however, that the *current* state of a few specific files on disk 
 
 **Completed in PR #1 (2026-07-23).** The five-file `baseline-reference/` tree that used to ship beside this document was deleted in a later hygiene pass — those snapshots lived only to reconcile a device-bridge write-without-verify incident and had no sync mechanism against live SoT under `src/doc_engine/` / `adapters/`. Recover them from git history if needed (`git show <pre-delete-sha>:baseline-reference/...`).
 
-Do **not** recreate `baseline-reference/`. Verify the live tree with `pytest tests/` and `python scripts/check_repo_claims.py` instead of diffing against frozen forks.
+Do **not** recreate `baseline-reference/`. Verify the live tree with `pytest tests/` and `python scripts/ci/check_repo_claims.py` instead of diffing against frozen forks.
 
 ~~Original Step 0 instructions (kept as record of what the implementing session was told to do):~~
 

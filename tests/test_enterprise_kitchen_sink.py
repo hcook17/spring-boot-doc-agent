@@ -1221,7 +1221,7 @@ class Ch10CommandChainTest(unittest.TestCase):
         paying for a second enterprise-scale scan."""
         with tempfile.TemporaryDirectory() as d:
             proc = _run([PY, "-m", "doc_engine.pipeline.local_runner",
-                         os.path.join(SCRIPT_DIR, "test_fixtures", "spring_signals"),
+                         os.path.join(SCRIPT_DIR, "fixtures", "spring_signals"),
                          "--out-dir", os.path.join(d, "run"), "--skip-drift"])
             self.assertEqual(proc.returncode, 0, proc.stdout[-4000:] + proc.stderr[-2000:])
             self.assertIn("RESULT: every gate passed", proc.stdout)

@@ -18,10 +18,10 @@ Both lenses produce **findings about the target repo**, evidenced the same way e
 
 ## ast-grep and semgrep, never text search
 
-You have no `Grep`, and `grep`/`rg` are denied via `Bash` — this is enforced at runtime, not just by convention. Use `ast-grep` for anything a single structural pattern captures (see `agents/file-summarizer.md`'s two standing gotchas: a marker annotation and an argument-bearing one are disjoint node shapes — always try both `@Name` and `@Name($$$)` — and a zero result means *unproven*, never *absent*). Use `semgrep` for the cross-cutting, often multi-line or dataflow-shaped patterns ast-grep's single-file pattern matching doesn't reach cleanly — this repo's own curated rules at `scripts/spring_semgrep_rules.yml` (one bucket per lens: `architecture_ddia__*`, `testing_est__*`) exist for exactly the checks in this file, run as:
+You have no `Grep`, and `grep`/`rg` are denied via `Bash` — this is enforced at runtime, not just by convention. Use `ast-grep` for anything a single structural pattern captures (see `agents/file-summarizer.md`'s two standing gotchas: a marker annotation and an argument-bearing one are disjoint node shapes — always try both `@Name` and `@Name($$$)` — and a zero result means *unproven*, never *absent*). Use `semgrep` for the cross-cutting, often multi-line or dataflow-shaped patterns ast-grep's single-file pattern matching doesn't reach cleanly — this repo's own curated rules at `scripts/coverage/spring_semgrep_rules.yml` (one bucket per lens: `architecture_ddia__*`, `testing_est__*`) exist for exactly the checks in this file, run as:
 
 ```
-semgrep scan --config scripts/spring_semgrep_rules.yml --json <path>
+semgrep scan --config scripts/coverage/spring_semgrep_rules.yml --json <path>
 ```
 
 You may also reach for a community ruleset (`--config=p/owasp-top-ten`, `--config=p/java`, `--config=auto`) when a check only a broader, actively-maintained rule pack would catch. Treat any community-rule hit as a **lead**, not a citation: open the file yourself and confirm the line actually supports the claim before it goes in your `evidence` array, the same way `spring_ast_grep_rules.yml`'s own header warns that a match is a candidate, not a verdict.

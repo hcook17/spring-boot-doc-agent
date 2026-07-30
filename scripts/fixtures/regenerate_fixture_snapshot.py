@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Regenerate the fixture snapshot used by SPRING_SIGNAL_USE_SNAPSHOT=1.
 
-This runs the configured scanner set against scripts/test_fixtures/spring_signals/
-and writes the result to scripts/test_fixtures/spring_signals_fixture_expected.json.
+This runs the configured scanner set against scripts/fixtures/spring_signals/
+and writes the result to scripts/fixtures/spring_signals_fixture_expected.json.
 Commit the updated JSON when the scanner code or rules change and the snapshot's
 scanner_version no longer matches the current version.
 
 Usage:
-    python3 scripts/regenerate_fixture_snapshot.py
+    python3 scripts/fixtures/regenerate_fixture_snapshot.py
 """
 
 import argparse
@@ -15,11 +15,12 @@ import json
 import os
 import sys
 
+from doc_engine.paths import scripts_dir
 from doc_engine.tools import spring_signal_scan
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-FIXTURE_DIR = os.path.join(SCRIPT_DIR, "test_fixtures", "spring_signals")
-SNAPSHOT_PATH = os.path.join(FIXTURE_DIR, "..", "spring_signals_fixture_expected.json")
+_SCRIPT_ROOT = scripts_dir()
+FIXTURE_DIR = str(_SCRIPT_ROOT / "fixtures" / "spring_signals")
+SNAPSHOT_PATH = str(_SCRIPT_ROOT / "fixtures" / "spring_signals_fixture_expected.json")
 
 
 def main() -> int:

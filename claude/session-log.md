@@ -1015,3 +1015,11 @@ Assumptions affected:
 - Schema memo slices 2–4 / review without gate bite — [Resolved — cert/edges/gaps/review registered+exported; run_stage5_gate validates architecture_testing_review (B4)]
 - Adoption-blockers B4 open — [Resolved — Stage5ArchitectureTestingReviewGateTest]
 Files touched: src/doc_engine/pipeline/artifacts.py, src/doc_engine/tools/pipeline_validators.py, src/doc_engine/tools/certification.py, scripts/schemas/*.schema.json, tests/test_artifact_schemas.py, tests/test_artifact_serde_matrix.py, tests/test_pipeline_stages.py, claude/research/*, claude/session-log.md
+
+## 2026-07-30 — scripts/ subdirectory layout
+Commit: uncommitted
+Tests: pending (check_repo_claims/check_code_quality baselines regenerated; targeted pytest next)
+Assumptions affected:
+- STATUS product vs meta scripts boundary — [Still accurate — product stays in doc_engine; meta nested under scripts/{ci,ratchets,coverage,fixtures,schemas}]
+- Flat scripts/*.py invoke paths in CI/hooks/verify: — [Resolved — recursive path updates; no dual-home shims]
+Files touched: scripts/** (layout), src/doc_engine/paths.py, tests/conftest.py, .github/workflows/*, adapters/claude/hooks/require_hardened_tests.py, CLAUDE.md, CONSTRAINTS.md, STATUS.md, steering verify predicates, scripts/README.md, claude/session-log.md

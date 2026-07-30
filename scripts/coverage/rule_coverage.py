@@ -2,15 +2,15 @@
 """Proves every CodeQL query/sub-kind can actually fire, and ratchets real-corpus hits.
 
 Usage:
-    python3 scripts/rule_coverage.py                    # non-vacuity gate (CI)
-    python3 scripts/rule_coverage.py <repo>             # corpus backtest
-    python3 scripts/rule_coverage.py <repo> --update  # rewrite the baseline
+    python3 scripts/coverage/rule_coverage.py                    # non-vacuity gate (CI)
+    python3 scripts/coverage/rule_coverage.py <repo>             # corpus backtest
+    python3 scripts/coverage/rule_coverage.py <repo> --update  # rewrite the baseline
 
 Two modes, because they answer two different questions and only one of them
 can run in CI.
 
 **Non-vacuity** (no argument) runs the query pack against
-scripts/test_fixtures/spring_signals/, a committed corpus small enough to live
+scripts/fixtures/spring_signals/, a committed corpus small enough to live
 in the repo, and fails if any rule_id matches nothing. This is the invariant
 that was missing. With the old ast-grep layer, 10 of 23 rules fired on a real
 production Spring service and 13 returned zero, and nothing in the repo could
@@ -19,7 +19,7 @@ that cannot fire on a fixture written to trigger it is broken, unambiguously,
 and that is decidable here with no external corpus.
 
 **Backtest** (with a path) reports per-rule-id hit counts against a real
-repository and compares them to scripts/rule_coverage_baseline.json. It exists
+repository and compares them to scripts/coverage/rule_coverage_baseline.json. It exists
 because the fixture corpus proves a rule *can* fire, never that it fires on
 code anyone actually wrote. The baseline is committed and the comparison is a
 ratchet: a rule that used to find things and now finds none is a regression,
@@ -37,11 +37,12 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from doc_engine.paths import codeql_pack_dir, scripts_dir
 from doc_engine.tools import spring_signal_scan
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PACK_DIR = SCRIPT_DIR.parent / "codeql" / "spring-signals"
-FIXTURE_DIR = SCRIPT_DIR / "test_fixtures" / "spring_signals"
+PACK_DIR = codeql_pack_dir()
+FIXTURE_DIR = scripts_dir() / "fixtures" / "spring_signals"
 BASELINE_FILE = SCRIPT_DIR / "rule_coverage_baseline.json"
 SCHEMA_VERSION = 2
 
@@ -134,7 +135,7 @@ def write_baseline(target: Path, counts: collections.Counter[str]) -> None:
             "ratchet: a rule that used to fire and now fires zero times is a "
             "regression. Rising counts are always fine and do not need a "
             "re-measure. Regenerate with: "
-            "python3 scripts/rule_coverage.py <repo> --update"
+            "python3 scripts/coverage/rule_coverage.py <repo> --update"
         ),
         "corpus": target.name,
         "counts": dict(sorted(counts.items())),

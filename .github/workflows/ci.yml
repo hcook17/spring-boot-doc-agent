@@ -48,7 +48,7 @@ jobs:
       # Catches the PR #57 class (unquoted colon in a step name) that Actions
       # rejects as "Invalid workflow file" with no useful Python traceback.
       - name: check_workflow_yaml.py (GitHub Actions YAML parse gate)
-        run: python3 scripts/check_workflow_yaml.py
+        run: python3 scripts/ci/check_workflow_yaml.py
 
       # Presence is not enough. This step used to run `ast-grep --version` and
       # discard the answer, so it passed while the binary that actually
@@ -127,10 +127,10 @@ jobs:
 
       # Annotation coverage + docstring orientation (hard); size/complexity/
       # depth print as advisory only (schema v4). Baseline:
-      # scripts/code_quality_baseline.json. Regenerate with `--update` when
+      # scripts/ratchets/code_quality_baseline.json. Regenerate with `--update` when
       # annotation/docstring floors genuinely improve or the measured set grows.
       - name: check_code_quality.py (annotation + docstring hard; size advisory)
-        run: python3 scripts/check_code_quality.py
+        run: python3 scripts/ci/check_code_quality.py
 
       # Reads this repo's claims about itself back: every steering prompt's
       # verify: predicates, every derived: count, every backticked repo path
@@ -142,10 +142,10 @@ jobs:
       #
       # It decides whether a claim is well-formed and resolvable, never
       # whether it is true; that judgment stays in CLAUDE.md's human pass.
-      # Pre-existing findings ride scripts/repo_claims_baseline.json, the
+      # Pre-existing findings ride scripts/ratchets/repo_claims_baseline.json, the
       # same ratchet shape as check_code_quality.py.
       - name: check_repo_claims.py (state-claim gate)
-        run: python3 scripts/check_repo_claims.py
+        run: python3 scripts/ci/check_repo_claims.py
 
       # Every ast-grep rule must be able to match something. Measured against
       # a real production Spring service, 10 of 23 rules fired and 13 returned
@@ -155,17 +155,17 @@ jobs:
       # to track, so it runs on a dev machine and commits its baseline, the
       # same shape check_code_quality.py uses. This step fails the build.
       - name: rule_coverage.py (rule non-vacuity gate)
-        run: python3 scripts/rule_coverage.py
+        run: python3 scripts/coverage/rule_coverage.py
 
       # semgrep analog of the gate directly above: every rule in
-      # scripts/spring_semgrep_rules.yml must fire on scripts/semgrep_rule_
+      # scripts/coverage/spring_semgrep_rules.yml must fire on scripts/semgrep_rule_
       # fixtures/. Same split as rule_coverage.py -- only the fixture
       # non-vacuity mode runs here; the backtest/ratchet mode is dev-machine
-      # only, and scripts/semgrep_rule_coverage_baseline.json does not exist
+      # only, and scripts/coverage/semgrep_rule_coverage_baseline.json does not exist
       # yet because no real-repo backtest has been run (stated in CONSTRAINTS.md
       # rather than faked with an invented baseline).
       - name: semgrep_rule_coverage.py (rule non-vacuity gate)
-        run: python3 scripts/semgrep_rule_coverage.py
+        run: python3 scripts/coverage/semgrep_rule_coverage.py
 
       # Measurements, not a verdict -- this step cannot fail, and is named so
       # that reads as true at a glance rather than looking like enforcement.
@@ -175,13 +175,13 @@ jobs:
       # move is how a threshold gets picked that nobody can defend -- the same
       # reasoning recorded on check_code_quality.py's USAGE_WITHIN_LINES.
       - name: claim metrics (reports; never fails)
-        run: python3 scripts/check_repo_claims.py --metrics
+        run: python3 scripts/ci/check_repo_claims.py --metrics
 
       - name: pytest tests/
         run: pytest tests/ -v --tb=short
 
       - name: validate_artifacts.py (spring_signals fixture schema)
-        run: python3 -m doc_engine.tools.validate_artifacts spring_signals scripts/test_fixtures/spring_signals_fixture_expected.json
+        run: python3 -m doc_engine.tools.validate_artifacts spring_signals scripts/fixtures/spring_signals_fixture_expected.json
 
       # Live deterministic Stage 0 against the committed spring_signals fixture
       # tree, then schema-gate every known artifact the run produced. Requires
@@ -189,7 +189,7 @@ jobs:
       - name: portable Stage 0 (deterministic_only + artifact schema gate)
         run: |
           OUT=$(mktemp -d)
-          doc-engine pipeline run scripts/test_fixtures/spring_signals \
+          doc-engine pipeline run scripts/fixtures/spring_signals \
             --out-dir "$OUT" \
             --compliance-profile deterministic_only \
             --skip-drift
@@ -201,7 +201,7 @@ jobs:
       # check_code_quality.py's USAGE_WITHIN_LINES. ENFORCE = False in the
       # script, so check_gate_honesty requires "non-blocking" in this name.
       - name: mutate.py (mutation score; reports, non-blocking)
-        run: python3 scripts/mutate.py
+        run: python3 scripts/ratchets/mutate.py
 
       # REMOVED: the verify_llms_docs.py step. It extracted backtick-fenced
       # spans from LLM-authored markdown and ran them through `bash -c`, with
@@ -221,4 +221,4 @@ jobs:
       - name: "check_llms_coverage.py (advisory: merged PRs without claude/llms/pr-N.md)"
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/check_llms_coverage.py
+        run: python3 scripts/ci/check_llms_coverage.py

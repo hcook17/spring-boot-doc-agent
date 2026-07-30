@@ -54,7 +54,7 @@ class SpringSignalScanTest(unittest.TestCase):
             raise RuntimeError(
                 f"fixture snapshot is stale: expected scanner_version={current_version}, "
                 f"got {snapshot.get('scanner_version')}. Regenerate with:\n"
-                f"  python3 scripts/regenerate_fixture_snapshot.py --scanners filesystem,ast-grep"
+                f"  python3 scripts/fixtures/regenerate_fixture_snapshot.py --scanners filesystem,ast-grep"
             )
         return snapshot
 

@@ -17,7 +17,7 @@ annotation is wrapped across lines the stored identity degrades to
 "@RequestMapping(" -- which compares equal to nothing, and the citation reads
 as drifted although not one token moved.
 
-MEASURED, on scripts/test_fixtures/spring_signals across four formatting-only
+MEASURED, on scripts/fixtures/spring_signals across four formatting-only
 perturbations (test_drift_normalization.py re-derives all of these):
 
     normalizer                 false pos    missed real changes

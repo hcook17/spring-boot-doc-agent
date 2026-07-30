@@ -86,7 +86,9 @@ class LevelIsPartOfTheDataTest(unittest.TestCase):
         """Measured at 0 agreements across 14 modules. If these ever collide
         the level tag stops carrying information -- so this is the test that
         justifies storing the level at all, not a coincidence worth asserting."""
-        modules = sorted(SCRIPTS_DIR.glob("*.py"))[:14]
+        modules = sorted(
+            p for p in SCRIPTS_DIR.rglob("*.py") if "__pycache__" not in p.parts
+        )[:14]
         self.assertGreater(len(modules), 5, "not enough modules to be meaningful")
         collisions = [
             p.name for p in modules

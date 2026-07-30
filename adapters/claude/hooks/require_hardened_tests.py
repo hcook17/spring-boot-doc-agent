@@ -49,7 +49,13 @@ from pathlib import Path
 from typing import List, Optional, Set
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
+
+from doc_engine.paths import scripts_meta_path_entries  # noqa: E402
+
+for _entry in scripts_meta_path_entries():
+    if _entry not in sys.path:
+        sys.path.insert(0, _entry)
+
 import suite_layout  # noqa: E402
 
 SKILL = "directional-tests"
@@ -61,6 +67,8 @@ TEST_EXEMPT = {
     "drift_match_normalizers.py": "re-derived by test_drift_normalization.py",
     "java_perturbations.py": "test infrastructure itself",
     "prompt_contracts.py": "exercised by test_prompt_contracts.py",
+    "regenerate_fixture_snapshot.py": "operator helper; exercised manually / CI snapshot step",
+    "generate_signal_mermaid.py": "operator helper for fixture visualization",
 }
 
 COMMIT_RE = re.compile(r"(^|[;&|]\s*)git\s+(-C\s+\S+\s+)?commit\b")
@@ -99,8 +107,9 @@ def missing_test_suites(staged: List[str],
         # form. check_pipe_exit_code.py shipped from .claude/hooks/ with no
         # test and no test suite named it, because this guard used to read
         # `!= "scripts"` and neither hook directory was in it.
-        hook_parents = {"scripts", "hooks"}
+        hook_parents = {"ci", "ratchets", "coverage", "fixtures", "hooks"}
         rel_parts = path.parts
+        under_scripts = len(rel_parts) >= 2 and rel_parts[0] == "scripts"
         is_adapter_hook = (
             len(rel_parts) >= 3
             and rel_parts[0] == "adapters"
@@ -109,6 +118,7 @@ def missing_test_suites(staged: List[str],
         )
         if (
             path.parent.name not in hook_parents
+            and not under_scripts
             and not is_adapter_hook
         ) or path.suffix != ".py":
             continue
@@ -148,13 +158,13 @@ def unwired_suites(staged: List[str],
 
 def failing_gates() -> List[str]:
     problems = []
-    for script in ("check_repo_claims.py", "check_code_quality.py"):
+    for rel in ("scripts/ci/check_repo_claims.py", "scripts/ci/check_code_quality.py"):
         result = subprocess.run(
-            [sys.executable, str(REPO_ROOT / "scripts" / script)],
+            [sys.executable, str(REPO_ROOT / rel)],
             capture_output=True, text=True, cwd=str(REPO_ROOT))
         if result.returncode != 0:
             tail = (result.stdout + result.stderr).strip().splitlines()
-            problems.append(f"{script} exits {result.returncode}: "
+            problems.append(f"{rel} exits {result.returncode}: "
                             + " / ".join(tail[:3]))
     return problems
 

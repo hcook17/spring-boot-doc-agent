@@ -72,10 +72,17 @@ def suite_paths(root: Path) -> List[Path]:
 
 
 def suite_file_for_module(root: Path, module_filename: str) -> Path | None:
-    """Path to ``test_<module>`` under a declared root, if it exists."""
-    name = f"test_{module_filename}"
+    """Path to ``test_<module>`` under a declared root, if it exists.
+
+    Leading-underscore modules historically drop the underscore in the suite
+    name (``_ast_signature.py`` → ``test_ast_signature.py``).
+    """
+    candidates = [f"test_{module_filename}"]
+    if module_filename.startswith("_"):
+        candidates.append(f"test_{module_filename.lstrip('_')}")
     for rel in suite_roots(root):
-        candidate = root / rel / name
-        if candidate.is_file():
-            return candidate
+        for name in candidates:
+            candidate = root / rel / name
+            if candidate.is_file():
+                return candidate
     return None

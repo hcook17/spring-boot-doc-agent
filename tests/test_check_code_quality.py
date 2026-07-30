@@ -320,7 +320,7 @@ class TrackedFilesOnlyTest(unittest.TestCase):
             self.assertIn("mod.py::a", checker.measure_tree(scripts)["functions"])
 
     def test_nested_fixture_python_files_are_not_measured(self):
-        """scripts/test_fixtures/ holds fixture sources, not modules of this
+        """scripts/fixtures/ holds fixture sources, not modules of this
         tool; measuring them would ratchet somebody else's sample code."""
         with tempfile.TemporaryDirectory() as tmp:
             scripts = Path(tmp) / "scripts"

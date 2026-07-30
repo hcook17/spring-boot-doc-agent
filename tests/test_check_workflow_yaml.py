@@ -1,4 +1,4 @@
-"""Tests for scripts/check_workflow_yaml.py — #57-class YAML parse gate."""
+"""Tests for scripts/ci/check_workflow_yaml.py — #57-class YAML parse gate."""
 
 from __future__ import annotations
 

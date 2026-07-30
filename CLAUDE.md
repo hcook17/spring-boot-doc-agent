@@ -11,7 +11,7 @@
 
 Each prompt states specific factual assumptions about the current state of this repo (e.g., "no test exists for the LLM stages," "the confidentiality rule only lives in a handoff doc"). Commits to this repo can make those assumptions stale.
 
-**Every prompt carrying a `status:` also carries a `verify:` list** — decidable predicates that `scripts/check_repo_claims.py` evaluates on every CI run, so a status contradicting the repo fails the build instead of waiting to be noticed:
+**Every prompt carrying a `status:` also carries a `verify:` list** — decidable predicates that `scripts/ci/check_repo_claims.py` evaluates on every CI run, so a status contradicting the repo fails the build instead of waiting to be noticed:
 
 ```
 status: resolved (2026-07-23, PR #3)
@@ -26,7 +26,7 @@ CONSTRAINTS.md bracket claims use a **content-stable key** (digest of status buc
 
 `07`'s `path_absent:scripts/verify_llms_docs.py` is worth understanding as a pattern: it turns "deleted as a security defect — do not re-add it" from a comment into a build failure.
 
-**Before your final commit in any session that touches `scripts/`, `agents/`, or `skills/`:** run `python3 scripts/check_repo_claims.py` first — it mechanically resolves every prompt's `verify:` predicates, every `derived:` count, and every backticked repo path in the current-state docs, which is the part of this pass that used to depend on someone remembering. Then read the prompt files and check whether anything you just changed resolves, contradicts, or otherwise affects a stated assumption in any of them. In practice `00`–`09` and `13` carry repo-state assumptions; `10`–`12` describe method and rarely go stale from a code change.
+**Before your final commit in any session that touches `scripts/`, `agents/`, or `skills/`:** run `python3 scripts/ci/check_repo_claims.py` first — it mechanically resolves every prompt's `verify:` predicates, every `derived:` count, and every backticked repo path in the current-state docs, which is the part of this pass that used to depend on someone remembering. Then read the prompt files and check whether anything you just changed resolves, contradicts, or otherwise affects a stated assumption in any of them. In practice `00`–`09` and `13` carry repo-state assumptions; `10`–`12` describe method and rarely go stale from a code change.
 
 The checker is the floor, not the ceiling: it decides whether a claim is *well-formed and resolvable*, never whether it is *true*. A `[Resolved]` tag pointing at a file that exists still passes while being wrong about what the file does. That judgment is what the rest of this pass is for. See `.claude/skills/verify-state-claims/SKILL.md`.
 
@@ -45,7 +45,7 @@ The checker is the floor, not the ceiling: it decides whether a claim is *well-f
     the workflow runs <!-- derived: ci_test_steps -->N<!-- /derived --> suites
     ```
 
-  `scripts/check_repo_claims.py` recomputes each one and fails CI on a mismatch; `--fix` rewrites them. Add the key to that script's `DERIVATIONS` dict first — markdown can only *select* a derivation, never define one, which is what keeps this from becoming the markdown-to-shell hazard that got `verify_llms_docs.py` deleted. Blocks inside a fenced example, like the one above, are ignored.
+  `scripts/ci/check_repo_claims.py` recomputes each one and fails CI on a mismatch; `--fix` rewrites them. Add the key to that script's `DERIVATIONS` dict first — markdown can only *select* a derivation, never define one, which is what keeps this from becoming the markdown-to-shell hazard that got `verify_llms_docs.py` deleted. Blocks inside a fenced example, like the one above, are ignored.
 
 ### Entry format
 
@@ -68,7 +68,7 @@ A Claude Code CLI session (this one) has full repo and git access but no access 
 
 ## Searching code: ast-grep, never text search
 
-**Agents search structurally.** No agent definition may declare the `Grep` tool, and `grep`/`rg` are denied through `Bash` in `.claude/settings.json`. `scripts/check_repo_claims.py`'s check F fails the build if an agent regains `Grep`, and `hooks/deny_text_search.py` (a `PreToolUse` hook, shipped in `hooks/hooks.json` and verified to fire for subagents as well as the main thread) blocks it at runtime. Two controls because they fail differently: the static one cannot be bypassed but only runs in CI; the runtime one catches an agent shelling out to `grep` through `Bash`, which static inspection cannot see.
+**Agents search structurally.** No agent definition may declare the `Grep` tool, and `grep`/`rg` are denied through `Bash` in `.claude/settings.json`. `scripts/ci/check_repo_claims.py`'s check F fails the build if an agent regains `Grep`, and `hooks/deny_text_search.py` (a `PreToolUse` hook, shipped in `hooks/hooks.json` and verified to fire for subagents as well as the main thread) blocks it at runtime. Two controls because they fail differently: the static one cannot be bypassed but only runs in CI; the runtime one catches an agent shelling out to `grep` through `Bash`, which static inspection cannot see.
 
 The reason is citation correctness, not taste. Text search matches inside strings and comments, which is how a claim ends up carrying an `[Evidenced — path:line]` tag anchored to a line that does not support it.
 
@@ -79,11 +79,11 @@ Each of the following has produced a wrong answer here, in this repo, and is wor
 - **The mandate binds where ast-grep has a grammar.** It has none for Groovy (`-l groovy` fails outright), so Gradle build scripts are classified by filename in `spring_signal_scan.py` and carry no structural signals at all. Kotlin and Scala it does support. Check before designing around a language: `echo x | ast-grep run --stdin -l <lang> -p x`.
 - **ast-grep is not a prose search tool.** Its `markdown` grammar matches broad block nodes: on `README.md`, `-p 'ast-grep'` reports 35 lines of which 27 contain no such string. For docs and logs, use `Glob` to narrow and `Read` to open. The mandate is about *code*, where citations live.
 
-**Coverage is the invariant the mandate exists to serve**, and it is enforced separately. `scripts/rule_coverage.py` runs the <!-- derived: ast_grep_rule_count -->29<!-- /derived --> rules against the committed corpus in `scripts/rule_fixtures/` and fails if any rule matches nothing — a rule nobody can make fire is not coverage. It also has a backtest mode against a real repository, ratcheted against `scripts/rule_coverage_baseline.json`; that corpus is far too large to track, so it is measured on a dev machine and only the baseline is committed. Adding a rule means adding a fixture that triggers it, in the same commit.
+**Coverage is the invariant the mandate exists to serve**, and it is enforced separately. `scripts/coverage/rule_coverage.py` runs the <!-- derived: ast_grep_rule_count -->29<!-- /derived --> rules against the committed corpus in `scripts/coverage/rule_fixtures/` and fails if any rule matches nothing — a rule nobody can make fire is not coverage. It also has a backtest mode against a real repository, ratcheted against `scripts/coverage/rule_coverage_baseline.json`; that corpus is far too large to track, so it is measured on a dev machine and only the baseline is committed. Adding a rule means adding a fixture that triggers it, in the same commit.
 
 ## Check F also gates network egress
 
-Check F (in `scripts/check_repo_claims.py`, alongside the structural-search mandate above) also denies raw network egress for any agent granted `Bash` tool access. The instant an agent declares `Bash`, `curl`/`wget`/`git clone` are denied the same way `grep`/`rg` already are. `software-architect-and-testing` is the only agent with both `Bash` and `WebFetch`; without this gate, it could reach arXiv/GitHub/deepwiki.com via raw shell commands instead of `WebFetch`, bypassing the tiered external-research discipline its own prompt establishes. Two-part enforcement: `scripts/check_repo_claims.py`'s static check (run in CI) fails the build if any Bash-granted agent is missing the `curl`/`wget`/`git-clone` deny entries in `.claude/settings.json`; `hooks/deny_raw_network.py` (a `PreToolUse` hook, wired in `hooks/hooks.json`) covers the runtime half by actually blocking a raw shell command. Same split as `hooks/deny_text_search.py` and check F's text-search half — the static one cannot be bypassed but only runs in CI; the runtime one catches what static inspection cannot reach.
+Check F (in `scripts/ci/check_repo_claims.py`, alongside the structural-search mandate above) also denies raw network egress for any agent granted `Bash` tool access. The instant an agent declares `Bash`, `curl`/`wget`/`git clone` are denied the same way `grep`/`rg` already are. `software-architect-and-testing` is the only agent with both `Bash` and `WebFetch`; without this gate, it could reach arXiv/GitHub/deepwiki.com via raw shell commands instead of `WebFetch`, bypassing the tiered external-research discipline its own prompt establishes. Two-part enforcement: `scripts/ci/check_repo_claims.py`'s static check (run in CI) fails the build if any Bash-granted agent is missing the `curl`/`wget`/`git-clone` deny entries in `.claude/settings.json`; `hooks/deny_raw_network.py` (a `PreToolUse` hook, wired in `hooks/hooks.json`) covers the runtime half by actually blocking a raw shell command. Same split as `hooks/deny_text_search.py` and check F's text-search half — the static one cannot be bypassed but only runs in CI; the runtime one catches what static inspection cannot reach.
 
 ## Tool and environment quirks
 
