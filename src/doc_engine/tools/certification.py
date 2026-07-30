@@ -1,4 +1,8 @@
-"""Certification gate — exit non-zero when certification.json is missing or not certified."""
+"""Certification gate — exit non-zero when certification.json is missing or not certified.
+
+Usage:
+    python -m doc_engine.tools.certification [path] [--allow-mock]
+"""
 
 from __future__ import annotations
 

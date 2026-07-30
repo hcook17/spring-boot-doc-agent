@@ -1062,10 +1062,19 @@ Assumptions affected:
 Files touched: scripts/ci/check_no_client_identifiers.py, scripts/ci/client_identifier_denylist.txt, scripts/ci/pre_pr.py, .github/workflows/ci.yml, scripts/coverage/rule_coverage_baseline.json, tests/ci/test_check_no_client_identifiers.py, tests/doc_engine/test_artifact_schemas.py, tests/ratchets/test_mutate.py, claude/session-log.md, claude/research/adoption-blockers-queue-2026-07-30.md
 
 ## 2026-07-30 — B2 live certification chain
-Commit: uncommitted
+Commit: c235950
 Tests: 17 passed (test_live_gates + test_verify_certification)
 Assumptions affected:
 - pipeline gates does not rewrite certification.json — [Resolved — always writes generative_executor=live + gate audit]
 - certification verify accepts mock/none certified:true — [Resolved — reject unless --allow-mock]
 - Adoption-blockers B2 open — [Resolved]
 Files touched: src/doc_engine/pipeline/live_gates.py, src/doc_engine/tools/certification.py, src/doc_engine/cli.py, tests/doc_engine/test_live_gates.py, tests/doc_engine/test_verify_certification.py, .github/workflows/doc-engine.yml, action.yml, adapters/github/workflow-snippet.yml, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
+
+## 2026-07-30 — Un-dark-skip drift_normalization; certification Usage docstring
+Commit: 01449f0
+Tests: 37 passed (drift_normalization + live_gates + verify_certification + code_quality baseline)
+Assumptions affected:
+- `test_drift_normalization` "fixtures or ast-grep unavailable" skip means a real env gap — [Resolved — was AttributeError on removed `find_ast_grep`, swallowed into SkipTest while CI had ast-grep; probe is `which` + nested fixture paths]
+- Known wrap false-positive pin of 2 / only `api_surface__mapping` — [New info — live measure is 12 across annotation-arg rules; semantic arm path labels use nested report paths]
+- Runnable `certification.py` docstring contract — [Resolved — Usage line for `python -m doc_engine.tools.certification`]
+Files touched: tests/ratchets/test_drift_normalization.py, scripts/ratchets/drift_match_normalizers.py, scripts/ratchets/java_perturbations.py, src/doc_engine/tools/certification.py, claude/session-log.md

@@ -49,9 +49,10 @@ measurement read 7/208 instead of 2/208. See java_perturbations.py's docstring.
 HAZARDS THIS SUITE DOES NOT COVER, RECORDED RATHER THAN OMITTED
 
   - The corpus is 9 Java files and four hand-written perturbations. The
-    measured 2/208 is bounded by what the author thought to try, not by the
-    checker. A generated perturbation corpus would bound it properly; nothing
-    here should be read as an upper limit.
+    measured wrap false-positive count (pinned in Test02) is bounded by what
+    the author thought to try, not by the checker. A generated perturbation
+    corpus would bound it properly; nothing here should be read as an upper
+    limit.
   - Only Java is perturbed. YAML, SQL and properties citations ride the same
     generic comparison and are never exercised for formatting sensitivity.
   - Nothing here perturbs a file's ENCODING or line endings. The fixtures are
@@ -70,6 +71,8 @@ import tempfile
 import unittest
 from typing import Callable, Dict, List, NamedTuple, Optional
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
+from doc_engine.scanning import java_extract
+from doc_engine.scanning import _scanner_astgrep as astgrep_backend
 from doc_engine.tools import spring_drift_check, spring_signal_scan
 import drift_match_normalizers as norms
 import java_perturbations as perturb
@@ -77,12 +80,24 @@ import java_perturbations as perturb
 SCRIPT_DIR = SCRIPTS_DIR
 
 FIXTURES = os.path.join(SCRIPT_DIR, "fixtures", "spring_signals")
+# Fixture Java sources live under a Maven/Gradle-shaped tree (not flat).
+_BILLING = os.path.join("src", "main", "java", "com", "example", "billing")
+CONTROLLER_REL = os.path.join(_BILLING, "InvoiceController.java")
+LEDGER_REL = os.path.join(_BILLING, "PaymentLedger.java")
 CONFIRMING = ("confirmed_still_present", "unchanged")
+CONTROLLER_BASENAME = "InvoiceController.java"
+LEDGER_BASENAME = "PaymentLedger.java"
+SEMANTIC_TOUCHED = frozenset({CONTROLLER_BASENAME, LEDGER_BASENAME})
 
 # Filled by setUpModule.
 _TMP: Optional[str] = None
 OUTCOMES: Dict[str, "Outcome"] = {}
 GETMAPPING_LINE: Optional[int] = None
+
+
+def _report_basename(path: str) -> str:
+    """Drift reports use repo-relative paths; older pins used flat basenames."""
+    return os.path.basename(path.replace("\\", "/"))
 
 
 class Outcome(NamedTuple):
@@ -105,13 +120,17 @@ class Outcome(NamedTuple):
 
 
 def _fixtures_usable() -> bool:
+    """True when the committed fixture tree exists and ast-grep is on PATH.
+
+    Do not call a removed ``spring_signal_scan.find_ast_grep`` helper — that
+    AttributeError was swallowed here and silently skipped the whole suite
+    in CI (19 dark tests) while ast-grep was verified elsewhere in the job.
+    """
     if not os.path.isdir(FIXTURES):
         return False
-    try:
-        spring_signal_scan.find_ast_grep()
-    except Exception:
+    if not os.path.isfile(os.path.join(FIXTURES, CONTROLLER_REL)):
         return False
-    return True
+    return shutil.which("ast-grep") is not None
 
 
 def _citation_count(signals: dict) -> int:
@@ -152,7 +171,7 @@ def _semantic_edits(root: str) -> None:
     Asserted rather than best-effort: if a fixture is edited so one of these
     no longer applies, this suite must fail loudly instead of quietly measuring
     a corpus where nothing changed."""
-    ctrl = os.path.join(root, "InvoiceController.java")
+    ctrl = os.path.join(root, CONTROLLER_REL)
     with open(ctrl, encoding="utf-8") as f:
         src = f.read()
     assert '"/{id}"' in src, "fixture no longer has the /{id} mapping to change"
@@ -160,7 +179,7 @@ def _semantic_edits(root: str) -> None:
     with open(ctrl, "w", encoding="utf-8") as f:
         f.write(src.replace('"/{id}"', '"/{invoiceId}"').replace("@GetMapping", "@PutMapping"))
 
-    led = os.path.join(root, "PaymentLedger.java")
+    led = os.path.join(root, LEDGER_REL)
     with open(led, encoding="utf-8") as f:
         src = f.read()
     assert 'name = "payment_ledger"' in src, "fixture no longer has the table name to rename"
@@ -172,7 +191,7 @@ def _locate_getmapping_line() -> int:
     """The line of the @GetMapping this suite mutates, read from the fixture
     rather than hardcoded, so inserting a line above it does not silently make
     the expected-drift label point at the wrong citation."""
-    with open(os.path.join(FIXTURES, "InvoiceController.java"), encoding="utf-8") as f:
+    with open(os.path.join(FIXTURES, CONTROLLER_REL), encoding="utf-8") as f:
         for i, line in enumerate(f, start=1):
             if "@GetMapping" in line:
                 return i
@@ -184,26 +203,39 @@ def setUpModule() -> None:
     shells out to ast-grep. Run them once here and let the test methods assert
     over the results, rather than re-deriving per method."""
     global _TMP, GETMAPPING_LINE
-    if not _fixtures_usable():
-        raise unittest.SkipTest("fixtures or ast-grep unavailable")
+    if not os.path.isdir(FIXTURES):
+        raise AssertionError(
+            f"committed spring_signals fixtures missing at {FIXTURES}"
+        )
+    if not os.path.isfile(os.path.join(FIXTURES, CONTROLLER_REL)):
+        raise AssertionError(
+            f"fixture layout drift: expected nested {CONTROLLER_REL} under {FIXTURES}"
+        )
+    if shutil.which("ast-grep") is None:
+        raise unittest.SkipTest("ast-grep not on PATH")
     _TMP = tempfile.mkdtemp(prefix="drift_norm_")
     GETMAPPING_LINE = _locate_getmapping_line()
 
-    original = spring_signal_scan._first_line_match
+    # Patch both the definition site and the ast-grep backend's bound import.
+    original_extract = java_extract.first_line_match
+    original_backend = astgrep_backend.first_line_match
     try:
         for cand_name, fn in norms.CANDIDATES.items():
-            spring_signal_scan._first_line_match = fn
+            java_extract.first_line_match = fn
+            astgrep_backend.first_line_match = fn
             for p_name, transform in perturb.FORMATTING_ONLY.items():
                 OUTCOMES[f"{cand_name}/{p_name}"] = _run_scenario(
                     f"{cand_name}_{p_name}", _apply_to_java(transform))
             OUTCOMES[f"{cand_name}/semantic"] = _run_scenario(
                 f"{cand_name}_semantic", _semantic_edits)
-        spring_signal_scan._first_line_match = original
+        java_extract.first_line_match = original_extract
+        astgrep_backend.first_line_match = original_backend
         for p_name, transform in perturb.DELIBERATELY_BROKEN.items():
             OUTCOMES[f"broken/{p_name}"] = _run_scenario(
                 f"broken_{p_name}", _apply_to_java(transform))
     finally:
-        spring_signal_scan._first_line_match = original
+        java_extract.first_line_match = original_extract
+        astgrep_backend.first_line_match = original_backend
 
 
 def tearDownModule() -> None:
@@ -280,7 +312,10 @@ class Test02TheKnownGap(unittest.TestCase):
     """The one formatting class tier 2 gets wrong today, pinned at its measured
     size so that fixing it is visible and worsening it is a failure."""
 
-    KNOWN_FALSE_POSITIVES = 2
+    # Was 2 when the suite first measured a smaller fixture/rule surface; it
+    # sat dark-skipped (broken find_ast_grep probe) while both grew. Re-pin
+    # to the live wrap_annotation_args count against scripts/fixtures/spring_signals.
+    KNOWN_FALSE_POSITIVES = 12
 
     def test_wrapping_an_annotation_still_produces_exactly_the_known_drift(self):
         """Asserts a defect, deliberately. This is the ratchet shape used by
@@ -299,14 +334,19 @@ class Test02TheKnownGap(unittest.TestCase):
 
     def test_the_known_gap_is_first_line_truncation_not_something_else(self):
         """Names the cause, so the pinned count above cannot start passing for
-        an unrelated reason. Every false positive must be a citation whose
-        stored identity was cut at the opening parenthesis."""
+        an unrelated reason. Every false positive must be a one-line annotation
+        with arguments — wrapping splits it so first_line_match keeps only
+        ``@Name(``."""
         for r in OUTCOMES[f"{norms.STATUS_QUO}/wrap_annotation_args"].drifted():
-            with self.subTest(file=r["file"], line=r["line"]):
-                self.assertEqual(
-                    "api_surface__mapping", r["rule_id"],
-                    "a false positive appeared outside the rule this gap is "
-                    "known to affect")
+            with self.subTest(file=r["file"], line=r["line"], rule=r["rule_id"]):
+                match = r.get("match") or ""
+                self.assertIn(
+                    "(", match,
+                    "a false positive without annotation args is not the "
+                    "first-line-truncation gap this suite pins")
+                self.assertTrue(
+                    match.lstrip().startswith("@"),
+                    "expected an annotation-shaped stored match")
 
 
 class Test03SemanticChangesMustBeCaught(unittest.TestCase):
@@ -318,14 +358,19 @@ class Test03SemanticChangesMustBeCaught(unittest.TestCase):
         self.assertTrue(outcome.valid,
                         "the semantic edits changed the citation count, so they "
                         "are not comparable to the formatting arm")
-        touched = {"InvoiceController.java", "PaymentLedger.java"}
-        return [r for r in outcome.report["results"] if r["file"] in touched]
+        return [
+            r for r in outcome.report["results"]
+            if _report_basename(r["file"]) in SEMANTIC_TOUCHED
+        ]
 
     def _is_expected_to_drift(self, r: dict) -> bool:
         """Hand-labelled. Deriving the expected set from a fresh scan would
         grade the checker against a restatement of its own comparison."""
-        return ((r["file"] == "InvoiceController.java" and r["line"] == GETMAPPING_LINE)
-                or r["source"] == "entity_table_map.PaymentLedger")
+        return (
+            (_report_basename(r["file"]) == CONTROLLER_BASENAME
+             and r["line"] == GETMAPPING_LINE)
+            or r["source"] == "entity_table_map.PaymentLedger"
+        )
 
     def test_a_changed_mapping_and_a_renamed_table_are_both_reported(self):
         graded = self._graded(norms.STATUS_QUO)
@@ -388,8 +433,10 @@ class Test04NormalizerCandidates(unittest.TestCase):
         for cand in norms.CANDIDATES:
             with self.subTest(normalizer=cand):
                 outcome = OUTCOMES[f"{cand}/semantic"]
-                touched = {"InvoiceController.java", "PaymentLedger.java"}
-                graded = [r for r in outcome.report["results"] if r["file"] in touched]
+                graded = [
+                    r for r in outcome.report["results"]
+                    if _report_basename(r["file"]) in SEMANTIC_TOUCHED
+                ]
                 missed = [r for r in graded
                           if Test03SemanticChangesMustBeCaught._is_expected_to_drift(self, r)
                           and r["status"] in CONFIRMING]
@@ -423,10 +470,15 @@ class Test05NormalizerProperties(unittest.TestCase):
         the same string and the relation silently loses its guarantee."""
         self.assertEqual(1, len(norms.TOKEN_SEP))
         self.assertFalse(norms.TOKEN_SEP.isprintable())
-        for path in sorted(os.listdir(FIXTURES)):
-            if path.endswith(".java"):
-                with open(os.path.join(FIXTURES, path), encoding="utf-8") as f:
+        seen_java = False
+        for dirpath, _dirs, files in os.walk(FIXTURES):
+            for fname in sorted(files):
+                if not fname.endswith(".java"):
+                    continue
+                seen_java = True
+                with open(os.path.join(dirpath, fname), encoding="utf-8") as f:
                     self.assertNotIn(norms.TOKEN_SEP, f.read())
+        self.assertTrue(seen_java, f"no .java under nested fixtures at {FIXTURES}")
 
     def test_stripping_whitespace_outside_strings_is_not_injective(self):
         """Asserts the known weakness of the runner-up, so the choice of

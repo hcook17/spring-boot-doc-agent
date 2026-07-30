@@ -83,7 +83,7 @@ _ANNOTATION_CALL = re.compile(r"(@\w+)\(([^()]+)\)\s*")
 
 def wrap_annotation_args(src: str) -> str:
     '''Split @GetMapping("/x") across three lines. Same tree, different FIRST
-    line -- and the first line is what spring_signal_scan._first_line_match()
+    line -- and the first line is what java_extract.first_line_match()
     keeps, so this is the one formatting class tier 2 currently mis-reads.
 
     Line-scoped, and only for a line that is itself an annotation at statement
