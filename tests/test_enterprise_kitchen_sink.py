@@ -79,12 +79,12 @@ reasoning recorded at the assertion:
 
 Run with:
 
-    python3 scripts/test_enterprise_kitchen_sink.py -v
+    pytest tests/test_enterprise_kitchen_sink.py -v
 
 Opt-in lane against a real repository (skipped unless set):
 
     KITCHEN_SINK_REPO=/abs/path/to/a/real/spring/repo \\
-        python3 scripts/test_enterprise_kitchen_sink.py -v
+        pytest tests/test_enterprise_kitchen_sink.py -v
 
 Requires: ast-grep on PATH, and git (for the write-scope gate).
 

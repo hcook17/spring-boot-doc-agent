@@ -13,7 +13,7 @@ last time this rule was broken, "the breach was caught by the repo owner on
 review, not by any check" -- this script is the mechanical fix for that, and
 until this suite existed, that fix itself had never been shown to work.
 
-Run with: python3 scripts/test_check_no_client_identifiers.py -v
+Run with: pytest tests/test_check_no_client_identifiers.py -v
 """
 from __future__ import annotations
 

@@ -14,7 +14,7 @@ defends, and the ones that matter would go red if the property broke rather
 than if a line stopped executing.
 
 Run with:
-    python3 scripts/test_ast_signature.py -v
+    pytest tests/test_ast_signature.py -v
 """
 
 import ast

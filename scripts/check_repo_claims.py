@@ -105,6 +105,7 @@ from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Set, Tu
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import _ast_signature  # noqa: E402
+import suite_layout  # noqa: E402
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
@@ -147,7 +148,7 @@ DERIVED_RE = re.compile(
 # same fact twice" enforceable. Now they agree by construction.
 OWN_PATH_PREFIXES = (
     "scripts/", "agents/", "adapters/", "skills/", "claude/", ".github/",
-    "baseline-reference/", ".claude/", ".claude-plugin/",
+    ".claude/", ".claude-plugin/",
 )
 
 _OWN_PREFIX_ALT = "|".join(re.escape(prefix) for prefix in OWN_PATH_PREFIXES)
@@ -328,7 +329,8 @@ def check_utf8_markdown(root: Path, paths: Sequence[str]) -> List[Finding]:
 # --------------------------------------------------------------------------
 
 def _test_suite_paths(root: Path) -> List[Path]:
-    return sorted((root / "scripts").glob("test_*.py"))
+    """Suite SoT is pyproject.toml testpaths (see scripts/suite_layout.py)."""
+    return suite_layout.suite_paths(root)
 
 
 def derive_test_suite_count(root: Path) -> str:
@@ -336,13 +338,8 @@ def derive_test_suite_count(root: Path) -> str:
 
 
 def derive_test_method_count(root: Path) -> str:
-    workflow = root / ".github" / "workflows" / "ci.yml"
-    if workflow.is_file() and "pytest tests/" in workflow.read_text(encoding="utf-8"):
-        paths = sorted((root / "tests").glob("test_*.py"))
-    else:
-        paths = _test_suite_paths(root)
     total = 0
-    for path in paths:
+    for path in _test_suite_paths(root):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and \
@@ -359,15 +356,8 @@ def _ci_run_lines(root: Path) -> List[str]:
 
 
 def derive_ci_test_steps(root: Path) -> str:
-    workflow = root / ".github" / "workflows" / "ci.yml"
-    if workflow.is_file() and "pytest tests/" in workflow.read_text(encoding="utf-8"):
-        tests_dir = root / "tests"
-        if tests_dir.is_dir():
-            return str(len(list(tests_dir.glob("test_*.py"))))
-    pattern = re.compile(r"run:\s*python3?\s+scripts/(test_\w+\.py)")
-    hits = {m.group(1) for line in _ci_run_lines(root)
-            for m in [pattern.search(line)] if m}
-    return str(len(hits))
+    """Step count == suite file count under pyproject testpaths (directory collect)."""
+    return str(len(_test_suite_paths(root)))
 
 
 def derive_steering_prompt_count(root: Path) -> str:
@@ -1153,25 +1143,24 @@ def check_verify_predicates(root: Path) -> Tuple[List[Finding], List[Finding]]:
 # --------------------------------------------------------------------------
 
 def check_ci_suite_coverage(root: Path) -> List[Finding]:
-    workflow = root / ".github" / "workflows" / "ci.yml"
-    if not workflow.is_file():
-        return []
-    text = workflow.read_text(encoding="utf-8")
-    uses_pytest = "pytest tests/" in text
+    """pytest testpaths is the only suite wiring; refuse scripts/test_*.py revival.
+
+    Per-file ci.yml enumeration is not a supported layout. Directory collect
+    under pyproject testpaths covers every real suite. Any scripts/test_*.py
+    file is a deleted dual-home — flag it rather than treating it as a suite.
+    """
     findings: List[Finding] = []
-    for path in _test_suite_paths(root):
-        name = path.name
-        if name in CI_EXEMPT_SUITES:
-            continue
-        if uses_pytest and (root / "tests" / name).is_file():
-            continue
-        if f"scripts/{name}" not in text:
-            findings.append(Finding(
-                "D", ".github/workflows/ci.yml", 1,
-                f"scripts/{name} is never run by CI. ci.yml enumerates suites "
-                f"individually, so a new one silently never runs. Add a step, "
-                f"or add it to CI_EXEMPT_SUITES with a reason.",
-                f"D:{name}"))
+    scripts_dir = root / "scripts"
+    if not scripts_dir.is_dir():
+        return findings
+    for path in sorted(scripts_dir.glob("test_*.py")):
+        rel = path.relative_to(root).as_posix()
+        findings.append(Finding(
+            "D", rel, 1,
+            f"{rel} is a scripts/ test wrapper path — suites live only under "
+            f"pyproject testpaths ({', '.join(suite_layout.suite_roots(root))}). "
+            f"Delete the wrapper or move the suite under tests/.",
+            f"D:wrapper:{path.name}"))
     return findings
 
 

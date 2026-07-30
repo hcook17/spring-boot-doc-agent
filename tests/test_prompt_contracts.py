@@ -18,7 +18,7 @@ proven non-vacuous by `PromptEditGoesRedTest`, which mangles a copy of the
 prompt and asserts the parse either changes or raises -- because an equality
 test between two things that never move is indistinguishable from no test.
 
-Run with: python3 scripts/test_prompt_contracts.py -v
+Run with: pytest tests/test_prompt_contracts.py -v
 """
 from __future__ import annotations
 

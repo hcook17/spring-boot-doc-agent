@@ -7,7 +7,7 @@ verify:
   - path_exists:scripts/spring_semgrep_rules.yml
   - path_exists:scripts/semgrep_rule_fixtures
   - path_exists:scripts/semgrep_rule_coverage.py
-  - path_exists:scripts/test_semgrep_rule_coverage.py
+  - path_exists:tests/test_semgrep_rule_coverage.py
   - contains:requirements.txt:semgrep
   - contains:.github/workflows/ci.yml:semgrep_rule_coverage.py
   - contains:adapters/claude/skills/document-spring-repo/SKILL.md:software-architect-and-testing

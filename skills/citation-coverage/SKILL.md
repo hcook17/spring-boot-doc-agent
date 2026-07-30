@@ -241,7 +241,7 @@ Closed by adding an `evidence` array (`{"line": N, "what": "..."}`) to the
 file-summarizer's per-file output — Stage 1 is the only stage holding both the
 open file and the semantic claim, so it is the one place the anchor is
 recoverable at near-zero marginal cost. Enforced in
-`scripts/test_pipeline_stages.py`'s `required_keys`, so it is a contract rather
+`	ests/test_pipeline_stages.py`'s `required_keys`, so it is a contract rather
 than a suggestion. `gap-analyzer`'s `evidence` field got the same treatment for
 the `[Confirmed]` lane, which had no provenance discipline at all — its own
 canonical example shipped an unresolvable elided path.

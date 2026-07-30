@@ -15,7 +15,7 @@ fixture tree, per this project's own stated anti-duplication norm
 (IMPLEMENTATION_HANDOFF.md item 1/4).
 
 Run with:
-    python3 scripts/test_capacity_preflight.py -v
+    pytest tests/test_capacity_preflight.py -v
 """
 
 import os

@@ -13,7 +13,7 @@ the naive implementation of this hook blocks the exact tool the policy
 mandates. That is a self-defeating gate, and it is one substring test away at
 all times.
 
-Run with: python3 scripts/test_deny_text_search.py -v
+Run with: pytest tests/test_deny_text_search.py -v
 """
 from __future__ import annotations
 

@@ -13,7 +13,7 @@ Only comparing against the taxonomy's actual name set catches it — which is
 why check_file_set compares sets rather than lengths.
 
 Run with:
-    python3 scripts/test_check_pipeline_output.py -v
+    pytest tests/test_check_pipeline_output.py -v
 """
 
 import os

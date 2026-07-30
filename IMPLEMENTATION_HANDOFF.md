@@ -10,34 +10,25 @@ You (running as Claude Code directly on the machine that has this repo checked o
 
 It does mean, however, that the *current* state of a few specific files on disk right now is not guaranteed to already reflect every fix described in that review history — some fixes might genuinely never have landed. **Do not assume the baseline is correct. Step 0 below makes it verifiable instead of assumed.**
 
-## Step 0 — Reconcile against the known-good baseline (do this first)
+## Step 0 — Reconcile against the known-good baseline (historical)
 
-Bundled alongside this document, under `baseline-reference/`, are five files confirmed correct as of 2026-07-23 (verified by direct content read, not by trusting a tool's success response):
+**Completed in PR #1 (2026-07-23).** The five-file `baseline-reference/` tree that used to ship beside this document was deleted in a later hygiene pass — those snapshots lived only to reconcile a device-bridge write-without-verify incident and had no sync mechanism against live SoT under `src/doc_engine/` / `adapters/`. Recover them from git history if needed (`git show <pre-delete-sha>:baseline-reference/...`).
 
-```
-baseline-reference/scripts/spring_signal_scan.py
-baseline-reference/scripts/partition_repo.py
-baseline-reference/agents/doc-writer.md
-baseline-reference/skills/document-spring-repo/SKILL.md
-baseline-reference/skills/document-spring-repo/references/doc-taxonomy.md
-```
+Do **not** recreate `baseline-reference/`. Verify the live tree with `pytest tests/` and `python scripts/check_repo_claims.py` instead of diffing against frozen forks.
 
-For each one:
+~~Original Step 0 instructions (kept as record of what the implementing session was told to do):~~
 
-1. Diff it against the corresponding live file at the same relative path in this repo.
-2. If they differ in anything beyond whitespace/line-ending noise, overwrite the live file with the bundled version. The bundled version is the one to trust.
-3. If a live file is missing entirely, that's also a "doesn't match" case — copy the bundled one into place.
+<details>
+<summary>Original Step 0 text (obsolete)</summary>
 
-After reconciling all five, run the existing test suites and confirm they're green before touching anything else in this document:
+Bundled alongside this document, under `baseline-reference/`, were five files confirmed correct as of 2026-07-23. For each: diff against the live path, overwrite on mismatch, then run:
 
 ```bash
-python3 scripts/test_partition_repo.py -v
-python3 scripts/test_spring_signal_scan.py -v
+pytest tests/test_partition_repo.py -v
+pytest tests/test_spring_signal_scan.py -v
 ```
 
-(If `PARTITION_REPO_REAL_FIXTURE_DIR` is set to a real repo checkout, also run `python3 scripts/test_partition_repo_real_world.py -v`.)
-
-If either suite fails after reconciliation, stop and report back rather than building the six items below on top of a broken baseline.
+</details>
 
 Two other files were, per the review history, correctly delivered already and don't need reconciliation, but it costs nothing to sanity-check them along the way since you'll have both scripts' test suites running anyway: `agents/architect-merge.md` and `agents/architect-segment.md` should each have complete YAML frontmatter (`name`, `description`, `tools: Read, Grep, Glob`) and zero occurrences of the literal strings `{README}` or `{REPO}`. If either check fails, treat it as a new problem worth flagging, not something to silently patch over while you're in there for something else.
 

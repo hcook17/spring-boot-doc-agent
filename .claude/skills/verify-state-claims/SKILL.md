@@ -12,7 +12,7 @@ description: Read before writing or editing any claim about this repo's own curr
 Three forms, in order of preference:
 
 1. **The command that recomputes it.** `MATURITY_ASSESSMENT.md` does this: "for the
-   current inventory run `ls scripts/test_*.py`" instead of a number.
+   current inventory run `ls tests/test_*.py`" instead of a number.
 2. **A `derived:` block**, when a number genuinely has to sit in prose. Add the key to
    `DERIVATIONS` in `scripts/check_repo_claims.py` first.
 3. **A `verify:` predicate** in frontmatter, when the claim is a status.

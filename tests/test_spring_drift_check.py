@@ -13,12 +13,12 @@ scenario can't bleed into another test.
 
 Run with:
 
-    python3 scripts/test_spring_drift_check.py -v
+    pytest tests/test_spring_drift_check.py -v
 
 Fast mode (skips the slow full-repo integration tests; runs the unit-level
 provenance tests only):
 
-    SPRING_DRIFT_FAST_MODE=1 python3 scripts/test_spring_drift_check.py -v
+    SPRING_DRIFT_FAST_MODE=1 pytest tests/test_spring_drift_check.py -v
 
 Requires: CodeQL CLI on PATH and a working Java toolchain (same requirement as
 test_spring_signal_scan.py).

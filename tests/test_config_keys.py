@@ -4,7 +4,7 @@ Unit tests for _config_keys.py's mechanical key-path extraction. Pure, no
 disk I/O — mirrors the rest of this project's test-per-script convention.
 
 Run with:
-    python3 scripts/test_config_keys.py -v
+    pytest tests/test_config_keys.py -v
 """
 
 import os

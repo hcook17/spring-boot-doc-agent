@@ -15,7 +15,7 @@ the file reads as a list of the traps rather than a list of functions:
                         across two groups is O(k) adjacency, not O(k^2) pairs
 
 Run with:
-    python3 scripts/test_build_cross_group_edges.py -v
+    pytest tests/test_build_cross_group_edges.py -v
 """
 
 import json

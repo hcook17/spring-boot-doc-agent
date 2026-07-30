@@ -5,7 +5,7 @@ fast, no disk I/O beyond tiny synthetic fixtures created and torn down here
 — mirrors the rest of this project's test-per-script convention.
 
 Run with:
-    python3 scripts/test_secret_heuristics.py -v
+    pytest tests/test_secret_heuristics.py -v
 """
 
 import os

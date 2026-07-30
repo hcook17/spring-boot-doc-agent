@@ -24,8 +24,8 @@ Speed is a correctness property here: a gate slow enough to resent is a gate
 people route around. The full suite takes about two minutes, so it is NOT run.
 These four are all fast, and each maps to a failure this repo has actually had:
 
-  1. a staged scripts/*.py with no test_*.py sibling  -- code added untested
-  2. a staged scripts/test_*.py absent from ci.yml    -- a suite that never runs
+  1. a staged scripts/*.py with no tests/test_*.py sibling  -- code added untested
+  2. a staged test_*.py outside pyproject testpaths         -- wrapper revival
   3. check_repo_claims.py                             -- a claim nothing reads back
   4. check_code_quality.py                            -- a silent complexity ratchet break
 
@@ -49,6 +49,9 @@ from pathlib import Path
 from typing import List, Optional, Set
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+import suite_layout  # noqa: E402
+
 SKILL = "directional-tests"
 
 # Modules that are libraries or entry points for which a dedicated suite is not
@@ -111,33 +114,35 @@ def missing_test_suites(staged: List[str],
             continue
         if path.name.startswith("test_") or path.name in TEST_EXEMPT:
             continue
-        scripts_test = REPO_ROOT / "scripts" / f"test_{path.name}"
-        tests_test = REPO_ROOT / "tests" / f"test_{path.name}"
-        if scripts_test.is_file() or (is_adapter_hook and tests_test.is_file()):
+        if suite_layout.suite_file_for_module(REPO_ROOT, path.name) is not None:
             continue
+        roots = ", ".join(suite_layout.suite_roots(REPO_ROOT))
         problems.append(
-            f"{rel} has no scripts/test_{path.name} (or tests/test_{path.name} "
-            f"for adapters/claude/hooks). Add one, or add the module to "
-            f"TEST_EXEMPT in this hook with a reason.")
+            f"{rel} has no test_{path.name} under pyproject testpaths "
+            f"({roots}). Add one, or add the module to TEST_EXEMPT in this "
+            f"hook with a reason.")
     return problems
 
 
-def unwired_suites(staged: List[str]) -> List[str]:
-    workflow = REPO_ROOT / ".github" / "workflows" / "ci.yml"
-    if not workflow.is_file():
-        return []
-    text = workflow.read_text(encoding="utf-8")
-    uses_pytest = "pytest tests/" in text
+def unwired_suites(staged: List[str],
+                   deletions: Optional[Set[str]] = None) -> List[str]:
+    """Flag staged test modules outside pyproject testpaths (wrapper revival)."""
+    deleted = deletions if deletions is not None else set()
+    roots = set(suite_layout.suite_roots(REPO_ROOT))
     problems: List[str] = []
     for rel in staged:
-        name = Path(rel).name
-        if not name.startswith("test_") or Path(rel).suffix != ".py":
+        if rel in deleted:
             continue
-        if name in text:
+        path = Path(rel)
+        name = path.name
+        if not name.startswith("test_") or path.suffix != ".py":
             continue
-        if uses_pytest and (REPO_ROOT / "tests" / name).is_file():
+        if path.parts and path.parts[0] in roots:
             continue
-        problems.append(f"{rel} is not named in ci.yml, so it would never run there.")
+        problems.append(
+            f"{rel} is outside pyproject testpaths {sorted(roots)}; "
+            f"pytest discovery will not collect it. Do not revive "
+            f"scripts/test_*.py wrappers.")
     return problems
 
 
@@ -160,7 +165,7 @@ def findings() -> List[str]:
         return []
     deleted = staged_deletions()
     return (missing_test_suites(staged, deletions=deleted)
-            + unwired_suites(staged)
+            + unwired_suites(staged, deletions=deleted)
             + failing_gates())
 
 

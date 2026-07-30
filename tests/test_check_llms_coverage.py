@@ -8,7 +8,7 @@ this repo's CI runs check_llms_coverage.py itself, same split
 test_verify_llms_docs.py draws against verify_llms_docs.py.
 
 Run with:
-    python3 scripts/test_check_llms_coverage.py -v
+    pytest tests/test_check_llms_coverage.py -v
 """
 
 import os

@@ -39,10 +39,10 @@ is exactly the kind of two-sources-of-truth drift this project's own history
 (IMPLEMENTATION_HANDOFF.md item 1, item 4) has already hit twice.
 
 Run with:
-    python3 scripts/test_pipeline_stages.py -v
+    pytest tests/test_pipeline_stages.py -v
 
 Opt-in real-artifacts pass:
-    PIPELINE_ARTIFACTS_DIR=/path/to/completed/run/output python3 scripts/test_pipeline_stages.py -v
+    PIPELINE_ARTIFACTS_DIR=/path/to/completed/run/output pytest tests/test_pipeline_stages.py -v
 """
 
 import json

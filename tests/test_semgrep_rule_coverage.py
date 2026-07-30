@@ -9,7 +9,7 @@ could report "10/10 rules fired" because it silently found no rules to
 check, which is the vacuous-pass shape rule_coverage.py was built to catch,
 and now this file's semgrep counterpart is held to the same standard.
 
-Run with: python3 scripts/test_semgrep_rule_coverage.py -v
+Run with: pytest tests/test_semgrep_rule_coverage.py -v
 """
 from __future__ import annotations
 

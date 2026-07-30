@@ -11,7 +11,7 @@ Guarded by @unittest.skipUnless(shutil.which("ast-grep"), ...) since the test
 actually runs ast-grep against a fixture. Fixture includes a .pseudonym-salt file
 and real Oracle row structures so pseudonym() can be validated end-to-end.
 
-Run with: python3 scripts/test_stage0_oracle_compare.py -v
+Run with: pytest tests/test_stage0_oracle_compare.py -v
 """
 from __future__ import annotations
 
