@@ -1071,7 +1071,7 @@ Assumptions affected:
 Files touched: src/doc_engine/pipeline/live_gates.py, src/doc_engine/tools/certification.py, src/doc_engine/cli.py, tests/doc_engine/test_live_gates.py, tests/doc_engine/test_verify_certification.py, .github/workflows/doc-engine.yml, action.yml, adapters/github/workflow-snippet.yml, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
 
 ## 2026-07-30 — Un-dark-skip drift_normalization; certification Usage docstring
-Commit: 01449f0
+Commit: 2fc19a4
 Tests: 37 passed (drift_normalization + live_gates + verify_certification + code_quality baseline)
 Assumptions affected:
 - `test_drift_normalization` "fixtures or ast-grep unavailable" skip means a real env gap — [Resolved — was AttributeError on removed `find_ast_grep`, swallowed into SkipTest while CI had ast-grep; probe is `which` + nested fixture paths]
