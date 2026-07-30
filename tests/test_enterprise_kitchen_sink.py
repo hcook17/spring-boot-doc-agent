@@ -64,16 +64,16 @@ and the only coverage run_pipeline_local.py has).
 
 KNOWN DEFECTS THIS SUITE PINS
 Three findings surfaced while writing it. Two are fixed and now have
-regression tests here; three are pinned as current behavior with the
-reasoning recorded at the assertion:
+regression tests here; remaining open items are pinned as current behavior
+with the reasoning recorded at the assertion:
   fixed  spring_signal_scan.py decoded ast-grep's stdout with the locale
          codec — crash on some non-ASCII, silent mojibake on the rest
   fixed  config files were read as utf-8 rather than utf-8-sig, so a BOM
          blinded the first line to every ^\\s*-anchored regex
   fixed  build_groups() could loop forever (see
          Ch06PartitioningTest.test_build_groups_terminates_*)
-  open   overlap cascades past adjacent groups at small --max-tokens
-         (fixed: carry_forward no longer re-carries overlap seed files)
+  fixed  overlap cascades past adjacent groups — carry_forward no longer
+         re-carries overlap seed files (Ch06 + RealEnterpriseRepoTest)
   fixed  `application-dev-local.yml` is now recognized as a config file
   open   a write into a gitignored path is invisible to the write-scope gate
 
@@ -1484,12 +1484,12 @@ class RealEnterpriseRepoTest(unittest.TestCase):
             with self.subTest(excluded=d):
                 self.assertEqual([f for f in pool if _has_segment(f, d)], [])
 
-    @unittest.expectedFailure
     def test_overlap_is_adjacent_only(self):
-        """KNOWN GAP (CONSTRAINTS.md §6) — carry_forward can cascade past
-        adjacent groups on real mid-size services. expectedFailure: a fix
-        reports as an unexpected success. Reproduced when KITCHEN_SINK_REPO
-        points at the in-tree mid-size Spring checkout.
+        """Overlap must stay between adjacent groups on the opt-in mid-size lane.
+
+        Regression for CONSTRAINTS.md §6: carry_forward skips paths that
+        entered a group only via prior overlap (carried_in_paths). Requires
+        KITCHEN_SINK_REPO (class skips otherwise).
         """
         where = {}
         for g in self.groups["groups"]:

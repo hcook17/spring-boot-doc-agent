@@ -13,9 +13,11 @@ Usage:
     python -m doc_engine.tools.spring_drift_check <repo_path> spring_signals.json \\
         --manifest run_manifest.json --out drift_report.json
 
-Tier 1 compares content hashes to find changed files; tier 2 re-runs
-spring_signal_scan.py (now CodeQL-based) against the current repo to decide
-whether the citation itself actually moved. No LLM calls anywhere in this file.
+Tier 1 compares content hashes to find changed files; when anything moved,
+tier 2 runs one fresh ``spring_signal_scan.scan()`` of the repo (same scanner
+set as the prior signals, default ``filesystem,ast-grep``) and compares each
+changed-file citation against that fresh evidence bag. No LLM calls anywhere
+in this file.
 
 WHY THIS EXISTS
 
@@ -24,35 +26,32 @@ output of spring_signal_scan.py's scan(), schema_version >= 2) and reports
 which evidence citations in that JSON have likely drifted from the repo's
 current state. Not wired into the document-spring-repo pipeline, not
 triggered by CI, no LLM calls anywhere in this file — every drift verdict
-here comes from a content hash or a targeted ast-grep re-run, the same
-deterministic tooling spring_signal_scan.py itself is built on.
+here comes from a content hash or a compare against a fresh Stage 0 scan,
+the same deterministic tooling spring_signal_scan.py itself is built on.
 
 WHY TWO TIERS, NOT ONE WHOLE-FILE HASH CHECK
 A single file-level content hash is a correct but coarse drift signal: if
 a comment three lines away from the annotation a citation actually points
 at gets fixed, the file's hash changes, and a hash-only checker would flag
 every citation in that file as suspect — a false-positive drift alert on
-every unrelated fact the file happens to also contain. Since ast-grep is
-already this pipeline's core structural-detection dependency (see
-spring_signal_scan.py / spring_ast_grep_rules.yml), the fix is to spend the
-expensive, precise check only where the cheap one says something moved:
+every unrelated fact the file happens to also contain. The fix is to spend
+the expensive, precise check only where the cheap one says something moved:
 
   Tier 1 (cheap, whole-repo): re-walk the repo with the exact same
   dfs_walk() spring_signal_scan.py used, hash every file with the exact
   same compute_file_signature(), and diff against the `file_signatures`
   map stored in the prior scan. This alone answers "did anything change at
-  all" for every file in the repo, in one pass, with no ast-grep
-  invocation.
+  all" for every file in the repo, in one pass, with no structural scan.
 
-  Tier 2 (precise, per-citation): only for files tier 1 flagged as
-  changed, and only for citations that came from an ast-grep rule (i.e.
-  carry a `rule_id`) — re-run run_ast_grep() against just that one file
-  (confirmed empirically: ast-grep scan against a single file path returns
-  the same ruleId/text/range shape as scanning a whole directory and
-  filtering down to that file — no new invocation logic needed, see
-  run_ast_grep() in spring_signal_scan.py) and check whether the specific
-  fact the citation recorded is still present in essentially the same
-  shape, not just whether the file changed somehow.
+  Tier 2 (precise, per-citation): when tier 1 reports any change (or
+  add/delete), run one fresh ``spring_signal_scan.scan()`` of the whole
+  repo using the prior signals' ``scanners`` list (default
+  ``filesystem,ast-grep``), then for each changed cited file compare the
+  stored citations against the fresh evidence filtered to that file/rule —
+  entity/table mapping, repository type args, query text, or annotation
+  shape. This is **not** a per-file ``run_ast_grep()`` subprocess; the
+  fresh bag is repo-wide and filtered down. Skip the fresh scan entirely
+  when tier 1 finds nothing moved.
 
 WHAT "ESSENTIALLY THE SAME SHAPE" MEANS, CONCRETELY
 The stored `match` field (spring_signal_scan.py's _first_line_match — the
@@ -785,10 +784,10 @@ def check_drift(repo_path, signals, manifest=None):
             "results": results,
         }
 
-    # Fresh, full CodeQL-based scan of the current repo. This is the only way
-    # to precisely recheck Java structural citations under the build-based
-    # Stage 0 design; per-file re-runs are not possible because CodeQL needs a
-    # whole-project database.
+    # Fresh Stage 0 scan of the current repo (same scanners as the prior
+    # signals). Tier 2 compares citations against this bag filtered by file;
+    # there is no per-file run_ast_grep() path. CodeQL (when selected) also
+    # needs a whole-project database, so a full scan is the only shape.
     scanners = signals.get("scanners") or ["filesystem", "ast-grep"]
     fresh_signals = spring_signal_scan.scan(
         repo_path,

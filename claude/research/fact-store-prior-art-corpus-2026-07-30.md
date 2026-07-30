@@ -2,6 +2,8 @@
 
 Bounded Pre–Phase 1 research spike. Method: [`../steering-prompts/00-shared-research-standards.md`](../steering-prompts/00-shared-research-standards.md) (arXiv mechanism fit; GitHub stars + push recency; DeepWiki as orientation only). Traversal protocol: [`../steering-prompts/11-context-traversal-protocol.md`](../steering-prompts/11-context-traversal-protocol.md).
 
+> **Post–dual-emit (2026-07-30):** Phase 1 file-backed ledger shipped (`facts.jsonl`, PR #63). Rows below remain **mechanism cites** (Glean EDB/IDB, SCIP multi-edge, etc.) — do not re-measure stars/pushes for product decisions; copy the model, not the deployment.
+
 **Outbound queries** used only generic terms (code intelligence, fact index, documentation knowledge graph). No customer-service identifiers.
 
 **Trust bar (primary):** ≥2 of {adoption ≥~500 stars *or* clear org production use; push within ~18 months; domain fit; primary design docs}. Stars/pushes measured via `gh api` on 2026-07-30 unless noted.

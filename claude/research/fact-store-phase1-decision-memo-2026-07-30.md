@@ -1,5 +1,7 @@
 # Fact-store Phase 1 decision memo (2026-07-30)
 
+> **Gate status (2026-07-30):** §3 dual-emit **landed** (PR #63 — `facts.jsonl` beside `spring_signals.json`). §5 research gate below is **closed**. Next engineering is the adoption-blockers queue (B1–B4 product; B5 stale-claims hygiene). Sections 1–4 remain the historical REFINE rationale.
+
 **Verdict: REFINE** (not Confirm-as-written, not Pivot-away-from-facts).
 
 DDIA 2e framing (Ch1 systems of record / derived data; Ch4/Ch13 materialized views) still applies. External prior art ([corpus](fact-store-prior-art-corpus-2026-07-30.md), [collation](fact-store-approaches-collation-2026-07-30.md)) **confirms** the thesis: durable facts + derivation beat flat evidence bags and unary maps. It does **not** confirm that [`../10-architecture-maturation-plan.md`](../10-architecture-maturation-plan.md) §0–1 or the JPA survey are executable specs for 2026-07 product state.
@@ -70,7 +72,9 @@ DDIA 2e framing (Ch1 systems of record / derived data; Ch4/Ch13 materialized vie
 
 ## 5. Gate
 
-**No Phase 1 emitter code until** a human explicitly asks to implement the §3 slice (this memo is the research gate, not an auto-start).
+**Closed (2026-07-30).** §3 dual-emit shipped in PR #63 (`facts.jsonl`, contested multi-`MAPS_TO`, emit counters). This memo is no longer a start gate for emitter work.
+
+**Next engineering:** [`adoption-blockers-queue-2026-07-30.md`](adoption-blockers-queue-2026-07-30.md) — B1–B4 product wiring; B5 current-state claim hygiene (do not mix with dual-emit history).
 
 Parallel non-code: branch protection (`CONSTRAINTS.md` enterprise item 6) remains allowed anytime.
 

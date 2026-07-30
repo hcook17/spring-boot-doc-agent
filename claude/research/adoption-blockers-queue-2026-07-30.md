@@ -26,11 +26,11 @@ Theme (review §10): controls that are real but one layer away from where they b
 - Call `validate_architecture_testing_review_findings` from `run_stage5_gate`.
 - Regression: malformed `architecture_testing_review.json` fails the live gate (not only unit tests of the helper).
 
-## B5 — Stale current-state claims
+## B5 — Stale current-state claims — **done (stale-claims-hygiene PR)**
 
-- README / drift docstring: tier-2 is full-repo filter, not per-file ast-grep subprocess.
-- `CONSTRAINTS.md`: overlap-cascade / `carry_forward` / CI enumeration warnings that outlived the fixes.
-- Prefer outcome-bound tests over substring-only `verify:` where the claim is behavioral.
+- ~~README / drift docstring: tier-2 is full-repo filter, not per-file ast-grep subprocess.~~ Corrected: tier 1 hash → one fresh `scan()` → per-citation compare against filtered bag.
+- ~~`CONSTRAINTS.md`: overlap-cascade / `carry_forward` / CI enumeration warnings that outlived the fixes.~~ Overlap `[Resolved]` (`carried_in_paths`); CI is `pytest tests/` / `testpaths`; STATUS `ENFORCE` prose aligned; Phase 1 memo §5 gate closed.
+- Prefer outcome-bound tests over substring-only `verify:` where the claim is behavioral (and closed `called_by:` / `behavior:<key>` when that vocabulary lands on `main`).
 
 ## Explicitly later (weeks — not this PR)
 
