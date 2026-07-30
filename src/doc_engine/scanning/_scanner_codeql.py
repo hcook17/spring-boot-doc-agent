@@ -91,7 +91,8 @@ class CodeQLBackend(ScannerBackend):
             bucket, _, _ = rule_id.partition("__")
 
             if rule_id == "persistence__entity":
-                extracted = extract_entity(rel, match_text)
+                header = read_source_lines(repo_path, rel, 1, max_lines=40)
+                extracted = extract_entity(rel, match_text, package_source=header or None)
                 if extracted is None:
                     class_name = row.get("class_name")
                     if not class_name:
@@ -100,22 +101,29 @@ class CodeQLBackend(ScannerBackend):
                         "file": rel,
                         "table": to_snake_case(class_name),
                         "table_name_source": "inferred-default-naming",
+                        "fqcn": class_name,
                     }
                 else:
                     class_name, map_entry = extracted
 
                 codeql_table = row.get("table_name")
                 if codeql_table:
+                    preserved_pkg = map_entry.get("package")
+                    preserved_fqcn = map_entry.get("fqcn")
                     map_entry = {
                         "file": rel,
                         "table": codeql_table,
                         "table_name_source": "explicit",
+                        "fqcn": preserved_fqcn or class_name,
                     }
+                    if preserved_pkg is not None:
+                        map_entry["package"] = preserved_pkg
                 elif extracted is None:
                     map_entry = {
                         "file": rel,
                         "table": to_snake_case(class_name),
                         "table_name_source": "inferred-default-naming",
+                        "fqcn": class_name,
                     }
 
                 map_entry["rule_id"] = rule_id

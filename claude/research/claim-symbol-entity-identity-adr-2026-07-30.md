@@ -1,8 +1,9 @@
 # ADR — Claim-symbol / entity identity (L3)
 
 **Date:** 2026-07-30  
-**Status:** Proposed (research only — **no code in this change**)  
+**Status:** Accepted / implemented (L3 code — principal-complete B)  
 **Queue:** L3 — Claim-symbol single-token entities  
+**Normative grammar:** [`claim-symbol-grammar-2026-07-30.md`](claim-symbol-grammar-2026-07-30.md)  
 **DDIA:** domain `02-encoding-and-evolution`; `schema-evolution-and-data-outlives-code`, `encoding-and-compatibility`, `rel-schema-outlives-writers`; SoR vs derived in domain `01`  
 **Depends on:** Phase 1 dual-emit lock ([fact-store-phase1-decision-memo-2026-07-30.md](fact-store-phase1-decision-memo-2026-07-30.md)); L2b on `main` (PR #74); threshold **retain 80000** ([l2b-stage4-threshold-calibration-2026-07-30.md](l2b-stage4-threshold-calibration-2026-07-30.md), PR #75/#77)
 
@@ -81,7 +82,7 @@ Keep as **required display/join aid** (`qualifiers.fqcn`).
 
 ### B — SCIP-inspired symbol architecture — **chosen**
 
-Illustrative form (normative text lands in the code PR):
+Illustrative form (normative text: [`claim-symbol-grammar-2026-07-30.md`](claim-symbol-grammar-2026-07-30.md)):
 
 ```text
 doc-engine spring . <namespace>/(<namespace>/)*<TypeName>#
@@ -182,6 +183,7 @@ L2b measure + retain 80000 (PR #74/#75/#77)
 
 ## 12. See also
 
+- [claim-symbol-grammar-2026-07-30.md](claim-symbol-grammar-2026-07-30.md)  
 - [adoption-blockers-queue-2026-07-30.md](adoption-blockers-queue-2026-07-30.md) L3  
 - [fact-store-phase1-decision-memo-2026-07-30.md](fact-store-phase1-decision-memo-2026-07-30.md)  
 - [facts-ledger-schema-2026-07-30.md](facts-ledger-schema-2026-07-30.md)  

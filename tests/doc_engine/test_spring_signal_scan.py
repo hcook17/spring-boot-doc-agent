@@ -274,11 +274,13 @@ class ScanDeterminismTest(unittest.TestCase):
         )
 
     def test_duplicate_class_name_is_contested_with_lowest_path_identity(self):
-        # entity_table_map is keyed by simple class name, so two @Entity
-        # classes in different packages collide. Citation-identity fields
-        # stay on the lowest file path (deterministic); status=contested
-        # plus candidates list make the ambiguity visible, and JPQL lineage
-        # refuses rather than guessing either table.
+        """Path A stays simple-name keyed; facts get distinct symbols from package decls.
+
+        Deviations: map rekeyed to FQCN; facts collapse to one subject; package
+        invented from path instead of `package` declaration; lineage guesses.
+        """
+        from doc_engine.scanning.symbol import parse
+
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp, True)
         for pkg, table in (("pkg_a", "a_user"), ("pkg_b", "b_user")):
@@ -297,6 +299,8 @@ class ScanDeterminismTest(unittest.TestCase):
                 )
 
         result = spring_signal_scan.scan(tmp, scanners=SNAPSHOT_SCANNERS)
+        self.assertIn("User", result["entity_table_map"])
+        self.assertNotIn("com.example.pkg_a.User", result["entity_table_map"])
         entry = result["entity_table_map"]["User"]
         self.assertEqual(entry["table"], "a_user")
         self.assertTrue(entry["file"].startswith("pkg_a"), entry["file"])
@@ -305,27 +309,34 @@ class ScanDeterminismTest(unittest.TestCase):
             {(c["file"], c["table"]) for c in entry["candidates"]},
             {("pkg_a/User.java", "a_user"), ("pkg_b/User.java", "b_user")},
         )
+        self.assertEqual(
+            {c.get("package") for c in entry["candidates"]},
+            {"com.example.pkg_a", "com.example.pkg_b"},
+        )
 
-        # And it stays that way — the point is stability, not the specific
-        # winner.
         again = spring_signal_scan.scan(tmp, scanners=SNAPSHOT_SCANNERS)["entity_table_map"]["User"]
         self.assertEqual(entry, again)
 
-        # Contested map entry must refuse lineage rather than guess a table.
         lineage = spring_signal_scan.resolve_jpql_to_lineage(
             "SELECT u FROM User u", result["entity_table_map"]
         )
         self.assertFalse(lineage["available"])
         self.assertIn("contested", lineage["reason"])
 
-        # Dual-emit projection: contested → ≥2 MAPS_TO facts (memo §3).
-        maps = [
-            f
-            for f in facts_from_signals(result)
-            if f["predicate"] == "MAPS_TO" and f["subject"] == "User"
-        ]
-        self.assertGreaterEqual(len(maps), 2)
+        maps = [f for f in facts_from_signals(result) if f["predicate"] == "MAPS_TO"]
+        self.assertEqual(len(maps), 2)
         self.assertEqual({f["object"] for f in maps}, {"a_user", "b_user"})
+        subjects = {f["subject"] for f in maps}
+        self.assertEqual(len(subjects), 2)
+        self.assertEqual(
+            {parse(s).namespaces for s in subjects},
+            {("com", "example", "pkg_a"), ("com", "example", "pkg_b")},
+        )
+        self.assertTrue(all(f["qualifiers"].get("display_name") == "User" for f in maps))
+        self.assertEqual(
+            {f["qualifiers"].get("fqcn") for f in maps},
+            {"com.example.pkg_a.User", "com.example.pkg_b.User"},
+        )
 
 
 class SqlLineageExtractionTest(unittest.TestCase):

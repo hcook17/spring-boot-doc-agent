@@ -138,7 +138,7 @@ class InterviewAnswersArtifact(RootModel[list[InterviewAnswerEntry]]):
 # Phase 1 dual-emit ledger — closed record shape (DDIA SoR; additive evolution only).
 # Bump FACTS_LEDGER_SCHEMA_VERSION when breaking the eight-field contract.
 # Sequencing: claude/research/schema-contracts-decision-memo-2026-07-30.md slice 1.
-FACTS_LEDGER_SCHEMA_VERSION = 1
+FACTS_LEDGER_SCHEMA_VERSION = 2
 
 
 class Fact(BaseModel):

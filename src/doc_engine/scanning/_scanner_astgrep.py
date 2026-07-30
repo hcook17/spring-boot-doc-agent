@@ -19,6 +19,7 @@ from doc_engine.scanning.java_extract import (
     extract_query_from_astgrep_args,
     extract_repository,
     first_line_match,
+    read_source_lines,
 )
 
 RULE_FILE = ast_grep_rules_path()
@@ -159,7 +160,8 @@ class AstGrepBackend(ScannerBackend):
             seen.add(dedup_key)
 
             if rule_id == "persistence__entity":
-                extracted = extract_entity(rel, text)
+                header = read_source_lines(repo_path, rel, 1, max_lines=40)
+                extracted = extract_entity(rel, text, package_source=header or None)
                 if extracted is None:
                     continue
                 class_name, map_entry = extracted
