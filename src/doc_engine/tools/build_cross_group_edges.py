@@ -67,7 +67,7 @@ imports remain irreducibly many-to-many. Both are marked in the output
 rather than hidden — see `confidence` on each edge.
 
 Run with:
-    python3 scripts/build_cross_group_edges.py groups.json spring_signals.json \
+    python -m doc_engine.tools.build_cross_group_edges groups.json spring_signals.json \
         --out cross_group_edges.json
 """
 

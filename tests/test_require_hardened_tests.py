@@ -63,16 +63,20 @@ class CommitDetectionTest(unittest.TestCase):
 
 
 class MissingTestSuiteTest(unittest.TestCase):
-    def test_a_new_script_without_a_suite_is_reported(self) -> None:
-        problems = gate.missing_test_suites(["scripts/brand_new_thing.py"])
-        self.assertEqual(len(problems), 1)
-        self.assertIn("test_brand_new_thing.py", problems[0])
+    def test_a_deleted_script_does_not_require_a_suite(self) -> None:
+        """Staging a deletion of scripts/foo.py must not demand test_foo.py —
+        the module is leaving the tree, not landing untested."""
+        self.assertEqual(
+            gate.missing_test_suites(
+                ["scripts/definitely_gone_module.py"],
+                deletions={"scripts/definitely_gone_module.py"}),
+            [])
 
     def test_a_test_file_is_not_itself_required_to_have_a_test(self) -> None:
         self.assertEqual(gate.missing_test_suites(["scripts/test_anything.py"]), [])
 
     def test_an_exempt_module_is_allowed(self) -> None:
-        self.assertEqual(gate.missing_test_suites(["scripts/doc_tag_utils.py"]), [])
+        self.assertEqual(gate.missing_test_suites(["scripts/prompt_contracts.py"]), [])
 
     def test_every_exemption_states_a_reason(self) -> None:
         """An exemption without a reason is indistinguishable from an

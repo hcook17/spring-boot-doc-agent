@@ -1,7 +1,9 @@
 """Shared paths for the test suite.
 
-Inserts ``scripts/`` on ``sys.path`` so historical ``import run_manifest``-style
-tests resolve thin shims that re-export ``doc_engine.tools.*``.
+Inserts ``scripts/`` on ``sys.path`` so **meta** modules resolve
+(``_ast_signature``, ``drift_match_normalizers``, ``java_perturbations``,
+``prompt_contracts``). Product tools are imported via ``doc_engine.tools`` /
+``doc_engine.scanning`` package paths — not via this path insert.
 """
 
 from __future__ import annotations

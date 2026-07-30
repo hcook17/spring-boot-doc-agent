@@ -61,7 +61,7 @@ doc-engine pipeline run <repo_path> \
   --docs-in-target-repo
 ```
 
-Optional drift pre-check: `python -m doc_engine.tools.spring_drift_check` (product package; historical shim `scripts/spring_drift_check.py` — not under the plugin root). Prefer re-running Stage 0 when unsure. Boundary validation uses `validate_artifacts.py` / `python -m doc_engine.tools.validate_artifacts`.
+Optional drift pre-check: `python -m doc_engine.tools.spring_drift_check`. Prefer re-running Stage 0 when unsure. Boundary validation uses `validate_artifacts.py` / `python -m doc_engine.tools.validate_artifacts`.
 
 Also search for `TODO|FIXME|XXX|HACK` across the target repo yourself and keep the hits for `known_limitations.md`.
 

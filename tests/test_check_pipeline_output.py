@@ -24,10 +24,10 @@ import tempfile
 import unittest
 from pathlib import Path
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
+from doc_engine.tools import check_pipeline_output as c
+from doc_engine.tools.doc_tag_utils import VALID_DOC_FILES
 
 SCRIPT_DIR = SCRIPTS_DIR
-import check_pipeline_output as c  # noqa: E402
-from doc_tag_utils import VALID_DOC_FILES  # noqa: E402
 
 
 def write_docs(docs_dir, names, body="# Title\n\nA claim. [Unknown — not evidenced in code, not covered in interview]\n"):

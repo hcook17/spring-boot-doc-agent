@@ -32,7 +32,7 @@ def run_subprocess_gate(
     cwd: Optional[str] = None,
     env: Optional[dict[str, str]] = None,
 ) -> tuple[int, str]:
-    """Run a gate that still lives as a scripts/ CLI entry."""
+    """Run a gate via subprocess argv (typically ``python -m doc_engine.tools.*``)."""
     proc = subprocess.run(
         argv,
         cwd=cwd,

@@ -70,12 +70,11 @@ import tempfile
 import unittest
 from typing import Callable, Dict, List, NamedTuple, Optional
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
+from doc_engine.tools import spring_drift_check, spring_signal_scan
+import drift_match_normalizers as norms
+import java_perturbations as perturb
 
 SCRIPT_DIR = SCRIPTS_DIR
-import drift_match_normalizers as norms  # noqa: E402
-import java_perturbations as perturb  # noqa: E402
-import spring_drift_check  # noqa: E402
-import spring_signal_scan  # noqa: E402
 
 FIXTURES = os.path.join(SCRIPT_DIR, "test_fixtures", "spring_signals")
 CONFIRMING = ("confirmed_still_present", "unchanged")

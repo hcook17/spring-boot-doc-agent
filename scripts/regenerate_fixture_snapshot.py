@@ -15,12 +15,11 @@ import json
 import os
 import sys
 
+from doc_engine.tools import spring_signal_scan
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 FIXTURE_DIR = os.path.join(SCRIPT_DIR, "test_fixtures", "spring_signals")
 SNAPSHOT_PATH = os.path.join(FIXTURE_DIR, "..", "spring_signals_fixture_expected.json")
-sys.path.insert(0, SCRIPT_DIR)
-
-import spring_signal_scan
 
 
 def main() -> int:

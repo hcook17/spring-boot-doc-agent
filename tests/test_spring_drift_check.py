@@ -33,19 +33,16 @@ import sys
 import tempfile
 import unittest
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
+from doc_engine.tools import spring_drift_check, spring_signal_scan
 
 SCRIPT_DIR = SCRIPTS_DIR
 FIXTURE_JAVA_PREFIX = "src/main/java/com/example/billing/"
-DRIFT_CHECK_PATH = os.path.join(SCRIPT_DIR, "spring_drift_check.py")
+DRIFT_CHECK_CMD = [sys.executable, "-m", "doc_engine.tools.spring_drift_check"]
 # Fast mode skips the full-repo integration tests that each need a fresh CodeQL
 # database. The content-addressed result cache (in _codeql_runner.py) makes the
 # unchanged-fixture case fast, but every mutation is a unique cache miss; fast
 # mode is the pragmatic local-developer escape hatch for that.
 FAST_MODE = os.environ.get("SPRING_DRIFT_FAST_MODE", "").lower() in ("1", "true", "yes")
-
-
-import spring_drift_check  # noqa: E402
-import spring_signal_scan  # noqa: E402
 
 
 def _fixture_build_command():
@@ -575,7 +572,7 @@ class SpringDriftCheckTest(unittest.TestCase):
             out_path = os.path.join(d, "drift_report.json")
 
             result = subprocess.run(
-                [sys.executable, DRIFT_CHECK_PATH, self.repo, signals_path,
+                [*DRIFT_CHECK_CMD, self.repo, signals_path,
                  "--manifest", manifest_path, "--out", out_path],
                 capture_output=True, text=True,
             )

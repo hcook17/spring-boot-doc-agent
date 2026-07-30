@@ -31,12 +31,11 @@ import tempfile
 import unittest
 from unittest import mock
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
+from doc_engine.tools import run_manifest, spring_signal_scan
 
 SCRIPT_DIR = SCRIPTS_DIR
-RUN_MANIFEST_PATH = os.path.join(SCRIPT_DIR, "run_manifest.py")
+RUN_MANIFEST_CMD = [sys.executable, "-m", "doc_engine.tools.run_manifest"]
 SCHEMA_PATH = os.path.join(SCRIPT_DIR, "run_manifest.schema.json")
-import run_manifest  # noqa: E402
-import spring_signal_scan  # noqa: E402
 
 with open(SCHEMA_PATH, encoding="utf-8") as _f:
     _SCHEMA = json.load(_f)
@@ -373,7 +372,7 @@ class CLIRoundTripTest(unittest.TestCase):
 
     def _run(self, *args):
         result = subprocess.run(
-            [sys.executable, RUN_MANIFEST_PATH, *args],
+            [*RUN_MANIFEST_CMD, *args],
             capture_output=True, text=True,
         )
         self.assertEqual(result.returncode, 0, msg=f"stderr: {result.stderr}\nstdout: {result.stdout}")

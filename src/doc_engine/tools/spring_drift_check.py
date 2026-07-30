@@ -4,13 +4,13 @@ spring_drift_check.py — two-tier drift detection for spring_signals.json:
 which evidence citations from a prior scan no longer match the repo.
 
 Usage:
-    python3 spring_signal_scan.py <repo_path> --out spring_signals.json
+    python -m doc_engine.tools.spring_signal_scan <repo_path> --out spring_signals.json
     # ... time passes, repo changes ...
-    python3 spring_drift_check.py <repo_path> spring_signals.json --out drift_report.json
+    python -m doc_engine.tools.spring_drift_check <repo_path> spring_signals.json --out drift_report.json
 
     # Or, to measure drift against the specific pipeline run that produced
     # the currently-published docs, rather than the raw scan:
-    python3 spring_drift_check.py <repo_path> spring_signals.json \\
+    python -m doc_engine.tools.spring_drift_check <repo_path> spring_signals.json \\
         --manifest run_manifest.json --out drift_report.json
 
 Tier 1 compares content hashes to find changed files; tier 2 re-runs
@@ -178,7 +178,7 @@ deliberately scoped out of this tool; ask before adding any of them here.
 OPTIONAL --manifest: WHICH file_signatures BASELINE TO TRUST
 spring_signals.json's own file_signatures (the raw Stage 0 scan) is still
 the default tier-1 baseline and is always sufficient on its own. But a
-document-spring-repo pipeline run's run_manifest.json (scripts/run_manifest.py)
+document-spring-repo pipeline run's run_manifest.json (doc_engine.tools.run_manifest)
 independently records file_signatures too — either copied from the same
 spring_signals.json, or a fresh re-hash at `finalize` time if the run
 wasn't handed a --signals-file. When both exist and might disagree (e.g.
@@ -211,13 +211,13 @@ RUNNING are non-terminal; only COMPLETE/FAIL/ABORT are) — see
 https://openlineage.io/docs/spec/run-cycle/.
 
 Usage:
-    python3 spring_signal_scan.py <repo_path> --out spring_signals.json
+    python -m doc_engine.tools.spring_signal_scan <repo_path> --out spring_signals.json
     # ... time passes, repo changes ...
-    python3 spring_drift_check.py <repo_path> spring_signals.json --out drift_report.json
+    python -m doc_engine.tools.spring_drift_check <repo_path> spring_signals.json --out drift_report.json
 
     # Or, to measure drift against the specific pipeline run that produced
     # the currently-published docs, rather than the raw scan:
-    python3 spring_drift_check.py <repo_path> spring_signals.json \\
+    python -m doc_engine.tools.spring_drift_check <repo_path> spring_signals.json \\
         --manifest run_manifest.json --out drift_report.json
 """
 
@@ -301,7 +301,7 @@ def load_manifest(path):
     if "file_signatures" not in data:
         print(
             f"error: '{path}' has no 'file_signatures' field — is this a real "
-            f"run_manifest.json (from scripts/run_manifest.py)? Not usable as a "
+            f"run_manifest.json (from doc_engine.tools.run_manifest)? Not usable as a "
             f"tier-1 baseline.",
             file=sys.stderr,
         )
@@ -309,7 +309,7 @@ def load_manifest(path):
     if data.get("status") == "running":
         print(
             f"error: '{path}' has status 'running' — its pipeline run was never "
-            f"finalized (scripts/run_manifest.py finalize was never called), so "
+            f"finalized (doc_engine.tools.run_manifest finalize was never called), so "
             f"its file_signatures is likely still the empty placeholder from "
             f"init and would misreport every file in the repo as newly added. "
             f"Point --manifest at a manifest from after finalize, or omit "
@@ -887,7 +887,7 @@ def main():
     ap.add_argument("--out", default="drift_report.json")
     ap.add_argument(
         "--manifest", default=None,
-        help="optional run_manifest.json (scripts/run_manifest.py) whose file_signatures "
+        help="optional run_manifest.json (doc_engine.tools.run_manifest) whose file_signatures "
              "is used as the tier-1 baseline instead of signals_path's own — see module "
              "docstring's 'OPTIONAL --manifest' section. signals_path is still required, "
              "for tier-2 evidence run_manifest.json doesn't carry.",

@@ -111,12 +111,8 @@ import tempfile
 import unittest
 from unittest import mock
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
-
-SCRIPT_DIR = SCRIPTS_DIR
-import partition_repo  # noqa: E402
-import run_manifest  # noqa: E402
-import spring_signal_scan  # noqa: E402
-from doc_engine.pipeline.mock_stages import (  # noqa: E402
+from doc_engine.core.excludes import DEFAULT_EXCLUDED_DIRS
+from doc_engine.pipeline.mock_stages import (
     find_existing_readme,
     load_citations,
     mock_architecture,
@@ -125,9 +121,10 @@ from doc_engine.pipeline.mock_stages import (  # noqa: E402
     mock_gap_and_interview,
     sweep_todos,
 )
-from _shared_excludes import DEFAULT_EXCLUDED_DIRS  # noqa: E402
-from doc_tag_utils import VALID_DOC_FILES  # noqa: E402
+from doc_engine.tools import partition_repo, run_manifest, spring_signal_scan
+from doc_engine.tools.doc_tag_utils import VALID_DOC_FILES
 
+SCRIPT_DIR = SCRIPTS_DIR
 PY = sys.executable
 MAX_TOKENS = "2000"        # small on purpose: forces real multi-group partitioning
 SMALL_FILE_BYTES = "4096"  # for the --max-file-bytes CLI exercise
@@ -455,10 +452,6 @@ def _run(argv, **kw):
                           encoding="utf-8", errors="replace", **kw)
 
 
-def _script(name):
-    return os.path.join(SCRIPT_DIR, name)
-
-
 def _git(repo, *args):
     return _run(["git"] + list(args), cwd=repo)
 
@@ -487,24 +480,24 @@ def run_chain(repo, out_dir):
                 snapshots.append((name, json.load(f)))
 
     def manifest_cmd(*args):
-        return [PY, _script("run_manifest.py"), *args]
+        return [PY, "-m", "doc_engine.tools.run_manifest", *args]
 
     record("init", _run(manifest_cmd("init", repo, "--out", manifest)))
     record("start_signal_scan", _run(manifest_cmd("start-stage", manifest, "signal_scan")))
     record("signal_scan", _run([
-        PY, _script("spring_signal_scan.py"), repo, "--out", signals,
+        PY, "-m", "doc_engine.tools.spring_signal_scan", repo, "--out", signals,
         "--scanners", "filesystem,ast-grep",
     ]))
     record("end_signal_scan",
            _run(manifest_cmd("end-stage", manifest, "signal_scan", "--status", "complete")))
     record("start_partition", _run(manifest_cmd("start-stage", manifest, "partition")))
-    record("partition", _run([PY, _script("partition_repo.py"), repo,
+    record("partition", _run([PY, "-m", "doc_engine.tools.partition_repo", repo,
                               "--max-tokens", MAX_TOKENS, "--out", groups]))
     record("end_partition",
            _run(manifest_cmd("end-stage", manifest, "partition", "--status", "complete")))
-    record("cross_group_edges", _run([PY, _script("build_cross_group_edges.py"),
+    record("cross_group_edges", _run([PY, "-m", "doc_engine.tools.build_cross_group_edges",
                                       groups, signals, "--out", edges]))
-    record("capacity_preflight", _run([PY, _script("capacity_preflight.py"), repo,
+    record("capacity_preflight", _run([PY, "-m", "doc_engine.tools.capacity_preflight", repo,
                                        "--groups-file", groups, "--signals-file", signals,
                                        "--max-tokens", MAX_TOKENS, "--out", preflight]))
 
@@ -544,10 +537,10 @@ def run_chain(repo, out_dir):
     record("end_doc_writer",
            _run(manifest_cmd("end-stage", manifest, "doc_writer", "--status", "complete")))
 
-    record("gate", _run([PY, _script("check_pipeline_output.py"), docs, "--target-repo", repo]))
-    record("citation_coverage", _run([PY, _script("citation_coverage.py"), docs,
+    record("gate", _run([PY, "-m", "doc_engine.tools.check_pipeline_output", docs, "--target-repo", repo]))
+    record("citation_coverage", _run([PY, "-m", "doc_engine.tools.citation_coverage", docs,
                                       "--target-repo", repo]))
-    record("secrets", _run([PY, _script("check_no_secrets_leaked.py"),
+    record("secrets", _run([PY, "-m", "doc_engine.tools.check_no_secrets_leaked",
                             os.path.join(out_dir, "summaries.json"), docs]))
     record("finalize", _run(manifest_cmd(
         "finalize", manifest, "--signals-file", signals, "--docs-dir", docs,
@@ -555,7 +548,7 @@ def run_chain(repo, out_dir):
         "--preflight-file", preflight)))
     # Deliberately after finalize: --manifest reads file_signatures, which is
     # written by finalize. Earlier would compare against nothing.
-    record("drift", _run([PY, _script("spring_drift_check.py"), repo, signals,
+    record("drift", _run([PY, "-m", "doc_engine.tools.spring_drift_check", repo, signals,
                           "--manifest", manifest,
                           "--out", os.path.join(out_dir, "drift_report.json")]))
     return steps, snapshots
@@ -662,7 +655,7 @@ class Ch01FaultInjectionTest(unittest.TestCase):
         # asserts nothing in the repo changed, which the run's own real docs/
         # legitimately violates. The write check gets its own dedicated test
         # in Ch12, against the real in-repo path.
-        return _run([PY, _script("check_pipeline_output.py"), docs,
+        return _run([PY, "-m", "doc_engine.tools.check_pipeline_output", docs,
                      "--target-repo", _STATE["repo"], "--no-write-check", *extra])
 
     def test_clean_output_passes(self):
@@ -805,7 +798,6 @@ class Ch04EncodingTest(unittest.TestCase):
         """Multi-segment Spring profiles (application-dev-local.yml) must be
         ingested: CONFIG_NAME_PATTERNS uses [\\w.-]+ so hyphenated profile
         segments reach config_key_sets and redaction_zones."""
-        import spring_signal_scan
         self.assertTrue(any(p.match("application-dev-local.yml")
                             for p in spring_signal_scan.CONFIG_NAME_PATTERNS))
         self.assertTrue(any(p.match("application-prod.yml")
@@ -896,7 +888,7 @@ class Ch04EncodingTest(unittest.TestCase):
             mini = os.path.join(d, "repo")
             shutil.copytree(os.path.join(_STATE["repo"], LEDGER.replace("/", os.sep)),
                             os.path.join(mini, "src"))
-            proc = _run([PY, _script("spring_signal_scan.py"), mini,
+            proc = _run([PY, "-m", "doc_engine.tools.spring_signal_scan", mini,
                          "--out", os.path.join(d, "s.json"),
                          "--scanners", "filesystem,ast-grep"], env=env)
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
@@ -961,7 +953,7 @@ class Ch05ConvergenceTest(unittest.TestCase):
         will ever summarize, and nothing in the pipeline reconciles that."""
         with tempfile.TemporaryDirectory() as d:
             out = os.path.join(d, "groups.json")
-            proc = _run([PY, _script("partition_repo.py"), _STATE["repo"],
+            proc = _run([PY, "-m", "doc_engine.tools.partition_repo", _STATE["repo"],
                          "--max-tokens", MAX_TOKENS,
                          "--max-file-bytes", SMALL_FILE_BYTES, "--out", out])
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
@@ -1035,9 +1027,9 @@ class Ch06PartitioningTest(unittest.TestCase):
         # where an f-string would interpolate C:\Users\... raw and produce a
         # probe that fails to parse.
         probe = (  # noqa: UP031
-            "import sys, os; sys.path.insert(0, %r)\n"
-            "import partition_repo as pr\n"
-            "from _shared_excludes import DEFAULT_EXCLUDED_DIRS as D\n"
+            "import os\n"
+            "from doc_engine.tools import partition_repo as pr\n"
+            "from doc_engine.core.excludes import DEFAULT_EXCLUDED_DIRS as D\n"
             "repo = %r\n"
             "files = list(pr.dfs_file_list(repo, D, pr.DEFAULT_EXCLUDED_EXTS,"
             " pr.DEFAULT_EXCLUDED_FILES))\n"
@@ -1051,7 +1043,7 @@ class Ch06PartitioningTest(unittest.TestCase):
             "    seen = {f for grp in g for f, _ in grp}\n"
             "    assert seen == {f for f, _ in ft}, mt\n"
             "print('OK')\n"
-        ) % (str(SCRIPT_DIR), _STATE["repo"])
+        ) % (_STATE["repo"],)
         try:
             proc = subprocess.run([PY, "-c", probe], capture_output=True, text=True,
                                   encoding="utf-8", errors="replace", timeout=120)
@@ -1228,7 +1220,7 @@ class Ch10CommandChainTest(unittest.TestCase):
         series, exercised against the small checked-in fixture rather than
         paying for a second enterprise-scale scan."""
         with tempfile.TemporaryDirectory() as d:
-            proc = _run([PY, _script("run_pipeline_local.py"),
+            proc = _run([PY, "-m", "doc_engine.pipeline.local_runner",
                          os.path.join(SCRIPT_DIR, "test_fixtures", "spring_signals"),
                          "--out-dir", os.path.join(d, "run"), "--skip-drift"])
             self.assertEqual(proc.returncode, 0, proc.stdout[-4000:] + proc.stderr[-2000:])
@@ -1251,7 +1243,7 @@ class Ch10StalenessTest(unittest.TestCase):
 
     def _drift(self):
         out = os.path.join(self.scratch, "drift.json")
-        proc = _run([PY, _script("spring_drift_check.py"), self.repo,
+        proc = _run([PY, "-m", "doc_engine.tools.spring_drift_check", self.repo,
                      os.path.join(_STATE["out"], "spring_signals.json"),
                      "--manifest", os.path.join(_STATE["out"], "run_manifest.json"),
                      "--out", out])
@@ -1310,15 +1302,15 @@ class Ch12GateResponsibilityTest(unittest.TestCase):
         """Copied-docs form — see Ch01._gate for why the write check is off
         here. test_stray_write_* below drives the real in-repo path with the
         write check on."""
-        return _run([PY, _script("check_pipeline_output.py"), docs,
+        return _run([PY, "-m", "doc_engine.tools.check_pipeline_output", docs,
                      "--target-repo", _STATE["repo"], "--no-write-check", *extra])
 
     def _coverage(self, docs, *extra):
-        return _run([PY, _script("citation_coverage.py"), docs,
+        return _run([PY, "-m", "doc_engine.tools.citation_coverage", docs,
                      "--target-repo", _STATE["repo"], *extra])
 
     def _secrets(self, *paths):
-        return _run([PY, _script("check_no_secrets_leaked.py"), *paths])
+        return _run([PY, "-m", "doc_engine.tools.check_no_secrets_leaked", *paths])
 
     def test_three_citation_defects_all_fail_the_gate(self):
         """Collapsed into one mutated copy and one subprocess — three distinct
@@ -1368,7 +1360,7 @@ class Ch12GateResponsibilityTest(unittest.TestCase):
         with open(stray, "w", encoding="utf-8") as f:
             f.write("a writer went outside docs/\n")
         self.addCleanup(lambda: os.path.exists(stray) and os.remove(stray))
-        strict = _run([PY, _script("check_pipeline_output.py"), _STATE["docs"],
+        strict = _run([PY, "-m", "doc_engine.tools.check_pipeline_output", _STATE["docs"],
                        "--target-repo", _STATE["repo"]])
         self.assertEqual(strict.returncode, 1)
         self.assertIn("unexpected write outside the docs directory", strict.stderr)
@@ -1383,7 +1375,7 @@ class Ch12GateResponsibilityTest(unittest.TestCase):
         with open(stray, "w", encoding="utf-8") as f:
             f.write("written outside docs/, into a gitignored directory\n")
         self.addCleanup(lambda: os.path.exists(stray) and os.remove(stray))
-        proc = _run([PY, _script("check_pipeline_output.py"), _STATE["docs"],
+        proc = _run([PY, "-m", "doc_engine.tools.check_pipeline_output", _STATE["docs"],
                      "--target-repo", _STATE["repo"]])
         self.assertEqual(proc.returncode, 1,
                          "gate must report a write into a gitignored path")
@@ -1463,7 +1455,7 @@ class RealEnterpriseRepoTest(unittest.TestCase):
         cls.repo = repo
         cls.scratch = tempfile.mkdtemp(prefix="ks_real_")
         cls.out = os.path.join(cls.scratch, "run")
-        cls.proc = _run([PY, _script("run_pipeline_local.py"), repo,
+        cls.proc = _run([PY, "-m", "doc_engine.pipeline.local_runner", repo,
                          "--out-dir", cls.out, "--skip-drift"])
         with open(os.path.join(cls.out, "spring_signals.json"), encoding="utf-8") as f:
             cls.signals = json.load(f)
@@ -1561,7 +1553,7 @@ class RealEnterpriseRepoTest(unittest.TestCase):
         copy = os.path.join(scratch, "docs")
         shutil.copytree(os.path.join(self.out, "docs"), copy)
         os.remove(os.path.join(copy, "testing.md"))
-        proc = _run([PY, _script("check_pipeline_output.py"), copy,
+        proc = _run([PY, "-m", "doc_engine.tools.check_pipeline_output", copy,
                      "--target-repo", self.repo, "--no-write-check"])
         self.assertEqual(proc.returncode, 1)
 

@@ -24,9 +24,10 @@ import sys
 import tempfile
 import unittest
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
+from doc_engine.core.excludes import load_gitignore_spec
+from doc_engine.tools import partition_repo
 
 SCRIPT_DIR = SCRIPTS_DIR
-import partition_repo  # noqa: E402
 
 
 class BuildGroupsTest(unittest.TestCase):
@@ -252,7 +253,6 @@ class RespectGitignoreOptInTest(unittest.TestCase):
         self.assertEqual(self._relpaths(gitignore_spec=None), {".gitignore", "kept.txt", "scratch/notes.txt"})
 
     def test_scratch_dir_excluded_with_opt_in(self):
-        from _shared_excludes import load_gitignore_spec
         spec = load_gitignore_spec(self.tmpdir)
         self.assertIsNotNone(spec, "pathspec must be installed for this test to be meaningful")
         self.assertEqual(self._relpaths(gitignore_spec=spec), {".gitignore", "kept.txt"})
@@ -288,9 +288,9 @@ class EmittedPathSeparatorTest(unittest.TestCase):
 
     def _run_partition(self):
         out = os.path.join(self.tmpdir, "groups.json")
-        script = os.path.join(str(SCRIPTS_DIR), "partition_repo.py")
         subprocess.run(
-            [sys.executable, script, self.tmpdir, "--out", out],
+            [sys.executable, "-m", "doc_engine.tools.partition_repo",
+             self.tmpdir, "--out", out],
             check=True, capture_output=True, text=True,
         )
         with open(out) as f:

@@ -7,7 +7,8 @@ pip install -e /path/to/spring-boot-doc-agent
 doc-engine pipeline run /path/to/target-repo \
   --compliance-profile certified \
   --out-dir /tmp/doc-run
-python3 /path/to/spring-boot-doc-agent/scripts/verify_certification.py /tmp/doc-run/certification.json
+doc-engine certification verify /tmp/doc-run/certification.json
+# equivalent: python -m doc_engine.tools.certification /tmp/doc-run/certification.json
 ```
 
 Gate merges on `certified: true` in `certification.json`. Do not reimplement stage bash sequences in `.cursor` rules — call the CLI.

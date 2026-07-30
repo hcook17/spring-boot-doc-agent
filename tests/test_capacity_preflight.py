@@ -22,11 +22,14 @@ import os
 import sys
 import unittest
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
+from doc_engine.tools import (
+    build_cross_group_edges,
+    capacity_preflight,
+    partition_repo,
+    spring_signal_scan,
+)
 
 SCRIPT_DIR = SCRIPTS_DIR
-import build_cross_group_edges  # noqa: E402
-import capacity_preflight  # noqa: E402
-import partition_repo  # noqa: E402
 
 
 def _groups_data(num_groups, max_tokens=120000):
@@ -221,7 +224,6 @@ class GenuineDelegationTest(unittest.TestCase):
     def test_edges_match_build_cross_group_edges_direct_run(self):
         # _load_or_build_edges() must hand off to build_report() rather than
         # re-deriving the package/import join a second way.
-        import spring_signal_scan
         data = spring_signal_scan.scan(
             FIXTURE_DIR, scanners=["filesystem", "ast-grep"],
         )
@@ -275,7 +277,6 @@ class PathSeparatorTest(unittest.TestCase):
         file lists are joined by path against spring_signals.json inside
         build_report(); if the two sides spell the same file differently the
         join silently yields nothing, which is how this stayed invisible."""
-        import spring_signal_scan
         scanned = spring_signal_scan.scan(FIXTURE_DIR, scanners=["filesystem", "ast-grep"])
         scanned_files = {row["file"] for rows in scanned["evidence"].values()
                          for row in rows if isinstance(row, dict) and "file" in row}

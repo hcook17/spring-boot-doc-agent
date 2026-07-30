@@ -13,7 +13,7 @@ from doc_engine.pipeline.runner import PipelineRunner
 from doc_engine.pipeline.stages import build_stage_specs
 from doc_engine.pipeline.validation import validate_artifact_file
 
-from tests.conftest import FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH, SCRIPTS_DIR
+from tests.conftest import FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
 
 
 @pytest.fixture
@@ -29,7 +29,6 @@ def pipeline_context(tmp_path):
         manifest_path=out / "run_manifest.json",
         docs_dir=docs,
         python=sys.executable,
-        scripts_dir=SCRIPTS_DIR,
         today="2026-07-27",
         respect_gitignore=False,
         max_tokens=120000,

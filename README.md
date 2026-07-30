@@ -50,17 +50,17 @@ This started as a regex scanner and was rewritten to ast-grep specifically becau
 
 ## On drift detection (`spring_drift_check.py`)
 
-Once you have a `spring_signals.json` from a prior scan of a repo, `scripts/spring_drift_check.py` checks whether it's still accurate against the repo's current state: a cheap whole-repo file-signature hash (tier 1) tells you which files changed at all, and only for those, a targeted `ast-grep` re-run (tier 2) re-verifies the specific fact each citation recorded — entity/table mapping, repository type args, query text, or annotation shape — rather than flagging every citation in a changed file just because *something* in it moved. It exists because a comment fix three lines from a cited annotation shouldn't read as drift on every fact the file happens to also contain.
+Once you have a `spring_signals.json` from a prior scan of a repo, `python -m doc_engine.tools.spring_drift_check` checks whether it's still accurate against the repo's current state: a cheap whole-repo file-signature hash (tier 1) tells you which files changed at all, and only for those, a targeted `ast-grep` re-run (tier 2) re-verifies the specific fact each citation recorded — entity/table mapping, repository type args, query text, or annotation shape — rather than flagging every citation in a changed file just because *something* in it moved. It exists because a comment fix three lines from a cited annotation shouldn't read as drift on every fact the file happens to also contain.
 
 ```bash
-python3 scripts/spring_signal_scan.py <repo_path> --out spring_signals.json
+python -m doc_engine.tools.spring_signal_scan <repo_path> --out spring_signals.json
 # ... time passes, repo changes ...
-python3 scripts/spring_drift_check.py <repo_path> spring_signals.json --out drift_report.json
+python -m doc_engine.tools.spring_drift_check <repo_path> spring_signals.json --out drift_report.json
 
 # Or, to measure drift against a specific document-spring-repo pipeline run's
 # run_manifest.json instead of the raw scan (its target_repo.commit_hash is a
 # provenance record of exactly what the currently-published docs saw):
-python3 scripts/spring_drift_check.py <repo_path> spring_signals.json \
+python -m doc_engine.tools.spring_drift_check <repo_path> spring_signals.json \
     --manifest run_manifest.json --out drift_report.json
 ```
 
@@ -86,28 +86,28 @@ By default it runs against synthetic sample data shaped like each agent's docume
 
 ## Semantic evaluation and capacity preflight
 
-`test_pipeline_stages.py` (above) only checks the *shape* of the four LLM stages' output — it never judges whether an `[Evidenced]` claim is actually true, or whether a `[Confirmed]` tag is really backed by a real interview answer. `skills/semantic-pipeline-eval/` adds that judgment layer: run it against a completed pipeline's `PIPELINE_ARTIFACTS_DIR` to sample evidenced claims for truthfulness, flag unmatched `[Confirmed]` tags and Mermaid syntax issues (via `scripts/semantic_eval_helpers.py`'s mechanical pre-pass), and check for cross-doc contradictions — see that skill's `SKILL.md` for the full rubric and its two-lane human sign-off (escalated findings, plus a random confidence spot-check over the judge's own `Supported` verdicts).
+`test_pipeline_stages.py` (above) only checks the *shape* of the four LLM stages' output — it never judges whether an `[Evidenced]` claim is actually true, or whether a `[Confirmed]` tag is really backed by a real interview answer. `skills/semantic-pipeline-eval/` adds that judgment layer: run it against a completed pipeline's `PIPELINE_ARTIFACTS_DIR` to sample evidenced claims for truthfulness, flag unmatched `[Confirmed]` tags and Mermaid syntax issues (via `python -m doc_engine.tools.semantic_eval_helpers`'s mechanical pre-pass), and check for cross-doc contradictions — see that skill's `SKILL.md` for the full rubric and its two-lane human sign-off (escalated findings, plus a random confidence spot-check over the judge's own `Supported` verdicts).
 
-Separately, `skills/capacity-preflight/` turns this plugin's stated-but-unverified scale assumptions (chars/N token heuristic, uncapped subagent fan-out, the per-group `cross_group_edges.json` slice each Stage-1 dispatch carries) into concrete numbers for one specific target repo before you commit to a full run — `scripts/capacity_preflight.py` imports `partition_repo.py`'s, `spring_signal_scan.py`'s and `build_cross_group_edges.py`'s own logic rather than re-estimating from scratch. Use it before pointing the pipeline at a large or unfamiliar repo.
+Separately, `skills/capacity-preflight/` turns this plugin's stated-but-unverified scale assumptions (chars/N token heuristic, uncapped subagent fan-out, the per-group `cross_group_edges.json` slice each Stage-1 dispatch carries) into concrete numbers for one specific target repo before you commit to a full run — `python -m doc_engine.tools.capacity_preflight` imports `partition_repo.py`'s, `spring_signal_scan.py`'s and `build_cross_group_edges.py`'s own logic rather than re-estimating from scratch. Use it before pointing the pipeline at a large or unfamiliar repo.
 
 ## Pipeline contracts and local orchestration
 
 Inter-stage JSON artifacts (`spring_signals.json`, `groups.json`, `summaries.json`, `interview_answers.json`) have enforced shapes — see `skills/document-spring-repo/SKILL.md` "Data contracts between stages" and `scripts/schemas/`. Validate after each stage boundary:
 
 ```bash
-python3 scripts/validate_artifacts.py --all <run-directory>
+python -m doc_engine.tools.validate_artifacts --all <run-directory>
 ```
 
 Mechanical summarizer/gap-analyzer shape gates (before doc-writer fan-out in a real run):
 
 ```bash
-python3 scripts/pipeline_validators.py <run-directory> --target-repo <repo_path>
+python -m doc_engine.tools.pipeline_validators <run-directory> --target-repo <repo_path>
 ```
 
 Code-level stage graph and bounded-context map: `src/doc_engine/pipeline/README.md`. End-to-end local run (deterministic stages real, LLM stages mocked):
 
 ```bash
-python3 scripts/run_pipeline_local.py /abs/path/to/spring-repo
+python -m doc_engine.pipeline.local_runner /abs/path/to/spring-repo
 ```
 
 ## Constraints

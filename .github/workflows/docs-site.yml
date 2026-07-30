@@ -17,7 +17,7 @@ on:
     paths:
       - "docs/**"
       - "site/**"
-      - "scripts/build_docs_site.py"
+      - "src/doc_engine/tools/build_docs_site.py"
 
 permissions:
   contents: read
@@ -40,14 +40,16 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dev dependencies
-        run: pip install -r requirements-dev.txt
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-dev.txt
+          pip install -e .
 
       - name: Build site
         run: |
           DOCS_DIR="${{ github.event.inputs.docs_dir || 'docs' }}"
           SITE_NAME="${{ github.event.inputs.site_name || 'Repo Documentation' }}"
-          python3 scripts/build_docs_site.py --docs-dir "$DOCS_DIR" --out-dir _site --site-name "$SITE_NAME"
+          python3 -m doc_engine.tools.build_docs_site --docs-dir "$DOCS_DIR" --out-dir _site --site-name "$SITE_NAME"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

@@ -100,7 +100,7 @@ def main() -> int:
     scan_ap.add_argument(
         "--out",
         default="spring_signals.json",
-        help="output path (default: spring_signals.json, same as Stage 0 / scripts/spring_signal_scan.py)",
+        help="output path (default: spring_signals.json, same as Stage 0 / python -m doc_engine.tools.spring_signal_scan)",
     )
     scan_ap.add_argument(
         "--scanners",

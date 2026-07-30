@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
-  "production_functions": 510,
-  "production_functions_annotated": 385,
+  "production_functions": 508,
+  "production_functions_annotated": 384,
   "limits_for_new_functions": {
     "statements": 143,
     "complexity": 51,
@@ -11,11 +11,11 @@
   "docstring_violations": {
     "scripts/check_code_quality.py": "scripts/check_code_quality.py: 'how to run it' is at docstring line 27; the contract is within 20. Move the Usage block above the rationale.",
     "scripts/check_llms_coverage.py": "scripts/check_llms_coverage.py: 'how to run it' is at docstring line 36; the contract is within 20. Move the Usage block above the rationale.",
-    "scripts/semantic_eval_helpers.py": "scripts/semantic_eval_helpers.py: 'how to run it' is at docstring line 44; the contract is within 20. Move the Usage block above the rationale.",
     "src/doc_engine/cli.py": "src/doc_engine/cli.py: runnable module, but its 1-line docstring never says how to run it",
     "src/doc_engine/pipeline/live_gates.py": "src/doc_engine/pipeline/live_gates.py: runnable module, but its 7-line docstring never says how to run it",
     "src/doc_engine/pipeline/local_runner.py": "src/doc_engine/pipeline/local_runner.py: 'how to run it' is at docstring line 52; the contract is within 20. Move the Usage block above the rationale.",
-    "src/doc_engine/scanning/support/_codeql_runner.py": "src/doc_engine/scanning/support/_codeql_runner.py: runnable module, but its 19-line docstring never says how to run it"
+    "src/doc_engine/scanning/support/_codeql_runner.py": "src/doc_engine/scanning/support/_codeql_runner.py: runnable module, but its 19-line docstring never says how to run it",
+    "src/doc_engine/tools/semantic_eval_helpers.py": "src/doc_engine/tools/semantic_eval_helpers.py: 'how to run it' is at docstring line 44; the contract is within 20. Move the Usage block above the rationale."
   },
   "functions": {
     "scripts/_ast_signature.py::_strip_docstrings": {
@@ -708,51 +708,6 @@
       "complexity": 1,
       "depth": 0
     },
-    "scripts/semantic_eval_helpers.py::_claim_clause": {
-      "statements": 3,
-      "complexity": 2,
-      "depth": 0
-    },
-    "scripts/semantic_eval_helpers.py::_extract_mermaid_block": {
-      "statements": 2,
-      "complexity": 2,
-      "depth": 0
-    },
-    "scripts/semantic_eval_helpers.py::_load_interview_answers": {
-      "statements": 5,
-      "complexity": 3,
-      "depth": 1
-    },
-    "scripts/semantic_eval_helpers.py::_tokenize": {
-      "statements": 1,
-      "complexity": 4,
-      "depth": 0
-    },
-    "scripts/semantic_eval_helpers.py::check_mermaid_syntax": {
-      "statements": 15,
-      "complexity": 6,
-      "depth": 2
-    },
-    "scripts/semantic_eval_helpers.py::find_undefined_node_refs": {
-      "statements": 6,
-      "complexity": 3,
-      "depth": 1
-    },
-    "scripts/semantic_eval_helpers.py::find_unmatched_confirmed_tags": {
-      "statements": 19,
-      "complexity": 12,
-      "depth": 3
-    },
-    "scripts/semantic_eval_helpers.py::main": {
-      "statements": 15,
-      "complexity": 5,
-      "depth": 2
-    },
-    "scripts/semantic_eval_helpers.py::run": {
-      "statements": 23,
-      "complexity": 10,
-      "depth": 3
-    },
     "scripts/semgrep_rule_coverage.py::_normalize_check_id": {
       "statements": 1,
       "complexity": 1,
@@ -1193,11 +1148,6 @@
       "complexity": 1,
       "depth": 0
     },
-    "src/doc_engine/pipeline/context.py::PipelineContext.script": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
-    },
     "src/doc_engine/pipeline/executor.py::HttpLLMStageExecutor.run_generative": {
       "statements": 1,
       "complexity": 1,
@@ -1342,11 +1292,6 @@
       "statements": 9,
       "complexity": 4,
       "depth": 1
-    },
-    "src/doc_engine/pipeline/local_runner.py::_script": {
-      "statements": 1,
-      "complexity": 1,
-      "depth": 0
     },
     "src/doc_engine/pipeline/local_runner.py::_write_certification_and_finish": {
       "statements": 24,
@@ -2463,6 +2408,51 @@
       "complexity": 1,
       "depth": 0
     },
+    "src/doc_engine/tools/semantic_eval_helpers.py::_claim_clause": {
+      "statements": 3,
+      "complexity": 2,
+      "depth": 0
+    },
+    "src/doc_engine/tools/semantic_eval_helpers.py::_extract_mermaid_block": {
+      "statements": 2,
+      "complexity": 2,
+      "depth": 0
+    },
+    "src/doc_engine/tools/semantic_eval_helpers.py::_load_interview_answers": {
+      "statements": 5,
+      "complexity": 3,
+      "depth": 1
+    },
+    "src/doc_engine/tools/semantic_eval_helpers.py::_tokenize": {
+      "statements": 1,
+      "complexity": 4,
+      "depth": 0
+    },
+    "src/doc_engine/tools/semantic_eval_helpers.py::check_mermaid_syntax": {
+      "statements": 15,
+      "complexity": 6,
+      "depth": 2
+    },
+    "src/doc_engine/tools/semantic_eval_helpers.py::find_undefined_node_refs": {
+      "statements": 6,
+      "complexity": 3,
+      "depth": 1
+    },
+    "src/doc_engine/tools/semantic_eval_helpers.py::find_unmatched_confirmed_tags": {
+      "statements": 19,
+      "complexity": 12,
+      "depth": 3
+    },
+    "src/doc_engine/tools/semantic_eval_helpers.py::main": {
+      "statements": 15,
+      "complexity": 5,
+      "depth": 2
+    },
+    "src/doc_engine/tools/semantic_eval_helpers.py::run": {
+      "statements": 23,
+      "complexity": 10,
+      "depth": 3
+    },
     "src/doc_engine/tools/spring_drift_check.py::_raw_query_entries_with_resolved_entity": {
       "statements": 4,
       "complexity": 4,
@@ -2514,7 +2504,7 @@
       "depth": 2
     },
     "src/doc_engine/tools/spring_drift_check.py::check_drift": {
-      "statements": 63,
+      "statements": 62,
       "complexity": 31,
       "depth": 3
     },

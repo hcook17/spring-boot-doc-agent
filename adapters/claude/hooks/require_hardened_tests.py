@@ -46,7 +46,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Optional, Set
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SKILL = "directional-tests"
@@ -55,13 +55,9 @@ SKILL = "directional-tests"
 # the convention here. Each needs a reason, the same shape as
 # check_repo_claims.CI_EXEMPT_SUITES.
 TEST_EXEMPT = {
-    "_shared_excludes.py": "constants only; exercised through every importer",
-    "doc_tag_utils.py": "exercised by test_pipeline_stages.py, which imports it",
     "drift_match_normalizers.py": "re-derived by test_drift_normalization.py",
     "java_perturbations.py": "test infrastructure itself",
     "prompt_contracts.py": "exercised by test_prompt_contracts.py",
-    "validate_artifacts.py": "exercised by tests/test_artifact_schemas.py via doc_engine.pipeline.validation",
-    "pipeline_validators.py": "exercised by tests/test_pipeline_stages.py",
 }
 
 COMMIT_RE = re.compile(r"(^|[;&|]\s*)git\s+(-C\s+\S+\s+)?commit\b")
@@ -78,9 +74,22 @@ def staged_files() -> List[str]:
     return [line for line in result.stdout.splitlines() if line.strip()]
 
 
-def missing_test_suites(staged: List[str]) -> List[str]:
+def staged_deletions() -> Set[str]:
+    """Paths staged for deletion only — those do not need a sibling test suite."""
+    result = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "diff", "--cached", "--diff-filter=D",
+         "--name-only"],
+        capture_output=True, text=True)
+    return {line for line in result.stdout.splitlines() if line.strip()}
+
+
+def missing_test_suites(staged: List[str],
+                        deletions: Optional[Set[str]] = None) -> List[str]:
     problems = []
+    deleted = deletions if deletions is not None else set()
     for rel in staged:
+        if rel in deleted:
+            continue
         path = Path(rel)
         # Path.name is only the final segment, so "hooks" here also covers
         # .claude/hooks/foo.py -- no separate case needed for the nested
@@ -149,7 +158,10 @@ def findings() -> List[str]:
     staged = staged_files()
     if not staged:
         return []
-    return missing_test_suites(staged) + unwired_suites(staged) + failing_gates()
+    deleted = staged_deletions()
+    return (missing_test_suites(staged, deletions=deleted)
+            + unwired_suites(staged)
+            + failing_gates())
 
 
 def build_reason(problems: List[str]) -> str:

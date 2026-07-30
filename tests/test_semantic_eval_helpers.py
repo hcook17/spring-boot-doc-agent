@@ -18,9 +18,9 @@ import sys
 import tempfile
 import unittest
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
+from doc_engine.tools import semantic_eval_helpers
 
 SCRIPT_DIR = SCRIPTS_DIR
-import semantic_eval_helpers  # noqa: E402
 
 ANSWERED_ENTRY = {
     "blocks_file": "database", "topic": "write ownership: billing_invoice",

@@ -16,6 +16,10 @@
 ruff~=0.16.0
 pytest~=8.3.0
 
+# Workflow YAML parse gate (scripts/check_workflow_yaml.py). Catches the PR #57
+# class: unquoted colons in step names that make Actions reject the file.
+PyYAML~=6.0.2
+
 # Material for MkDocs: builds the DeepWiki-like static site from the 14 generated
 # markdown docs. This is a dev/publishing dependency, not a runtime dependency of
 # the pipeline itself.

@@ -44,6 +44,12 @@ jobs:
       - name: Install doc-engine package
         run: pip install -e .
 
+      # Fail closed on invalid workflow YAML before any other gate runs.
+      # Catches the PR #57 class (unquoted colon in a step name) that Actions
+      # rejects as "Invalid workflow file" with no useful Python traceback.
+      - name: check_workflow_yaml.py (GitHub Actions YAML parse gate)
+        run: python3 scripts/check_workflow_yaml.py
+
       # Presence is not enough. This step used to run `ast-grep --version` and
       # discard the answer, so it passed while the binary that actually
       # resolved on PATH was a different build from the one requirements.txt
@@ -175,7 +181,7 @@ jobs:
         run: pytest tests/ -v --tb=short
 
       - name: validate_artifacts.py (spring_signals fixture schema)
-        run: python3 scripts/validate_artifacts.py spring_signals scripts/test_fixtures/spring_signals_fixture_expected.json
+        run: python3 -m doc_engine.tools.validate_artifacts spring_signals scripts/test_fixtures/spring_signals_fixture_expected.json
 
       # Live deterministic Stage 0 against the committed spring_signals fixture
       # tree, then schema-gate every known artifact the run produced. Requires

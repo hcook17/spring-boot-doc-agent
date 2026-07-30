@@ -49,7 +49,7 @@ class TestAstGrepIsNeverBlocked(unittest.TestCase):
         "ast-grep test",
         "ast-grep --version",
         "cat f.java | ast-grep run --stdin -l java -p '@X'",
-        "python scripts/spring_signal_scan.py .",
+        "python -m doc_engine.tools.spring_signal_scan .",
     )
 
     def test_ast_grep_is_never_blocked(self) -> None:

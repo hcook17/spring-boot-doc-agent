@@ -28,10 +28,10 @@ import sys
 import tempfile
 import unittest
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
+from doc_engine.scanning._resolve_lineage import _SQLLINEAGE_AVAILABLE
+from doc_engine.tools import spring_signal_scan
 
 SCRIPT_DIR = SCRIPTS_DIR
-import spring_signal_scan  # noqa: E402
-from doc_engine.scanning._resolve_lineage import _SQLLINEAGE_AVAILABLE  # noqa: E402
 
 # FIXTURE_SNAPSHOT_PATH from conftest
 

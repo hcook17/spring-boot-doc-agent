@@ -4,8 +4,8 @@ real output on screen and in a log file.
 
 A+C hybrid: Claude skills call ``doc-engine pipeline run`` / ``pipeline gates``
 (not plugin-local scripts). Stage graph SoT is ``build_stage_specs()``; use
-``--until STAGE`` to truncate. ``scripts/*.py`` remain thin shims; prefer
-in-process ``gates.py`` where already lifted.
+``--until STAGE`` to truncate. Product tools live under ``doc_engine.tools``
+(``python -m``); prefer in-process ``gates.py`` where already lifted.
 
 WHY THIS EXISTS
 The pipeline is normally driven by a live Claude Code session. Stage 0's
@@ -51,20 +51,20 @@ wiring, the artifact inventory, and the gate output, not the text.
 
 Usage:
     doc-engine pipeline run /abs/path/to/spring-repo
-    python3 scripts/run_pipeline_local.py /abs/path/to/spring-repo
+    python -m doc_engine.pipeline.local_runner /abs/path/to/spring-repo
 
     # write the fourteen docs into the target repo's own docs/ (as a real run
-    # does), which also enables check_pipeline_output.py's stray-write check:
-    python3 scripts/run_pipeline_local.py /abs/path/to/repo --docs-in-target-repo
+    # does), which also enables check_pipeline_output's stray-write check:
+    python -m doc_engine.pipeline.local_runner /abs/path/to/repo --docs-in-target-repo
 
     # compare drift against a real earlier scan instead of this run's own:
-    python3 scripts/run_pipeline_local.py /abs/path/to/repo --prior-signals old_signals.json
+    python -m doc_engine.pipeline.local_runner /abs/path/to/repo --prior-signals old_signals.json
 
     # deterministic stages only (scan through capacity preflight; no mock LLM stages):
-    python3 scripts/run_pipeline_local.py /abs/path/to/repo --deterministic-only
+    python -m doc_engine.pipeline.local_runner /abs/path/to/repo --deterministic-only
 
     # reuse an existing spring_signals.json and skip signal_scan:
-    python3 scripts/run_pipeline_local.py /abs/path/to/repo --deterministic-only \\
+    python -m doc_engine.pipeline.local_runner /abs/path/to/repo --deterministic-only \\
         --signals-file /path/to/spring_signals.json
 
 Artifacts and run.log land in --out-dir (default: ./local-runs/<repo>-<stamp>/),
@@ -85,9 +85,8 @@ import sys
 import time
 from pathlib import Path
 
-from doc_engine.paths import repo_root, scripts_dir
+from doc_engine.paths import repo_root
 
-SCRIPT_DIR = str(scripts_dir())
 REPO_ROOT = str(repo_root())
 
 from doc_engine.config.loader import load_repo_config  # noqa: E402
@@ -279,11 +278,6 @@ class Runner:
 
 def _quote(arg):
     return f'"{arg}"' if " " in arg else arg
-
-
-def _script(name):
-    """Meta-repo script path (tests / transitional). Prefer ``_py_mod`` for product tools."""
-    return os.path.join(SCRIPT_DIR, name)
 
 
 def _py_mod(module: str, *args: str) -> list[str]:
@@ -502,7 +496,6 @@ def run_pipeline(args) -> int:
         manifest_path=Path(manifest),
         docs_dir=Path(docs_dir),
         python=py,
-        scripts_dir=Path(SCRIPT_DIR),
         today=today,
         respect_gitignore=args.respect_gitignore,
         max_tokens=args.max_tokens,

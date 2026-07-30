@@ -21,7 +21,7 @@ For a sampled `[Evidenced — path:line]` claim, read the cited location ± a fe
 
 ## 2. Confirmed-tag hallucination (Step 1 mechanical pre-pass, Step 4 semantic confirmation)
 
-`scripts/semantic_eval_helpers.py`'s `find_unmatched_confirmed_tags()` flags a `[Confirmed — interview, <date>]` tag when its preceding claim clause has low word-overlap with every "answered" entry in `interview_answers.json`. That's a worklist entry, not a verdict — confirm or reject each:
+`doc_engine.tools.semantic_eval_helpers.find_unmatched_confirmed_tags()` flags a `[Confirmed — interview, <date>]` tag when its preceding claim clause has low word-overlap with every "answered" entry in `interview_answers.json`. That's a worklist entry, not a verdict — confirm or reject each:
 
 - **Confirmed hallucination** — no interview answer, close or otherwise, actually supports this claim. The tag is asserting an interview confirmation that didn't happen.
 - **False positive — paraphrase, not hallucination** — a real interview answer does support the claim, just in different words than the mechanical overlap check could detect (e.g. the answer said "yes, that's the only writer" and the doc-writer rephrased it as "InvoiceService is the sole writer of this table" — real support, low literal word overlap).

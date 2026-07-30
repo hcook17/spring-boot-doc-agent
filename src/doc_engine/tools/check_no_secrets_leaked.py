@@ -32,7 +32,7 @@ Documented in SKILL.md as an optional post-run check instead, the same
 posture spring_drift_check.py itself already has there.
 
 Run with:
-    python3 scripts/check_no_secrets_leaked.py <path-to-summaries.json-or-docs-dir> [more paths...]
+    python -m doc_engine.tools.check_no_secrets_leaked <path-to-summaries.json-or-docs-dir> [more paths...]
 """
 
 import argparse
