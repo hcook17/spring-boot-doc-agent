@@ -2,6 +2,9 @@
 
 Phase 1 sidecar: does not replace entity_table_map or evidence bags.
 See claude/research/fact-store-phase1-decision-memo-2026-07-30.md §3.
+
+L3: MAPS_TO subjects are SCIP-inspired type symbols (see scanning.symbol);
+Path A entity_table_map keys remain simple class names.
 """
 
 from __future__ import annotations
@@ -9,6 +12,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, MutableMapping, Optional
+
+from doc_engine.scanning.symbol import SymbolError, format_type, fqcn_of, parse
 
 PathLike = str | Path
 
@@ -59,11 +64,36 @@ def _sort_key(fact: Mapping[str, Any]) -> tuple:
     )
 
 
+def _type_symbol_quals(
+    class_name: str,
+    source: Mapping[str, Any],
+    *,
+    base_quals: Optional[MutableMapping[str, Any]] = None,
+) -> tuple[str, Dict[str, Any]]:
+    """Build type symbol subject + display/fqcn qualifiers from a map entry or candidate."""
+    package = source.get("package")
+    package_s = str(package) if package is not None else None
+    fqcn = source.get("fqcn")
+    if fqcn is None:
+        fqcn = fqcn_of(package_s, class_name)
+    else:
+        fqcn = str(fqcn)
+    subject = format_type(package_s, class_name)
+    quals: Dict[str, Any] = dict(base_quals) if base_quals else {}
+    quals["display_name"] = class_name
+    quals["fqcn"] = fqcn
+    quals["symbol_kind"] = "type"
+    return subject, quals
+
+
 def _maps_to_from_entity_table_map(
     entity_table_map: Mapping[str, Any],
     default_scanner: Optional[str],
 ) -> List[Dict[str, Any]]:
-    """Derived stub: contested entries become one MAPS_TO per candidate."""
+    """Derived stub: contested entries become one MAPS_TO per candidate.
+
+    Each MAPS_TO subject is a type-level claim-symbol (distinct across packages).
+    """
     facts: List[Dict[str, Any]] = []
     for class_name, entry in entity_table_map.items():
         if not isinstance(entry, Mapping):
@@ -79,10 +109,11 @@ def _maps_to_from_entity_table_map(
                     quals["table_name_source"] = cand.get("table_name_source")
                 elif entry.get("table_name_source") is not None:
                     quals["table_name_source"] = entry.get("table_name_source")
+                subject, quals = _type_symbol_quals(str(class_name), cand, base_quals=quals)
                 facts.append(
                     _fact(
                         predicate="MAPS_TO",
-                        subject=str(class_name),
+                        subject=subject,
                         object_=None if cand.get("table") is None else str(cand.get("table")),
                         qualifiers=quals,
                         file=None if cand.get("file") is None else str(cand.get("file")),
@@ -93,15 +124,16 @@ def _maps_to_from_entity_table_map(
                 )
             continue
 
-        quals = {}
+        quals: Dict[str, Any] = {}
         if entry.get("status") is not None:
             quals["status"] = entry.get("status")
         if entry.get("table_name_source") is not None:
             quals["table_name_source"] = entry.get("table_name_source")
+        subject, quals = _type_symbol_quals(str(class_name), entry, base_quals=quals)
         facts.append(
             _fact(
                 predicate="MAPS_TO",
-                subject=str(class_name),
+                subject=subject,
                 object_=None if entry.get("table") is None else str(entry.get("table")),
                 qualifiers=quals,
                 file=None if entry.get("file") is None else str(entry.get("file")),
@@ -164,6 +196,9 @@ def write_facts_jsonl(path: PathLike, facts: List[Mapping[str, Any]]) -> None:
 
     Each row is validated against the closed ``Fact`` contract before encode
     (write-time bite; see schema-contracts-decision-memo-2026-07-30 slice 1).
+
+    ``MAPS_TO`` subjects must parse as claim-symbols (grammar memo); bare
+    simple names / FQCNs are rejected so illegal identity cannot land on disk.
     """
     from doc_engine.pipeline.artifacts import Fact
 
@@ -171,6 +206,18 @@ def write_facts_jsonl(path: PathLike, facts: List[Mapping[str, Any]]) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding="utf-8", newline="\n") as fh:
         for fact in facts:
+            if fact.get("predicate") == "MAPS_TO":
+                subject = fact.get("subject")
+                try:
+                    parsed = parse(str(subject))
+                except SymbolError as exc:
+                    raise SymbolError(
+                        f"MAPS_TO subject is not a claim-symbol: {subject!r}"
+                    ) from exc
+                if parsed.kind != "type":
+                    raise SymbolError(
+                        f"MAPS_TO subject must be a type symbol, got kind={parsed.kind!r}: {subject!r}"
+                    )
             validated = Fact.model_validate(dict(fact)).model_dump()
             fh.write(json.dumps(validated, ensure_ascii=False, sort_keys=True))
             fh.write("\n")

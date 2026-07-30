@@ -95,9 +95,9 @@ Prefer outcome-bound tests over substring-only `verify:` where the claim is beha
 
 **DDIA card:** same as L2; SoR = on-disk Stage-4 inputs after they exist. Measurement mode **merged** (PR #74). **Calibration research (2026-07-30):** [`l2b-stage4-threshold-calibration-2026-07-30.md`](l2b-stage4-threshold-calibration-2026-07-30.md) — two independent **spring/summer 2026** arXiv reviews (2604.01664 ContextBudget; **2607.24653 Kimi K3**), GitHub+DeepWiki (LiteLLM, LangGraph, Kimi-K3), prompt-11 BFS/DFS. **Decision: retain default 80000.** (Aug 2025 RCR-Router demoted.) Changing the default still requires a documented mid-size `measured_stage4_inputs` run (frontier). Returns still omitted.
 
-### L3 — Claim-symbol single-token entities — **ADR proposed (research; no code)**
+### L3 — Claim-symbol single-token entities — **code landed (principal-complete B)**
 
-**DDIA card:** domain `02-encoding-and-evolution`; open `schema-evolution-and-data-outlives-code`, `encoding-and-compatibility`, `rel-schema-outlives-writers`. SoR = facts / claim keys. Larger fact-store redesign — research/ADR before code; do not fold into L2. Cite Phase-1 fact-store lock. **Unlock:** L2b threshold *default* retained (PR #75). **ADR:** [`claim-symbol-entity-identity-adr-2026-07-30.md`](claim-symbol-entity-identity-adr-2026-07-30.md) — **principal-complete B** (SCIP-inspired grammar + format/parse/display API; type `MAPS_TO` first; reserved member shapes tested; calculated forward risk OK when it prevents a second migration); FQCN/simple name as display; dual-read rejected; no JPA dump / no SCIP wire / no packaging fold. Code PR only after exit criteria.
+**DDIA card:** domain `02-encoding-and-evolution`; open `schema-evolution-and-data-outlives-code`, `encoding-and-compatibility`, `rel-schema-outlives-writers`. SoR = facts / claim keys. **Normative grammar:** [`claim-symbol-grammar-2026-07-30.md`](claim-symbol-grammar-2026-07-30.md). **ADR:** [`claim-symbol-entity-identity-adr-2026-07-30.md`](claim-symbol-entity-identity-adr-2026-07-30.md) — Accepted/implemented. Type `MAPS_TO.subject` = claim-symbol (`FACTS_LEDGER_SCHEMA_VERSION = 2`); `display_name`/`fqcn` required; write-time `parse` bite; Path A simple-name residual; no SCIP wire / no member fact rows / no dual-read.
 
 ### L4 — Branch protection (human) — **deferred until later (owner)**
 

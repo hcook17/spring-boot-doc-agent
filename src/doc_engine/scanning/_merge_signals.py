@@ -98,14 +98,17 @@ def _finalize_entity_table_map(entity_candidates: Dict[str, List[Dict[str, Any]]
         winner = dict(ordered[0])
         if len(ordered) > 1:
             winner["status"] = "contested"
-            winner["candidates"] = [
-                {
+            winner["candidates"] = []
+            for c in ordered:
+                cand = {
                     "file": c["file"],
                     "table": c["table"],
                     "table_name_source": c["table_name_source"],
+                    "fqcn": c.get("fqcn") or class_name,
                 }
-                for c in ordered
-            ]
+                if c.get("package") is not None:
+                    cand["package"] = c["package"]
+                winner["candidates"].append(cand)
             print(
                 f"warning: entity_table_map key '{class_name}' is contested — "
                 f"{len(ordered)} @Entity classes share this simple name across packages; "
@@ -132,6 +135,8 @@ def _build_entity_table_map_from_evidence(partial: Dict[str, Any]) -> Dict[str, 
             "table_name_source": row.get("table_name_source", "inferred-default-naming"),
             "rule_id": row.get("rule_id", "persistence__entity"),
             "match": row.get("match", ""),
+            "fqcn": row.get("fqcn") or class_name,
+            **({"package": row["package"]} if row.get("package") is not None else {}),
         })
     return _finalize_entity_table_map(candidates)
 

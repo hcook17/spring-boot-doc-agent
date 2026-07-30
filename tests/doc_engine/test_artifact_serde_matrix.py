@@ -35,7 +35,12 @@ def test_unschematized_artifacts_documented(artifact: str, reason: str) -> None:
 
 
 def test_facts_serde_round_trip_contract_projection(tmp_path: Path) -> None:
-    """decode(encode(x)) ≡ π(x) for the closed Fact ledger."""
+    """Deviation: closed Fact encode/decode loses required keys or MAPS_TO identity.
+
+    Serde SoT is Fact closed-world round-trip; symbol spelling checked via parse.
+    """
+    from doc_engine.scanning.symbol import parse
+
     signals = {
         "scanners": ["ast-grep"],
         "evidence": {
@@ -51,8 +56,18 @@ def test_facts_serde_round_trip_contract_projection(tmp_path: Path) -> None:
                 "status": "contested",
                 "table": "a_user",
                 "candidates": [
-                    {"file": "a/User.java", "table": "a_user"},
-                    {"file": "b/User.java", "table": "b_user"},
+                    {
+                        "file": "a/User.java",
+                        "table": "a_user",
+                        "package": "com.example.a",
+                        "fqcn": "com.example.a.User",
+                    },
+                    {
+                        "file": "b/User.java",
+                        "table": "b_user",
+                        "package": "com.example.b",
+                        "fqcn": "com.example.b.User",
+                    },
                 ],
             }
         },
@@ -62,11 +77,15 @@ def test_facts_serde_round_trip_contract_projection(tmp_path: Path) -> None:
     write_facts_jsonl(path, facts)
     model = validate_artifact_file("facts", path)
     decoded = [f.model_dump() for f in model.root]
-    # Write path re-validates through Fact; compare on contract keys.
     expected = [Fact.model_validate(f).model_dump() for f in facts]
     assert decoded == expected
-    maps = [f for f in decoded if f["predicate"] == "MAPS_TO" and f["subject"] == "User"]
-    assert len(maps) >= 2
+    maps = [f for f in decoded if f["predicate"] == "MAPS_TO"]
+    assert len(maps) == 2
+    assert len({f["subject"] for f in maps}) == 2
+    assert {parse(f["subject"]).namespaces for f in maps} == {
+        ("com", "example", "a"),
+        ("com", "example", "b"),
+    }
 
 
 def test_facts_drop_required_key_rejected() -> None:
