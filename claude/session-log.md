@@ -2253,3 +2253,12 @@ Assumptions affected:
 - Next engineering still points at L3 — [Resolved — Next = L2b post-summary calibration; L3 after L2/L2b]
 Files touched: STATUS.md, CONSTRAINTS.md, claude/session-log.md
 
+
+## 2026-07-30 — L2b measured_stage4_inputs (measure, do not invent threshold)
+Commit: uncommitted
+Tests: 28/28 capacity_preflight; 8/8 ddia depth; check_repo_claims OK
+Assumptions affected:
+- L2b only queued / no post-artifact measure mode — [Resolved — --summaries-file → measured_stage4_inputs + optional proxy comparison; returns still omitted]
+- Default stage4 warn threshold should be recalibrated now that DDIA bites — [Still accurate — 80000 unchanged until documented mid-size run; cite rel-partition-bounds-fanout / claims-and-status-drift]
+- capacity-preflight skill says L2b not implemented — [Resolved — Step 2b documents measured mode]
+Files touched: src/doc_engine/tools/capacity_preflight.py, tests/doc_engine/test_capacity_preflight.py, skills/capacity-preflight/SKILL.md, adapters/claude/skills/capacity-preflight/SKILL.md, docs/design/ddia-north-star/domains/07-partitioning-and-skew/relationships/partition-bounds-fanout.md, STATUS.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
