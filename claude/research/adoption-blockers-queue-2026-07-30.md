@@ -97,7 +97,7 @@ Prefer outcome-bound tests over substring-only `verify:` where the claim is beha
 
 ### L3 — Claim-symbol single-token entities — **ADR proposed (research; no code)**
 
-**DDIA card:** domain `02-encoding-and-evolution`; open `schema-evolution-and-data-outlives-code`, `encoding-and-compatibility`, `rel-schema-outlives-writers`. SoR = facts / claim keys. Larger fact-store redesign — research/ADR before code; do not fold into L2. Cite Phase-1 fact-store lock. **Unlock:** L2b threshold *default* retained (PR #75). **ADR:** [`claim-symbol-entity-identity-adr-2026-07-30.md`](claim-symbol-entity-identity-adr-2026-07-30.md) — direction **D→A** (hybrid dual-read toward FQCN tokens); reject keep-simple-name-forever; no JPA dump / no packaging fold. Code PR only after exit criteria in that ADR.
+**DDIA card:** domain `02-encoding-and-evolution`; open `schema-evolution-and-data-outlives-code`, `encoding-and-compatibility`, `rel-schema-outlives-writers`. SoR = facts / claim keys. Larger fact-store redesign — research/ADR before code; do not fold into L2. Cite Phase-1 fact-store lock. **Unlock:** L2b threshold *default* retained (PR #75). **ADR:** [`claim-symbol-entity-identity-adr-2026-07-30.md`](claim-symbol-entity-identity-adr-2026-07-30.md) — direction **A (FQCN)** as canonical type-level `MAPS_TO` subject; dual-read **rejected as architecture** (versioned cutover of regenerated facts; Path A may lag); reject keep-simple-name-forever; no JPA dump / no packaging fold. Code PR only after exit criteria in that ADR.
 
 ### L4 — Branch protection (human) — **deferred until later (owner)**
 
