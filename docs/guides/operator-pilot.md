@@ -135,6 +135,7 @@ Inside `<run_dir>` you should see files such as:
 | File | What it is |
 |------|------------|
 | `spring_signals.json` | Scan results: entities/tables, evidence buckets (controllers, security, queries, …), `redaction_zones`, config key sets. |
+| `facts.jsonl` | Dual-emit fact ledger (evidence hits + `MAPS_TO` / contested multi-map). **Not** required for `certification.json` yet — Path A cert still keys off signals/groups/validators, not this file. |
 | `groups.json` | How source files were grouped for later parallel work. |
 | `cross_group_edges.json` | Cross-group relationships computed in Stage 0 (not guessed by an LLM). |
 | `certification.json` | Whether this profile’s required checks passed (`certified: true` / `false`). |
