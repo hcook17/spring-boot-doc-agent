@@ -2,7 +2,7 @@
 
 **Verdict: REFINE** (docs/claims lagged runtime; fix in place + L1 precision gate)
 
-Aligns with: [`ddia-north-star/`](ddia-north-star/) ids `sor-vs-derived`, `claims-and-status-drift`, `coverage-gates`, `schema-evolution-and-data-outlives-code`; adoption-blockers queue; B2.5 certification derived-view memo.
+Aligns with: [`docs/design/ddia-north-star/`](../../docs/design/ddia-north-star/) ids `sor-vs-derived`, `claims-and-status-drift`, `coverage-gates`, `schema-evolution-and-data-outlives-code`, deviation `dev-coverage-denominator-codeql`; adoption-blockers queue; B2.5 certification derived-view memo.
 
 ## 1. What drifted
 
@@ -22,7 +22,7 @@ Aligns with: [`ddia-north-star/`](ddia-north-star/) ids `sor-vs-derived`, `claim
 
 ## 3. What this change does
 
-1. DDIA north-star catalog for durable lookup (`ddia-north-star/`).
+1. DDIA north-star catalog for durable lookup (`docs/design/ddia-north-star/`).
 2. Correct CLAUDE / CONSTRAINTS / tool-quirks / STATUS / CI comments; keep `rule_fixtures` as metamorphic-owned.
 3. L1: `semgrep_rule_fixtures_negative/` + `check_fp_ratchet` + `semgrep_rule_fp_baseline.json` (hermetic; all-zero preferred).
 

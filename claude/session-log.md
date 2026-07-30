@@ -2205,3 +2205,13 @@ Assumptions affected:
 - Adoption-blockers Explicitly later unnumbered — [Resolved — L1 done … L6 queued]
 - DDIA guidance trapped in chat / memory — [Resolved — claude/research/ddia-north-star/ catalog for build/review/refactor]
 Files touched: claude/research/ddia-north-star/**, claude/research/coverage-sor-derived-blindspot-2026-07-30.md, claude/research/adoption-blockers-queue-2026-07-30.md, scripts/coverage/semgrep_rule_coverage.py, scripts/coverage/semgrep_rule_fixtures_negative/**, scripts/coverage/semgrep_rule_fp_baseline.json, tests/coverage/test_semgrep_rule_coverage.py, tests/research/test_ddia_north_star_catalog.py, CLAUDE.md, CONSTRAINTS.md, STATUS.md, claude/tool-quirks.md, claude/steering-prompts/10-review-persona-and-standards.md, .github/workflows/ci.yml, claude/session-log.md
+
+## 2026-07-30 — Relocate DDIA north-star to docs/design; deepen + deviations
+Commit: uncommitted
+Tests: 13/13 passed (ddia north-star catalog); check_repo_claims OK
+Assumptions affected:
+- DDIA catalog lives under claude/research (LLM-concentrated) — [Resolved — moved to docs/design/ddia-north-star/; claude path is redirect stub]
+- Chapter atlases are title-thin — [Resolved — ch01–ch14 have who/what/when/where/why/how + principal questions; honest partial where thin]
+- Project DDIA deviations are blind spots — [Resolved — deviations/ registry with upstream check + rejected band-aids; three seed entries]
+- Flat concepts/playbooks/chapters layout hard to navigate — [Resolved — six nested domains + relationships]
+Files touched: docs/design/**, claude/research/ddia-north-star/README.md (stub), STATUS.md, docs/product-architecture.md, claude/steering-prompts/10-review-persona-and-standards.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/research/coverage-sor-derived-blindspot-2026-07-30.md, scripts/coverage/semgrep_rule_coverage.py, tests/research/test_ddia_north_star_catalog.py, claude/session-log.md

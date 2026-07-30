@@ -128,3 +128,7 @@ Legacy `Engine.generate_docs()` / `build_site()` are placeholders — use `doc-e
 ## Agent search policy
 
 Claude agents must not use text search for code citations. See [`adapters/claude/SEARCH.md`](../adapters/claude/SEARCH.md) and [`docs/search-methodology-benchmark.md`](search-methodology-benchmark.md).
+
+## Design north star (DDIA)
+
+Principal-grade design vocabulary (domains, relationships, chapter 5W1H, explicit deviations): [`docs/design/ddia-north-star/`](design/ddia-north-star/).

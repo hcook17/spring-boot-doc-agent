@@ -37,7 +37,7 @@ Packaging / A+C / portable-kernel arc is **paused** on `main` (through PR #58 / 
 
 **Phase 1 dual-emit landed (this arc):** Stage 0 writes `facts.jsonl` beside `spring_signals.json` ([`claude/research/facts-ledger-schema-2026-07-30.md`](claude/research/facts-ledger-schema-2026-07-30.md); memo [`fact-store-phase1-decision-memo-2026-07-30.md`](claude/research/fact-store-phase1-decision-memo-2026-07-30.md)). Evidence + contested multi-`MAPS_TO`; emit counters on stdout/stderr; maps unchanged; **not** a certification-required artifact. **Do not treat** [`claude/10-architecture-maturation-plan.md`](claude/10-architecture-maturation-plan.md) §0–1 or the JPA survey as executable specs for further Phase 1 dump work.
 
-**Next engineering:** adoption blockers **B1–B5 are done** on `main` (PRs #68–#72; queue [`claude/research/adoption-blockers-queue-2026-07-30.md`](claude/research/adoption-blockers-queue-2026-07-30.md)). Current slice: **L1** semgrep negative fixtures + hermetic FP ratchet; then **L2** capacity Stage-4 fan-out. Parallel, non-code: repo-admin **branch protection + required CI** on `main` (`CONSTRAINTS.md` enterprise item 6 — **L4**, human). DDIA lookup catalog for build/review/refactor: [`claude/research/ddia-north-star/`](claude/research/ddia-north-star/).
+**Next engineering:** adoption blockers **B1–B5 are done** on `main` (PRs #68–#72; queue [`claude/research/adoption-blockers-queue-2026-07-30.md`](claude/research/adoption-blockers-queue-2026-07-30.md)). Current slice: **L1** semgrep negative fixtures + hermetic FP ratchet; then **L2** capacity Stage-4 fan-out. Parallel, non-code: repo-admin **branch protection + required CI** on `main` (`CONSTRAINTS.md` enterprise item 6 — **L4**, human). DDIA design north-star (any level — domain through control; deviations explicit): [`docs/design/ddia-north-star/`](docs/design/ddia-north-star/).
 
 **Sequencing lock (do not fold):** Schema/SPI scoping — implement only after / with fact-store Phase 1, not as a packaging sidecar.
 
@@ -67,7 +67,7 @@ flowchart LR
 ## Cross-links
 
 - `claude/session-log.md` — append-only commit history for steering-prompt-affecting changes.
-- `claude/research/ddia-north-star/` — DDIA 2e north-star catalog (INDEX → one page) for implementation, code/architecture review, and refactor sequencing; cite concept `id`s.
+- `docs/design/ddia-north-star/` — DDIA 2e design SoR (domains, relationships, deep chapters, deviations); INDEX → one page; cite `id`s. Stub redirect: `claude/research/ddia-north-star/`.
 - `CONTRIBUTING.md` — write-then-verify rule and the research behind it.
 - `CONSTRAINTS.md` — the plugin's standing constraints, a different axis from this file's done/pending tracking.
 - `IMPLEMENTATION_HANDOFF.md` — the six-item handoff this file's "Done" section summarizes.

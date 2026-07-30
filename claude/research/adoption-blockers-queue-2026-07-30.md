@@ -4,7 +4,7 @@ Queued from the external principal review (`spring-boot-doc-agent-review.md`) af
 
 Theme (review §10): controls that are real but one layer away from where they bite.
 
-North-star for build/review/refactor: [`ddia-north-star/`](ddia-north-star/). Blindspot note: [`coverage-sor-derived-blindspot-2026-07-30.md`](coverage-sor-derived-blindspot-2026-07-30.md).
+North-star for build/review/refactor (moved under product design): [`docs/design/ddia-north-star/`](../../docs/design/ddia-north-star/). Blindspot note: [`coverage-sor-derived-blindspot-2026-07-30.md`](coverage-sor-derived-blindspot-2026-07-30.md).
 
 ## B1 — Client identifier purge + repo-wide denylist — **done**
 

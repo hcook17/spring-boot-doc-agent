@@ -19,7 +19,7 @@ Falling FP counts pass. Missing negative corpus or missing FP baseline fails
 closed once negatives are expected. **Recall backtest** (with a path) still
 uses check_ratchet (drop-to-zero) against the optional real-corpus baseline —
 a separate polarity; do not reuse it for FPs. See
-claude/research/ddia-north-star/ playbook `coverage-gates`.
+docs/design/ddia-north-star/ playbook `coverage-gates` (+ deviation `dev-fp-ratchet-separate-from-recall`).
 
 A REAL QUIRK THIS MODULE WORKS AROUND
 semgrep's JSON `check_id` is not the bare rule id from the YAML when a rule

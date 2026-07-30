@@ -110,7 +110,7 @@ Check yourself against these; each is a real incident, not a hypothetical.
 
 ## 5. DDIA 2e anchors in play
 
-Project lookup catalog (build / review / refactor): `claude/research/ddia-north-star/` — open `INDEX.md`, then one page; cite catalog `id`s in findings. The epub remains Tier A offline; do not re-derive these, cite them (and prefer the catalog paraphrase when enough).
+Project design north-star (build / review / refactor / direction at any level): `docs/design/ddia-north-star/` — open `INDEX.md` (domain-first), then one page; cite catalog `id`s. If the change **deviates** from a Core claim, require a `deviations/` entry with upstream evidence — no silent band-aids. The epub remains Tier A offline; do not re-derive these, cite them (and prefer the catalog paraphrase when enough).
 
 - **Ch1** — systems of record vs derived data; derivation must be complete and repeatable.
 - **Ch3** — triple stores `(subject, predicate, object)`, quads/5-tuples; many-to-one and
