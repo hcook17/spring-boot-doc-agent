@@ -1080,7 +1080,7 @@ Assumptions affected:
 Files touched: tests/ratchets/test_drift_normalization.py, scripts/ratchets/drift_match_normalizers.py, scripts/ratchets/java_perturbations.py, src/doc_engine/tools/certification.py, claude/session-log.md
 
 ## 2026-07-30 — B2.5 certification as derived view (DDIA)
-Commit: 5ef7459
+Commit: 49dd7b0
 Tests: 62 passed (compliance + live_gates + verify_certification + artifact_schemas)
 Assumptions affected:
 - Live gates LWW-merges prior stages and stamps generative_executor=live — [Resolved — `stages_for_live_certification` keeps deterministic rows, drops generative/mock, appends `generative_external`]
