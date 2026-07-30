@@ -14,7 +14,7 @@ rule_coverage.py could report "all rules fired" because it silently found no
 rules to check, which is the vacuous-pass shape this repo keeps writing
 directional tests against.
 
-Run with: python3 scripts/test_rule_coverage.py -v
+Run with: pytest tests/test_rule_coverage.py -v
 """
 from __future__ import annotations
 

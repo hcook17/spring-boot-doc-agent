@@ -17,7 +17,7 @@ hook cannot do its job it must get out of the way, because the CI-side gates
 still stand and a session wedged by its own tooling is worse than a commit
 that reaches a checker one step later.
 
-Run with: python3 scripts/test_require_hardened_tests.py -v
+Run with: pytest tests/test_require_hardened_tests.py -v
 """
 from __future__ import annotations
 
@@ -72,6 +72,16 @@ class MissingTestSuiteTest(unittest.TestCase):
                 deletions={"scripts/definitely_gone_module.py"}),
             [])
 
+    def test_a_new_script_without_a_suite_is_reported(self) -> None:
+        problems = gate.missing_test_suites(["scripts/brand_new_thing.py"])
+        self.assertEqual(len(problems), 1)
+        self.assertIn("test_brand_new_thing.py", problems[0])
+
+    def test_a_script_with_tests_dir_suite_passes(self) -> None:
+        """CI SoT is tests/; a scripts/ module is covered by tests/test_*.py."""
+        self.assertEqual(
+            gate.missing_test_suites(["scripts/check_repo_claims.py"]), [])
+
     def test_a_test_file_is_not_itself_required_to_have_a_test(self) -> None:
         self.assertEqual(gate.missing_test_suites(["scripts/test_anything.py"]), [])
 
@@ -112,13 +122,13 @@ class MissingTestSuiteTest(unittest.TestCase):
 
 
 class UnwiredSuiteTest(unittest.TestCase):
-    def test_a_suite_absent_from_ci_is_reported(self) -> None:
+    def test_scripts_test_wrapper_revival_is_reported(self) -> None:
         problems = gate.unwired_suites(["scripts/test_not_in_ci_at_all.py"])
         self.assertEqual(len(problems), 1)
-        self.assertIn("never run", problems[0])
+        self.assertIn("outside pyproject testpaths", problems[0])
 
-    def test_a_wired_suite_passes(self) -> None:
-        self.assertEqual(gate.unwired_suites(["scripts/test_set_delta.py"]), [])
+    def test_a_suite_under_tests_passes(self) -> None:
+        self.assertEqual(gate.unwired_suites(["tests/test_set_delta.py"]), [])
 
 
 class PassesThroughTest(unittest.TestCase):

@@ -14,7 +14,7 @@ that's a real deployment problem, not a reason to skip the test.
 Every fixture file exists to guard a specific, previously-broken behavior —
 see the comment at the top of each one. Run with:
 
-    python3 scripts/test_spring_signal_scan.py -v
+    pytest tests/test_spring_signal_scan.py -v
 
 Requires: ast-grep on PATH (see spring_signal_scan.py's error message for
 install instructions if this fails with "ast-grep binary is not on PATH").

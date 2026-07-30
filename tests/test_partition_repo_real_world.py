@@ -9,7 +9,7 @@ deliberately kept out of anything packaged or published. Point this at your
 own local checkout of any real repo via an environment variable:
 
     PARTITION_REPO_REAL_FIXTURE_DIR=/path/to/a/real/repo \
-        python3 scripts/test_partition_repo_real_world.py -v
+        pytest tests/test_partition_repo_real_world.py -v
 
 With the environment variable unset, every test in this file is skipped
 (not failed) — that's the expected, normal state for anyone else who

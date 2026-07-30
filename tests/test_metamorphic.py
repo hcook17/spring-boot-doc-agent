@@ -30,7 +30,7 @@ Java transforms come from java_perturbations.FORMATTING_ONLY rather than being
 rewritten, so the meaning-preserving guarantee is the one that module already
 argues for.
 
-Run with: python3 scripts/test_metamorphic.py -v
+Run with: pytest tests/test_metamorphic.py -v
 """
 from __future__ import annotations
 

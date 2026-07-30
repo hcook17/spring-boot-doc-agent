@@ -13,7 +13,7 @@ test_partition_repo_real_world.py — deliberately a separate file, gated
 behind an environment variable, and not something this file depends on.
 
 Run with:
-    python3 scripts/test_partition_repo.py -v
+    pytest tests/test_partition_repo.py -v
 """
 
 import json

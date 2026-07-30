@@ -15,7 +15,7 @@ claude/tool-quirks.md: a heredoc body quoting "gradle ... | tail" as prose
 was read by an unstripped regex as a live command. deny_text_search.py hit
 and fixed the identical mistake for a different matcher.
 
-Run with: python3 scripts/test_check_pipe_exit_code.py -v
+Run with: pytest tests/test_check_pipe_exit_code.py -v
 """
 from __future__ import annotations
 

@@ -13,7 +13,7 @@ test_bare_git_subcommands_pass: `git clone` must be denied, but `git status`/
 .claude/settings.json, so a naive bare-"git" block would be self-defeating
 the same way a naive grep-substring block would catch `ast-grep`.
 
-Run with: python3 scripts/test_deny_raw_network.py -v
+Run with: pytest tests/test_deny_raw_network.py -v
 """
 from __future__ import annotations
 

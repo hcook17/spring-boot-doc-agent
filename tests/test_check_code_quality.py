@@ -11,7 +11,7 @@ failure mode below is asserted to actually produce a non-zero exit code, not
 merely to populate an issues list.
 
 Run with:
-    python3 scripts/test_check_code_quality.py -v
+    pytest tests/test_check_code_quality.py -v
 """
 
 import subprocess

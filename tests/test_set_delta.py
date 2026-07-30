@@ -13,7 +13,7 @@ relation that quietly permits everything -- which would make every metamorphic
 test in the sibling suite pass while checking nothing. `RelationsAreNotVacuous`
 is the class that would catch it.
 
-Run with: python3 scripts/test_set_delta.py -v
+Run with: pytest tests/test_set_delta.py -v
 """
 from __future__ import annotations
 

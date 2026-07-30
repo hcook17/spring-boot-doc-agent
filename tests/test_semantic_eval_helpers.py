@@ -9,7 +9,7 @@ pipeline-output tree with docs/*.md + interview_answers.json, so reusing it
 here would be forcing a fit rather than genuine reuse).
 
 Run with:
-    python3 scripts/test_semantic_eval_helpers.py -v
+    pytest tests/test_semantic_eval_helpers.py -v
 """
 
 import json

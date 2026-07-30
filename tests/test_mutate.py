@@ -15,7 +15,7 @@ after a real run, including one that raises partway through.
 longer exists in the file it names silently tests nothing while still counting
 as "applied" in a naive implementation. Here it is a test failure.
 
-Run with: python3 scripts/test_mutate.py -v
+Run with: pytest tests/test_mutate.py -v
 """
 from __future__ import annotations
 

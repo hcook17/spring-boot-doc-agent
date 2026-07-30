@@ -17,7 +17,7 @@ reads markdown too, so the property that markdown can never name anything
 but a dict key has to be pinned, not assumed.
 
 Run with:
-    python3 scripts/test_check_repo_claims.py -v
+    pytest tests/test_check_repo_claims.py -v
 """
 
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
@@ -39,18 +39,22 @@ def build_tree(root: Path) -> None:
     drift with it, which is the failure this whole script is about."""
     (root / ".git").mkdir()
     (root / "scripts").mkdir()
+    (root / "tests").mkdir()
     (root / "skills").mkdir()
     (root / "claude" / "steering-prompts").mkdir(parents=True)
     (root / ".github" / "workflows").mkdir(parents=True)
 
+    (root / "pyproject.toml").write_text(
+        "[tool.pytest.ini_options]\ntestpaths = [\"tests\"]\n",
+        encoding="utf-8")
     (root / "scripts" / "widget.py").write_text(
         "def do_a_thing():\n    return 1\n", encoding="utf-8")
-    (root / "scripts" / "test_widget.py").write_text(
+    (root / "tests" / "test_widget.py").write_text(
         "def test_one():\n    pass\n\n\ndef test_two():\n    pass\n",
         encoding="utf-8")
     (root / ".github" / "workflows" / "ci.yml").write_text(
         "jobs:\n  test:\n    steps:\n"
-        "      - name: test_widget.py\n        run: python3 scripts/test_widget.py\n",
+        "      - name: pytest\n        run: pytest\n",
         encoding="utf-8")
     (root / "README.md").write_text(
         "See `scripts/widget.py` and `do_a_thing()`.\n", encoding="utf-8")
@@ -225,7 +229,9 @@ class TestReferences(TreeCase):
         self.assertEqual(self.run_check(), 0)
 
     def test_glob_matching_a_file_passes(self) -> None:
-        self.write("README.md", "Suites live at `scripts/test_*.py`.\n")
+        (self.dir / "scripts" / "helper_extra.py").write_text(
+            "x = 1\n", encoding="utf-8")
+        self.write("README.md", "Helpers live at `scripts/helper_*.py`.\n")
         self.assertEqual(self.run_check(), 0)
 
     def test_glob_matching_nothing_fails(self) -> None:
@@ -327,20 +333,25 @@ class TestVerifyPredicates(TreeCase):
 
 
 class TestCiSuiteCoverage(TreeCase):
-    """Check D."""
+    """Check D — refuse scripts/test_*.py revival; discovery covers tests/."""
 
     def test_wired_suite_passes(self) -> None:
         self.assertEqual(self.run_check(), 0)
 
-    def test_unwired_suite_fails(self) -> None:
+    def test_scripts_test_wrapper_revival_is_flagged(self) -> None:
         (self.dir / "scripts" / "test_orphan.py").write_text(
             "def test_x():\n    pass\n", encoding="utf-8")
         self.assertEqual(self.run_check(), 1)
 
+    def test_pytest_discovery_does_not_require_per_suite_ci_steps(self) -> None:
+        (self.dir / "tests" / "test_orphan.py").write_text(
+            "def test_x():\n    pass\n", encoding="utf-8")
+        self.assertEqual(self.run_check(), 0)
+
     def test_exempt_suite_is_allowed(self) -> None:
         name = next(iter(crc.CI_EXEMPT_SUITES))
-        (self.dir / "scripts" / name).write_text("def test_x():\n    pass\n",
-                                                 encoding="utf-8")
+        (self.dir / "tests" / name).write_text("def test_x():\n    pass\n",
+                                               encoding="utf-8")
         self.assertEqual(self.run_check(), 0)
 
     def test_every_exemption_states_a_reason(self) -> None:
@@ -356,7 +367,7 @@ class TestGateHonesty(TreeCase):
             "ENFORCE = False\n", encoding="utf-8")
         (self.dir / ".github" / "workflows" / "ci.yml").write_text(
             "jobs:\n  test:\n    steps:\n"
-            "      - name: test_widget.py\n        run: python3 scripts/test_widget.py\n"
+            "      - name: pytest\n        run: pytest\n"
             f"      - name: {step_name}\n        run: python3 scripts/reporter.py\n",
             encoding="utf-8")
 
@@ -373,12 +384,12 @@ class TestGateHonesty(TreeCase):
         no enforcement claim, and flagging it was a real bug in this check."""
         (self.dir / "scripts" / "reporter.py").write_text("ENFORCE = False\n",
                                                           encoding="utf-8")
-        (self.dir / "scripts" / "test_reporter.py").write_text(
+        (self.dir / "tests" / "test_reporter.py").write_text(
             "def test_x():\n    pass\n", encoding="utf-8")
         (self.dir / ".github" / "workflows" / "ci.yml").write_text(
             "jobs:\n  test:\n    steps:\n"
-            "      - name: test_widget.py\n        run: python3 scripts/test_widget.py\n"
-            "      - name: test_reporter.py\n        run: python3 scripts/test_reporter.py\n"
+            "      - name: pytest\n        run: pytest\n"
+            "      - name: test_reporter.py\n        run: pytest tests/test_reporter.py\n"
             "      - name: reporter.py (non-blocking)\n        run: python3 scripts/reporter.py\n",
             encoding="utf-8")
         self.assertEqual(self.run_check(), 0)
@@ -521,9 +532,15 @@ class TestBaseline(TreeCase):
 
     def test_exact_checks_are_never_baselined(self) -> None:
         """A/D/E and a contradicted verify: predicate must stay fatal even
-        immediately after --update, or the ratchet becomes an off switch."""
-        (self.dir / "scripts" / "test_orphan.py").write_text(
-            "def test_x():\n    pass\n", encoding="utf-8")
+        immediately after --update, or the ratchet becomes an off switch.
+
+        Uses Check A (stale derived). Check D now flags scripts/test_*.py
+        revival rather than unwired scripts/ suites."""
+        self.write(
+            "README.md",
+            "There are <!-- derived: test_suite_count -->9<!-- /derived --> "
+            "suites.\n",
+        )
         baseline = self.dir / "baseline.json"
         code = crc.main(["--root", str(self.dir), "--baseline", str(baseline),
                          "--update"])

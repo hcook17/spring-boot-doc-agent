@@ -1,13 +1,13 @@
 ---
 name: semantic-pipeline-eval
-description: Semantically evaluate a completed document-spring-repo pipeline run's actual output quality — not just its shape. Samples [Evidenced] claims and checks the cited file:line really supports the claim, flags [Confirmed] tags with no matching interview_answers.json entry, checks doc-writer files for contradictions against the merged architecture diagram or each other, and validates Mermaid diagram syntax. Complements scripts/test_pipeline_stages.py, which only checks structural shape (tag grammar, citation resolvability, JSON schema) and explicitly does not judge truthfulness. Use after a real pipeline run, pointed at its PIPELINE_ARTIFACTS_DIR, when you want a quality/hallucination check beyond mechanical validation — not as a replacement for test_pipeline_stages.py, which should still run on every change to the five agent prompts.
+description: Semantically evaluate a completed document-spring-repo pipeline run's actual output quality — not just its shape. Samples [Evidenced] claims and checks the cited file:line really supports the claim, flags [Confirmed] tags with no matching interview_answers.json entry, checks doc-writer files for contradictions against the merged architecture diagram or each other, and validates Mermaid diagram syntax. Complements 	ests/test_pipeline_stages.py, which only checks structural shape (tag grammar, citation resolvability, JSON schema) and explicitly does not judge truthfulness. Use after a real pipeline run, pointed at its PIPELINE_ARTIFACTS_DIR, when you want a quality/hallucination check beyond mechanical validation — not as a replacement for test_pipeline_stages.py, which should still run on every change to the five agent prompts.
 ---
 
 # Semantic pipeline evaluation
 
 ## What this is and isn't
 
-`scripts/test_pipeline_stages.py` already proves an `[Evidenced — path:line]` citation *resolves* to a real file/line, that `file-summarizer`/`gap-analyzer` output matches its required JSON shape, and that architecture-diagram node labels trace back to real names. It deliberately never judges whether the claim next to a resolved citation is actually *true*, whether a `[Confirmed — interview, <date>]` tag is really backed by a real interview answer, or whether two doc-writer files quietly disagree with each other. Those are genuine semantic-judgment tasks, not shape checks — this skill's job, not a re-implementation of that script's.
+`	ests/test_pipeline_stages.py` already proves an `[Evidenced — path:line]` citation *resolves* to a real file/line, that `file-summarizer`/`gap-analyzer` output matches its required JSON shape, and that architecture-diagram node labels trace back to real names. It deliberately never judges whether the claim next to a resolved citation is actually *true*, whether a `[Confirmed — interview, <date>]` tag is really backed by a real interview answer, or whether two doc-writer files quietly disagree with each other. Those are genuine semantic-judgment tasks, not shape checks — this skill's job, not a re-implementation of that script's.
 
 Two of the four checks below only *sound* semantic and are actually mechanical — they're handled by `doc_engine.tools.semantic_eval_helpers`, not by you:
 - unresolved `[Confirmed]` tags (no matching `interview_answers.json` entry)
@@ -89,4 +89,4 @@ Write `semantic_eval_report.md` (or emit inline if the user didn't ask for a fil
 - No exhaustive claim-checking — sampling only, cost-bounded by design (see Step 2's projection).
 - No automated re-run/gating decision — this produces a report for a human to act on, not a pass/fail gate.
 - No new dependency — no Mermaid-rendering library, no LLM-judge framework, no schema-validation library for `interview_answers.json` (that gap is `claude/steering-prompts/02-pluggability-research-prompt.md`'s, not this skill's to close).
-- Does not replace `scripts/test_pipeline_stages.py` — run both; that script should still run on every change to the five agent prompts (and in CI).
+- Does not replace `	ests/test_pipeline_stages.py` — run both; that script should still run on every change to the five agent prompts (and in CI).

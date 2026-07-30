@@ -4,7 +4,7 @@ test_drift_normalization.py — how often does spring_drift_check tier 2 report
 drift when nothing drifted, and would a different match-identity fix it?
 
 Usage:
-    python3 scripts/test_drift_normalization.py -v
+    pytest tests/test_drift_normalization.py -v
 
 Skips itself if scripts/test_fixtures/spring_signals/ or the ast-grep binary is
 absent, following the same pattern as test_spring_signal_scan.py.

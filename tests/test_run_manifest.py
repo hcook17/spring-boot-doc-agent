@@ -18,7 +18,7 @@ test_capacity_preflight.py already share) for the fresh-file-signature-scan
 test, rather than building a second fixture tree.
 
 Run with:
-    python3 scripts/test_run_manifest.py -v
+    pytest tests/test_run_manifest.py -v
 """
 
 import contextlib

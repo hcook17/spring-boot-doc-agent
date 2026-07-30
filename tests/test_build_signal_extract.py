@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Unit tests for _build_signal_extract.py.
 
-Run with: python3 scripts/test_build_signal_extract.py -v
+Run with: pytest tests/test_build_signal_extract.py -v
 
 No ast-grep required; these are pure string tests against the same extractor
 spring_signal_scan.py calls.
