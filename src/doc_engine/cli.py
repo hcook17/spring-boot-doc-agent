@@ -88,7 +88,10 @@ def cmd_pipeline_gates(args: argparse.Namespace) -> int:
 def cmd_certification_verify(args: argparse.Namespace) -> int:
     from doc_engine.tools.certification import main as cert_main
 
-    return cert_main([args.path])
+    argv = [args.path]
+    if getattr(args, "allow_mock", False):
+        argv.append("--allow-mock")
+    return cert_main(argv)
 
 
 def main() -> int:
@@ -170,6 +173,11 @@ def main() -> int:
         nargs="?",
         default="certification.json",
         help="path to certification.json",
+    )
+    verify_ap.add_argument(
+        "--allow-mock",
+        action="store_true",
+        help="accept generative_executor none/mock (default: require live)",
     )
     verify_ap.set_defaults(func=cmd_certification_verify)
 

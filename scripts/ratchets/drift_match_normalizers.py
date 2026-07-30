@@ -9,22 +9,24 @@ with no __main__ entry point).
 
 WHAT THIS IS FOR
 
-spring_signal_scan._first_line_match() is the identity function tier 2 compares
-citations under for every rule that has no specialized extractor -- all of them
-except raw_queries__query, persistence__entity and persistence__repository. It
-keeps the match's FIRST LINE. ast-grep returns the whole match, so when an
-annotation is wrapped across lines the stored identity degrades to
-"@RequestMapping(" -- which compares equal to nothing, and the citation reads
-as drifted although not one token moved.
+spring_signal_scan.py's Java structural detection stores citation identity via
+``doc_engine.scanning.java_extract.first_line_match`` (formerly a private
+``_first_line_match`` on the scan module). It keeps the match's FIRST LINE.
+ast-grep returns the whole match, so when an annotation is wrapped across
+lines the stored identity degrades to "@RequestMapping(" -- which compares
+equal to nothing, and the citation reads as drifted although not one token
+moved.
 
 MEASURED, on scripts/fixtures/spring_signals across four formatting-only
-perturbations (test_drift_normalization.py re-derives all of these):
+perturbations (test_drift_normalization.py re-derives all of these; counts
+are absolute false-positive totals, not a fixed denominator — the old
+``N / 208`` framing went stale the moment the fixture citation count moved):
 
     normalizer                 false pos    missed real changes
-    first_line (status quo)      2 / 208           0 / 2
-    collapse_ws                  2 / 208           0 / 2
-    strip_ws_outside_strings     0 / 208           0 / 2
-    tokens                       0 / 208           0 / 2
+    first_line (status quo)         12                0 / 2
+    collapse_ws                     12                0 / 2
+    strip_ws_outside_strings         0                0 / 2
+    tokens                           0                0 / 2
 
 Two arms, because the first is trivially winnable: a normalizer mapping every
 input to "" scores zero false positives and detects nothing. No candidate may
@@ -32,7 +34,7 @@ buy a lower false-positive count with a missed real change.
 
 NOTHING HERE IS WIRED IN YET, AND THAT IS THE POINT OF LANDING IT SEPARATELY
 
-Adopting `tokens` is not a drop-in substitution, because _first_line_match()
+Adopting `tokens` is not a drop-in substitution, because first_line_match()
 does two jobs at once: it decides what tier 2 COMPARES, and it decides what
 spring_signals.json STORES in each citation's `match` field -- which is
 human-readable evidence a doc-writer agent reads. A token sequence joined by
@@ -46,14 +48,14 @@ from typing import Callable, Dict, List
 
 Normalizer = Callable[[str], str]
 
-# spring_signal_scan._first_line_match truncates here; candidates match it so
-# the comparison is between relations, not between length limits.
+# java_extract.first_line_match truncates here; candidates match it so the
+# comparison is between relations, not between length limits.
 MAX_LEN = 200
 
 
 def first_line(text: str) -> str:
-    """Status quo, copied from spring_signal_scan._first_line_match. Present so
-    the table above has a baseline row measured by the same harness as the
+    """Status quo, copied from java_extract.first_line_match. Present so the
+    table above has a baseline row measured by the same harness as the
     candidates, rather than quoted from another run."""
     if not text:
         return ""

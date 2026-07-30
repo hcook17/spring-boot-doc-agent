@@ -44,11 +44,12 @@ def _write_incomplete(path: Path, data: dict) -> None:
 def test_verify_certified_true():
     with tempfile.TemporaryDirectory() as tmp:
         report = build_certification_report(
-            ComplianceProfile.SCAN_ONLY,
+            ComplianceProfile.CERTIFIED,
             "/repo",
             tmp,
             stages=[StageRecord(name="signal_scan", status="ok")],
-            gates=_ok_gates_for(ComplianceProfile.SCAN_ONLY),
+            gates=_ok_gates_for(ComplianceProfile.CERTIFIED),
+            generative_executor="live",
         )
         assert report.certified is True
         path = write_certification_json(tmp, report)
@@ -72,6 +73,7 @@ def test_verify_not_certified():
                     detail="contract broken",
                 )
             ],
+            generative_executor="live",
         )
         assert report.certified is False
         assert any("validate_artifacts_all" in f for f in report.failures)
@@ -165,21 +167,23 @@ def test_verify_certification_script_main():
 
     with tempfile.TemporaryDirectory() as tmp:
         ok_report = build_certification_report(
-            ComplianceProfile.SCAN_ONLY,
+            ComplianceProfile.CERTIFIED,
             "/repo",
             tmp,
             stages=[StageRecord(name="signal_scan", status="ok")],
-            gates=_ok_gates_for(ComplianceProfile.SCAN_ONLY),
+            gates=_ok_gates_for(ComplianceProfile.CERTIFIED),
+            generative_executor="live",
         )
         path = write_certification_json(tmp, ok_report)
         assert main([str(path)]) == 0
 
         bad_report = build_certification_report(
-            ComplianceProfile.SCAN_ONLY,
+            ComplianceProfile.CERTIFIED,
             "/repo",
             tmp,
             stages=[StageRecord(name="signal_scan", status="fail", detail="exit 1")],
-            gates=_ok_gates_for(ComplianceProfile.SCAN_ONLY),
+            gates=_ok_gates_for(ComplianceProfile.CERTIFIED),
+            generative_executor="live",
         )
         write_certification_json(tmp, bad_report)
         assert main([str(path)]) == 1
