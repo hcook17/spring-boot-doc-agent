@@ -103,6 +103,19 @@ def resolve_compliance_profile(
     return ComplianceProfile.CERTIFIED
 
 
+def citations_are_strict(
+    profile: ComplianceProfile,
+    *,
+    force_strict: bool = False,
+) -> bool:
+    """Whether citation_coverage findings should fail the run.
+
+    Same rule as ``local_runner``: certified profile always strict; otherwise
+    only when the caller passes ``--strict-citations``.
+    """
+    return profile == ComplianceProfile.CERTIFIED or force_strict
+
+
 def stages_for_profile(
     profile: ComplianceProfile,
     all_specs: list[StageSpec],

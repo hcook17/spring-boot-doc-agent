@@ -317,6 +317,18 @@ class CertificationReportTest(unittest.TestCase):
         self.assertEqual(names[-1], GENERATIVE_EXTERNAL_STAGE)
         self.assertEqual(derived[-1].executor, "live")
 
+    def test_citations_are_strict_matches_local_runner_rule(self):
+        from doc_engine.pipeline.compliance import citations_are_strict
+
+        self.assertTrue(citations_are_strict(ComplianceProfile.CERTIFIED))
+        self.assertFalse(citations_are_strict(ComplianceProfile.SCAN_ONLY))
+        self.assertFalse(citations_are_strict(ComplianceProfile.DETERMINISTIC_ONLY))
+        self.assertTrue(
+            citations_are_strict(
+                ComplianceProfile.SCAN_ONLY, force_strict=True
+            )
+        )
+
 
 class FinishMessagingTest(unittest.TestCase):
     def test_success_lines_only_when_certified(self):

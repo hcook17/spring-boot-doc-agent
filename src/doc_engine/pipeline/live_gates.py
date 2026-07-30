@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 from typing import Optional, Sequence
 
+from doc_engine.config.loader import load_repo_config
 from doc_engine.pipeline import gates
 from doc_engine.pipeline.compliance import (
     CERTIFIED_GATE_IDS,
@@ -28,6 +29,8 @@ from doc_engine.pipeline.compliance import (
     GateRecord,
     StageRecord,
     build_certification_report,
+    citations_are_strict,
+    resolve_compliance_profile,
     stages_for_live_certification,
     write_certification_json,
 )
@@ -99,18 +102,35 @@ def run_live_gates(
     out_dir: str,
     repo_path: str,
     docs_dir: str,
+    compliance_profile: str | None = None,
     strict_citations: bool = False,
     no_write_check: bool = False,
 ) -> int:
     """Run certified-profile mechanical gates against an existing run directory.
 
     Always rewrites ``certification.json`` with ``generative_executor: "live"``.
+    Citation strictness follows ``citations_are_strict`` (certified ⇒ strict),
+    matching ``local_runner``.
     Returns 0 when every required live gate passes; non-zero otherwise.
     """
     out_dir = os.path.abspath(out_dir)
     repo_path = os.path.abspath(repo_path)
     docs_dir = os.path.abspath(docs_dir)
     py = sys.executable
+
+    from argparse import Namespace
+
+    repo_config = load_repo_config(repo_path)
+    profile = resolve_compliance_profile(
+        repo_config,
+        Namespace(
+            compliance_profile=compliance_profile,
+            deterministic_only=False,
+        ),
+    )
+    strict_citations_effective = citations_are_strict(
+        profile, force_strict=strict_citations
+    )
 
     failures: list[str] = []
     gate_records: list[GateRecord] = []
@@ -158,7 +178,7 @@ def run_live_gates(
         "--target-repo",
         repo_path,
     ]
-    if strict_citations:
+    if strict_citations_effective:
         cc_argv.append("--strict")
     code, body = gates.run_subprocess_gate(cc_argv)
     _check("citation_coverage", "citation_coverage", code, body)
@@ -219,9 +239,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         help="docs directory (default: <out-dir>/docs)",
     )
     ap.add_argument(
+        "--compliance-profile",
+        choices=[p.value for p in ComplianceProfile],
+        default=None,
+        help="compliance profile (default: certified, or .doc-engine.yml on "
+             "target-repo). certified enables --strict on citation_coverage.",
+    )
+    ap.add_argument(
         "--strict-citations",
         action="store_true",
-        help="make citation_coverage findings fail the gate",
+        help="force --strict on citation_coverage even when profile is not certified",
     )
     ap.add_argument(
         "--no-write-check",
@@ -235,6 +262,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         out_dir=args.out_dir,
         repo_path=args.target_repo,
         docs_dir=docs_dir,
+        compliance_profile=args.compliance_profile,
         strict_citations=args.strict_citations,
         no_write_check=args.no_write_check,
     )

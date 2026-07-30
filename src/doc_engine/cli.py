@@ -78,6 +78,8 @@ def cmd_pipeline_gates(args: argparse.Namespace) -> int:
     ]
     if args.docs_dir:
         argv.extend(["--docs-dir", args.docs_dir])
+    if getattr(args, "compliance_profile", None):
+        argv.extend(["--compliance-profile", args.compliance_profile])
     if args.strict_citations:
         argv.append("--strict-citations")
     if args.no_write_check:
@@ -155,6 +157,13 @@ def main() -> int:
     gates_ap.add_argument("--out-dir", required=True)
     gates_ap.add_argument("--target-repo", required=True)
     gates_ap.add_argument("--docs-dir", default=None)
+    gates_ap.add_argument(
+        "--compliance-profile",
+        choices=["scan_only", "deterministic_only", "certified"],
+        default=None,
+        help="compliance profile (default: certified, or .doc-engine.yml). "
+             "certified enables strict citation_coverage.",
+    )
     gates_ap.add_argument("--strict-citations", action="store_true")
     gates_ap.add_argument("--no-write-check", action="store_true")
     gates_ap.set_defaults(func=cmd_pipeline_gates)
