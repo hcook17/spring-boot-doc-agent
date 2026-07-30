@@ -2278,3 +2278,11 @@ Assumptions affected:
 - May invent/recalibrate 80k from papers alone — [Resolved — REFUTED; retain 80000; mid-size measured_stage4_inputs run still required to change]
 - Calibration gate blocks all of L3 forever — [New info — default decision closed; L3 research may proceed; changing 80k still needs mid-size run]
 Files touched: claude/research/l2b-stage4-threshold-calibration-2026-07-30.md, STATUS.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
+
+## 2026-07-30 — Calib note: Review B = Kimi K3 (2607.24653), retain 80k
+Commit: uncommitted
+Tests: n/a (docs)
+Assumptions affected:
+- Second independent arXiv review may be Aug 2025 RCR-Router — [Resolved — demoted; Review B is summer 2026 Kimi K3 tech report; ContextBudget remains Review A spring]
+- 1M context licenses raising Stage-4 warn default — [Still accurate — REFUTED; retain 80000]
+Files touched: claude/research/l2b-stage4-threshold-calibration-2026-07-30.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
