@@ -4,9 +4,10 @@
 
 | Surface | Path / command | Role |
 |---------|----------------|------|
-| **CLI** | `doc-engine pipeline run <repo>` | Primary orchestrator; writes `certification.json` |
+| **CLI** | `doc-engine pipeline run <repo>` | Primary orchestrator; writes derived `certification.json` (fold over stage/gate facts) |
 | **Local script** | `python -m doc_engine.pipeline.local_runner` | Same graph as CLI (local entry) |
-| **Certification gate** | `doc-engine certification verify <path>` | Exit 0 only when `certified: true` |
+| **Live gates** | `doc-engine pipeline gates …` | Rewrites cert as live derived view (`generative_external` + gate audit); see B2.5 memo |
+| **Certification gate** | `doc-engine certification verify <path>` | Exit 0 when `certified: true` and `generative_executor` is `live` (or `--allow-mock`) |
 | **GitHub Action** | Root `action.yml` + `adapters/github/` | CI composite: pipeline run + certification gate |
 | **Workflow snippet** | `adapters/github/workflow-snippet.yml` | Copy-paste for customer repos |
 | **Claude Code** | `adapters/claude/` (marketplace `source`) | Agents, hooks, skills — live generative stages |
@@ -30,7 +31,7 @@ scanners: [filesystem, ast-grep]
 |---------|---------|
 | `scan_only` | `init_manifest` + `signal_scan` and validate `spring_signals.json` |
 | `deterministic_only` | Full Stage 0 deterministic graph + artifact contract gate |
-| `certified` | Full stage graph + all mechanical gates; emits `certification.json` |
+| `certified` | Full stage graph + all mechanical gates; emits derived `certification.json` (stage `executor` provenance; schema_version bumps only on breaking changes). Live hybrid path: Stage 0 via `pipeline run`, docs via adapters, then `pipeline gates` (see [`certification-derived-view-2026-07-30.md`](../../../claude/research/certification-derived-view-2026-07-30.md)). |
 
 CLI overrides (highest first): `--compliance-profile`, `--deterministic-only`, then `.doc-engine.yml`, then default `certified`.
 
