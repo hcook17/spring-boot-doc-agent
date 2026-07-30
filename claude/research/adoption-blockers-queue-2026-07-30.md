@@ -23,11 +23,11 @@ Theme (review §10): controls that are real but one layer away from where they b
 - ~~Fold rules: stage `fail` always fails; `skipped` fails only if required by profile; `mock_under_live` consistency.~~
 - Design note: [`certification-derived-view-2026-07-30.md`](certification-derived-view-2026-07-30.md).
 
-## B3 — Strict citations on the live gates path
+## B3 — Strict citations on the live gates path — **done**
 
-- Add `--compliance-profile` to the `gates` subcommand; derive strict citation checking like `local_runner`.
-- Regression: non-strict vs certified profile exit codes on a planted weak citation set.
-- Depends on B2.5 provenance so “certified” is not a lying stamp when strictness lands.
+- ~~Add `--compliance-profile` to the `gates` subcommand; derive strict citation checking like `local_runner`.~~
+- ~~Regression: non-strict vs certified profile exit codes on a planted weak citation set.~~
+- `citations_are_strict()` is the shared SoT used by `local_runner` and `live_gates`.
 
 ## B4 — Wire unused DDIA findings validator — **done (schema-contracts-research)**
 

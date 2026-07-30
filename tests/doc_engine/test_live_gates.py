@@ -233,3 +233,112 @@ def test_live_gates_strips_mock_generative_and_survives_skipped_poison(monkeypat
         assert "doc_writer" not in names
         assert "architect" not in names
         assert not any("mock_under_live" in f for f in data["failures"])
+
+
+def _plant_weak_docs(docs: Path) -> None:
+    """Untagged class claim — citation_coverage finding under --strict."""
+    (docs / "readme.md").write_text(
+        "The InvoiceController handles invoice lookups on every request.\n",
+        encoding="utf-8",
+    )
+
+
+def _mock_non_citation_gates(monkeypatch):
+    """Stub validate/validators/secrets/pipeline-output; run real citation_coverage."""
+    import subprocess as sp
+
+    monkeypatch.setattr(
+        live_gates.gates, "run_validate_all_artifacts", lambda _o: 0
+    )
+    monkeypatch.setattr(
+        live_gates.gates,
+        "run_pipeline_validators",
+        lambda _o, _r: (0, "ok"),
+    )
+
+    def _subprocess_real_cc(argv: list[str]) -> tuple[int, str]:
+        joined = " ".join(argv)
+        if "doc_engine.tools.citation_coverage" in joined:
+            proc = sp.run(
+                argv,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            body = (proc.stdout or "") + (proc.stderr or "")
+            return proc.returncode, body
+        return 0, "ok"
+
+    monkeypatch.setattr(live_gates.gates, "run_subprocess_gate", _subprocess_real_cc)
+
+
+def test_certified_profile_fails_live_gates_on_weak_citations(monkeypatch):
+    """B3: certified ⇒ strict citations; planted untagged claim fails the gate."""
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        docs = out / "docs"
+        docs.mkdir()
+        repo = out / "repo"
+        repo.mkdir()
+        (out / "summaries.json").write_text("[]\n", encoding="utf-8")
+        _plant_weak_docs(docs)
+        _mock_non_citation_gates(monkeypatch)
+
+        code = live_gates.run_live_gates(
+            out_dir=str(out),
+            repo_path=str(repo),
+            docs_dir=str(docs),
+            compliance_profile="certified",
+            no_write_check=True,
+        )
+        assert code == 1
+        data = json.loads((out / "certification.json").read_text(encoding="utf-8"))
+        assert data["certified"] is False
+        assert any("citation_coverage" in f for f in data["failures"])
+
+
+def test_non_certified_profile_allows_weak_citations_as_worklist(monkeypatch):
+    """B3: deterministic_only keeps citation_coverage as a worklist (exit 0)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        docs = out / "docs"
+        docs.mkdir()
+        repo = out / "repo"
+        repo.mkdir()
+        (out / "summaries.json").write_text("[]\n", encoding="utf-8")
+        _plant_weak_docs(docs)
+        _mock_non_citation_gates(monkeypatch)
+
+        code = live_gates.run_live_gates(
+            out_dir=str(out),
+            repo_path=str(repo),
+            docs_dir=str(docs),
+            compliance_profile="deterministic_only",
+            no_write_check=True,
+        )
+        assert code == 0
+        data = json.loads((out / "certification.json").read_text(encoding="utf-8"))
+        assert data["certified"] is True
+
+
+def test_force_strict_citations_overrides_non_certified_profile(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        docs = out / "docs"
+        docs.mkdir()
+        repo = out / "repo"
+        repo.mkdir()
+        (out / "summaries.json").write_text("[]\n", encoding="utf-8")
+        _plant_weak_docs(docs)
+        _mock_non_citation_gates(monkeypatch)
+
+        code = live_gates.run_live_gates(
+            out_dir=str(out),
+            repo_path=str(repo),
+            docs_dir=str(docs),
+            compliance_profile="scan_only",
+            strict_citations=True,
+            no_write_check=True,
+        )
+        assert code == 1

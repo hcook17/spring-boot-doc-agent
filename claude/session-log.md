@@ -1018,7 +1018,7 @@ Files touched: src/doc_engine/pipeline/artifacts.py, src/doc_engine/tools/pipeli
 
 ## 2026-07-30 — scripts/ subdirectory layout
 Commit: uncommitted
-Tests: pending (check_repo_claims/check_code_quality baselines regenerated; targeted pytest next)
+Tests: 38 passed (live_gates + compliance) (check_repo_claims/check_code_quality baselines regenerated; targeted pytest next)
 Assumptions affected:
 - STATUS product vs meta scripts boundary — [Still accurate — product stays in doc_engine; meta nested under scripts/{ci,ratchets,coverage,fixtures,schemas}]
 - Flat scripts/*.py invoke paths in CI/hooks/verify: — [Resolved — recursive path updates; no dual-home shims]
@@ -1088,3 +1088,11 @@ Assumptions affected:
 - Any non-ok stage fails cert (skipped poisons live rewrite) — [Resolved — skip fails only if stage required by profile; mock_under_live consistency]
 - Adoption-blockers B2.5 open — [Resolved]
 Files touched: src/doc_engine/pipeline/compliance.py, src/doc_engine/pipeline/live_gates.py, scripts/schemas/certification.schema.json, action.yml, tests/doc_engine/test_compliance.py, tests/doc_engine/test_live_gates.py, src/doc_engine/pipeline/adapters.md, claude/research/certification-derived-view-2026-07-30.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
+
+## 2026-07-30 — B3 strict citations on live gates
+Commit: f89edfe
+Tests: 38 passed (live_gates + compliance)
+Assumptions affected:
+- Live gates citation_coverage is worklist-only unless `--strict-citations` — [Resolved — certified profile (default / `--compliance-profile certified`) enables `--strict`, shared `citations_are_strict`]
+- Adoption-blockers B3 open — [Resolved]
+Files touched: src/doc_engine/pipeline/live_gates.py, src/doc_engine/pipeline/compliance.py, src/doc_engine/pipeline/local_runner.py, src/doc_engine/cli.py, tests/doc_engine/test_live_gates.py, tests/doc_engine/test_compliance.py, claude/research/adoption-blockers-queue-2026-07-30.md, src/doc_engine/pipeline/adapters.md, claude/session-log.md

@@ -94,6 +94,7 @@ from doc_engine.pipeline import gates  # noqa: E402
 from doc_engine.pipeline.compliance import (  # noqa: E402
     ComplianceProfile,
     build_certification_report,
+    citations_are_strict,
     resolve_compliance_profile,
     stage_records_from_runner_results,
     stages_for_profile,
@@ -438,7 +439,7 @@ def run_pipeline(args) -> int:
     profile = resolve_compliance_profile(repo_config, args)
     skip_signal_scan = bool(args.signals_file)
     strict_citations_effective = (
-        profile == ComplianceProfile.CERTIFIED or args.strict_citations
+        citations_are_strict(profile, force_strict=args.strict_citations)
     )
 
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")

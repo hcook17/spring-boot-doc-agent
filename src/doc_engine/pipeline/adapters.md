@@ -6,7 +6,7 @@
 |---------|----------------|------|
 | **CLI** | `doc-engine pipeline run <repo>` | Primary orchestrator; writes derived `certification.json` (fold over stage/gate facts) |
 | **Local script** | `python -m doc_engine.pipeline.local_runner` | Same graph as CLI (local entry) |
-| **Live gates** | `doc-engine pipeline gates …` | Rewrites cert as live derived view (`generative_external` + gate audit); see B2.5 memo |
+| **Live gates** | `doc-engine pipeline gates …` | Rewrites cert as live derived view; `--compliance-profile` / certified ⇒ strict `citation_coverage` (same rule as `local_runner`) |
 | **Certification gate** | `doc-engine certification verify <path>` | Exit 0 when `certified: true` and `generative_executor` is `live` (or `--allow-mock`) |
 | **GitHub Action** | Root `action.yml` + `adapters/github/` | CI composite: pipeline run + certification gate |
 | **Workflow snippet** | `adapters/github/workflow-snippet.yml` | Copy-paste for customer repos |
