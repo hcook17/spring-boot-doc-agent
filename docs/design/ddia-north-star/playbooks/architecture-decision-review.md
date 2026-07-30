@@ -24,6 +24,7 @@ Run a principal-level AD review using the north-star catalog plus prompt 10 evid
 5. Record verdict with catalog `id` citations.
 
 ## Review procedure
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
 
 1. Skim diff for new writers, schemas, gates, baselines, docs paths.
 2. Map each to a review trigger in README / INDEX.
@@ -41,6 +42,10 @@ Run a principal-level AD review using the north-star catalog plus prompt 10 evid
 
 - Coverage SoR blindspot review → `claims-and-status-drift` + `coverage-gates` + `sor-vs-derived`.
 - B2.5 cert review → `replication-lag-and-lww` + `choosing-sor-vs-view`.
+
+## Repo path witness
+
+- [Repo] `playbooks/architecture-decision-review.md`
 
 ## See also
 

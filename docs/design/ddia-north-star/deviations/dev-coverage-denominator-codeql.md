@@ -28,6 +28,7 @@ path: deviations/dev-coverage-denominator-codeql.md
 - Measured: docs claimed fixtures path that the gate did not read — classic SoR/view drift, fixed by aligning docs to code (not by inventing a second gate over the wrong corpus).
 
 ## Upstream check
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
 
 - Writers inspected: `rule_coverage.py`, `spring_signal_scan`, CodeQL pack rule ids, metamorphic tests, CLAUDE.md / CONSTRAINTS item 10, tool-quirks.
 - SoR vs derived: **code + CI invocation** = SoR for coverage denominator; markdown counts = derived.

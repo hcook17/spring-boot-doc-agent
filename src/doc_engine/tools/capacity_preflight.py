@@ -55,9 +55,26 @@ description):
   Stage 3 (software-architect-and-testing): 1  (always; dispatched in the
                                         same turn as gap-analyzer, its own
                                         manifest stage, no interview)
-  Stage 4 (doc-writer):              14 (fixed, one per output file)
+  Stage 4 (doc-writer):              len(VALID_DOC_FILES)  (one per taxonomy file)
   -----------------------------------------------------------
-  total = 2*num_groups + 17
+  total = 2*num_groups + 3 + len(VALID_DOC_FILES)
+
+[L2 / post–cross-group-edges] Stage-1 cost is the *partitioned* edge slice
+(measured below). Stage-4 doc-writers still receive a merged evidence pool
+(summaries, spring_signals, interview_answers — see pipeline stages.py
+doc_writer input_artifacts) on *each* of the taxonomy writers. Measuring
+only Stage-1 therefore under-states Stage-4 input load.
+
+This script runs at **Stage 0**, before summaries/interview exist. It
+reports a **partial_proxy_pre_stage4** for shared-pool size: sum of group
+`est_tokens` (source-token *proxy* for future summaries; overlap can
+inflate) plus optional signals chars/N. It does **not** estimate
+interview_answers, architecture/merge text beyond that proxy, or Stage-4
+return payloads. Field names keep `*_upper_bound_*` for the numeric warn
+threshold; `stage4_metric_kind` is the honesty label — do not treat a
+quiet proxy as closed Stage-4 capacity risk. Cite north-star domain
+`07-partitioning-and-skew`, `rel-partition-bounds-fanout`,
+`claims-and-status-drift`.
 
 Every threshold below is a stated, tunable guess pending real-world
 calibration (documented as such, not hidden) — this script surfaces
@@ -70,6 +87,7 @@ Usage:
         [--edges-file cross_group_edges.json]
         [--group-warn-threshold 15] [--fanout-warn-threshold 40]
         [--slice-tokens-warn-threshold 30000]
+        [--stage4-shared-tokens-warn-threshold 80000]
         [--out capacity_preflight_report.json]
 """
 
@@ -83,10 +101,25 @@ from doc_engine.tools import (
     partition_repo,  # noqa: E402
     spring_signal_scan,  # noqa: E402
 )
+from doc_engine.tools.doc_tag_utils import VALID_DOC_FILES
 
 STAGE3_FIXED_FANOUT = 1   # gap-analyzer, always exactly one dispatch
 STAGE3_ARCH_TEST_REVIEW_FANOUT = 1  # software-architect-and-testing, always one
-STAGE4_FIXED_FANOUT = 14  # doc-writer, one per output file, always fixed
+# SoR: taxonomy file set — not a magic literal that can drift from doc-writer.
+STAGE4_FIXED_FANOUT = len(VALID_DOC_FILES)
+
+# Pipeline SoR: doc_writer input_artifacts in doc_engine.pipeline.stages —
+# what Stage-4 actually receives once those artifacts exist. Stage-0 proxy
+# can only include a subset.
+STAGE4_PROXY_INCLUDED = (
+    "group_est_tokens_proxy_for_summaries",
+    "spring_signals_optional",
+)
+STAGE4_PROXY_OMITTED = (
+    "interview_answers",
+    "architecture_merge_beyond_summary_proxy",
+    "stage4_return_payloads",
+)
 
 
 def _load_or_build_groups(repo_path, max_tokens, overlap, groups_file):
@@ -186,10 +219,53 @@ def estimate_stage1_slice_tokens(edges):
     }
 
 
+def estimate_stage4_shared_pool_tokens(groups_data, signals_data=None):
+    """Partial Stage-0 *proxy* for Stage-4 shared-pool input — not a full bound.
+
+    SoR for dispatch count is ``VALID_DOC_FILES``. Stage-4's real inputs are
+    summaries + interview_answers + spring_signals (pipeline stages.py). At
+    Stage 0 those summaries/interview do not exist yet, so we proxy merged
+    summary size as the sum of per-group ``est_tokens`` (overlap can inflate)
+    and optionally add signals chars/N.
+
+    ``metric_kind`` is ``partial_proxy_pre_stage4``. Numeric fields keep the
+    ``*_upper_bound_*`` names for the warn threshold only — they are **not**
+    an upper bound on full Stage-4 input while omissions are non-empty.
+    """
+    groups = groups_data.get("groups") or []
+    summaries_est = sum(int(g.get("est_tokens") or 0) for g in groups)
+    signals_omitted = signals_data is None
+    signals_est = 0
+    if signals_data is not None:
+        signals_est = max(
+            1,
+            len(json.dumps(signals_data)) // partition_repo.CHARS_PER_TOKEN_DEFAULT,
+        )
+    shared = summaries_est + signals_est
+    return {
+        "metric_kind": "partial_proxy_pre_stage4",
+        "included_now": list(STAGE4_PROXY_INCLUDED),
+        "omitted_not_estimated": list(STAGE4_PROXY_OMITTED),
+        "summaries_est_tokens": summaries_est,
+        "signals_est_tokens": signals_est,
+        "signals_omitted": signals_omitted,
+        "shared_pool_upper_bound_est_tokens": shared,
+        "aggregate_input_upper_bound_est_tokens": shared * STAGE4_FIXED_FANOUT,
+        "return_payloads_estimated": False,
+        "note": (
+            "partial_proxy_pre_stage4: group est_tokens proxy for future "
+            "summaries (overlap can inflate) + optional signals; omitted "
+            "interview_answers / architecture_merge_beyond_summary_proxy / "
+            "stage4_return_payloads; not a full Stage-4 upper_bound"
+        ),
+    }
+
+
 def compute_preflight(repo_path, max_tokens=120000, overlap=0.10,
-                       groups_data=None, edges=None,
+                       groups_data=None, edges=None, signals_data=None,
                        group_warn_threshold=15, fanout_warn_threshold=40,
-                       slice_tokens_warn_threshold=30_000):
+                       slice_tokens_warn_threshold=30_000,
+                       stage4_shared_tokens_warn_threshold=80_000):
     """Pure function over already-loaded groups_data/edges (or repo_path to
     derive them) — kept separate from CLI/file-IO so it's directly unit
     testable against synthetic data without touching disk.
@@ -213,6 +289,7 @@ def compute_preflight(repo_path, max_tokens=120000, overlap=0.10,
     total_fanout = sum(stage_fanout.values())
 
     slice_tokens = estimate_stage1_slice_tokens(edges)
+    stage4_pool = estimate_stage4_shared_pool_tokens(groups_data, signals_data)
     edge_stats = edges.get("stats", {})
 
     warnings = []
@@ -256,6 +333,26 @@ def compute_preflight(repo_path, max_tokens=120000, overlap=0.10,
                 f"cut smaller groups, which shrinks each slice."
             ),
         })
+    if stage4_pool["shared_pool_upper_bound_est_tokens"] > stage4_shared_tokens_warn_threshold:
+        warnings.append({
+            "dimension": "stage4_shared_pool_upper_bound_est_tokens",
+            "value": stage4_pool["shared_pool_upper_bound_est_tokens"],
+            "threshold": stage4_shared_tokens_warn_threshold,
+            "message": (
+                f"Stage-4 shared-pool partial_proxy_pre_stage4 is "
+                f"~{stage4_pool['shared_pool_upper_bound_est_tokens']} "
+                f"est. tokens (summary_proxy≈{stage4_pool['summaries_est_tokens']}, "
+                f"signals≈{stage4_pool['signals_est_tokens']}"
+                f"{', signals_omitted' if stage4_pool['signals_omitted'] else ''}), "
+                f"and each of {STAGE4_FIXED_FANOUT} doc-writers receives a pool "
+                f"(aggregate proxy≈"
+                f"{stage4_pool['aggregate_input_upper_bound_est_tokens']}). "
+                f"Omitted (not estimated): "
+                f"{', '.join(stage4_pool['omitted_not_estimated'])}. "
+                f"Do not treat a quiet Stage-1 slice — or this proxy — as "
+                f"closed Stage-4 capacity risk."
+            ),
+        })
 
     return {
         "repo_path": groups_data.get("repo_path", repo_path),
@@ -267,6 +364,19 @@ def compute_preflight(repo_path, max_tokens=120000, overlap=0.10,
         "stage1_slice_est_tokens_mean": slice_tokens["mean"],
         "stage1_slice_est_tokens_total": slice_tokens["total"],
         "stage1_slice_est_tokens_per_group": slice_tokens["per_group"],
+        "stage4_metric_kind": stage4_pool["metric_kind"],
+        "stage4_included_now": stage4_pool["included_now"],
+        "stage4_omitted_not_estimated": stage4_pool["omitted_not_estimated"],
+        "stage4_shared_pool_upper_bound_est_tokens": (
+            stage4_pool["shared_pool_upper_bound_est_tokens"]
+        ),
+        "stage4_summaries_est_tokens": stage4_pool["summaries_est_tokens"],
+        "stage4_signals_est_tokens": stage4_pool["signals_est_tokens"],
+        "stage4_signals_omitted": stage4_pool["signals_omitted"],
+        "stage4_aggregate_input_upper_bound_est_tokens": (
+            stage4_pool["aggregate_input_upper_bound_est_tokens"]
+        ),
+        "stage4_return_payloads_estimated": stage4_pool["return_payloads_estimated"],
         # Reported straight from the join rather than re-derived here, so the
         # broadcast-vs-shipped comparison has exactly one implementation.
         "edge_join_stats": edge_stats,
@@ -298,6 +408,11 @@ def main():
                            "it, not a calibrated ceiling). Replaces the old "
                            "--references-tokens-warn-threshold, whose 500000 default "
                            "measured the removed broadcast and does not carry over."))
+    ap.add_argument("--stage4-shared-tokens-warn-threshold", type=int, default=80_000,
+                     help=("Warn if Stage-4 shared-pool partial_proxy_pre_stage4 est. "
+                           "tokens exceed this (default: 80000 — stated guess; "
+                           "source-token proxy + optional signals only; interview/"
+                           "returns omitted)."))
     ap.add_argument("--out", default=None, help="Optional path to write the report as JSON")
     args = ap.parse_args()
 
@@ -307,6 +422,10 @@ def main():
         sys.exit(1)
 
     groups_data = _load_or_build_groups(repo_path, args.max_tokens, args.overlap, args.groups_file)
+    signals_data = None
+    if args.signals_file:
+        with open(args.signals_file, encoding="utf-8") as f:
+            signals_data = json.load(f)
     try:
         # Order matters here in a way it did not before: the join consumes
         # the partition, so groups_data must be built first.
@@ -317,10 +436,11 @@ def main():
 
     report = compute_preflight(
         repo_path, max_tokens=args.max_tokens, overlap=args.overlap,
-        groups_data=groups_data, edges=edges,
+        groups_data=groups_data, edges=edges, signals_data=signals_data,
         group_warn_threshold=args.group_warn_threshold,
         fanout_warn_threshold=args.fanout_warn_threshold,
         slice_tokens_warn_threshold=args.slice_tokens_warn_threshold,
+        stage4_shared_tokens_warn_threshold=args.stage4_shared_tokens_warn_threshold,
     )
 
     if args.out:
@@ -332,7 +452,11 @@ def main():
     print(f"capacity-preflight: {report['num_groups']} groups, "
           f"{report['total_fanout']} total subagent dispatches, "
           f"largest Stage-1 edge slice ~{report['stage1_slice_est_tokens_max']} est. tokens "
-          f"(~{report['stage1_slice_est_tokens_total']} across all groups{reduction_note}).")
+          f"(~{report['stage1_slice_est_tokens_total']} across all groups{reduction_note}); "
+          f"Stage-4 shared-pool partial_proxy_pre_stage4 ~"
+          f"{report['stage4_shared_pool_upper_bound_est_tokens']} "
+          f"(omitted: {', '.join(report['stage4_omitted_not_estimated'])}"
+          f"{'; signals_omitted' if report['stage4_signals_omitted'] else ''}).")
     if report["warnings"]:
         print(f"{len(report['warnings'])} warning(s):")
         for w in report["warnings"]:

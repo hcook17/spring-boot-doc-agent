@@ -27,3 +27,11 @@ last_refined: 2026-07-30
 ## Chapters
 
 `ch04`, `ch05`
+
+## Anti-band-aids
+
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
+
+## Repo path witness
+
+- [Repo] `domains/02-encoding-and-evolution/README.md`

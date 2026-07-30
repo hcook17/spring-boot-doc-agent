@@ -6,9 +6,9 @@ tags: [batch, stream, etl, event-log, immutability]
 epub_anchors:
   - { chapter: 11, title: "Serving Derived Data" }
   - { chapter: 12, title: "State, Streams, and Immutability" }
-related: [materialized-views-and-caches, sor-vs-derived, trust-but-verify-and-auditability]
+related: [materialized-views-and-caches, sor-vs-derived, trust-but-verify-and-auditability, rel-batch-feeds-serving, domain-derived-data-processing]
 last_refined: 2026-07-30
-path: domains/01-data-flow-and-truth/concepts/batch-vs-stream-derived-state.md
+path: domains/09-derived-data-processing/concepts/batch-vs-stream-derived-state.md
 
 ---
 
@@ -45,9 +45,10 @@ Batch derives large views when freshness can lag; streams keep views continuousl
 
 ## Review checks
 
-1. Is freshness requirement stated?
-2. Can the derivation be replayed from immutable inputs?
-3. Does the pipeline write SoR directly from a bulk job?
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
+- Fail if freshness is unspecified yet a stream/batch choice is treated as settled.
+- Fail if derivation cannot be replayed from immutable inputs.
+- Fail if a bulk job writes the SoR directly instead of staging a derived view.
 
 ## Refactor signals
 

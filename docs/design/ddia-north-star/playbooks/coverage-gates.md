@@ -24,6 +24,7 @@ Keep three measurements separate over one ruleset so CI stays hermetic and polar
 5. Missing precision baseline after negatives exist → fail closed.
 
 ## Review procedure
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
 
 1. Diff adds a rule? Require positive fixture trigger same commit.
 2. Diff loosens a pattern? Check negative corpus / FP baseline.

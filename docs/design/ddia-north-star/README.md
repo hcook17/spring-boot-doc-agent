@@ -43,9 +43,12 @@ docs/design/ddia-north-star/
   deviations/     explicit project ≠ book with evidence
 ```
 
-- **SoR:** markdown bodies under this tree + `catalog.json` entries.
-- **Derived views:** INDEX, COMPLETENESS, STATUS / prompt-10 pointers.
-- **Not SoR:** chat transcripts; the local epub (Tier A, offline); `claude/` session memos (those *cite* this tree).
+- **SoR hierarchy (cite-or-deviate):**
+  1. **Pipeline / code behavior** (dispatch graph, gates, writers) — highest for runtime truth.
+  2. **North-star markdown + `catalog.json`** — design claim SoR for DDIA-shaped decisions; cite `id` or file a [deviation](deviations/).
+  3. **Derived views** — INDEX, COMPLETENESS, STATUS / prompt-10 pointers, `capacity_preflight_report.json` (label metrics honestly: e.g. Stage-4 `upper_bound`).
+  4. **Not SoR** — chat transcripts; local epub (Tier A offline); chronological `claude/research/` memos (those *cite* this tree).
+- **Prior art:** [meta/prior-art.md](meta/prior-art.md) (Took / Declined / Why).
 
 ## When to open
 

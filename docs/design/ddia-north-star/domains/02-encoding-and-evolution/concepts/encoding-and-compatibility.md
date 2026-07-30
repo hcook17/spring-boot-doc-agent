@@ -44,10 +44,13 @@ Shared schemas make multi-writer/multi-reader evolution tractable; schemaless co
 
 ## Review checks
 
+- Fail if a JSON/artifact field is renamed or removed without a compatibility/migration note for existing readers.
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
+
 1. Is the artifact open-world or closed-world on purpose?
 2. Does a schema change keep old readers/writers working?
 3. Is validation invoked on the live path that matters?
-
+- Fail if the Core claims are ignored without a filed deviation.
 ## Refactor signals
 
 - Free `dict` at a boundary that already has a model.

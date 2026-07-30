@@ -188,8 +188,27 @@ class TestDdiaNorthStarCatalog(unittest.TestCase):
             "dev-fp-ratchet-separate-from-recall",
             "rel-sor-feeds-views",
             "domain-data-flow-and-truth",
+            "domain-partitioning-and-skew",
+            "rel-partition-bounds-fanout",
+            "partition-key-and-hotspots",
+            "ch07",
         ):
             self.assertEqual(self.by_id[needed]["completeness"], "operational", needed)
+
+    def test_prompt_10_cites_north_star_path(self) -> None:
+        """Path pin only: review persona must mention the live catalog path.
+
+        Not full cite-or-deviate enforcement — that remains human/review.
+        """
+        prompt = (
+            REPO_ROOT
+            / "claude"
+            / "steering-prompts"
+            / "10-review-persona-and-standards.md"
+        )
+        text = prompt.read_text(encoding="utf-8")
+        self.assertIn("docs/design/ddia-north-star", text)
+        self.assertIn("deviations/", text)
 
     def test_lives_under_docs_design_not_claude(self) -> None:
         self.assertTrue(NORTH.is_dir())

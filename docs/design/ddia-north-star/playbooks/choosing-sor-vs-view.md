@@ -24,6 +24,7 @@ Decide whether a new artifact is written as system of record or maintained as a 
 5. Document the writer and the rebuild command in the same PR.
 
 ## Review procedure
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
 
 1. Find the writer(s) in the diff.
 2. Ask: on disagreement, which artifact wins?
@@ -39,6 +40,10 @@ Decide whether a new artifact is written as system of record or maintained as a 
 
 - `certification.json` = derived fold over stage/gate facts.
 - `semgrep_rule_fp_baseline.json` = derived measurement over negative fixtures (SoR = fixtures + rules).
+
+## Repo path witness
+
+- [Repo] `playbooks/choosing-sor-vs-view.md`
 
 ## See also
 

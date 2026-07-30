@@ -41,6 +41,14 @@ Data (and baselines) outlive the PR that wrote them; breaking readers without a 
 2. Bump `schema_version` when semantics change.
 3. Provide a migration or dual-read window — do not “fix CI” by inventing fake SoR numbers.
 
+## Anti-band-aids
+
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
+
+## Repo path witness
+
+- [Repo] `domains/02-encoding-and-evolution/relationships/schema-outlives-writers.md`
+
 ## See also
 
 `schema-evolution-and-data-outlives-code`, `dev-fp-ratchet-separate-from-recall`

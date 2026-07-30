@@ -45,10 +45,13 @@ Deployed code turns over quickly; stored data and baselines persist in old shape
 
 ## Review checks
 
+- Fail if schema_version is bumped without stating which readers still must accept the prior version.
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
+
 1. Is the change additive-with-default or breaking?
 2. Does CI exercise the schema path that would catch mismatch?
 3. Are docs updated in the same change as the SoR move?
-
+- Fail if the Core claims are ignored without a filed deviation.
 ## Refactor signals
 
 - Code `SCHEMA_VERSION` != committed baseline without a queued `--update`.

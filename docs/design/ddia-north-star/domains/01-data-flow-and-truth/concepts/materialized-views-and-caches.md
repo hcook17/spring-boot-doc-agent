@@ -45,10 +45,13 @@ A materialized view is a stored query result kept in sync with underlying facts 
 
 ## Review checks
 
+- Fail if a coverage/certification baseline is hand-edited instead of regenerated from stated SoR inputs.
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
+
 1. Is each view’s input set and refresh rule stated?
 2. Are polarities separate (e.g. drop-to-zero vs rise-above-baseline)?
 3. On failure, can you tell “view lag” from “SoR corruption”?
-
+- Fail if the Core claims are ignored without a filed deviation.
 ## Refactor signals
 
 - Collapsing two ratchets into one function “with a flag”.

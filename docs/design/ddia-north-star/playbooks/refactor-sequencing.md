@@ -24,6 +24,7 @@ Sequence refactors so each step is reversible, verifiable, and does not mint a n
 5. Update STATUS/queue as derived views of the new SoR.
 
 ## Review procedure
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
 
 1. Is there a rollback story?
 2. Does CI prove the new invariant, or only change prose?
@@ -37,7 +38,8 @@ Sequence refactors so each step is reversible, verifiable, and does not mint a n
 
 ## Worked example (this repo)
 
-- Order: north-star catalog → claims hygiene → L1 FP ratchet; L6 = rule_coverage baseline schema + remaining doc debt.
+- Order: north-star under `docs/design/` → L1 FP ratchet (**done**) → **L2** capacity Stage-4 SoR align (`rel-sor-feeds-views`, `claims-and-status-drift`) → L6 coverage baseline hygiene / L5 drift schema; L4 branch protection stays parallel human; L3 claim-symbol stays later.
+- Cite `refactor-sequencing` + the queue item’s DDIA card ids in the PR body.
 
 ## See also
 

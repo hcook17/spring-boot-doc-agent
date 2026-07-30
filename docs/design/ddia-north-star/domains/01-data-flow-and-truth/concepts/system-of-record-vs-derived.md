@@ -43,10 +43,13 @@ The system of record holds each fact once as the canonical source; derived data 
 
 ## Review checks
 
+- Fail if a new artifact is introduced without naming its single writer and whether it is SoR or derived.
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
+
 1. Does the diff name a single writer for each fact?
 2. If two artifacts can disagree, is it clear which wins?
 3. Can the “view” be deleted and rebuilt from stated inputs?
-
+- Fail if the Core claims are ignored without a filed deviation.
 ## Refactor signals
 
 - Dual homes for the same claim (docs path ≠ gate path).

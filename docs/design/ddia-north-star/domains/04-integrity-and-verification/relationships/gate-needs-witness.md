@@ -42,6 +42,14 @@ Without a witness, green CI means “script ran,” not “property holds.”
 3. Separate witnesses when properties invert (`dev-fp-ratchet-separate-from-recall`).
 4. Refuse gates that can only pass.
 
+## Anti-band-aids
+
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
+
+## Repo path witness
+
+- [Repo] `domains/04-integrity-and-verification/relationships/gate-needs-witness.md`
+
 ## See also
 
 `coverage-gates`, `trust-but-verify-and-auditability`

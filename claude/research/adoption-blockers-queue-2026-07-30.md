@@ -4,7 +4,26 @@ Queued from the external principal review (`spring-boot-doc-agent-review.md`) af
 
 Theme (review §10): controls that are real but one layer away from where they bite.
 
-North-star for build/review/refactor (moved under product design): [`docs/design/ddia-north-star/`](../../docs/design/ddia-north-star/). Blindspot note: [`coverage-sor-derived-blindspot-2026-07-30.md`](coverage-sor-derived-blindspot-2026-07-30.md).
+North-star (design SoR): [`docs/design/ddia-north-star/`](../../docs/design/ddia-north-star/). Blindspot note: [`coverage-sor-derived-blindspot-2026-07-30.md`](coverage-sor-derived-blindspot-2026-07-30.md).
+
+Every open L-item below carries a **DDIA card** (domain, ids, SoR vs derived, upstream check). Deviations live under [`docs/design/ddia-north-star/deviations/`](../../docs/design/ddia-north-star/deviations/).
+
+## DDIA north-star thorough campaign (N-wave) — **landed partial; honesty pass required**
+
+| Wave | Status | Delivered |
+|------|--------|-----------|
+| Foundation | partial | Depth gate + operational ratchet + prior-art; anti-Goodhart uniqueness/domain-ownership added — not a proof of decision-readiness |
+| A | partial | Domain `07` + `ch07`; L2 **proxy** (not closed capacity risk) |
+| B | partial | Domain `09`; id-stable `batch-vs-stream`; `ch01`/`ch11`/`ch12` operational; `ch10` demoted bridge |
+| C | partial | Encoding/replication chapters deepened; domain `08` **partial** (hollow until local concept) |
+| D | partial | Domain `10` **partial** (hollow); `ch09`/`ch13`/`ch14` operational |
+| E | not done | Honesty pass (this work); campaign not complete |
+
+Honest residual `partial`: domains `06`, `08`, `10`; `ch04`, `ch10`; lite concepts.
+
+## Standing claim-pinning policy (B5 residual — not open work)
+
+Prefer outcome-bound tests over substring-only `verify:` where the claim is behavioral. Closed vocabulary includes `called_by:` and `behavior:<key>` (pre-registered in `check_repo_claims.py`, like `DERIVATIONS`). Product wiring that needs runtime shape lives in [`tests/ci/test_control_wiring.py`](../../tests/ci/test_control_wiring.py). Attach live `verify:` / `behavior:` only when the underlying wiring is already true (same rule for L2+ and future claims). Weak substring `contains:` is a weak witness — cite `trust-but-verify-and-auditability` / `rel-gate-needs-witness`.
 
 ## B1 — Client identifier purge + repo-wide denylist — **done**
 
@@ -23,7 +42,7 @@ North-star for build/review/refactor (moved under product design): [`docs/design
 - ~~Treat `certification.json` as a recomputable fold over stage/gate facts (`StageRecord.executor`; schema_version stays 1 — bump only on breaking changes).~~
 - ~~Live gates **derive** stages (keep deterministic, drop mock generative, append `generative_external`) — not LWW merge + stamp.~~
 - ~~Fold rules: stage `fail` always fails; `skipped` fails only if required by profile; `mock_under_live` consistency.~~
-- Design note: [`certification-derived-view-2026-07-30.md`](certification-derived-view-2026-07-30.md).
+- Design note: [`certification-derived-view-2026-07-30.md`](certification-derived-view-2026-07-30.md). Deviation: `dev-certification-derived-view`.
 
 ## B3 — Strict citations on the live gates path — **done**
 
@@ -40,7 +59,7 @@ North-star for build/review/refactor (moved under product design): [`docs/design
 
 - ~~README / drift docstring: tier-2 is full-repo filter, not per-file ast-grep subprocess.~~ Corrected: tier 1 hash → one fresh `scan()` → per-citation compare against filtered bag.
 - ~~`CONSTRAINTS.md`: overlap-cascade / `carry_forward` / CI enumeration warnings that outlived the fixes.~~ Overlap `[Resolved]` (`carried_in_paths`); CI is `pytest tests/` / `testpaths`; STATUS `ENFORCE` prose aligned; Phase 1 memo §5 gate closed; content-stable claim keys stop ordinal baseline churn.
-- Prefer outcome-bound tests over substring-only `verify:` where the claim is behavioral. Closed vocabulary includes `called_by:` and `behavior:<key>` (pre-registered in `check_repo_claims.py`, like `DERIVATIONS`); product wiring that needs runtime shape lives in `tests/test_control_wiring.py`. Attach live `verify:` for Phase B claims only when the underlying wiring is true.
+- Residual policy: see **Standing claim-pinning policy** above (not an open todo).
 
 ## Later queue (numbered)
 
@@ -48,25 +67,38 @@ North-star for build/review/refactor (moved under product design): [`docs/design
 
 - Positive non-vacuity retained; hermetic negatives under `scripts/coverage/semgrep_rule_fixtures_negative/`.
 - `check_fp_ratchet` (counts must not **rise**) vs `semgrep_rule_fp_baseline.json`; `--update-fp-baseline`.
-- Cite north-star `coverage-gates` / `trust-but-verify-and-auditability`.
+- Cite `coverage-gates` / `trust-but-verify-and-auditability` / `dev-fp-ratchet-separate-from-recall`.
 - Real-corpus semgrep **recall** baseline still absent (do not invent client names).
 
-### L2 — Stage-4 fan-out in `capacity_preflight`
+### L2 — Capacity Stage-4 load vs post–cross-group-edges reality — **open (proxy landed, risk not closed)**
 
-- After L1; capacity model still under-counts Stage-4 fan-out relative to post–cross-group-edges reality.
+**DDIA card**
 
-### L3 — Claim-symbol single-token entities
+| Axis | Value |
+|------|--------|
+| Domain | `07-partitioning-and-skew`, `01-data-flow-and-truth`, `05-maintainability-and-change` |
+| Open | `rel-partition-bounds-fanout`, `partition-key-and-hotspots`, `rel-sor-feeds-views`, `claims-and-status-drift`, `ch07` |
+| SoR | Pipeline dispatch graph (`VALID_DOC_FILES` / `manifest_fanout`, SKILL generative choreography) + group token estimates + Stage-0 edges for Stage-1 slices; Stage-4 real inputs = summaries + interview_answers + signals (`stages.py`) |
+| Derived | `capacity_preflight_report.json` / CLI warnings (`stage4_metric_kind: partial_proxy_pre_stage4`; `stage4_omitted_not_estimated` includes interview; numeric `*_upper_bound_*` fields are warn thresholds only) |
+| Upstream | After edges replaced Stage-1 broadcast, Stage-1 slice looks fine while Stage-4 still ships merged evidence — Stage-0 can only **proxy** future summary size from group `est_tokens` + optional signals. |
+| Deviation | None for measuring a proxy; claiming Stage-4 risk closed while omissions are non-empty would need a deviation (do not) |
 
-- Larger fact-store redesign; not a drive-by.
+**Work landed (measurement):** Stage-4 fan-out from `VALID_DOC_FILES`; partial proxy fields + omissions; `--stage4-shared-tokens-warn-threshold`; signals + `signals_omitted`; polarity + pipeline SoR mirror tests; domain 07 + operational `ch07`.
 
-### L4 — Branch protection (human)
+**Still open for L2:** do not treat quiet proxy as closed capacity; optional later: post-summary calibration once Stage-1 artifacts exist (out of Stage-0 scope). Thin formal schema still L5 for `drift_report`.
 
-- `CONSTRAINTS.md` enterprise item 6 — `gh api` repo-admin; not agent.
+### L3 — Claim-symbol single-token entities — **later**
 
-### L5 — Thin drift/capacity schemas
+**DDIA card:** domain `02-encoding-and-evolution`; open `schema-evolution-and-data-outlives-code`, `encoding-and-compatibility`, `rel-schema-outlives-writers`. SoR = facts / claim keys. Larger fact-store redesign — research/ADR before code; do not fold into L2. Cite Phase-1 fact-store lock.
 
-- Schema memo slice 5 — lowest schema priority.
+### L4 — Branch protection (human) — **parallel**
 
-### L6 — Coverage SoR hygiene follow-ons
+**DDIA card:** domain `05-maintainability-and-change`; open `maintainability-operability-evolvability`, `trust-but-verify-and-auditability`. `CONSTRAINTS.md` enterprise item 6 — `gh api` repo-admin; **not agent**. Choosing not to require CI would need a written deviation.
 
-- `rule_coverage_baseline.json` schema_version 1→2 regenerate; optional `codeql_rule_count` derivation; any residual doc debt after this PR's CLAUDE/CONSTRAINTS/tool-quirks corrections.
+### L5 — Thin drift schema — **after L2**
+
+**DDIA card:** domain `02-encoding-and-evolution`; open `encoding-and-compatibility`, schema memo slice 5. Scope: primarily **`drift_report`** (residual capacity fields only if L2 did not touch them). Additive + `schema_version` per `rel-schema-outlives-writers`; do not invent fields without writers.
+
+### L6 — Coverage SoR hygiene follow-ons — **after L2**
+
+**DDIA card:** domains `01` + `04`; cite `dev-coverage-denominator-codeql`, `coverage-gates`, `rel-gate-needs-witness`. Work: `rule_coverage_baseline.json` schema_version regenerate if needed; optional `codeql_rule_count` derivation; residual doc debt. **Do not** invent client-named semgrep recall baseline (`dev-fp-ratchet-separate-from-recall`).

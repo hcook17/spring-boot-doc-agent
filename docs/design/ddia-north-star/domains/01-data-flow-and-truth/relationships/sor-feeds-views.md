@@ -43,6 +43,14 @@ Dual writers create silent drift; LWW hides which fact was true (`replication-la
 2. Name the view path and regenerator.
 3. On disagreement: fix SoR or regenerator — never hand-merge the view without a [deviation](../../deviations/).
 
+## Anti-band-aids
+
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
+
+## Repo path witness
+
+- [Repo] `domains/01-data-flow-and-truth/relationships/sor-feeds-views.md`
+
 ## See also
 
 `choosing-sor-vs-view`, `dev-certification-derived-view`

@@ -46,10 +46,13 @@ Assume components usually keep their promises, but design so integrity can be ch
 
 ## Review checks
 
+- Fail if a CI gate cannot be shown to fail on a planted counterexample in the same change.
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
+
 1. What would a vacuous pass look like for this control — is it tested?
 2. Is there a witness (fixture, counterexample, failing case)?
 3. Can a later session re-run the check without tribal knowledge?
-
+- Fail if the Core claims are ignored without a filed deviation.
 ## Refactor signals
 
 - Soft-pass on missing baseline for a gate that claims to enforce precision.

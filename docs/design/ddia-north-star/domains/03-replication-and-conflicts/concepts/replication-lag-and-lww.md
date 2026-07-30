@@ -45,10 +45,13 @@ Async copies introduce lag anomalies; resolving conflicts by “latest timestamp
 
 ## Review checks
 
+- Fail if two writers of the same fact are reconciled by silent last-write-wins without a filed deviation.
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
+
 1. Are there two writers for one key?
 2. If concurrent edits are possible, is the resolve rule stated (and is it LWW)?
 3. Would derive-from-facts remove the conflict class?
-
+- Fail if the Core claims are ignored without a filed deviation.
 ## Refactor signals
 
 - `dict.update` / merge helpers on cert or manifests without fold rules.

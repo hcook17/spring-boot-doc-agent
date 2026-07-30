@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "min_operational_entries": 44,
+  "$comment": "Ratchet floor for operational catalog entries. Raise only when pages honestly earn operational; never lower silently."
+}

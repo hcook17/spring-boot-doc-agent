@@ -216,7 +216,7 @@ Assumptions affected:
 
 - `claude/steering-prompts/02-pluggability-research-prompt.md` ? "no schema, no validation, just shared understanding documented in prose" across the four inter-stage JSON artifacts ? [Still accurate ? both new scripts (`semantic_eval_helpers.py` reading `interview_answers.json`/doc output, `capacity_preflight.py` reading `groups.json`/`spring_signals.json`) are two more consumers of these unschema'd contracts, raising the cost of ever changing their shape without a schema, but the schema/validation gap itself is untouched by this change.]
 
-- `claude/steering-prompts/03-constraints-research-prompt.md` (via `CONSTRAINTS.md`'s "Known precision tradeoffs" item 3 and `SKILL.md`'s own "worth confirming against a real repo's actual size" note on the `references` bucket) ? [New info ? `skills/capacity-preflight/` and `scripts/capacity_preflight.py` now compute this as a concrete, per-repo number (group count, total subagent fan-out = `2*num_groups + 16`, references-bucket-tokens × num_groups) instead of leaving it as an unmeasured assumption. Only run against the small `scripts/test_fixtures/spring_signals/` fixture so far (1 group, 18 dispatches, ~783 est. tokens) ? not yet validated against a real large/monorepo target, so the warning thresholds themselves remain stated guesses, not calibrated values.]
+- `claude/steering-prompts/03-constraints-research-prompt.md` (via `CONSTRAINTS.md`'s "Known precision tradeoffs" item 3 and `SKILL.md`'s own "worth confirming against a real repo's actual size" note on the `references` bucket) ? [New info ? `skills/capacity-preflight/` and `scripts/capacity_preflight.py` now compute this as a concrete, per-repo number (group count, total subagent fan-out = `2*num_groups + 16`, references-bucket-tokens � num_groups) instead of leaving it as an unmeasured assumption. Only run against the small `scripts/test_fixtures/spring_signals/` fixture so far (1 group, 18 dispatches, ~783 est. tokens) ? not yet validated against a real large/monorepo target, so the warning thresholds themselves remain stated guesses, not calibrated values.]
 
 - `claude/steering-prompts/04-analytics-logging-research-prompt.md` ? item 2, a `run_manifest.json` recording per-stage timing/pass-fail/evidence-tag counts, still not built ? [New info, not resolved ? `capacity-preflight` is a pre-run estimate only; it doesn't close this gap, but a future `run_manifest.json` should record its predicted numbers (group count, fan-out, references-bucket tokens) alongside the run's actual observed values, closing a calibration loop this prompt didn't previously name. Worth folding into that prompt's scope if it's picked up next.]
 
@@ -490,9 +490,9 @@ Tests: not run (markdown-only change). Verified instead by resolving every backt
 
 Assumptions affected:
 
-- `claude/steering-prompts/12-review-session-launcher.md` §A ? "Copy §A verbatim into a new terminal session" ? [Resolved ? §A instructed a fresh session to read `08-review-persona-and-standards.md` and `09-context-traversal-protocol.md`. Neither exists: `08-` is the dependency-pinning task prompt and `09-` is tool-quirks indexing, both unrelated. The three review-layer files were renumbered on disk to `10`/`11`/`12` without updating their bodies, so all three H1s and every cross-reference still carried the pre-rename numbers. Headers and all cross-references (`11-?` "Pairs with", "§2 of file 08", "per file 08 §4"; `12-?` "file-09 interleave", "file-08 evidence tiers") corrected. The launcher's three paths now all resolve.]
+- `claude/steering-prompts/12-review-session-launcher.md` �A ? "Copy �A verbatim into a new terminal session" ? [Resolved ? �A instructed a fresh session to read `08-review-persona-and-standards.md` and `09-context-traversal-protocol.md`. Neither exists: `08-` is the dependency-pinning task prompt and `09-` is tool-quirks indexing, both unrelated. The three review-layer files were renumbered on disk to `10`/`11`/`12` without updating their bodies, so all three H1s and every cross-reference still carried the pre-rename numbers. Headers and all cross-references (`11-?` "Pairs with", "�2 of file 08", "per file 08 �4"; `12-?` "file-09 interleave", "file-08 evidence tiers") corrected. The launcher's three paths now all resolve.]
 
-- `claude/steering-prompts/12-review-session-launcher.md` §B ? filename convention cited `archunit-scanner-scoping-2026-07-23.md` as "the existing shape" ? [Resolved ? that file does not exist in this repo. Repointed at `claude/drift-check-manifest-baseline-research-2026-07-25.md`, which does exist and matches the stated `<topic>-<kind>-<date>` shape.]
+- `claude/steering-prompts/12-review-session-launcher.md` �B ? filename convention cited `archunit-scanner-scoping-2026-07-23.md` as "the existing shape" ? [Resolved ? that file does not exist in this repo. Repointed at `claude/drift-check-manifest-baseline-research-2026-07-25.md`, which does exist and matches the stated `<topic>-<kind>-<date>` shape.]
 
 - `CLAUDE.md` ? "`claude/steering-prompts/` contains five research/scaffold prompts (`00` shared standards, `01`?`05`)" and "read the five prompt files" ? [Resolved ? there are thirteen (`00`?`12`). A session obeying CLAUDE.md literally would never open `06`?`12`, which includes the entire review layer. Rewritten to describe the three actual groups (`00`?`05` research, `06`?`09` implementation tasks, `10`?`12` review), and to say which ones carry repo-state assumptions worth re-checking before a commit.]
 
@@ -508,7 +508,7 @@ Assumptions affected:
 
 - **Mirror-back required** (per `00-shared-research-standards.md`'s "Mirrored copy ? keep in sync"): prompts `00`, `10`, `11`, `12` were edited here. The canonical copies in the Claude project need the same edits, or the next Cowork session will re-introduce the broken numbering.
 
-- `claude/10-architecture-maturation-plan.md` ? [New info ? left untouched deliberately, per the repo owner's call. Its Phase 0 has three items that no longer match reality (§0.2's unbounded loop was guarded in `5b8e8c8` with a named regression test *before* the plan's own date; §0.4.2's `AstGrepInvocationError` shipped as `AstGrepNotFoundError`; §0.1.4 asserts zizmor is "already wired into `_python-checks.yml`", a file that does not exist), and nine referenced files are missing, two of which it tells you to read. Its filename was also kept as-is rather than moved out of the `NN-` namespace it shares with `steering-prompts/10-`: two of the new prompts cite it by that exact path, so renaming would break more than the cosmetic collision it fixes. Needs a look by whoever owns it.]
+- `claude/10-architecture-maturation-plan.md` ? [New info ? left untouched deliberately, per the repo owner's call. Its Phase 0 has three items that no longer match reality (�0.2's unbounded loop was guarded in `5b8e8c8` with a named regression test *before* the plan's own date; �0.4.2's `AstGrepInvocationError` shipped as `AstGrepNotFoundError`; �0.1.4 asserts zizmor is "already wired into `_python-checks.yml`", a file that does not exist), and nine referenced files are missing, two of which it tells you to read. Its filename was also kept as-is rather than moved out of the `NN-` namespace it shares with `steering-prompts/10-`: two of the new prompts cite it by that exact path, so renaming would break more than the cosmetic collision it fixes. Needs a look by whoever owns it.]
 
 Files touched: CLAUDE.md, README.md, claude/session-log.md, claude/steering-prompts/00-shared-research-standards.md, claude/steering-prompts/10-review-persona-and-standards.md, claude/steering-prompts/11-context-traversal-protocol.md, claude/steering-prompts/12-review-session-launcher.md, claude/10-architecture-maturation-plan.md (added, unmodified), claude/jpa-hibernate-predicate-vocabulary-survey.md (added, unmodified), claude/hibernate-jakarta-fact-verification-2026-07-24.md (added, unmodified)
 
@@ -536,7 +536,7 @@ Assumptions affected:
 
 - `claude/llms/README.md` ? "a bounded grace window, not a hole ... nothing stays undocumented past one PR cycle" ? [Resolved ? falsified by seven PRs. #21-#27 all merged with no `pr-N.md`; `python3 scripts/check_llms_coverage.py` prints all seven today. The window's logic is sound only while the check can fail, and `ENFORCE = False` removed that. The table now carries a row per undocumented PR instead of stopping at #21, and the paragraph states the three real options rather than asserting a bound that did not hold.]
 
-- `.github/workflows/ci.yml` ? step named "check_llms_coverage.py (fails on a merged PR with no claude/llms/pr-N.md)" ? [Resolved ? renamed to say "reports ... non-blocking", because with `ENFORCE = False` the step cannot fail. `claude/steering-prompts/10-review-persona-and-standards.md` §4 lists "a gate that is not a gate" as an anti-pattern this project has actually committed; this was the instance. `ENFORCE` itself is left `False` ? flipping it is a policy call that should be made together with backfilling #21-#27, not smuggled into a docs sweep.]
+- `.github/workflows/ci.yml` ? step named "check_llms_coverage.py (fails on a merged PR with no claude/llms/pr-N.md)" ? [Resolved ? renamed to say "reports ... non-blocking", because with `ENFORCE = False` the step cannot fail. `claude/steering-prompts/10-review-persona-and-standards.md` �4 lists "a gate that is not a gate" as an anti-pattern this project has actually committed; this was the instance. `ENFORCE` itself is left `False` ? flipping it is a policy call that should be made together with backfilling #21-#27, not smuggled into a docs sweep.]
 
 - `claude/llms/pr-28.md` frontmatter ? `state: OPEN` ? [Resolved ? PR #28 merged as `03c16dd` during this session. Set to `MERGED` with the merge commit recorded, and its index row updated. Its `head_commit` also moved to `9d15ed3`, the branch's real head, rather than the mid-branch `2cfb4e0` it had pinned.]
 
@@ -586,7 +586,7 @@ Tests: not run (markdown-only). Verified instead against `git log` per file and 
 
 Assumptions affected:
 
-- `claude/steering-prompts/00-shared-research-standards.md` ? "This file and its siblings (`01` through `12`) are mirrored here from the Claude project's `claude/steering-prompts/` docs" ? [Resolved ? false for six of them, and I introduced it: PR #29 widened the original, correct `01`?`05` to `01`?`12` during a docs sweep without checking what the project contains. Corrected to state the real split. `00`?`06` are mirrored and have a canonical project copy; `07`?`09` were authored in this repo (`03cce58`, `f3af862`, `14f7a91`); `10`?`12` were authored outside the project and landed here in `5bd750b`. This is the "prose winning over reality" anti-pattern `claude/10-architecture-maturation-plan.md` §4.3 lists as one this project has actually committed ? committed again here, and the corrected paragraph says so rather than quietly fixing it.]
+- `claude/steering-prompts/00-shared-research-standards.md` ? "This file and its siblings (`01` through `12`) are mirrored here from the Claude project's `claude/steering-prompts/` docs" ? [Resolved ? false for six of them, and I introduced it: PR #29 widened the original, correct `01`?`05` to `01`?`12` during a docs sweep without checking what the project contains. Corrected to state the real split. `00`?`06` are mirrored and have a canonical project copy; `07`?`09` were authored in this repo (`03cce58`, `f3af862`, `14f7a91`); `10`?`12` were authored outside the project and landed here in `5bd750b`. This is the "prose winning over reality" anti-pattern `claude/10-architecture-maturation-plan.md` �4.3 lists as one this project has actually committed ? committed again here, and the corrected paragraph says so rather than quietly fixing it.]
 
 - `CLAUDE.md` ? "contains thirteen numbered prompts, plus a canonical copy that also lives in this project's attached Claude project", and "no access to the Claude project where the canonical steering prompts live" ? [Resolved ? both implied all thirteen have a project copy. Scoped to `00`?`06` in each place.]
 
@@ -820,7 +820,7 @@ Tests: `test_build_cross_group_edges.py` 20/20 (new; 2 of them opt-in via `PIPEL
 
 Assumptions affected:
 
-- `skills/document-spring-repo/SKILL.md` Stage 1 ? "It's cheap ? file/line/package-or-import-text triples, not source ? so passing all of it to every dispatch should be inexpensive regardless of repo size, but this is worth confirming against a real repo's actual `references` bucket size rather than just assumed" ? [Resolved ? confirmed, and the assumption was wrong in the direction that matters. The per-row cost is indeed small; the *volume* is `g × |R|`, and both terms grow with repo size, so shipped volume is quadratic. Measured on a public 109-file sample repo: 1030 rows broadcast, 75 load-bearing. The prompt's own hedge asked for exactly this measurement; this is the answer.]
+- `skills/document-spring-repo/SKILL.md` Stage 1 ? "It's cheap ? file/line/package-or-import-text triples, not source ? so passing all of it to every dispatch should be inexpensive regardless of repo size, but this is worth confirming against a real repo's actual `references` bucket size rather than just assumed" ? [Resolved ? confirmed, and the assumption was wrong in the direction that matters. The per-row cost is indeed small; the *volume* is `g � |R|`, and both terms grow with repo size, so shipped volume is quadratic. Measured on a public 109-file sample repo: 1030 rows broadcast, 75 load-bearing. The prompt's own hedge asked for exactly this measurement; this is the answer.]
 
 - `agents/file-summarizer.md` step 3 ? "cross-check this file's own package/import lines against the repo-wide `references` bucket's package/import entries" ? [Resolved ? deleted. That instruction was a `package`/`import` string join performed by a language model, once per group, with the whole right-hand table in context. It is now a hash join in Stage 0: build side = package declarations, probe side = imports. The subagent receives resolved arcs as ground truth, the same way it already receives the signal-scan slice.]
 
@@ -828,7 +828,7 @@ Assumptions affected:
 
 - `claude/10-architecture-maturation-plan.md` ? the DDIA audit annotation's gap 1, "derived data being re-derived probabilistically per worker instead of once in the system-of-record layer" ? [Resolved for this instance. One of the three gaps the audit named is closed: the cross-group relation is now computed once in the deterministic layer, exactly, and is legitimately taggable `[Evidenced ? path:line]` rather than being an LLM inference the tag grammar cannot honestly label. The other two gaps (no determinism probe, no inter-stage schemas beyond `spring_signals.json`/`run_manifest.json`) remain ? though `cross_group_edges.json` ships with a `schema_version`, which is a start.]
 
-- `skills/capacity-preflight/SKILL.md` and `scripts/capacity_preflight.py` ? the `references_bucket_total_across_groups_est_tokens` metric and its 500k warning threshold ? [**New info ? now measures a cost the pipeline no longer pays.** It computes references-bucket-tokens × group-count, which was the broadcast volume. After this change each group receives only its own boundary. The metric is not wrong, it is stale: it will over-warn, and the number a reader should actually care about is the *cut* size. Deliberately not changed here ? picking the replacement threshold needs data from more than one repo. Flagged as the next preflight change.]
+- `skills/capacity-preflight/SKILL.md` and `scripts/capacity_preflight.py` ? the `references_bucket_total_across_groups_est_tokens` metric and its 500k warning threshold ? [**New info ? now measures a cost the pipeline no longer pays.** It computes references-bucket-tokens � group-count, which was the broadcast volume. After this change each group receives only its own boundary. The metric is not wrong, it is stale: it will over-warn, and the number a reader should actually care about is the *cut* size. Deliberately not changed here ? picking the replacement threshold needs data from more than one repo. Flagged as the next preflight change.]
 
 
 
@@ -968,13 +968,13 @@ Tests: `test_capacity_preflight.py` 9 ? 10 (one deleted, two added). Full suite 
 
 Assumptions affected:
 
-- `claude/steering-prompts/03-constraints-research-prompt.md` (via `CONSTRAINTS.md`'s "Known precision tradeoffs" item 3, the entry the 2026-07-25 log entry cited when `capacity-preflight` was built) ? "`capacity-preflight` turns this into a concrete, per-repo number: group count, total subagent fan-out, references-bucket-tokens × num_groups" ? [**Resolved for two of three dimensions, falsified for the third.** Group count and fan-out were and remain correct. The third measured `len(json.dumps(references)) × num_groups`, a quantity commit `abd3ade` had already eliminated by replacing Stage 1's broadcast with a partitioned join. Measured on a real service: 7,627,230 est. tokens reported against 358,645 actually shipped, ~21x, in the direction of alarm. Now measures the per-group `cross_group_edges.json` slice, reported as a distribution rather than a scalar, with the threshold keyed on `max` ? a context window is breached by one dispatch, not by a sum.]
+- `claude/steering-prompts/03-constraints-research-prompt.md` (via `CONSTRAINTS.md`'s "Known precision tradeoffs" item 3, the entry the 2026-07-25 log entry cited when `capacity-preflight` was built) ? "`capacity-preflight` turns this into a concrete, per-repo number: group count, total subagent fan-out, references-bucket-tokens � num_groups" ? [**Resolved for two of three dimensions, falsified for the third.** Group count and fan-out were and remain correct. The third measured `len(json.dumps(references)) � num_groups`, a quantity commit `abd3ade` had already eliminated by replacing Stage 1's broadcast with a partitioned join. Measured on a real service: 7,627,230 est. tokens reported against 358,645 actually shipped, ~21x, in the direction of alarm. Now measures the per-group `cross_group_edges.json` slice, reported as a distribution rather than a scalar, with the threshold keyed on `max` ? a context window is breached by one dispatch, not by a sum.]
 
-- `claude/steering-prompts/01-testability-research-prompt.md` ? "real, checked-in tests for its two deterministic scripts ? That's solid" ? [New info, second instance this session. `test_references_bucket_tokens_scale_with_group_count` asserted that per-dispatch payload stays constant while total rises linearly with group count ? i.e. it pinned `cost = |R| × g`, the broadcast model, *as an invariant*. It kept passing after `abd3ade` because it exercised `capacity_preflight`'s own arithmetic rather than the pipeline's behavior, so it was defending code that no longer existed. Deleted and replaced with its inverse. Worth stating as a class: a test written against a consumer's internal arithmetic, rather than against the producer's contract, survives the contract changing ? and then actively resists the fix.]
+- `claude/steering-prompts/01-testability-research-prompt.md` ? "real, checked-in tests for its two deterministic scripts ? That's solid" ? [New info, second instance this session. `test_references_bucket_tokens_scale_with_group_count` asserted that per-dispatch payload stays constant while total rises linearly with group count ? i.e. it pinned `cost = |R| � g`, the broadcast model, *as an invariant*. It kept passing after `abd3ade` because it exercised `capacity_preflight`'s own arithmetic rather than the pipeline's behavior, so it was defending code that no longer existed. Deleted and replaced with its inverse. Worth stating as a class: a test written against a consumer's internal arithmetic, rather than against the producer's contract, survives the contract changing ? and then actively resists the fix.]
 
 
 
-Details. The stale dimension was baked into eight places (module docstring assumption 3, `_load_or_scan_references`, `estimate_references_bucket_tokens`, the `× num_groups` multiply, one warning, three report keys, one CLI flag, the summary print) plus six prose repetitions across `skills/capacity-preflight/SKILL.md`, `README.md`, and `skills/document-spring-repo/SKILL.md`.
+Details. The stale dimension was baked into eight places (module docstring assumption 3, `_load_or_scan_references`, `estimate_references_bucket_tokens`, the `� num_groups` multiply, one warning, three report keys, one CLI flag, the summary print) plus six prose repetitions across `skills/capacity-preflight/SKILL.md`, `README.md`, and `skills/document-spring-repo/SKILL.md`.
 
 
 
@@ -1020,7 +1020,7 @@ Three bugs were found by writing the fixture, not by reading the code. All three
 
 1. **`partition_repo.build_groups()` could loop forever.** The zero-progress guard only re-checked the hard cap, so a carry that was itself large enough to re-trip the *soft target* looped: same file re-evaluated against an identical group, `i` frozen, `groups` growing without bound (2927 groups and climbing before the probe was killed). Trigger is a single carried file whose tokens land in `[target_per_group, max_tokens)` ? reproduced with a 2916-token file at `--max-tokens 3000`. Guard now re-checks both triggers. This is a hang, not a wrong answer: Stage 0 would never return.
 
-2. **ast-grep's stdout was decoded with the locale codec.** `subprocess.run(..., text=True)` with no `encoding=`; matched source text flows into every evidence row's `match` field. On a cp1252 Windows box a character whose UTF-8 contains `0x81/0x8D/0x8F/0x90/0x9D` (Cyrillic `?`, `Á`) crashed the scan outright, while `é`/`?`/emoji became silent mojibake in cited documentation. Now explicit `encoding="utf-8", errors="replace"`.
+2. **ast-grep's stdout was decoded with the locale codec.** `subprocess.run(..., text=True)` with no `encoding=`; matched source text flows into every evidence row's `match` field. On a cp1252 Windows box a character whose UTF-8 contains `0x81/0x8D/0x8F/0x90/0x9D` (Cyrillic `?`, `�`) crashed the scan outright, while `�`/`?`/emoji became silent mojibake in cited documentation. Now explicit `encoding="utf-8", errors="replace"`.
 
 3. **Config files were read as `utf-8`, not `utf-8-sig`.** A BOM survived as a literal `\ufeff`, which is category `Cf` and matches neither `\s` nor `\w`, so every `^\s*`-anchored regex failed on line 1 ? dropping that line's key and never flagging a credential on it. Worse when line 1 is a group header: it never enters the indent stack and every descendant key silently loses its prefix, producing a key set that looks plausible and is wrong.
 
@@ -1104,7 +1104,7 @@ Assumptions affected:
 
 
 
-Fixed as a *class* rather than an instance, per `10-review-persona-and-standards.md` §1: `partition_repo.to_posix()` / `relpath_posix()` are now the one named home for the rule, both prior sites route through them, and the history lives on the function instead of in a comment asking the next author to remember. A bug fixed three times in three places is the signal that the fix belonged in one place.
+Fixed as a *class* rather than an instance, per `10-review-persona-and-standards.md` �1: `partition_repo.to_posix()` / `relpath_posix()` are now the one named home for the rule, both prior sites route through them, and the history lives on the function instead of in a comment asking the next author to remember. A bug fixed three times in three places is the signal that the fix belonged in one place.
 
 
 
@@ -1248,7 +1248,7 @@ Assumptions affected:
 
 
 
-`scripts/_ast_signature.py` returns `level:digest`, never a bare hash. Three levels, named after the clone-detection taxonomy (Zhang & Saber, `arXiv:2506.14470` §II-A, opened and quoted rather than paraphrased): `raw` (bytes), `t1` (Type-1 ? `ast.dump(include_attributes=False)`, so comments and formatting vanish), `t2` (`t1` plus docstrings, which are string literals and therefore a deliberately *partial* Type-2).
+`scripts/_ast_signature.py` returns `level:digest`, never a bare hash. Three levels, named after the clone-detection taxonomy (Zhang & Saber, `arXiv:2506.14470` �II-A, opened and quoted rather than paraphrased): `raw` (bytes), `t1` (Type-1 ? `ast.dump(include_attributes=False)`, so comments and formatting vanish), `t2` (`t1` plus docstrings, which are string literals and therefore a deliberately *partial* Type-2).
 
 
 
@@ -1378,7 +1378,7 @@ Tests: 745/745 passing (`python3 -m unittest discover -s scripts -p "test_*.py"`
 
 Assumptions affected:
 
-- `claude/steering-prompts/10-review-persona-and-standards.md` ? its DDIA/testing/security anchors (§5-6) were framed exclusively as a lens for reviewing *this plugin's own* fact-store design ? [New info ? the same anchors (DDIA 2e; now also Aniche's *Effective Software Testing*, a distinct book from the Meszaros/xUnit anchor already there) now also apply one layer down, via `agents/software-architect-and-testing.md`, to the *target* repo a pipeline run documents. The prompt's own anchors are unedited and still accurate for their original scope; this is an additional application, not a correction.]
+- `claude/steering-prompts/10-review-persona-and-standards.md` ? its DDIA/testing/security anchors (�5-6) were framed exclusively as a lens for reviewing *this plugin's own* fact-store design ? [New info ? the same anchors (DDIA 2e; now also Aniche's *Effective Software Testing*, a distinct book from the Meszaros/xUnit anchor already there) now also apply one layer down, via `agents/software-architect-and-testing.md`, to the *target* repo a pipeline run documents. The prompt's own anchors are unedited and still accurate for their original scope; this is an additional application, not a correction.]
 
 - `claude/steering-prompts/00-shared-research-standards.md` and `11-context-traversal-protocol.md` ? arXiv/GitHub-stars-and-recency/DeepWiki-as-orientation methodology and the DFS/BFS bounded-traversal protocol, previously prose conventions for steering-prompt authors only ? [New info ? now also implemented as an actual agent capability (`WebFetch`, no agent previously had it) rather than only a documentation convention. No prior agent could ground an external-fitness claim in research at all; this is the first one that can, following both files' discipline rather than inventing a lighter version.]
 
@@ -1474,7 +1474,7 @@ Files touched: scripts/spring_signal_scan.py, scripts/test_spring_signal_scan.py
 
 
 
-## 2026-07-27 ? Build-file structural signals (Gradle/Groovy/Maven/version catalogs) close CONSTRAINTS §11
+## 2026-07-27 ? Build-file structural signals (Gradle/Groovy/Maven/version catalogs) close CONSTRAINTS �11
 
 Commit: f0be9de
 
@@ -1484,7 +1484,7 @@ Assumptions affected:
 
 - `claude/steering-prompts/03-constraints-research-prompt.md` ? build-file heuristics now a real signal source, not just filename classification ? [Resolved ? `scripts/_build_signal_extract.py` added, wired into `spring_signal_scan.py`, with five `deployment__build_*` rule ids and drift tier-2 re-verification.]
 
-- `CONSTRAINTS.md` §11 ? "Gradle build scripts get filename-level classification only" ? [Resolved ? now **Partially resolved**: deterministic plugin/dependency/module/toolchain/catalog extraction; dynamic Groovy and full task graph remain out of scope.]
+- `CONSTRAINTS.md` �11 ? "Gradle build scripts get filename-level classification only" ? [Resolved ? now **Partially resolved**: deterministic plugin/dependency/module/toolchain/catalog extraction; dynamic Groovy and full task graph remain out of scope.]
 
 - `skills/document-spring-repo/references/doc-taxonomy.md` ? operations.md / local_development.md now prefer `deployment__build_*` rows over an agent's own reading of build scripts. ? [Resolved ? evidence section updated.]
 
@@ -1690,7 +1690,7 @@ Files touched: .github/workflows/doc-engine.yml, scripts/partition_repo.py, scri
 
 
 
-## 2026-07-29 — A+C hybrid: orchestrator-first Claude adapter, plugin path gap closed
+## 2026-07-29 ? A+C hybrid: orchestrator-first Claude adapter, plugin path gap closed
 
 
 
@@ -1700,9 +1700,9 @@ Tests: pytest tests/test_scan_parity.py tests/test_adapter_layout.py tests/test_
 
 Assumptions affected:
 
-- Adapter skills invoke `${CLAUDE_PLUGIN_ROOT}/scripts/` — [Resolved — A+C hybrid: skills use doc-engine pipeline run|gates only; CI bans plugin-local scripts refs; adapters/claude/CONSTRAINTS.md stub resolves under plugin root.]
+- Adapter skills invoke `${CLAUDE_PLUGIN_ROOT}/scripts/` ? [Resolved ? A+C hybrid: skills use doc-engine pipeline run|gates only; CI bans plugin-local scripts refs; adapters/claude/CONSTRAINTS.md stub resolves under plugin root.]
 
-- Dual stage-graph SoT (SKILL bash vs build_stage_specs()) — [New info — skill no longer duplicates per-script Stage 0 bash; --until truncates the graph SoT; residual: generative stages still choreographed in skill prose.]
+- Dual stage-graph SoT (SKILL bash vs build_stage_specs()) ? [New info ? skill no longer duplicates per-script Stage 0 bash; --until truncates the graph SoT; residual: generative stages still choreographed in skill prose.]
 
 Files touched: docs/product-architecture.md, adapters/claude/*, src/doc_engine/cli.py, src/doc_engine/pipeline/compliance.py, local_runner.py, live_gates.py, README.md, tests/test_scan_parity.py, test_adapter_layout.py, test_compliance.py, skills/*/SKILL.md, claude/session-log.md
 
@@ -1712,7 +1712,7 @@ Files touched: docs/product-architecture.md, adapters/claude/*, src/doc_engine/c
 
 
 
-## 2026-07-29 — UTF-8 claims contract: Check G preflight, session-log repair, PowerShell quirks
+## 2026-07-29 ? UTF-8 claims contract: Check G preflight, session-log repair, PowerShell quirks
 
 
 
@@ -1722,9 +1722,9 @@ Tests: test_check_repo_claims.py 96/96; check_repo_claims.py OK
 
 Assumptions affected:
 
-- CLAUDE.md / check_repo_claims reader contract — strict UTF-8 with no preflight — [Resolved — Check G emits Finding (path, byte offset, hint) instead of UnicodeDecodeError traceback; read_utf8 helper; skip unreadable md for later checks.]
+- CLAUDE.md / check_repo_claims reader contract ? strict UTF-8 with no preflight ? [Resolved ? Check G emits Finding (path, byte offset, hint) instead of UnicodeDecodeError traceback; read_utf8 helper; skip unreadable md for later checks.]
 
-- Windows session-log append path — [New info — PowerShell Add-Content default encoding can inject cp1252; documented in claude/tool-quirks.md; prefer Python Path.write_text(encoding="utf-8").]
+- Windows session-log append path ? [New info ? PowerShell Add-Content default encoding can inject cp1252; documented in claude/tool-quirks.md; prefer Python Path.write_text(encoding="utf-8").]
 
 Files touched: scripts/check_repo_claims.py, tests/test_check_repo_claims.py, claude/session-log.md, claude/tool-quirks.md
 
@@ -1734,7 +1734,7 @@ Files touched: scripts/check_repo_claims.py, tests/test_check_repo_claims.py, cl
 
 
 
-## 2026-07-29 — Principal gate redesign: size advisory, ruff on src/doc_engine, honest llms coverage
+## 2026-07-29 ? Principal gate redesign: size advisory, ruff on src/doc_engine, honest llms coverage
 
 
 
@@ -1744,15 +1744,15 @@ Tests: test_check_code_quality.py 61/61; test_check_llms_coverage.py; ruff scrip
 
 Assumptions affected:
 
-- claude/steering-prompts/13-code-quality-research-prompt.md — monotonic size/complexity hard ratchet — [Resolved — schema v4: size/complexity/depth advisory; hard = annotation coverage + docstring orientation; measure scripts/ + src/doc_engine/.]
+- claude/steering-prompts/13-code-quality-research-prompt.md ? monotonic size/complexity hard ratchet ? [Resolved ? schema v4: size/complexity/depth advisory; hard = annotation coverage + docstring orientation; measure scripts/ + src/doc_engine/.]
 
-- CONSTRAINTS.md ENFORCE=False temporary on check_llms_coverage — [Resolved — ENFORCE toggle removed; always advisory.]
+- CONSTRAINTS.md ENFORCE=False temporary on check_llms_coverage ? [Resolved ? ENFORCE toggle removed; always advisory.]
 
-- Product package outside lint scope — [Resolved — ruff check scripts/ src/doc_engine/.]
+- Product package outside lint scope ? [Resolved ? ruff check scripts/ src/doc_engine/.]
 
 Files touched: scripts/check_code_quality.py, scripts/code_quality_baseline.json, scripts/check_llms_coverage.py, tests/test_check_code_quality.py, tests/test_check_llms_coverage.py, .github/workflows/ci.yml, .ruff.toml, CONSTRAINTS.md, STATUS.md, claude/steering-prompts/13-code-quality-research-prompt.md, src/doc_engine/**, claude/session-log.md
 
-## 2026-07-29 — Portable kernel: product vs meta, Stage 0 package ports, skill SoT
+## 2026-07-29 ? Portable kernel: product vs meta, Stage 0 package ports, skill SoT
 
 Commit: uncommitted
 
@@ -1760,17 +1760,17 @@ Tests: portable Stage 0 + adapter layout + pipeline runner green locally; full s
 
 Assumptions affected:
 
-- claude/steering-prompts/02-pluggability-research-prompt.md — package invoke / stage graph — [Resolved — deterministic stages and product gates use python -m doc_engine.tools.*; meta CI stays in scripts/; boundary in docs/product-architecture.md]
+- claude/steering-prompts/02-pluggability-research-prompt.md ? package invoke / stage graph ? [Resolved ? deterministic stages and product gates use python -m doc_engine.tools.*; meta CI stays in scripts/; boundary in docs/product-architecture.md]
 
-- Dual generative SoT — [Resolved — generative_choreography() on build_stage_specs(); skill cites SoT]
+- Dual generative SoT ? [Resolved ? generative_choreography() on build_stage_specs(); skill cites SoT]
 
-- claude/steering-prompts/07-ci-scaffold-task-prompt.md — [New info — CI deterministic_only + artifact schema gate on spring fixture]
+- claude/steering-prompts/07-ci-scaffold-task-prompt.md ? [New info ? CI deterministic_only + artifact schema gate on spring fixture]
 
 Files touched: src/doc_engine/tools/*, pipeline/stages.py, live_gates.py, runner.py, local_runner.py, adapters/claude/skills/*, skills/*, tests/test_portable_stage0.py, test_adapter_layout.py, .github/workflows/ci.yml, STATUS.md, docs/product-architecture.md, claude/session-log.md
 
 
 
-## 2026-07-29 — CI workflow YAML parse gate; next arc = fact-store Phase 1
+## 2026-07-29 ? CI workflow YAML parse gate; next arc = fact-store Phase 1
 
 Commit: uncommitted
 
@@ -1778,15 +1778,15 @@ Tests: test_check_workflow_yaml.py 3/3; check_workflow_yaml.py OK on committed w
 
 Assumptions affected:
 
-- CI workflow validity — [Resolved — scripts/check_workflow_yaml.py + CI step; closes PR #57 unquoted-colon class]
+- CI workflow validity ? [Resolved ? scripts/check_workflow_yaml.py + CI step; closes PR #57 unquoted-colon class]
 
-- Packaging arc next step — [New info — STATUS locks next engineering investment as fact-store Phase 1; packaging paused]
+- Packaging arc next step ? [New info ? STATUS locks next engineering investment as fact-store Phase 1; packaging paused]
 
 Files touched: scripts/check_workflow_yaml.py, tests/test_check_workflow_yaml.py, requirements-dev.txt, .github/workflows/ci.yml, STATUS.md, claude/session-log.md
 
 
 
-## 2026-07-29 — Delete product scripts/ shims; one invoke surface
+## 2026-07-29 ? Delete product scripts/ shims; one invoke surface
 
 Commit: uncommitted
 
@@ -1794,21 +1794,21 @@ Tests: pytest tests/ (excl. kitchen-sink/real-world) 770 passed, 24 skipped; che
 
 Assumptions affected:
 
-- docs/product-architecture.md / STATUS — dual-home thin scripts/ product aliases until organic zero-use — [Resolved — product tools invoke only via python -m doc_engine.tools.* / doc-engine; 25 thin scripts/ product shims deleted; meta CI stays under scripts/]
+- docs/product-architecture.md / STATUS ? dual-home thin scripts/ product aliases until organic zero-use ? [Resolved ? product tools invoke only via python -m doc_engine.tools.* / doc-engine; 25 thin scripts/ product shims deleted; meta CI stays under scripts/]
 
-- claude/steering-prompts/02-pluggability-research-prompt.md — path_exists scripts/validate_artifacts.py / pipeline_validators.py — [Resolved — verify: retargeted to src/doc_engine/tools/]
+- claude/steering-prompts/02-pluggability-research-prompt.md ? path_exists scripts/validate_artifacts.py / pipeline_validators.py ? [Resolved ? verify: retargeted to src/doc_engine/tools/]
 
-- claude/steering-prompts/03-constraints-research-prompt.md — path_exists scripts/spring_drift_check.py — [Resolved — verify: retargeted to src/doc_engine/tools/spring_drift_check.py]
+- claude/steering-prompts/03-constraints-research-prompt.md ? path_exists scripts/spring_drift_check.py ? [Resolved ? verify: retargeted to src/doc_engine/tools/spring_drift_check.py]
 
-- claude/steering-prompts/04-analytics-logging-research-prompt.md — path_exists scripts/run_manifest.py — [Resolved — verify: retargeted to src/doc_engine/tools/run_manifest.py]
+- claude/steering-prompts/04-analytics-logging-research-prompt.md ? path_exists scripts/run_manifest.py ? [Resolved ? verify: retargeted to src/doc_engine/tools/run_manifest.py]
 
-- claude/steering-prompts/06-wiredrift-check-task-prompt.md — contains spring_drift_check.py string forms — [Still accurate — verify already cites doc_engine.tools.spring_drift_check]
+- claude/steering-prompts/06-wiredrift-check-task-prompt.md ? contains spring_drift_check.py string forms ? [Still accurate ? verify already cites doc_engine.tools.spring_drift_check]
 
 Files touched: scripts/ (product shims deleted), src/doc_engine/tools/*, tests/*, .github/workflows/ci.yml, docs-site.yml, STATUS.md, CONSTRAINTS.md, README.md, MATURITY_ASSESSMENT.md, docs/product-architecture.md, skills/*, adapters/claude/skills/*, adapters/claude/hooks/require_hardened_tests.py, claude/steering-prompts/02-04+06, claude/session-log.md
 
 
 
-## 2026-07-29 — Drop scripts/test_*.py wrappers; remove .vs and baseline-reference
+## 2026-07-29 ? Drop scripts/test_*.py wrappers; remove .vs and baseline-reference
 
 Commit: uncommitted
 
@@ -1816,21 +1816,21 @@ Tests: check_repo_claims + require_hardened + targeted pytest (see session)
 
 Assumptions affected:
 
-- claude/steering-prompts/01-testability-research-prompt.md — path_exists scripts/test_pipeline_stages.py — [Resolved — verify: path_exists:tests/test_pipeline_stages.py; wrappers deleted]
+- claude/steering-prompts/01-testability-research-prompt.md ? path_exists scripts/test_pipeline_stages.py ? [Resolved ? verify: path_exists:tests/test_pipeline_stages.py; wrappers deleted]
 
-- claude/steering-prompts/14-software-architect-and-testing-agent-prompt.md — path_exists scripts/test_semgrep_rule_coverage.py — [Resolved — verify: path_exists:tests/test_semgrep_rule_coverage.py]
+- claude/steering-prompts/14-software-architect-and-testing-agent-prompt.md ? path_exists scripts/test_semgrep_rule_coverage.py ? [Resolved ? verify: path_exists:tests/test_semgrep_rule_coverage.py]
 
-- STATUS/README — run suites via scripts/test_*.py — [Resolved — pytest tests/; CI already discovery-based]
+- STATUS/README ? run suites via scripts/test_*.py ? [Resolved ? pytest tests/; CI already discovery-based]
 
-- baseline-reference/ as live Step 0 — [Resolved — deleted; IMPLEMENTATION_HANDOFF Step 0 marked historical; git history is the archive]
+- baseline-reference/ as live Step 0 ? [Resolved ? deleted; IMPLEMENTATION_HANDOFF Step 0 marked historical; git history is the archive]
 
-- Accidental .vs/ in git — [Resolved — removed; .vs/ gitignored]
+- Accidental .vs/ in git ? [Resolved ? removed; .vs/ gitignored]
 
 Files touched: scripts/test_*.py (deleted), .vs/ (deleted), baseline-reference/ (deleted), .gitignore, IMPLEMENTATION_HANDOFF.md, STATUS.md, README.md, CONSTRAINTS.md, MATURITY_ASSESSMENT.md, skills/*, adapters/claude/skills/*, adapters/claude/hooks/require_hardened_tests.py, scripts/check_repo_claims.py, tests/*, claude/steering-prompts/01+14, claude/session-log.md
 
 
 
-## 2026-07-29 — Suite layout SoT (pyproject testpaths); no legacy suite paths
+## 2026-07-29 ? Suite layout SoT (pyproject testpaths); no legacy suite paths
 
 Commit: uncommitted
 
@@ -1838,17 +1838,17 @@ Tests: test_suite_layout + test_require_hardened_tests + test_check_repo_claims 
 
 Assumptions affected:
 
-- Suite root dual-home via ci.yml "pytest tests/" sniff — [Resolved — scripts/suite_layout.py reads pyproject testpaths; Check D refuses scripts/test_*.py revival]
+- Suite root dual-home via ci.yml "pytest tests/" sniff ? [Resolved ? scripts/suite_layout.py reads pyproject testpaths; Check D refuses scripts/test_*.py revival]
 
-- Legacy scripts/test_* as valid suites in hooks/claims — [Resolved — deleted; no dual-path acceptance]
+- Legacy scripts/test_* as valid suites in hooks/claims ? [Resolved ? deleted; no dual-path acceptance]
 
-- Pydantic/SPI fold into hygiene — [Still accurate deferred — STATUS sequencing lock; research note claude/deterministic-boundary-schemas-spi-research-2026-07-29.md]
+- Pydantic/SPI fold into hygiene ? [Still accurate deferred ? STATUS sequencing lock; research note claude/deterministic-boundary-schemas-spi-research-2026-07-29.md]
 
 Files touched: scripts/suite_layout.py, scripts/check_repo_claims.py, adapters/claude/hooks/require_hardened_tests.py, tests/test_suite_layout.py, tests/test_check_repo_claims.py, tests/test_require_hardened_tests.py, STATUS.md, claude/deterministic-boundary-schemas-spi-research-2026-07-29.md, claude/session-log.md
 
 
 
-## 2026-07-29 — Mutate harness resolves suites under tests/ (PR #60 CI)
+## 2026-07-29 ? Mutate harness resolves suites under tests/ (PR #60 CI)
 
 Commit: 4e66634
 
@@ -1856,13 +1856,13 @@ Tests: 23/23 test_mutate.py passed; CI green then merge
 
 Assumptions affected:
 
-- mutate.py expected_caught_by under scripts/ — [Resolved — resolve via suite_layout + pytest; false "killed" when suite path missing]
+- mutate.py expected_caught_by under scripts/ ? [Resolved ? resolve via suite_layout + pytest; false "killed" when suite path missing]
 
 Files touched: scripts/mutate.py, tests/test_mutate.py, claude/session-log.md
 
 
 
-## 2026-07-29 — Scope clarity cleanup (post-packaging docs + dead bootstraps)
+## 2026-07-29 ? Scope clarity cleanup (post-packaging docs + dead bootstraps)
 
 Commit: uncommitted
 
@@ -1870,19 +1870,19 @@ Tests: check_repo_claims + ruff + check_code_quality (after staging deletes); ta
 
 Assumptions affected:
 
-- `claude/10-architecture-maturation-plan.md` Phase 0.1 PORTING/local_ci as current work — [New info — banner: superseded by portable-kernel CI; §0 + Phase 1–3 still product thesis]
+- `claude/10-architecture-maturation-plan.md` Phase 0.1 PORTING/local_ci as current work ? [New info ? banner: superseded by portable-kernel CI; �0 + Phase 1?3 still product thesis]
 
-- `claude/steering-prompts/07-ci-scaffold-task-prompt.md` body as implementable brief — [Still accurate as historical; body banner added — do not re-add verify_llms_docs]
+- `claude/steering-prompts/07-ci-scaffold-task-prompt.md` body as implementable brief ? [Still accurate as historical; body banner added ? do not re-add verify_llms_docs]
 
-- Current-state docs citing root `agents/` / bare `scripts/<product>.py` / `skills/tool-quirks` — [Resolved — retargeted to adapters/claude + `python -m doc_engine.tools.*`]
+- Current-state docs citing root `agents/` / bare `scripts/<product>.py` / `skills/tool-quirks` ? [Resolved ? retargeted to adapters/claude + `python -m doc_engine.tools.*`]
 
-- Unused `scripts/_src_bootstrap.py` / `tools/_bootstrap.py` — [Resolved — deleted]
+- Unused `scripts/_src_bootstrap.py` / `tools/_bootstrap.py` ? [Resolved ? deleted]
 
 Files touched: README.md, CLAUDE.md, CONSTRAINTS.md, STATUS.md, MATURITY_ASSESSMENT.md, IMPLEMENTATION_HANDOFF.md, docs/product-architecture.md, skills/README.md, skill reference mirrors, claude/10-architecture-maturation-plan.md, claude/steering-prompts/07-*, claude/tool-quirks.md, src/doc_engine/cli.py, scripts/_src_bootstrap.py (deleted), src/doc_engine/tools/_bootstrap.py (deleted), scripts/code_quality_baseline.json, claude/session-log.md
 
 
 
-## 2026-07-29 — Stage 0 scanner voice: default ast-grep; CodeQL opt-in
+## 2026-07-29 ? Stage 0 scanner voice: default ast-grep; CodeQL opt-in
 
 Commit: uncommitted
 
@@ -1890,13 +1890,13 @@ Tests: check_repo_claims (expected)
 
 Assumptions affected:
 
-- CONSTRAINTS Runtime item 1 "CodeQL hard for Stage 0" — [Resolved — default is filesystem+ast-grep; CodeQL via --scanners; capacity_preflight does not require CodeQL]
+- CONSTRAINTS Runtime item 1 "CodeQL hard for Stage 0" ? [Resolved ? default is filesystem+ast-grep; CodeQL via --scanners; capacity_preflight does not require CodeQL]
 
 Files touched: CONSTRAINTS.md, README.md, claude/session-log.md
 
 
 
-## 2026-07-29 — Operator pilot + principal adoption guides
+## 2026-07-29 ? Operator pilot + principal adoption guides
 
 Commit: uncommitted
 
@@ -1904,13 +1904,13 @@ Tests: not run (docs only)
 
 Assumptions affected:
 
-- Cold-start “how do I run Path A/B on a real repo?” lived only in README/SKILL fragments — [Resolved — docs/guides/operator-pilot.md + principal-adoption.md; README + product-architecture linked]
+- Cold-start ?how do I run Path A/B on a real repo?? lived only in README/SKILL fragments ? [Resolved ? docs/guides/operator-pilot.md + principal-adoption.md; README + product-architecture linked]
 
 Files touched: docs/guides/operator-pilot.md, docs/guides/principal-adoption.md, README.md, docs/product-architecture.md, claude/session-log.md
 
 
 
-## 2026-07-30 — Pre–Phase 1 fact-store research spike (REFINE)
+## 2026-07-30 ? Pre?Phase 1 fact-store research spike (REFINE)
 
 Commit: uncommitted
 
@@ -1918,15 +1918,15 @@ Tests: not run (research/docs only)
 
 Assumptions affected:
 
-- `claude/steering-prompts/00-shared-research-standards.md` — primary-confirmation / star+recency bar for GitHub+arXiv — [Still accurate — applied in `claude/research/fact-store-prior-art-corpus-2026-07-30.md`]
+- `claude/steering-prompts/00-shared-research-standards.md` ? primary-confirmation / star+recency bar for GitHub+arXiv ? [Still accurate ? applied in `claude/research/fact-store-prior-art-corpus-2026-07-30.md`]
 
-- `claude/10-architecture-maturation-plan.md` §0–1 / JPA survey as executable Phase 1 specs — [New info — outdated relative to portable kernel, packaging pause, contested map, default scanners; thesis revalidated externally; Phase 1 gated on decision memo **REFINE**, thin dual-emit only]
+- `claude/10-architecture-maturation-plan.md` �0?1 / JPA survey as executable Phase 1 specs ? [New info ? outdated relative to portable kernel, packaging pause, contested map, default scanners; thesis revalidated externally; Phase 1 gated on decision memo **REFINE**, thin dual-emit only]
 
 Files touched: claude/research/fact-store-prior-art-corpus-2026-07-30.md, claude/research/fact-store-approaches-collation-2026-07-30.md, claude/research/fact-store-phase1-decision-memo-2026-07-30.md, claude/10-architecture-maturation-plan.md, claude/jpa-hibernate-predicate-vocabulary-survey.md, STATUS.md, claude/session-log.md
 
 
 
-## 2026-07-30 — Phase 1 dual-emit facts.jsonl
+## 2026-07-30 ? Phase 1 dual-emit facts.jsonl
 
 Commit: uncommitted
 
@@ -1934,15 +1934,15 @@ Tests: pytest tests/test_facts_ledger.py tests/test_spring_signal_scan.py (expec
 
 Assumptions affected:
 
-- `claude/10-architecture-maturation-plan.md` Phase 1 / fact-store “no store yet” — [New info — thin sidecar `facts.jsonl` dual-emitted from Stage 0; maps kept; not cert-required]
+- `claude/10-architecture-maturation-plan.md` Phase 1 / fact-store ?no store yet? ? [New info ? thin sidecar `facts.jsonl` dual-emitted from Stage 0; maps kept; not cert-required]
 
-- Decision memo §3 thin dual-emit — [Resolved — `doc_engine.scanning.facts` + CLI write + signal_scan outputs]
+- Decision memo �3 thin dual-emit ? [Resolved ? `doc_engine.scanning.facts` + CLI write + signal_scan outputs]
 
 Files touched: src/doc_engine/scanning/facts.py, src/doc_engine/tools/spring_signal_scan.py, src/doc_engine/pipeline/stages.py, src/doc_engine/pipeline/runner.py, tests/test_facts_ledger.py, tests/test_spring_signal_scan.py, claude/research/facts-ledger-schema-2026-07-30.md, STATUS.md, claude/10-architecture-maturation-plan.md, claude/session-log.md
 
 
 
-## 2026-07-30 — Dual-emit observability + adoption-blocker queue
+## 2026-07-30 ? Dual-emit observability + adoption-blocker queue
 
 Commit: uncommitted
 
@@ -1950,15 +1950,15 @@ Tests: pytest tests/test_facts_ledger.py tests/test_spring_signal_scan.py tests/
 
 Assumptions affected:
 
-- Friend PE review adoption blockers vs fact-store Phase 1 — [New info — sequenced: dual-emit first; blockers queued in `claude/research/adoption-blockers-queue-2026-07-30.md`, not mixed into dual-emit]
+- Friend PE review adoption blockers vs fact-store Phase 1 ? [New info ? sequenced: dual-emit first; blockers queued in `claude/research/adoption-blockers-queue-2026-07-30.md`, not mixed into dual-emit]
 
-- Operator Path A artifact list omitting facts.jsonl — [Resolved — pilot guide names sidecar as non-cert]
+- Operator Path A artifact list omitting facts.jsonl ? [Resolved ? pilot guide names sidecar as non-cert]
 
 Files touched: src/doc_engine/scanning/facts.py, src/doc_engine/tools/spring_signal_scan.py, tests/test_facts_ledger.py, docs/guides/operator-pilot.md, claude/research/facts-ledger-schema-2026-07-30.md, claude/research/adoption-blockers-queue-2026-07-30.md, STATUS.md, claude/session-log.md
 
 
 
-## 2026-07-30 — Control-wiring gates (called_by / behavior / wiring tests)
+## 2026-07-30 ? Control-wiring gates (called_by / behavior / wiring tests)
 
 Commit: 8dfe156 (PR #64)
 
@@ -1966,15 +1966,15 @@ Tests: 107 passed (test_check_repo_claims + test_control_wiring + test_pipeline_
 
 Assumptions affected:
 
-- `CLAUDE.md` / check_repo_claims closed verify: vocabulary (five forms only) — [Resolved — seven forms: added `called_by:` + closed `behavior:<key>`; documents still cannot supply shell/pytest]
+- `CLAUDE.md` / check_repo_claims closed verify: vocabulary (five forms only) ? [Resolved ? seven forms: added `called_by:` + closed `behavior:<key>`; documents still cannot supply shell/pytest]
 
-- Controls that sit one layer from where they bite — [New info — `tests/test_control_wiring.py` seeds already-true dual-emit/missing-output bites; Phase B stays separate]
+- Controls that sit one layer from where they bite ? [New info ? `tests/test_control_wiring.py` seeds already-true dual-emit/missing-output bites; Phase B stays separate]
 
 Files touched: scripts/check_repo_claims.py, scripts/mutate.py, tests/test_check_repo_claims.py, tests/test_control_wiring.py, CLAUDE.md, claude/session-log.md, claude/research/adoption-blockers-queue-2026-07-30.md
 
 
 
-## 2026-07-30 — Stale-claims hygiene (B5 before Phase B)
+## 2026-07-30 ? Stale-claims hygiene (B5 before Phase B)
 
 Commit: stale-claims-hygiene (this PR)
 
@@ -1982,15 +1982,15 @@ Tests: kitchen-sink + drift + check_repo_claims (see PR)
 
 Assumptions affected:
 
-- `CONSTRAINTS.md` CI enumerates suites by hand / overlap still Flagged / ENFORCE=False in STATUS — [Resolved — corrected against `pytest tests/` + `carried_in_paths` + advisory llms coverage]
+- `CONSTRAINTS.md` CI enumerates suites by hand / overlap still Flagged / ENFORCE=False in STATUS ? [Resolved ? corrected against `pytest tests/` + `carried_in_paths` + advisory llms coverage]
 
-- Drift tier-2 documented as per-file ast-grep — [Resolved — docstring/README match full-scan-then-filter]
+- Drift tier-2 documented as per-file ast-grep ? [Resolved ? docstring/README match full-scan-then-filter]
 
-- Decision memo §5 “no Phase 1 emitter until ask” — [Resolved — gate closed; dual-emit PR #63]
+- Decision memo �5 ?no Phase 1 emitter until ask? ? [Resolved ? gate closed; dual-emit PR #63]
 
-- Glean prior-art corpus stale — [Still accurate as mechanism cite — no star re-measure; post-dual-emit banner added]
+- Glean prior-art corpus stale ? [Still accurate as mechanism cite ? no star re-measure; post-dual-emit banner added]
 
-- Ordinal claim keys churn C-missing baseline on every CONSTRAINTS edit — [Resolved — content-stable digest keys + refuse-revival tombstone for absent globs]
+- Ordinal claim keys churn C-missing baseline on every CONSTRAINTS edit ? [Resolved ? content-stable digest keys + refuse-revival tombstone for absent globs]
 
 Files touched: scripts/check_repo_claims.py, scripts/repo_claims_baseline.json, tests/test_check_repo_claims.py, CLAUDE.md, CONSTRAINTS.md, STATUS.md, README.md, src/doc_engine/tools/spring_drift_check.py, tests/test_enterprise_kitchen_sink.py, claude/research/fact-store-phase1-decision-memo-2026-07-30.md, claude/research/fact-store-prior-art-corpus-2026-07-30.md, claude/research/fact-store-approaches-collation-2026-07-30.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/10-architecture-maturation-plan.md, claude/jpa-hibernate-predicate-vocabulary-survey.md, claude/session-log.md
 
@@ -2000,7 +2000,7 @@ Files touched: scripts/check_repo_claims.py, scripts/repo_claims_baseline.json, 
 
 
 
-## 2026-07-30 — Schema coverage research + facts closed contract (slice 1)
+## 2026-07-30 ? Schema coverage research + facts closed contract (slice 1)
 
 Commit: uncommitted
 
@@ -2008,17 +2008,17 @@ Tests: 33 passed, 1 skipped (test_artifact_schemas + test_artifact_serde_matrix 
 
 Assumptions affected:
 
-- External review schema coverage residual — [New info — corpus+collation+REFINE memo; slice 1 closes facts ledger]
+- External review schema coverage residual ? [New info ? corpus+collation+REFINE memo; slice 1 closes facts ledger]
 
-- deterministic-boundary note as sequencing SoT — [Resolved — superseded for order by schema-contracts-decision-memo]
+- deterministic-boundary note as sequencing SoT ? [Resolved ? superseded for order by schema-contracts-decision-memo]
 
-- facts.jsonl prose-only contract — [Resolved — Fact forbid + facts.schema.json + JSONL validate]
+- facts.jsonl prose-only contract ? [Resolved ? Fact forbid + facts.schema.json + JSONL validate]
 
 Files touched: claude/research/schema-*.md, src/doc_engine/pipeline/artifacts.py, validation.py, scanning/facts.py, scripts/schemas/facts.schema.json, tests/test_artifact_*.py, claude/session-log.md
 
 
 
-## 2026-07-30 — Schema slices 2–4 + B4 Stage 5 wire
+## 2026-07-30 ? Schema slices 2?4 + B4 Stage 5 wire
 
 Commit: uncommitted
 
@@ -2026,15 +2026,15 @@ Tests: 98 passed, 4 skipped (artifact schemas/serde + pipeline_stages + complian
 
 Assumptions affected:
 
-- Schema memo slices 2–4 / review without gate bite — [Resolved — cert/edges/gaps/review registered+exported; run_stage5_gate validates architecture_testing_review (B4)]
+- Schema memo slices 2?4 / review without gate bite ? [Resolved ? cert/edges/gaps/review registered+exported; run_stage5_gate validates architecture_testing_review (B4)]
 
-- Adoption-blockers B4 open — [Resolved — Stage5ArchitectureTestingReviewGateTest]
+- Adoption-blockers B4 open ? [Resolved ? Stage5ArchitectureTestingReviewGateTest]
 
 Files touched: src/doc_engine/pipeline/artifacts.py, src/doc_engine/tools/pipeline_validators.py, src/doc_engine/tools/certification.py, scripts/schemas/*.schema.json, tests/test_artifact_schemas.py, tests/test_artifact_serde_matrix.py, tests/test_pipeline_stages.py, claude/research/*, claude/session-log.md
 
 
 
-## 2026-07-30 — scripts/ subdirectory layout
+## 2026-07-30 ? scripts/ subdirectory layout
 
 Commit: uncommitted
 
@@ -2042,15 +2042,15 @@ Tests: 38 passed (live_gates + compliance) (check_repo_claims/check_code_quality
 
 Assumptions affected:
 
-- STATUS product vs meta scripts boundary — [Still accurate — product stays in doc_engine; meta nested under scripts/{ci,ratchets,coverage,fixtures,schemas}]
+- STATUS product vs meta scripts boundary ? [Still accurate ? product stays in doc_engine; meta nested under scripts/{ci,ratchets,coverage,fixtures,schemas}]
 
-- Flat scripts/*.py invoke paths in CI/hooks/verify: — [Resolved — recursive path updates; no dual-home shims]
+- Flat scripts/*.py invoke paths in CI/hooks/verify: ? [Resolved ? recursive path updates; no dual-home shims]
 
 Files touched: scripts/** (layout), src/doc_engine/paths.py, tests/conftest.py, .github/workflows/*, adapters/claude/hooks/require_hardened_tests.py, CLAUDE.md, CONSTRAINTS.md, STATUS.md, steering verify predicates, scripts/README.md, claude/session-log.md
 
 
 
-## 2026-07-30 — PE pre-PR gate (compose + rare touches)
+## 2026-07-30 ? PE pre-PR gate (compose + rare touches)
 
 Commit: uncommitted
 
@@ -2058,15 +2058,15 @@ Tests: 24 targeted (pre_pr + workflow ramp + verify_certification); pre_pr --fas
 
 Assumptions affected:
 
-- Local fail-closed before PR — [New info — `scripts/ci/pre_pr.py` + `.githooks/pre-push`; CI still merge second line]
+- Local fail-closed before PR ? [New info ? `scripts/ci/pre_pr.py` + `.githooks/pre-push`; CI still merge second line]
 
-- Workflow security while Actions stay tag-pinned — [New info — severity ramp in `check_workflow_yaml.py`; medium `actions/*@vN` advisory only]
+- Workflow security while Actions stay tag-pinned ? [New info ? severity ramp in `check_workflow_yaml.py`; medium `actions/*@vN` advisory only]
 
-- `test_verify_certification` pre-slice dict fixtures — [Resolved — reuse `build_certification_report` / `write_certification_json`; incomplete dict fails schema gate]
+- `test_verify_certification` pre-slice dict fixtures ? [Resolved ? reuse `build_certification_report` / `write_certification_json`; incomplete dict fails schema gate]
 
 Phase 2 backlog (pick one scanner stack after SHA-pin):
 
-- SHA-pin all `uses:` (`uses: …@sha # vX.Y.Z`); then johnbillion (actionlint + zizmor SARIF ± poutine/octoscan) or i9wa4 (actionlint + ghalint + pinact --check + zizmor)
+- SHA-pin all `uses:` (`uses: ?@sha # vX.Y.Z`); then johnbillion (actionlint + zizmor SARIF ? poutine/octoscan) or i9wa4 (actionlint + ghalint + pinact --check + zizmor)
 
 - ghalint: `persist-credentials: false`, `timeout-minutes`
 
@@ -2076,7 +2076,7 @@ Files touched: scripts/ci/pre_pr.py, scripts/ci/check_workflow_yaml.py, .githook
 
 
 
-## 2026-07-30 — tests/ subdirectory layout (mirror scripts/)
+## 2026-07-30 ? tests/ subdirectory layout (mirror scripts/)
 
 Commit: uncommitted
 
@@ -2084,15 +2084,15 @@ Tests: 150 passed (suite_layout + pre_pr + require_hardened + check_repo_claims)
 
 Assumptions affected:
 
-- Flat `tests/test_*.py` inventory / `suite_layout.glob` — [Resolved — taxonomy `tests/{ci,ratchets,coverage,doc_engine,adapters}/`; `suite_paths`/`suite_file_for_module` use `rglob`]
+- Flat `tests/test_*.py` inventory / `suite_layout.glob` ? [Resolved ? taxonomy `tests/{ci,ratchets,coverage,doc_engine,adapters}/`; `suite_paths`/`suite_file_for_module` use `rglob`]
 
-- `verify:` / current-state docs citing flat suite paths — [Resolved — nested paths; `tests/` added to `OWN_PATH_PREFIXES`]
+- `verify:` / current-state docs citing flat suite paths ? [Resolved ? nested paths; `tests/` added to `OWN_PATH_PREFIXES`]
 
 Files touched: tests/** (layout + README), scripts/ci/suite_layout.py, scripts/ci/check_repo_claims.py, adapters/claude/hooks/require_hardened_tests.py, CONSTRAINTS.md, STATUS.md, MATURITY_ASSESSMENT.md, README.md, steering verify paths, scripts/README.md, claude/session-log.md
 
 
 
-## 2026-07-30 — certification verify tests vs schema gate
+## 2026-07-30 ? certification verify tests vs schema gate
 
 Commit: uncommitted
 
@@ -2100,15 +2100,15 @@ Tests: 36/36 (verify_certification + compliance + certification schema round-tri
 
 Assumptions affected:
 
-- Hand-rolled `{"certified": True}` fixtures still valid after CertificationReport.model_validate — [Resolved — tests mint via build_certification_report/write_certification_json; incomplete dicts assert schema failure]
+- Hand-rolled `{"certified": True}` fixtures still valid after CertificationReport.model_validate ? [Resolved ? tests mint via build_certification_report/write_certification_json; incomplete dicts assert schema failure]
 
-- Empty gate audit can certify when profile_gate_ids non-empty — [Resolved — build_certification_report treats missing required gates as failures]
+- Empty gate audit can certify when profile_gate_ids non-empty ? [Resolved ? build_certification_report treats missing required gates as failures]
 
 Files touched: src/doc_engine/pipeline/compliance.py, tests/doc_engine/test_verify_certification.py, tests/doc_engine/test_compliance.py, claude/session-log.md
 
 
 
-## 2026-07-30 — B1 client identifier tracked-tree denylist
+## 2026-07-30 ? B1 client identifier tracked-tree denylist
 
 Commit: uncommitted
 
@@ -2116,15 +2116,15 @@ Tests: 33 passed (check_no_client_identifiers + materialize isolation); --tracke
 
 Assumptions affected:
 
-- Client checkout names only caught on review / oracle aggregate — [Resolved — `--tracked-tree` denylist + CI/pre_pr wiring; tokens only in client_identifier_denylist.txt]
+- Client checkout names only caught on review / oracle aggregate ? [Resolved ? `--tracked-tree` denylist + CI/pre_pr wiring; tokens only in client_identifier_denylist.txt]
 
-- Adoption-blockers B1 open — [Resolved]
+- Adoption-blockers B1 open ? [Resolved]
 
 Files touched: scripts/ci/check_no_client_identifiers.py, scripts/ci/client_identifier_denylist.txt, scripts/ci/pre_pr.py, .github/workflows/ci.yml, scripts/coverage/rule_coverage_baseline.json, tests/ci/test_check_no_client_identifiers.py, tests/doc_engine/test_artifact_schemas.py, tests/ratchets/test_mutate.py, claude/session-log.md, claude/research/adoption-blockers-queue-2026-07-30.md
 
 
 
-## 2026-07-30 — B2 live certification chain
+## 2026-07-30 ? B2 live certification chain
 
 Commit: c235950
 
@@ -2132,17 +2132,17 @@ Tests: 17 passed (test_live_gates + test_verify_certification)
 
 Assumptions affected:
 
-- pipeline gates does not rewrite certification.json — [Resolved — always writes generative_executor=live + gate audit]
+- pipeline gates does not rewrite certification.json ? [Resolved ? always writes generative_executor=live + gate audit]
 
-- certification verify accepts mock/none certified:true — [Resolved — reject unless --allow-mock]
+- certification verify accepts mock/none certified:true ? [Resolved ? reject unless --allow-mock]
 
-- Adoption-blockers B2 open — [Resolved]
+- Adoption-blockers B2 open ? [Resolved]
 
 Files touched: src/doc_engine/pipeline/live_gates.py, src/doc_engine/tools/certification.py, src/doc_engine/cli.py, tests/doc_engine/test_live_gates.py, tests/doc_engine/test_verify_certification.py, .github/workflows/doc-engine.yml, action.yml, adapters/github/workflow-snippet.yml, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
 
 
 
-## 2026-07-30 — Un-dark-skip drift_normalization; certification Usage docstring
+## 2026-07-30 ? Un-dark-skip drift_normalization; certification Usage docstring
 
 Commit: 2fc19a4
 
@@ -2150,17 +2150,17 @@ Tests: 37 passed (drift_normalization + live_gates + verify_certification + code
 
 Assumptions affected:
 
-- `test_drift_normalization` "fixtures or ast-grep unavailable" skip means a real env gap — [Resolved — was AttributeError on removed `find_ast_grep`, swallowed into SkipTest while CI had ast-grep; probe is `which` + nested fixture paths]
+- `test_drift_normalization` "fixtures or ast-grep unavailable" skip means a real env gap ? [Resolved ? was AttributeError on removed `find_ast_grep`, swallowed into SkipTest while CI had ast-grep; probe is `which` + nested fixture paths]
 
-- Known wrap false-positive pin of 2 / only `api_surface__mapping` — [New info — live measure is 12 across annotation-arg rules; semantic arm path labels use nested report paths]
+- Known wrap false-positive pin of 2 / only `api_surface__mapping` ? [New info ? live measure is 12 across annotation-arg rules; semantic arm path labels use nested report paths]
 
-- Runnable `certification.py` docstring contract — [Resolved — Usage line for `python -m doc_engine.tools.certification`]
+- Runnable `certification.py` docstring contract ? [Resolved ? Usage line for `python -m doc_engine.tools.certification`]
 
 Files touched: tests/ratchets/test_drift_normalization.py, scripts/ratchets/drift_match_normalizers.py, scripts/ratchets/java_perturbations.py, src/doc_engine/tools/certification.py, claude/session-log.md
 
 
 
-## 2026-07-30 — B2.5 certification as derived view (DDIA)
+## 2026-07-30 ? B2.5 certification as derived view (DDIA)
 
 Commit: 49dd7b0
 
@@ -2168,19 +2168,19 @@ Tests: 62 passed (compliance + live_gates + verify_certification + artifact_sche
 
 Assumptions affected:
 
-- Live gates LWW-merges prior stages and stamps generative_executor=live — [Resolved — `stages_for_live_certification` keeps deterministic rows, drops generative/mock, appends `generative_external`]
+- Live gates LWW-merges prior stages and stamps generative_executor=live ? [Resolved ? `stages_for_live_certification` keeps deterministic rows, drops generative/mock, appends `generative_external`]
 
-- Stage MOCK status erased to ok with no executor provenance — [Resolved — `StageRecord.executor`; additive on schema_version 1]
+- Stage MOCK status erased to ok with no executor provenance ? [Resolved ? `StageRecord.executor`; additive on schema_version 1]
 
-- Any non-ok stage fails cert (skipped poisons live rewrite) — [Resolved — skip fails only if stage required by profile; mock_under_live consistency]
+- Any non-ok stage fails cert (skipped poisons live rewrite) ? [Resolved ? skip fails only if stage required by profile; mock_under_live consistency]
 
-- Adoption-blockers B2.5 open — [Resolved]
+- Adoption-blockers B2.5 open ? [Resolved]
 
 Files touched: src/doc_engine/pipeline/compliance.py, src/doc_engine/pipeline/live_gates.py, scripts/schemas/certification.schema.json, action.yml, tests/doc_engine/test_compliance.py, tests/doc_engine/test_live_gates.py, src/doc_engine/pipeline/adapters.md, claude/research/certification-derived-view-2026-07-30.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
 
 
 
-## 2026-07-30 — B3 strict citations on live gates
+## 2026-07-30 ? B3 strict citations on live gates
 
 Commit: f89edfe
 
@@ -2188,30 +2188,49 @@ Tests: 38 passed (live_gates + compliance)
 
 Assumptions affected:
 
-- Live gates citation_coverage is worklist-only unless `--strict-citations` — [Resolved — certified profile (default / `--compliance-profile certified`) enables `--strict`, shared `citations_are_strict`]
+- Live gates citation_coverage is worklist-only unless `--strict-citations` ? [Resolved ? certified profile (default / `--compliance-profile certified`) enables `--strict`, shared `citations_are_strict`]
 
-- Adoption-blockers B3 open — [Resolved]
+- Adoption-blockers B3 open ? [Resolved]
 
 Files touched: src/doc_engine/pipeline/live_gates.py, src/doc_engine/pipeline/compliance.py, src/doc_engine/pipeline/local_runner.py, src/doc_engine/cli.py, tests/doc_engine/test_live_gates.py, tests/doc_engine/test_compliance.py, claude/research/adoption-blockers-queue-2026-07-30.md, src/doc_engine/pipeline/adapters.md, claude/session-log.md
 
 
-## 2026-07-30 — L1 semgrep FP ratchet + DDIA north-star + coverage SoR hygiene
+## 2026-07-30 ? L1 semgrep FP ratchet + DDIA north-star + coverage SoR hygiene
 Commit: 1b12600
 Tests: 32/32 passed (ddia north-star catalog + semgrep_rule_coverage); check_repo_claims OK
 Assumptions affected:
-- Semgrep coverage is positive-only / no FP measurement — [Resolved — negatives + check_fp_ratchet + semgrep_rule_fp_baseline.json; cite coverage-gates]
-- CLAUDE/CONSTRAINTS/tool-quirks say rule_coverage reads rule_fixtures — [Resolved — spring_signals + CodeQL denominator; rule_fixtures metamorphic-owned]
-- STATUS Next engineering still lists B1–B4 themes — [Resolved — B1–B5 done; L1/L2 sequencing; ddia-north-star link]
-- Adoption-blockers Explicitly later unnumbered — [Resolved — L1 done … L6 queued]
-- DDIA guidance trapped in chat / memory — [Resolved — claude/research/ddia-north-star/ catalog for build/review/refactor]
+- Semgrep coverage is positive-only / no FP measurement ? [Resolved ? negatives + check_fp_ratchet + semgrep_rule_fp_baseline.json; cite coverage-gates]
+- CLAUDE/CONSTRAINTS/tool-quirks say rule_coverage reads rule_fixtures ? [Resolved ? spring_signals + CodeQL denominator; rule_fixtures metamorphic-owned]
+- STATUS Next engineering still lists B1?B4 themes ? [Resolved ? B1?B5 done; L1/L2 sequencing; ddia-north-star link]
+- Adoption-blockers Explicitly later unnumbered ? [Resolved ? L1 done ? L6 queued]
+- DDIA guidance trapped in chat / memory ? [Resolved ? claude/research/ddia-north-star/ catalog for build/review/refactor]
 Files touched: claude/research/ddia-north-star/**, claude/research/coverage-sor-derived-blindspot-2026-07-30.md, claude/research/adoption-blockers-queue-2026-07-30.md, scripts/coverage/semgrep_rule_coverage.py, scripts/coverage/semgrep_rule_fixtures_negative/**, scripts/coverage/semgrep_rule_fp_baseline.json, tests/coverage/test_semgrep_rule_coverage.py, tests/research/test_ddia_north_star_catalog.py, CLAUDE.md, CONSTRAINTS.md, STATUS.md, claude/tool-quirks.md, claude/steering-prompts/10-review-persona-and-standards.md, .github/workflows/ci.yml, claude/session-log.md
 
-## 2026-07-30 — Relocate DDIA north-star to docs/design; deepen + deviations
+## 2026-07-30 ? Relocate DDIA north-star to docs/design; deepen + deviations
 Commit: uncommitted
 Tests: 13/13 passed (ddia north-star catalog); check_repo_claims OK
 Assumptions affected:
-- DDIA catalog lives under claude/research (LLM-concentrated) — [Resolved — moved to docs/design/ddia-north-star/; claude path is redirect stub]
-- Chapter atlases are title-thin — [Resolved — ch01–ch14 have who/what/when/where/why/how + principal questions; honest partial where thin]
-- Project DDIA deviations are blind spots — [Resolved — deviations/ registry with upstream check + rejected band-aids; three seed entries]
-- Flat concepts/playbooks/chapters layout hard to navigate — [Resolved — six nested domains + relationships]
+- DDIA catalog lives under claude/research (LLM-concentrated) ? [Resolved ? moved to docs/design/ddia-north-star/; claude path is redirect stub]
+- Chapter atlases are title-thin ? [Resolved ? ch01?ch14 have who/what/when/where/why/how + principal questions; honest partial where thin]
+- Project DDIA deviations are blind spots ? [Resolved ? deviations/ registry with upstream check + rejected band-aids; three seed entries]
+- Flat concepts/playbooks/chapters layout hard to navigate ? [Resolved ? six nested domains + relationships]
 Files touched: docs/design/**, claude/research/ddia-north-star/README.md (stub), STATUS.md, docs/product-architecture.md, claude/steering-prompts/10-review-persona-and-standards.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/research/coverage-sor-derived-blindspot-2026-07-30.md, scripts/coverage/semgrep_rule_coverage.py, tests/research/test_ddia_north_star_catalog.py, claude/session-log.md
+
+## 2026-07-30 ? DDIA thorough campaign waves A?E + L2 capacity upper_bound
+Commit: uncommitted
+Tests: 39/39 passed (ddia depth+catalog + capacity_preflight Stage4 polarity)
+Assumptions affected:
+- Capacity preflight under-states Stage-4 after cross-group edges ? [Resolved ? stage4_*_upper_bound fields, VALID_DOC_FILES fan-out, signals wiring, polarity tests; cite domain 07 / rel-partition-bounds-fanout]
+- North-star thin / incomplete domains 07?10 and outline chapters ? [Resolved ? domains 07?10; ch01?ch14 operational with section digests; honest partial only for domain 06 + two lite concepts]
+- Operational completeness Goodhartable by line count ? [Resolved ? depth gate Fail-if + epub/repo anchors + section digests + operational_count_baseline ratchet]
+- Prior art / SoR hierarchy / cite-or-deviate unstated ? [Resolved ? meta/prior-art.md; README hierarchy; prompt-10 + catalog path check]
+Files touched: src/doc_engine/tools/capacity_preflight.py, tests/doc_engine/test_capacity_preflight.py, tests/research/test_ddia_north_star_*.py, docs/design/ddia-north-star/**, STATUS.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/steering-prompts/10-review-persona-and-standards.md, claude/session-log.md
+
+## 2026-07-30 ? Honesty unblock: partial_proxy + demote hollow + anti-Goodhart depth
+Commit: uncommitted
+Tests: 44/44 passed (ddia depth+catalog + capacity_preflight Stage4 proxy honesty)
+Assumptions affected:
+- L2 Stage-4 capacity risk closed / upper_bound of full Stage-4 input ? [New info ? rejected; metric_kind is partial_proxy_pre_stage4 with interview/architecture/returns omitted; cite rel-partition-bounds-fanout]
+- Operational completeness certifiable by shared Fail-if boilerplate / hollow domains ? [Resolved ? demote ch04/ch10/domains 08/10; Fail-if uniqueness N=5; domain must own local concepts/]
+- STATUS/queue claimed campaign/L2 done ahead of merge ? [Resolved ? L2 open; N-wave honesty pass required; cite claims-and-status-drift]
+Files touched: src/doc_engine/tools/capacity_preflight.py, tests/doc_engine/test_capacity_preflight.py, tests/research/test_ddia_north_star_*.py, docs/design/ddia-north-star/**, STATUS.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md

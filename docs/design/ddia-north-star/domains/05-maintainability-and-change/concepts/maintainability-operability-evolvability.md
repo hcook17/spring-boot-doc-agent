@@ -46,10 +46,13 @@ Maintainability splits into making operations possible, keeping accidental compl
 
 ## Review checks
 
+- Fail if STATUS or CONSTRAINTS claim a control is done while the owning test or script still contradicts that claim.
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
+
 1. Can a new agent run the check from README/CI alone?
 2. Does the change reduce or increase interlocking assumptions?
 3. Is there a rollback/derive path?
-
+- Fail if the Core claims are ignored without a filed deviation.
 ## Refactor signals
 
 - Undocumented cwd-dependent behavior.

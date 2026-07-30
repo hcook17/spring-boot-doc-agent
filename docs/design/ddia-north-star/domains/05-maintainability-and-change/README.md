@@ -24,3 +24,11 @@ Use playbooks: `refactor-sequencing`, `claims-and-status-drift`, `architecture-d
 ## Chapters
 
 `ch01` (maintainability axes), `ch13`–`ch14`
+
+## Anti-band-aids
+
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
+
+## Repo path witness
+
+- [Repo] `domains/05-maintainability-and-change/README.md`

@@ -24,6 +24,7 @@ Keep current-state docs as honest derived views of code SoR; mechanical `verify:
 5. Prefer derivations for counts; do not hand-stamp numbers that `DERIVATIONS` already own.
 
 ## Review procedure
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
 
 1. For each touched claim in CLAUDE/CONSTRAINTS/STATUS/CI comments: does the path still exist **and** still mean what the sentence says?
 2. `path_exists` alone is not truth — ask whether the gate reads that path.
@@ -39,6 +40,10 @@ Keep current-state docs as honest derived views of code SoR; mechanical `verify:
 
 - Coverage blindspot: docs said `rule_fixtures`; gate reads `spring_signals` + CodeQL ids.
 - Adoption queue B1–B5 done while STATUS still listed them as next.
+
+## Repo path witness
+
+- [Repo] `playbooks/claims-and-status-drift.md`
 
 ## See also
 

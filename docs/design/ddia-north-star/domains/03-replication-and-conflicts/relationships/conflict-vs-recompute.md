@@ -41,6 +41,14 @@ LWW loses information and teaches the wrong SoR; recompute preserves the definit
 2. Delete or regenerate the view.
 3. If you truly need multi-writer merge, file a [deviation](../../deviations/) with upstream check — do not ship a silent merge.
 
+## Anti-band-aids
+
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
+
+## Repo path witness
+
+- [Repo] `domains/03-replication-and-conflicts/relationships/conflict-vs-recompute.md`
+
 ## See also
 
 `replication-lag-and-lww`, `dev-certification-derived-view`

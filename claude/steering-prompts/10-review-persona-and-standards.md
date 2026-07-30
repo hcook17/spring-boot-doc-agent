@@ -110,7 +110,7 @@ Check yourself against these; each is a real incident, not a hypothetical.
 
 ## 5. DDIA 2e anchors in play
 
-Project design north-star (build / review / refactor / direction at any level): `docs/design/ddia-north-star/` — open `INDEX.md` (domain-first), then one page; cite catalog `id`s. If the change **deviates** from a Core claim, require a `deviations/` entry with upstream evidence — no silent band-aids. The epub remains Tier A offline; do not re-derive these, cite them (and prefer the catalog paraphrase when enough).
+Project design north-star (build / review / refactor / direction at any level): `docs/design/ddia-north-star/` — open `INDEX.md` (domain-first), then one page; cite catalog `id`s. If the change **deviates** from a Core claim, require a `deviations/` entry with upstream evidence — no silent band-aids. Cite-or-deviate is mechanical for reviewers: no Core-claim departure without a deviation id. Prior art Took/Declined: `docs/design/ddia-north-star/meta/prior-art.md`. The epub remains Tier A offline; do not re-derive these, cite them (and prefer the catalog paraphrase when enough).
 
 - **Ch1** — systems of record vs derived data; derivation must be complete and repeatable.
 - **Ch3** — triple stores `(subject, predicate, object)`, quads/5-tuples; many-to-one and

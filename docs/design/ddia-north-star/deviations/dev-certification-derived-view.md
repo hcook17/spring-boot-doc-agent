@@ -28,6 +28,7 @@ path: deviations/dev-certification-derived-view.md
 - Adoption queue marks reopening B2/B2.5 out of scope for L1 work — intentional standing constraint.
 
 ## Upstream check
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
 
 - Writers inspected: pipeline facts / gates that feed certification; certification writer path; STATUS/queue language about B2.5.
 - SoR = stage/gate facts; derived = certification artifact + any prose summarizing it.
@@ -43,6 +44,10 @@ path: deviations/dev-certification-derived-view.md
 ## Expiry / revisit
 
 `standing` while B2.5 holds. Revisit only with an explicit ADR that names a new SoR and migration — not a silent reopen.
+
+## Repo path witness
+
+- [Repo] `deviations/dev-certification-derived-view.md`
 
 ## See also
 

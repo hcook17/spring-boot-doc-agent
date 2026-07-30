@@ -32,6 +32,7 @@ Semgrep:
 - Inventing a recall baseline to “complete the story” would create a derived artifact with no SoR measurement (band-aid).
 
 ## Upstream check
+- Fail if a dual writer, silent LWW, or vacuous gate ships without a deviation or SoR fix.
 
 - Writers inspected: `semgrep_rule_coverage.py`, positive fixtures, new negative fixtures, CI no-arg path, adoption queue L1.
 - SoR for FP = negative corpus + committed FP baseline; SoR for non-vacuity = positive fixtures; recall baseline **absent until measured**.
