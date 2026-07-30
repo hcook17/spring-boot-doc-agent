@@ -946,3 +946,18 @@ Tests: check_repo_claims (expected)
 Assumptions affected:
 - CONSTRAINTS Runtime item 1 "CodeQL hard for Stage 0" — [Resolved — default is filesystem+ast-grep; CodeQL via --scanners; capacity_preflight does not require CodeQL]
 Files touched: CONSTRAINTS.md, README.md, claude/session-log.md
+
+## 2026-07-29 — Operator pilot + principal adoption guides
+Commit: uncommitted
+Tests: not run (docs only)
+Assumptions affected:
+- Cold-start “how do I run Path A/B on a real repo?” lived only in README/SKILL fragments — [Resolved — docs/guides/operator-pilot.md + principal-adoption.md; README + product-architecture linked]
+Files touched: docs/guides/operator-pilot.md, docs/guides/principal-adoption.md, README.md, docs/product-architecture.md, claude/session-log.md
+
+## 2026-07-30 — Pre–Phase 1 fact-store research spike (REFINE)
+Commit: uncommitted
+Tests: not run (research/docs only)
+Assumptions affected:
+- `claude/steering-prompts/00-shared-research-standards.md` — primary-confirmation / star+recency bar for GitHub+arXiv — [Still accurate — applied in `claude/research/fact-store-prior-art-corpus-2026-07-30.md`]
+- `claude/10-architecture-maturation-plan.md` §0–1 / JPA survey as executable Phase 1 specs — [New info — outdated relative to portable kernel, packaging pause, contested map, default scanners; thesis revalidated externally; Phase 1 gated on decision memo **REFINE**, thin dual-emit only]
+Files touched: claude/research/fact-store-prior-art-corpus-2026-07-30.md, claude/research/fact-store-approaches-collation-2026-07-30.md, claude/research/fact-store-phase1-decision-memo-2026-07-30.md, claude/10-architecture-maturation-plan.md, claude/jpa-hibernate-predicate-vocabulary-survey.md, STATUS.md, claude/session-log.md

@@ -50,6 +50,8 @@ doc-engine certification verify /tmp/doc-run/certification.json
 
 No clone of this meta-repo is required in the customer tree. No `agents/` folder in their project.
 
+First pilot walkthrough (Path A deterministic, Path B full Claude): [`guides/operator-pilot.md`](guides/operator-pilot.md). Org rollout brief for principals: [`guides/principal-adoption.md`](guides/principal-adoption.md).
+
 ## Compliance and certification
 
 Profiles (`scan_only`, `deterministic_only`, `certified`) drive which stages and gates run. Every `doc-engine pipeline run` writes `certification.json`.

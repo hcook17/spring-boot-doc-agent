@@ -12,6 +12,8 @@ doc-engine certification verify pipeline-artifacts/certification.json
 
 See [`docs/product-architecture.md`](docs/product-architecture.md) for kernel vs adapter layout.
 
+**First time on a real Spring repo:** follow [`docs/guides/operator-pilot.md`](docs/guides/operator-pilot.md) (Path A deterministic scan, then Path B full Claude pipeline). **Rolling this out across your org’s services:** [`docs/guides/principal-adoption.md`](docs/guides/principal-adoption.md).
+
 ## Pipeline
 
 ```
@@ -131,6 +133,8 @@ pip install -e .
 doc-engine pipeline run <repo_path> --out-dir pipeline-artifacts
 ```
 
+Full first-run walkthrough: [`docs/guides/operator-pilot.md`](docs/guides/operator-pilot.md).
+
 **Claude Code adapter (optional — live generative stages + skills):**
 
 ```bash
@@ -141,6 +145,8 @@ claude plugin install spring-boot-doc-agent@spring-boot-doc-agent-marketplace
 Marketplace entry installs `adapters/claude/` as `CLAUDE_PLUGIN_ROOT`. Example target-repo config: [`docs/examples/.doc-engine.yml`](docs/examples/.doc-engine.yml).
 
 ## Before you use this for real
+
+Start with [`docs/guides/operator-pilot.md`](docs/guides/operator-pilot.md). Then:
 
 1. `adapters/claude/plugin.json` and `.claude-plugin/marketplace.json` both name a real author, and `plugin.json`'s `license` is `"MIT"`, matching the root `LICENSE` file. (`marketplace.json` carries no `license` field of its own — it inherits by reference, since its plugin entry points at `adapters/claude/`.) Confirm both still say what you want before sharing this beyond your own machine.
 2. Read `adapters/claude/skills/document-spring-repo/references/doc-taxonomy.md` once yourself before the first real run — it's the actual spec for what "good" looks like per file, and it's worth knowing what it does and doesn't ask about.
