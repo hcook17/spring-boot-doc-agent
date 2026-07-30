@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
-"""Proves every semgrep rule can actually fire, and ratchets real-corpus hits.
+"""Proves every semgrep rule can fire, ratchets hermetic FPs, and optional recall.
 
 Usage:
-    python3 scripts/coverage/semgrep_rule_coverage.py                 # non-vacuity gate (CI)
-    python3 scripts/coverage/semgrep_rule_coverage.py <repo>           # corpus backtest
-    python3 scripts/coverage/semgrep_rule_coverage.py <repo> --update  # rewrite the baseline
+    python3 scripts/coverage/semgrep_rule_coverage.py
+        # CI: positive non-vacuity + hermetic FP ratchet on negatives
+    python3 scripts/coverage/semgrep_rule_coverage.py --update-fp-baseline
+        # rewrite scripts/coverage/semgrep_rule_fp_baseline.json from negatives
+    python3 scripts/coverage/semgrep_rule_coverage.py <repo>
+        # corpus recall backtest (dev)
+    python3 scripts/coverage/semgrep_rule_coverage.py <repo> --update
+        # rewrite recall baseline (dev; do not invent client checkout names)
 
-Same two-mode split as rule_coverage.py (the ast-grep analog), for the same
-reason: **non-vacuity** (no argument) runs scripts/coverage/spring_semgrep_rules.yml
-against the committed scripts/coverage/semgrep_rule_fixtures/ corpus and fails if any
-rule matches nothing -- a rule nobody can make fire is not coverage, whether
-the tool behind it is ast-grep or semgrep. **Backtest** (with a path) reports
-hit counts against a real repository and ratchets against
-scripts/coverage/semgrep_rule_coverage_baseline.json; it is a dev-machine-only step,
-same as rule_coverage.py's, since a real corpus is too large to commit.
+**Non-vacuity** runs spring_semgrep_rules.yml against semgrep_rule_fixtures/
+and fails if any rule matches nothing. **FP ratchet** (same no-arg CI path)
+runs the rules against semgrep_rule_fixtures_negative/ and fails if any rule's
+hit count **rises** above semgrep_rule_fp_baseline.json (precision regression).
+Falling FP counts pass. Missing negative corpus or missing FP baseline fails
+closed once negatives are expected. **Recall backtest** (with a path) still
+uses check_ratchet (drop-to-zero) against the optional real-corpus baseline —
+a separate polarity; do not reuse it for FPs. See
+claude/research/ddia-north-star/ playbook `coverage-gates`.
 
 A REAL QUIRK THIS MODULE WORKS AROUND
 semgrep's JSON `check_id` is not the bare rule id from the YAML when a rule
@@ -44,7 +50,9 @@ from typing import Dict, List, Optional
 SCRIPT_DIR = Path(__file__).resolve().parent
 RULE_FILE = SCRIPT_DIR / "spring_semgrep_rules.yml"
 FIXTURE_DIR = SCRIPT_DIR / "semgrep_rule_fixtures"
+NEGATIVE_FIXTURE_DIR = SCRIPT_DIR / "semgrep_rule_fixtures_negative"
 BASELINE_FILE = SCRIPT_DIR / "semgrep_rule_coverage_baseline.json"
+FP_BASELINE_FILE = SCRIPT_DIR / "semgrep_rule_fp_baseline.json"
 SCHEMA_VERSION = 1
 
 # `- id: <bucket>__<subkind>` as a YAML list item under `rules:`. Anchored to
@@ -179,6 +187,64 @@ def check_ratchet(counts: collections.Counter[str]) -> List[str]:
     return problems
 
 
+def load_fp_baseline() -> Optional[Dict[str, object]]:
+    if not FP_BASELINE_FILE.is_file():
+        return None
+    return json.loads(FP_BASELINE_FILE.read_text(encoding="utf-8"))
+
+
+def write_fp_baseline(counts: collections.Counter[str]) -> None:
+    # Include every known rule id (zeros explicit) so rises are visible.
+    full = {rule: int(counts.get(rule, 0)) for rule in rule_ids()}
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "$comment": (
+            "Per-rule hit counts on the hermetic negative fixture corpus. "
+            "The gate is a precision ratchet: a count that rises above this "
+            "baseline is a new false positive. Falling counts pass. "
+            "Regenerate with: python3 scripts/coverage/semgrep_rule_coverage.py "
+            "--update-fp-baseline. corpus is the directory basename only — "
+            "never a client checkout path."
+        ),
+        "corpus": NEGATIVE_FIXTURE_DIR.name,
+        "counts": dict(sorted(full.items())),
+    }
+    FP_BASELINE_FILE.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def check_fp_ratchet(counts: Optional[collections.Counter[str]] = None) -> List[str]:
+    """Fail when FP hits on negatives exceed the committed baseline."""
+    if not NEGATIVE_FIXTURE_DIR.is_dir():
+        return [f"negative fixture corpus {NEGATIVE_FIXTURE_DIR.name}/ is missing; "
+                f"the FP ratchet has nothing to run against"]
+    if counts is None:
+        counts = hit_counts(NEGATIVE_FIXTURE_DIR)
+    baseline = load_fp_baseline()
+    if baseline is None:
+        return [f"{FP_BASELINE_FILE.name} is missing; write it with "
+                f"--update-fp-baseline after measuring the negative corpus"]
+    if baseline.get("schema_version") != SCHEMA_VERSION:
+        return [f"FP baseline schema_version {baseline.get('schema_version')!r} "
+                f"!= {SCHEMA_VERSION}; regenerate with --update-fp-baseline"]
+    recorded = baseline.get("counts", {})
+    if not isinstance(recorded, dict):
+        return ["FP baseline 'counts' is not an object; regenerate with "
+                "--update-fp-baseline"]
+    problems = []
+    # Rising above baseline for any recorded or newly firing rule.
+    keys = set(recorded) | set(counts) | set(rule_ids())
+    for rule in sorted(keys):
+        was = int(recorded.get(rule, 0) or 0)
+        now = int(counts.get(rule, 0))
+        if now > was:
+            problems.append(
+                f"{rule} had {was} hit(s) on negatives in the FP baseline and "
+                f"{now} now — a precision regression (new false positives). "
+                f"Tighten the rule/fixture or re-measure with "
+                f"--update-fp-baseline if intentional.")
+    return problems
+
+
 def report(counts: collections.Counter[str], label: str) -> None:
     every = rule_ids()
     fired = [r for r in every if counts.get(r, 0)]
@@ -193,18 +259,42 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("repo", nargs="?",
                         help="target repository for the corpus backtest; "
-                             "omit to run the fixture non-vacuity gate")
+                             "omit to run fixture non-vacuity + FP ratchet")
     parser.add_argument("--update", action="store_true",
-                        help="rewrite the baseline from this run")
+                        help="rewrite the recall baseline from this run")
+    parser.add_argument("--update-fp-baseline", action="store_true",
+                        help="rewrite the hermetic FP baseline from negatives")
     args = parser.parse_args(argv)
 
     try:
+        if args.update_fp_baseline:
+            if args.repo is not None:
+                print("error: --update-fp-baseline does not take a repo path",
+                      file=sys.stderr)
+                return 2
+            if not NEGATIVE_FIXTURE_DIR.is_dir():
+                print(f"error: {NEGATIVE_FIXTURE_DIR} is missing", file=sys.stderr)
+                return 2
+            counts = hit_counts(NEGATIVE_FIXTURE_DIR)
+            report(counts, f"negative corpus {NEGATIVE_FIXTURE_DIR.name}")
+            write_fp_baseline(counts)
+            print(f"wrote {FP_BASELINE_FILE.name}")
+            return 0
+
         if args.repo is None:
             problems = check_non_vacuity()
             if not problems:
                 report(hit_counts(FIXTURE_DIR), "fixture non-vacuity")
                 print("OK: every rule fires on the fixture corpus.")
-                return 0
+                neg_counts = hit_counts(NEGATIVE_FIXTURE_DIR) if NEGATIVE_FIXTURE_DIR.is_dir() else collections.Counter()
+                if NEGATIVE_FIXTURE_DIR.is_dir():
+                    report(neg_counts, f"negative corpus {NEGATIVE_FIXTURE_DIR.name}")
+                fp_problems = check_fp_ratchet(neg_counts if NEGATIVE_FIXTURE_DIR.is_dir() else None)
+                if not fp_problems:
+                    print("OK: no false-positive rise against the FP baseline.")
+                    return 0
+                problems = fp_problems
+            # fall through to failure print
         else:
             target = Path(args.repo)
             if not target.is_dir():

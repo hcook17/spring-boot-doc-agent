@@ -110,7 +110,7 @@ Check yourself against these; each is a real incident, not a hypothetical.
 
 ## 5. DDIA 2e anchors in play
 
-The epub is in the project; do not re-derive these, cite them.
+Project lookup catalog (build / review / refactor): `claude/research/ddia-north-star/` — open `INDEX.md`, then one page; cite catalog `id`s in findings. The epub remains Tier A offline; do not re-derive these, cite them (and prefer the catalog paraphrase when enough).
 
 - **Ch1** — systems of record vs derived data; derivation must be complete and repeatable.
 - **Ch3** — triple stores `(subject, predicate, object)`, quads/5-tuples; many-to-one and

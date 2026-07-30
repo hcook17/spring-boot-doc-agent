@@ -164,14 +164,13 @@ jobs:
       - name: rule_coverage.py (rule non-vacuity gate)
         run: python3 scripts/coverage/rule_coverage.py
 
-      # semgrep analog of the gate directly above: every rule in
-      # scripts/coverage/spring_semgrep_rules.yml must fire on scripts/semgrep_rule_
-      # fixtures/. Same split as rule_coverage.py -- only the fixture
-      # non-vacuity mode runs here; the backtest/ratchet mode is dev-machine
-      # only, and scripts/coverage/semgrep_rule_coverage_baseline.json does not exist
-      # yet because no real-repo backtest has been run (stated in CONSTRAINTS.md
-      # rather than faked with an invented baseline).
-      - name: semgrep_rule_coverage.py (rule non-vacuity gate)
+      # semgrep: every rule in scripts/coverage/spring_semgrep_rules.yml must
+      # fire on scripts/coverage/semgrep_rule_fixtures/ (non-vacuity) and must
+      # not gain hits on scripts/coverage/semgrep_rule_fixtures_negative/
+      # beyond scripts/coverage/semgrep_rule_fp_baseline.json (hermetic FP
+      # ratchet). Real-corpus recall baseline remains optional/dev-only and is
+      # still absent — do not invent a client checkout name.
+      - name: semgrep_rule_coverage.py (non-vacuity + FP ratchet)
         run: python3 scripts/coverage/semgrep_rule_coverage.py
 
       # Measurements, not a verdict -- this step cannot fail, and is named so

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "$comment": "Per-rule hit counts on the hermetic negative fixture corpus. The gate is a precision ratchet: a count that rises above this baseline is a new false positive. Falling counts pass. Regenerate with: python3 scripts/coverage/semgrep_rule_coverage.py --update-fp-baseline. corpus is the directory basename only \u2014 never a client checkout path.",
+  "corpus": "semgrep_rule_fixtures_negative",
+  "counts": {
+    "architecture_ddia__entity_no_version_field": 0,
+    "architecture_ddia__native_query_string_concatenation": 0,
+    "architecture_ddia__resttemplate_default_no_timeout": 0,
+    "architecture_ddia__scheduled_and_kafkalistener_same_class": 0,
+    "architecture_ddia__unbounded_findall_exposed": 0,
+    "testing_est__disabled_test_method": 0,
+    "testing_est__empty_catch_in_test": 0,
+    "testing_est__mockito_verify_no_assertion": 0,
+    "testing_est__test_method_no_assertion": 0,
+    "testing_est__thread_sleep_in_test": 0
+  }
+}

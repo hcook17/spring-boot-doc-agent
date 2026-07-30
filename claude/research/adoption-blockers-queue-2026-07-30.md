@@ -1,8 +1,10 @@
 # Adoption blockers queue (post dual-emit) — 2026-07-30
 
-Queued from the external principal review (`spring-boot-doc-agent-review.md`) after Phase 1 dual-emit. **Do not fold into the dual-emit PR.** Next engineering PR after `facts.jsonl` lands on `main`.
+Queued from the external principal review (`spring-boot-doc-agent-review.md`) after Phase 1 dual-emit. **Do not fold into the dual-emit PR.**
 
 Theme (review §10): controls that are real but one layer away from where they bite.
+
+North-star for build/review/refactor: [`ddia-north-star/`](ddia-north-star/). Blindspot note: [`coverage-sor-derived-blindspot-2026-07-30.md`](coverage-sor-derived-blindspot-2026-07-30.md).
 
 ## B1 — Client identifier purge + repo-wide denylist — **done**
 
@@ -40,6 +42,31 @@ Theme (review §10): controls that are real but one layer away from where they b
 - ~~`CONSTRAINTS.md`: overlap-cascade / `carry_forward` / CI enumeration warnings that outlived the fixes.~~ Overlap `[Resolved]` (`carried_in_paths`); CI is `pytest tests/` / `testpaths`; STATUS `ENFORCE` prose aligned; Phase 1 memo §5 gate closed; content-stable claim keys stop ordinal baseline churn.
 - Prefer outcome-bound tests over substring-only `verify:` where the claim is behavioral. Closed vocabulary includes `called_by:` and `behavior:<key>` (pre-registered in `check_repo_claims.py`, like `DERIVATIONS`); product wiring that needs runtime shape lives in `tests/test_control_wiring.py`. Attach live `verify:` for Phase B claims only when the underlying wiring is true.
 
-## Explicitly later (weeks — not this PR)
+## Later queue (numbered)
 
-Claim-symbol single-token entities; semgrep negative fixtures + FP ratchet; Stage-4 fan-out in capacity_preflight; branch protection; thin drift/capacity schemas (memo slice 5). Review/edges/gap/cert schema work landed with B4 on `schema-contracts-research` — see [`schema-contracts-decision-memo-2026-07-30.md`](schema-contracts-decision-memo-2026-07-30.md).
+### L1 — Semgrep negative fixtures + FP ratchet — **done**
+
+- Positive non-vacuity retained; hermetic negatives under `scripts/coverage/semgrep_rule_fixtures_negative/`.
+- `check_fp_ratchet` (counts must not **rise**) vs `semgrep_rule_fp_baseline.json`; `--update-fp-baseline`.
+- Cite north-star `coverage-gates` / `trust-but-verify-and-auditability`.
+- Real-corpus semgrep **recall** baseline still absent (do not invent client names).
+
+### L2 — Stage-4 fan-out in `capacity_preflight`
+
+- After L1; capacity model still under-counts Stage-4 fan-out relative to post–cross-group-edges reality.
+
+### L3 — Claim-symbol single-token entities
+
+- Larger fact-store redesign; not a drive-by.
+
+### L4 — Branch protection (human)
+
+- `CONSTRAINTS.md` enterprise item 6 — `gh api` repo-admin; not agent.
+
+### L5 — Thin drift/capacity schemas
+
+- Schema memo slice 5 — lowest schema priority.
+
+### L6 — Coverage SoR hygiene follow-ons
+
+- `rule_coverage_baseline.json` schema_version 1→2 regenerate; optional `codeql_rule_count` derivation; any residual doc debt after this PR's CLAUDE/CONSTRAINTS/tool-quirks corrections.
