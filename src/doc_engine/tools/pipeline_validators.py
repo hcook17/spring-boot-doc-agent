@@ -171,7 +171,7 @@ def find_untraceable_nodes(mermaid_text, known_names):
 
 
 def run_stage5_gate(artifacts_dir, target_repo):
-    """Stage 5 mechanical checks on summaries and gap_questions when present.
+    """Stage 5 mechanical checks on summaries, gap_questions, and review when present.
 
     Returns a list of human-readable failure strings (empty if all pass).
     """
@@ -193,6 +193,21 @@ def run_stage5_gate(artifacts_dir, target_repo):
         for idx, reason in validate_gap_analyzer_questions(questions):
             failures.append(f"gap_questions.json entry {idx}: {reason}")
 
+    # B4 — wire unused DDIA/testing findings validator into the live Stage 5 gate.
+    review_path = os.path.join(artifacts_dir, "architecture_testing_review.json")
+    if os.path.isfile(review_path):
+        with open(review_path, encoding="utf-8") as fh:
+            findings = json.load(fh)
+        if not isinstance(findings, list):
+            failures.append(
+                "architecture_testing_review.json: expected a JSON array of findings, "
+                f"got {type(findings).__name__}",
+            )
+        else:
+            for idx, reason in validate_architecture_testing_review_findings(findings):
+                label = "entry" if idx is not None else "file"
+                failures.append(f"architecture_testing_review.json {label} {idx}: {reason}")
+
     return failures
 
 
@@ -201,9 +216,12 @@ def main(argv=None) -> int:
     import sys
 
     parser = argparse.ArgumentParser(
-        description="Mechanical pipeline output validators (summaries, gap_questions).",
+        description="Mechanical pipeline output validators (summaries, gap_questions, architecture_testing_review).",
     )
-    parser.add_argument("artifacts_dir", help="directory containing summaries.json / gap_questions.json")
+    parser.add_argument(
+        "artifacts_dir",
+        help="directory containing summaries.json / gap_questions.json / architecture_testing_review.json",
+    )
     parser.add_argument(
         "--target-repo",
         default=None,

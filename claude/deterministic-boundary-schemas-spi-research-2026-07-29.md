@@ -5,6 +5,8 @@ Status: **research only — do not implement in the Suite SoT / hygiene PR**
 Aligns with: `STATUS.md` sequencing lock; `claude/10-architecture-maturation-plan.md` fact-store Phase 1  
 Supersedes: nothing; scopes work deferred from “Pydantic everywhere / entry points” discussion
 
+> **Sequencing supersession (2026-07-30):** For *which artifacts get schemas in what order*, use [`research/schema-contracts-decision-memo-2026-07-30.md`](research/schema-contracts-decision-memo-2026-07-30.md) (corpus + collation siblings). This note’s answers on write-vs-read validation, ephemeral JSON vs fact SoR, **no SPI**, and package boundary remain in force and are adopted by that memo.
+
 ## Why this note exists
 
 Suite-layout hygiene closes a **packaging/layout** dual-home (`tests/` via `pyproject.toml` `testpaths`, no `scripts/` pytest forwarders). Broader deterministic-tool **data-interface** hardening (typed I/O, optional SPI) is a different failure mode and must not share that PR.

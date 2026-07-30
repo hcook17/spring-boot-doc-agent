@@ -1,0 +1,205 @@
+{
+  "$defs": {
+    "CrossGroupBucket": {
+      "additionalProperties": true,
+      "properties": {
+        "outbound": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CrossGroupEdgeArc"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ]
+          },
+          "title": "Outbound",
+          "type": "array"
+        },
+        "inbound": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CrossGroupEdgeArc"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ]
+          },
+          "title": "Inbound",
+          "type": "array"
+        },
+        "same_package_outside": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SamePackageOutside"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ]
+          },
+          "title": "Same Package Outside",
+          "type": "array"
+        }
+      },
+      "title": "CrossGroupBucket",
+      "type": "object"
+    },
+    "CrossGroupEdgeArc": {
+      "additionalProperties": true,
+      "description": "One cut arc in cross_group_edges.json (outbound/inbound).",
+      "properties": {
+        "from": {
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "title": "To",
+          "type": "string"
+        },
+        "via": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Via"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "static_import": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Static Import"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "title": "CrossGroupEdgeArc",
+      "type": "object"
+    },
+    "SamePackageOutside": {
+      "additionalProperties": true,
+      "properties": {
+        "package": {
+          "title": "Package",
+          "type": "string"
+        },
+        "files_in_group": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Files In Group",
+          "type": "array"
+        },
+        "files_outside_group": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Files Outside Group",
+          "type": "array"
+        }
+      },
+      "required": [
+        "package",
+        "files_in_group",
+        "files_outside_group"
+      ],
+      "title": "SamePackageOutside",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "cross_group_edges.json \u2014 Stage 0 partitioned join (derived).",
+  "properties": {
+    "schema_version": {
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "repo_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Repo Path"
+    },
+    "num_groups": {
+      "title": "Num Groups",
+      "type": "integer"
+    },
+    "references_rows": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "References Rows"
+    },
+    "stats": {
+      "additionalProperties": true,
+      "title": "Stats",
+      "type": "object"
+    },
+    "groups": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/CrossGroupBucket"
+          },
+          {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        ]
+      },
+      "title": "Groups",
+      "type": "object"
+    }
+  },
+  "required": [
+    "num_groups",
+    "groups"
+  ],
+  "title": "CrossGroupEdgesArtifact",
+  "type": "object"
+}

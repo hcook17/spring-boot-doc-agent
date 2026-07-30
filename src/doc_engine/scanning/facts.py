@@ -160,12 +160,19 @@ def facts_from_signals(signals: Mapping[str, Any]) -> List[Dict[str, Any]]:
 
 
 def write_facts_jsonl(path: PathLike, facts: List[Mapping[str, Any]]) -> None:
-    """Write fact records as UTF-8 JSON Lines (one object per line)."""
+    """Write fact records as UTF-8 JSON Lines (one object per line).
+
+    Each row is validated against the closed ``Fact`` contract before encode
+    (write-time bite; see schema-contracts-decision-memo-2026-07-30 slice 1).
+    """
+    from doc_engine.pipeline.artifacts import Fact
+
     out = Path(path)
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding="utf-8", newline="\n") as fh:
         for fact in facts:
-            fh.write(json.dumps(fact, ensure_ascii=False, sort_keys=True))
+            validated = Fact.model_validate(dict(fact)).model_dump()
+            fh.write(json.dumps(validated, ensure_ascii=False, sort_keys=True))
             fh.write("\n")
 
 

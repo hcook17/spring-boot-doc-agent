@@ -48,6 +48,7 @@ Opt-in real-artifacts pass:
 import json
 import os
 import sys
+import tempfile
 import unittest
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
 # TAG_PATTERNS, TAG_WORD_SPAN, find_malformed_tags(), count_tags_by_kind(),
@@ -67,6 +68,7 @@ from doc_engine.tools.pipeline_validators import (
     FILE_SUMMARY_REQUIRED_KEYS,
     VALID_SPRING_ROLES,
     find_untraceable_nodes,
+    run_stage5_gate,
     validate_architecture_testing_review_findings,
     validate_file_summarizer_entries,
     validate_gap_analyzer_questions,
@@ -350,6 +352,49 @@ class ArchitectureTestingReviewShapeTest(unittest.TestCase):
                     for i in range(61)]
         problems = validate_architecture_testing_review_findings(findings, max_findings=60)
         self.assertTrue(any("sanity ceiling" in p[1] for p in problems))
+
+
+class Stage5ArchitectureTestingReviewGateTest(unittest.TestCase):
+    """B4 — malformed architecture_testing_review.json must fail run_stage5_gate."""
+
+    def test_malformed_review_fails_stage5_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "architecture_testing_review.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump([{
+                    "lens": "security",
+                    "concept": "c",
+                    "claim": "x",
+                    "evidence": [{"line": 1, "what": "w"}],
+                    "severity": "informational",
+                }], fh)
+            failures = run_stage5_gate(tmp, tmp)
+            self.assertTrue(
+                any("architecture_testing_review.json" in f for f in failures),
+                failures,
+            )
+
+    def test_valid_review_passes_stage5_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "architecture_testing_review.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump([{
+                    "lens": "ddia",
+                    "concept": "c",
+                    "claim": "x",
+                    "evidence": [{"line": 1, "what": "w"}],
+                    "severity": "informational",
+                    "external_research": None,
+                }], fh)
+            self.assertEqual(run_stage5_gate(tmp, tmp), [])
+
+    def test_non_array_review_fails_stage5_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "architecture_testing_review.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump({"findings": []}, fh)
+            failures = run_stage5_gate(tmp, tmp)
+            self.assertTrue(any("JSON array" in f for f in failures), failures)
 
 
 class ArchitectureTraceabilityTest(unittest.TestCase):

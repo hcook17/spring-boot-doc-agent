@@ -1,0 +1,227 @@
+{
+  "$defs": {
+    "ArchitectureTestingReviewFinding": {
+      "additionalProperties": true,
+      "description": "One software-architect-and-testing finding.",
+      "properties": {
+        "lens": {
+          "enum": [
+            "ddia",
+            "testing"
+          ],
+          "title": "Lens",
+          "type": "string"
+        },
+        "concept": {
+          "minLength": 1,
+          "title": "Concept",
+          "type": "string"
+        },
+        "claim": {
+          "minLength": 1,
+          "title": "Claim",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/ReviewEvidenceAnchor"
+          },
+          "minItems": 1,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "severity": {
+          "enum": [
+            "informational",
+            "worth-flagging"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "external_research": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReviewExternalResearch"
+            },
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "External Research"
+        }
+      },
+      "required": [
+        "lens",
+        "concept",
+        "claim",
+        "evidence",
+        "severity"
+      ],
+      "title": "ArchitectureTestingReviewFinding",
+      "type": "object"
+    },
+    "ReviewEvidenceAnchor": {
+      "additionalProperties": true,
+      "properties": {
+        "line": {
+          "minimum": 1,
+          "title": "Line",
+          "type": "integer"
+        },
+        "what": {
+          "minLength": 1,
+          "title": "What",
+          "type": "string"
+        },
+        "file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "File"
+        }
+      },
+      "required": [
+        "line",
+        "what"
+      ],
+      "title": "ReviewEvidenceAnchor",
+      "type": "object"
+    },
+    "ReviewExternalResearch": {
+      "additionalProperties": true,
+      "properties": {
+        "question": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Question"
+        },
+        "sources": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ReviewResearchSource"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ]
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "enum": [
+                "CONFIRMED",
+                "PLAUSIBLE",
+                "REFUTED",
+                "UNRESOLVED"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verdict"
+        }
+      },
+      "title": "ReviewExternalResearch",
+      "type": "object"
+    },
+    "ReviewResearchSource": {
+      "additionalProperties": true,
+      "properties": {
+        "tier": {
+          "enum": [
+            "A",
+            "B",
+            "C"
+          ],
+          "title": "Tier",
+          "type": "string"
+        },
+        "identifier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Identifier"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "checked_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Checked Date"
+        },
+        "what_it_showed": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "What It Showed"
+        }
+      },
+      "required": [
+        "tier"
+      ],
+      "title": "ReviewResearchSource",
+      "type": "object"
+    }
+  },
+  "description": "architecture_testing_review.json \u2014 JSON array of findings.",
+  "items": {
+    "$ref": "#/$defs/ArchitectureTestingReviewFinding"
+  },
+  "title": "ArchitectureTestingReviewArtifact",
+  "type": "array"
+}
