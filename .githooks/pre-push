@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Principal-engineer pre-push gate. Enable once per clone:
+#   git config core.hooksPath .githooks
+#
+# Runs scripts/ci/pre_pr.py --auto (path-risk routing). Override:
+#   PRE_PR_SKIP=1 PRE_PR_SKIP_REASON='hotfix explanation…' git push
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+if command -v python >/dev/null 2>&1; then
+  PY=python
+elif command -v python3 >/dev/null 2>&1; then
+  PY=python3
+else
+  echo "pre-push: python not found on PATH" >&2
+  exit 1
+fi
+exec "$PY" scripts/ci/pre_pr.py --auto

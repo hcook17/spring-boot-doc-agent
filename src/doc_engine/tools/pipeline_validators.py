@@ -1,6 +1,6 @@
 """Mechanical validators for LLM pipeline stage outputs (shipped, not test-only).
 
-Promoted from tests/test_pipeline_stages.py so SKILL.md gates and
+Promoted from tests/doc_engine/test_pipeline_stages.py so SKILL.md gates and
 check_pipeline_output.py can import the same logic CI enforces.
 
 Usage:

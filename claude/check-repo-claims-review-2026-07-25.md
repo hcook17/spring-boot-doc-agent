@@ -1,4 +1,4 @@
-# Review: `scripts/check_repo_claims.py` — readability findings
+# Review: `scripts/ci/check_repo_claims.py` — readability findings
 
 Point-in-time review, 2026-07-25. **The file was untracked working-tree work at the time**, so
 nothing here was applied to it — editing another session's in-flight file is how one side's work gets
@@ -56,7 +56,7 @@ once would let a reader slot every later constant into place:
 82 lines, with the usage block at line 79. A reader who just wants to run it reads the argument
 first. The repo now has a stated contract for this (`CONTRIBUTING.md`, "Module docstrings: reference
 first, rationale second") and a check that enforces it against a baseline
-(`scripts/check_code_quality.py`) — this file is currently recorded as a pre-existing violation
+(`scripts/ci/check_code_quality.py`) — this file is currently recorded as a pre-existing violation
 rather than blocking, so it can be fixed whenever suits.
 
 **Recommended against:** moving the essay to a separate `docs/` file. This repo's dominant failure

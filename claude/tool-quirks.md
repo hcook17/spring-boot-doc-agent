@@ -153,7 +153,7 @@ Tools/commands involved: Git Bash on Windows, `python` (3.14.6, `C:\Python314\py
 Status: [Resolved — use `python3` to match CI, and capture `$?` before piping]
 Symptom: two independent false "success" readings in one session, both of the same shape this repo's write-then-verify rule exists for.
 1. `python -m ruff check scripts/` printed `No module named ruff` — but the surrounding `echo "ruff exit=$?"` reported `0`, so the lint step read as passing when it had not run at all. `python3 -m ruff --version` works and reports `0.16.0`, the version pinned in `requirements-dev.txt`. Same class as the `ast-grep` PATH-shadowing entry above, one layer up: it is the *interpreter* that differs, not the tool.
-2. `python scripts/check_repo_claims.py 2>&1 | head -60; echo "exit=$?"` reports **`head`'s** exit status, not the script's. This was hit twice — once reporting a failing gate as `exit=0`, and once reporting a *conflicted* `git stash apply` as `exit=0`, which left unresolved merge markers sitting in two files while the output above them looked clean.
+2. `python scripts/ci/check_repo_claims.py 2>&1 | head -60; echo "exit=$?"` reports **`head`'s** exit status, not the script's. This was hit twice — once reporting a failing gate as `exit=0`, and once reporting a *conflicted* `git stash apply` as `exit=0`, which left unresolved merge markers sitting in two files while the output above them looked clean.
 Diagnostic steps taken (re-runnable):
     python -c "import sys; print(sys.executable, sys.version)"   # 3.14.6, no ruff
     python3 -m ruff --version                                     # 0.16.0
@@ -183,7 +183,7 @@ Diagnostic steps taken (re-runnable):
     # markdown imprecision, against a file whose real count is known:
     ast-grep run -l markdown -p 'ast-grep' README.md --json=compact
 
-Resolution / workaround: when querying for an annotation, always run **both** `@Name` and `@Name($$$)` and take the union — a whole-corpus census needs `@$A` and `@$A($$$)` for the same reason. Treat a zero as *unproven*, never as *absent*: ast-grep exits 0 whether the pattern is wrong or the code genuinely lacks the construct, so a silent zero carries no information on its own. For prose, use `Glob` to narrow and `Read` to open; `-l markdown` is not a text searcher. Every rule in `spring_ast_grep_rules.yml` that can take arguments now lists both shapes, and `scripts/rule_coverage.py` fails the build if any rule matches nothing in `scripts/rule_fixtures/`, which is the mechanical guard against writing a rule that can never fire.
+Resolution / workaround: when querying for an annotation, always run **both** `@Name` and `@Name($$$)` and take the union — a whole-corpus census needs `@$A` and `@$A($$$)` for the same reason. Treat a zero as *unproven*, never as *absent*: ast-grep exits 0 whether the pattern is wrong or the code genuinely lacks the construct, so a silent zero carries no information on its own. For prose, use `Glob` to narrow and `Read` to open; `-l markdown` is not a text searcher. Every rule in `spring_ast_grep_rules.yml` that can take arguments now lists both shapes, and `scripts/coverage/rule_coverage.py` fails the build if any rule matches nothing in `scripts/coverage/rule_fixtures/`, which is the mechanical guard against writing a rule that can never fire.
 
 ---
 
@@ -316,9 +316,9 @@ Diagnostic steps taken (re-runnable):
                                                                       # fails: ModuleNotFoundError, even though shutil.which found the right path
     python3 -c "import os; print(os.environ.get('PYTHONHOME'), os.environ.get('PYTHONPATH'))"   # both None
     "/c/Python314/python.exe" -m semgrep --version                   # works, from the "correct" interpreter
-    "/c/Python314/python.exe" scripts/semgrep_rule_coverage.py        # works end-to-end
-Resolution / workaround: when a script needs to invoke a pip-installed console-script binary (as opposed to a native/compiled binary like `ast-grep`, which has no such layering and is unaffected — confirmed this only reproduces for a Python-launcher-wrapped entry point) on a Windows machine with more than one Python install, run that script under the **same** Python interpreter the target package is installed under (findable via `pip show <package>` → `Location:`), not whichever `python3` happens to resolve first on `PATH`. In this repo specifically: `semgrep` installed under `C:\Python314`'s user site, so `scripts/semgrep_rule_coverage.py` and `scripts/test_semgrep_rule_coverage.py` needed `"/c/Python314/python.exe"` rather than the ambient `python3` alias for their real-binary-dependent tests during local verification. Not a concern in this repo's own CI (`.github/workflows/ci.yml` uses a single `actions/setup-python@v5` install on Linux, so this specific installation-split cannot occur there) — this is purely a local multi-Python-install-on-Windows friction point. Root cause of *why* the launcher's module resolution depends on the calling process rather than just its own embedded interpreter path was not pinned down further; recorded as a workaround, not a full diagnosis.
-Related, smaller finding from the same investigation: `subprocess.run(..., text=True)` (locale-default decoding) intermittently raised `UnicodeDecodeError` in a background reader thread on Windows when semgrep's own colored/box-drawing console output hit the process's `cp1252` console codepage — non-fatal (the main JSON capture on stdout still succeeded) but noisy. Fixed in `scripts/semgrep_rule_coverage.py` by passing `encoding="utf-8", errors="replace"` explicitly instead of relying on `text=True`'s locale default.
+    "/c/Python314/python.exe" scripts/coverage/semgrep_rule_coverage.py        # works end-to-end
+Resolution / workaround: when a script needs to invoke a pip-installed console-script binary (as opposed to a native/compiled binary like `ast-grep`, which has no such layering and is unaffected — confirmed this only reproduces for a Python-launcher-wrapped entry point) on a Windows machine with more than one Python install, run that script under the **same** Python interpreter the target package is installed under (findable via `pip show <package>` → `Location:`), not whichever `python3` happens to resolve first on `PATH`. In this repo specifically: `semgrep` installed under `C:\Python314`'s user site, so `scripts/coverage/semgrep_rule_coverage.py` and `scripts/test_semgrep_rule_coverage.py` needed `"/c/Python314/python.exe"` rather than the ambient `python3` alias for their real-binary-dependent tests during local verification. Not a concern in this repo's own CI (`.github/workflows/ci.yml` uses a single `actions/setup-python@v5` install on Linux, so this specific installation-split cannot occur there) — this is purely a local multi-Python-install-on-Windows friction point. Root cause of *why* the launcher's module resolution depends on the calling process rather than just its own embedded interpreter path was not pinned down further; recorded as a workaround, not a full diagnosis.
+Related, smaller finding from the same investigation: `subprocess.run(..., text=True)` (locale-default decoding) intermittently raised `UnicodeDecodeError` in a background reader thread on Windows when semgrep's own colored/box-drawing console output hit the process's `cp1252` console codepage — non-fatal (the main JSON capture on stdout still succeeded) but noisy. Fixed in `scripts/coverage/semgrep_rule_coverage.py` by passing `encoding="utf-8", errors="replace"` explicitly instead of relying on `text=True`'s locale default.
 
 ---
 
@@ -342,13 +342,13 @@ Fixed: `BUILD_TOOL_RE` now includes `python3?\s+-m\s+unittest` alongside the exi
 ---
 
 ## 2026-07-29 — PowerShell Add-Content / default console encoding writes cp1252 bytes into UTF-8-only repo markdown (session-log CI crash)
-Tools/commands involved: Windows PowerShell `Add-Content`, `Out-File`, Cursor agent appends to `claude/session-log.md`; `scripts/check_repo_claims.py` Check A (`Path.read_text(encoding="utf-8")`)
+Tools/commands involved: Windows PowerShell `Add-Content`, `Out-File`, Cursor agent appends to `claude/session-log.md`; `scripts/ci/check_repo_claims.py` Check A (`Path.read_text(encoding="utf-8")`)
 Status: [Resolved — write-path workaround + Check G preflight]
 Symptom: appending a session-log entry via PowerShell introduced non-UTF-8 bytes (e.g. `0xd7` = cp1252 multiplication sign, later control chars from escape interpretation). CI then failed with an uncaught `UnicodeDecodeError` inside `check_derived_blocks`, not a structured Finding — the whole claims check aborted and masked other drift.
 Diagnostic steps taken (re-runnable):
     python -c "from pathlib import Path; Path('claude/session-log.md').read_bytes().decode('utf-8')"
     # UnicodeDecodeError: 'utf-8' codec can't decode byte 0xd7 in position ...
-    python scripts/check_repo_claims.py
+    python scripts/ci/check_repo_claims.py
     # previously: traceback; after Check G: Finding G with path + byte offset
 Resolution / workaround:
 1. **Write path:** never append session-log (or other tracked `.md`) with PowerShell `Add-Content` default encoding. Prefer `Path.write_text(..., encoding="utf-8")` / `Path.open(..., encoding="utf-8")` from Python, or PowerShell `Out-File -Encoding utf8` / `Add-Content -Encoding utf8`.

@@ -1,5 +1,0 @@
-{
-  "schema_version": 1,
-  "$comment": "Mutations that no suite currently catches. Each entry is a test gap someone accepted, not a bug. Shrinking this file is always correct; growing it needs a reason in the PR that does it. Regenerate with: python3 scripts/mutate.py --update",
-  "accepted_survivors": {}
-}

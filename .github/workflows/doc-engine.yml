@@ -44,11 +44,11 @@ jobs:
       - name: Run pipeline (scan_only on fixture signals)
         run: |
           PROFILE="${{ github.event.inputs.compliance_profile || 'scan_only' }}"
-          doc-engine pipeline run scripts/test_fixtures/spring_signals \
+          doc-engine pipeline run scripts/fixtures/spring_signals \
             --compliance-profile "$PROFILE" \
             --out-dir pipeline-artifacts-scan \
             --skip-drift \
-            --signals-file scripts/test_fixtures/spring_signals_fixture_expected.json
+            --signals-file scripts/fixtures/spring_signals_fixture_expected.json
 
       - name: Gate certification.json (scan_only)
         run: doc-engine certification verify pipeline-artifacts-scan/certification.json
@@ -73,11 +73,11 @@ jobs:
 
       - name: Run pipeline (certified mock on fixture signals)
         run: |
-          doc-engine pipeline run scripts/test_fixtures/spring_signals \
+          doc-engine pipeline run scripts/fixtures/spring_signals \
             --compliance-profile certified \
             --out-dir pipeline-artifacts \
             --skip-drift \
-            --signals-file scripts/test_fixtures/spring_signals_fixture_expected.json
+            --signals-file scripts/fixtures/spring_signals_fixture_expected.json
 
       - name: Gate certification.json (certified)
         run: doc-engine certification verify pipeline-artifacts/certification.json

@@ -1,11 +1,11 @@
 ---
 category: Code quality / expressiveness — naming, function size, information hiding, domain language
-status: partially resolved (2026-07-29) — mechanical layer landed (`ruff` + `scripts/check_code_quality.py`), then revised: size/complexity/depth are advisory (schema v4); hard gates are annotation coverage + docstring orientation; ruff covers `scripts/` and `src/doc_engine/`. The expressiveness work itself — one stage vocabulary, single-owner tag grammar, a glossary, typed cross-stage artifacts — is scoped below and NOT done. See `claude/session-log.md`.
+status: partially resolved (2026-07-29) — mechanical layer landed (`ruff` + `scripts/ci/check_code_quality.py`), then revised: size/complexity/depth are advisory (schema v4); hard gates are annotation coverage + docstring orientation; ruff covers `scripts/` and `src/doc_engine/`. The expressiveness work itself — one stage vocabulary, single-owner tag grammar, a glossary, typed cross-stage artifacts — is scoped below and NOT done. See `claude/session-log.md`.
 authored: in this repo, not mirrored from the Claude project — no sync obligation (see `00-shared-research-standards.md`'s `07`–`12` rule)
 verify:
   - path_exists:.ruff.toml
-  - path_exists:scripts/check_code_quality.py
-  - path_exists:scripts/code_quality_baseline.json
+  - path_exists:scripts/ci/check_code_quality.py
+  - path_exists:scripts/ratchets/code_quality_baseline.json
 ---
 
 # Research + scaffold prompt: code quality and expressiveness
@@ -77,9 +77,9 @@ against McCabe."
 
 ## What was scaffolded (phase 1, done)
 
-`scripts/check_code_quality.py` — stdlib `ast`, in the idiom of this repo's six existing checkers.
+`scripts/ci/check_code_quality.py` — stdlib `ast`, in the idiom of this repo's six existing checkers.
 Records per-function statement count / cyclomatic complexity / nesting depth plus production-module
-annotation coverage into a committed `scripts/code_quality_baseline.json`, and fails only on
+annotation coverage into a committed `scripts/ratchets/code_quality_baseline.json`, and fails only on
 *regression*. A fixed threshold was rejected on the usual grounds: on an existing codebase it is set
 either above everything (enforces nothing) or below something (fails on day one, gets disabled).
 

@@ -31,7 +31,7 @@
 #     switching both to kind+has relational rules (order/count of *other*
 #     annotations no longer matters), confirmed against a real, large
 #     production Spring Boot codebase as well as synthetic fixtures.
-#   - see tests/test_spring_signal_scan.py for the fixtures and expected
+#   - see tests/doc_engine/test_spring_signal_scan.py for the fixtures and expected
 #     counts this file's rules are pinned against.
 
   # ---- api_surface ----
@@ -256,7 +256,7 @@ rule:
   # other rules in this file anyway, so this is marginal cost, not a new
   # pass. (That used to read "the 21 rules above" and went stale the first
   # time a rule was added; the count is recoverable with
-  # `python3 scripts/rule_coverage.py`, which prints it.) See
+  # `python3 scripts/coverage/rule_coverage.py`, which prints it.) See
   # spring_signal_scan.py's scan() "references" bucket and
   # file-summarizer.md step 3 for how this actually gets consumed — this
   # rule alone only builds the index, it doesn't do any relationship

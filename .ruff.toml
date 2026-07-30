@@ -1,7 +1,7 @@
 # ruff configuration. Pinned via requirements-dev.txt (ruff~=0.16.0).
 #
 # This file owns lint and import order for scripts/ and src/doc_engine/.
-# Function size/complexity/depth are measured by scripts/check_code_quality.py
+# Function size/complexity/depth are measured by scripts/ci/check_code_quality.py
 # as *advisory* output only (schema v4); hard gates there are annotation
 # coverage and docstring orientation. C901 is deliberately NOT selected.
 
@@ -50,5 +50,5 @@ ignore = [
 # their siblings without a package. Imports genuinely cannot precede it, and
 # the repo already marks the import side with `# noqa: E402`; this covers the
 # module-level statements that sit above the imports for the same reason.
-"scripts/check_llms_coverage.py" = ["E402"]
-"scripts/*.py" = ["E402"]
+"scripts/ci/check_llms_coverage.py" = ["E402"]
+"scripts/**/*.py" = ["E402"]

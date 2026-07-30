@@ -755,8 +755,8 @@ def run_pipeline(args) -> int:
         log("        elsewhere, so its docs subtest will skip; summaries and gap")
         log("        questions are still validated.")
     runner.run(
-        "pytest tests/test_pipeline_stages.py -v (real suite vs. mock artifacts)",
-        [py, "-m", "pytest", os.path.join(REPO_ROOT, "tests", "test_pipeline_stages.py"), "-v"],
+        "pytest tests/doc_engine/test_pipeline_stages.py -v (real suite vs. mock artifacts)",
+        [py, "-m", "pytest", os.path.join(REPO_ROOT, "tests", "doc_engine", "test_pipeline_stages.py"), "-v"],
         gate=True,
         gate_id="test_pipeline_stages",
         env=env,

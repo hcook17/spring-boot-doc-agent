@@ -72,7 +72,7 @@ Legend — **Contract:** Pydantic model / exported JSON Schema / imperative vali
 | `architecture_testing_review.json` | JSON **array** | View | Pydantic + Stage 5 (**B4 wired**) | none | required keys + allow | software-architect-and-testing | Stage 5 + `--all` |
 | `certification.json` | JSON object | Derived (audit) | `CertificationReport` + exported schema + `--all` + verify load | `schema_version`: 1 | default | `write_certification_json` | `certification verify` |
 
-| `run_manifest.json` | JSON object | Derived (telemetry) | hand schema [`scripts/run_manifest.schema.json`](../../scripts/run_manifest.schema.json) + shape tests | `schema_version`: 1 | documented required keys | `run_manifest` tool | drift optional baseline, finalize/summary |
+| `run_manifest.json` | JSON object | Derived (telemetry) | hand schema [`scripts/schemas/run_manifest.schema.json`](../../scripts/schemas/run_manifest.schema.json) + shape tests | `schema_version`: 1 | documented required keys | `run_manifest` tool | drift optional baseline, finalize/summary |
 | `drift_report.json` | JSON object | Derived | free dict from `check_drift` | **none** | open | `spring_drift_check` | operators / local_runner optional |
 | `capacity_preflight_report.json` | JSON object | Derived | free dict from `compute_preflight` | **none** | open | `capacity_preflight` | `run_manifest finalize` tie-in |
 

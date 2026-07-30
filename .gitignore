@@ -36,5 +36,5 @@ Thumbs.db
 /target-repos/
 
 # Fixture Gradle caches (created when CodeQL/snapshot builds run locally)
-scripts/test_fixtures/**/.gradle/
+scripts/fixtures/**/.gradle/
 

@@ -142,14 +142,25 @@ def build_certification_report(
     gates: list[GateRecord],
     generative_executor: GenerativeExecutor = "none",
 ) -> CertificationReport:
-    """Assemble certification.json from stage and gate audit records."""
+    """Assemble certification.json from stage and gate audit records.
+
+    ``certified`` is true only when every stage is ok *and* every gate id
+    required by ``profile`` is present with status ok. An empty gate list
+    therefore cannot certify — that was a vacuity hole (profile_gate_ids
+    listed requirements the audit never satisfied).
+    """
     failures: list[str] = []
     for stage in stages:
         if stage.status != "ok":
             failures.append(f"stage:{stage.name}:{stage.status}")
+    by_id = {gate.id: gate for gate in gates}
     for gate in gates:
         if gate.required and gate.status != "ok":
             failures.append(f"gate:{gate.id}:{gate.status}")
+    required_ids = gates_required_for_profile(profile)
+    for gate_id in sorted(required_ids):
+        if gate_id not in by_id:
+            failures.append(f"gate:{gate_id}:missing")
 
     return CertificationReport(
         compliance_profile=profile.value,
@@ -158,7 +169,7 @@ def build_certification_report(
         out_dir=out_dir,
         timestamp=datetime.now(timezone.utc).isoformat(),
         generative_executor=generative_executor,
-        profile_gate_ids=sorted(gates_required_for_profile(profile)),
+        profile_gate_ids=sorted(required_ids),
         stages=stages,
         gates=gates,
         failures=failures,

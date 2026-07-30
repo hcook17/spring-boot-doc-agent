@@ -18,6 +18,18 @@ def scripts_dir() -> Path:
     return repo_root() / "scripts"
 
 
+def scripts_meta_path_entries() -> list[str]:
+    """``sys.path`` entries for bare imports of nested meta modules.
+
+    Meta CLIs live under ``scripts/{ci,ratchets,coverage,fixtures}`` after the
+    subdir layout. Tests and cross-bucket imports insert these leaves so
+    ``import check_repo_claims`` / ``import mutate`` keep working without
+    dual-home shims at ``scripts/*.py``.
+    """
+    root = scripts_dir()
+    return [str(root / name) for name in ("ci", "ratchets", "coverage", "fixtures")]
+
+
 def codeql_dir() -> Path:
     return repo_root() / "codeql"
 
