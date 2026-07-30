@@ -2270,3 +2270,11 @@ Assumptions affected:
 - L2b measurement implied as every-run / already on main — [Resolved — STATUS/queue: opt-in CLI on PR #74; not Stage 0 pipeline argv]
 - Both proxy sources silently preferred stage0 report — [Resolved — stage4_proxy_comparison_source warning + skill/CLI help; groups-path proxy excludes signals]
 Files touched: src/doc_engine/tools/capacity_preflight.py, tests/doc_engine/test_capacity_preflight.py, skills/capacity-preflight/SKILL.md, adapters/claude/skills/capacity-preflight/SKILL.md, STATUS.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
+
+## 2026-07-30 — L2b threshold calibration research: retain 80000
+Commit: uncommitted
+Tests: n/a (research note; no default code change)
+Assumptions affected:
+- May invent/recalibrate 80k from papers alone — [Resolved — REFUTED; retain 80000; mid-size measured_stage4_inputs run still required to change]
+- Calibration gate blocks all of L3 forever — [New info — default decision closed; L3 research may proceed; changing 80k still needs mid-size run]
+Files touched: claude/research/l2b-stage4-threshold-calibration-2026-07-30.md, STATUS.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
