@@ -1,10 +1,16 @@
-"""Compliance profiles, gate checklists, and certification.json emission."""
+"""Compliance profiles, gate checklists, and certification.json emission.
+
+``certification.json`` is a **derived view** over stage/gate facts: only
+``build_certification_report`` computes ``certified`` / ``failures``. See
+``claude/research/certification-derived-view-2026-07-30.md``.
+"""
 
 from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
 from enum import StrEnum
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
@@ -31,6 +37,11 @@ CERTIFIED_GATE_IDS = frozenset({
     "test_pipeline_stages",
 })
 
+# Synthetic stage row written by live_gates derivation (not in build_stage_specs).
+GENERATIVE_EXTERNAL_STAGE = "generative_external"
+
+CERTIFICATION_SCHEMA_VERSION = 1
+
 
 def gates_required_for_profile(profile: ComplianceProfile) -> frozenset[str]:
     """Return stable gate IDs required for certification under a profile."""
@@ -42,12 +53,14 @@ def gates_required_for_profile(profile: ComplianceProfile) -> frozenset[str]:
 
 
 GenerativeExecutor = Literal["none", "mock", "live"]
+StageExecutor = Literal["deterministic", "none", "mock", "live"]
 
 
 class StageRecord(BaseModel):
     name: str
     status: Literal["ok", "fail", "skipped"]
     detail: str = ""
+    executor: StageExecutor = "deterministic"
 
 
 class GateRecord(BaseModel):
@@ -59,7 +72,7 @@ class GateRecord(BaseModel):
 
 
 class CertificationReport(BaseModel):
-    schema_version: int = 1
+    schema_version: int = CERTIFICATION_SCHEMA_VERSION
     compliance_profile: str
     certified: bool
     repo_path: str
@@ -126,12 +139,59 @@ def stages_for_profile(
     return specs
 
 
+@lru_cache(maxsize=1)
+def deterministic_stage_names() -> frozenset[str]:
+    """Names of StageKind.DETERMINISTIC stages from ``build_stage_specs()``."""
+    from doc_engine.pipeline.stages import build_stage_specs
+
+    return frozenset(
+        s.name for s in build_stage_specs() if s.kind == StageKind.DETERMINISTIC
+    )
+
+
+@lru_cache(maxsize=1)
+def generative_stage_names() -> frozenset[str]:
+    """Names of StageKind.GENERATIVE stages from ``build_stage_specs()``."""
+    from doc_engine.pipeline.stages import build_stage_specs
+
+    return frozenset(
+        s.name for s in build_stage_specs() if s.kind == StageKind.GENERATIVE
+    )
+
+
+def required_stage_names_for_profile(profile: ComplianceProfile) -> frozenset[str]:
+    """Stage names the profile expects to have run (skips of these fail cert)."""
+    from doc_engine.pipeline.stages import build_stage_specs
+
+    return frozenset(s.name for s in stages_for_profile(profile, build_stage_specs()))
+
+
 def _stage_status_from_runner(status: str) -> Literal["ok", "fail", "skipped"]:
     if status in ("OK", "MOCK"):
         return "ok"
     if status == "SKIPPED":
         return "skipped"
     return "fail"
+
+
+def _stage_executor_from_runner(
+    status: str,
+    stage_name: str,
+) -> StageExecutor:
+    """Preserve mock-ness; classify OK stages by graph kind."""
+    if status == "MOCK":
+        return "mock"
+    if status == "SKIPPED":
+        if stage_name in generative_stage_names():
+            return "none"
+        return "deterministic"
+    if stage_name in generative_stage_names():
+        # OK without MOCK ⇒ non-mock generative adapter (live-in-runner).
+        # Fail/error must not be labelled live.
+        if status == "OK":
+            return "live"
+        return "none"
+    return "deterministic"
 
 
 def build_certification_report(
@@ -144,15 +204,21 @@ def build_certification_report(
 ) -> CertificationReport:
     """Assemble certification.json from stage and gate audit records.
 
-    ``certified`` is true only when every stage is ok *and* every gate id
-    required by ``profile`` is present with status ok. An empty gate list
-    therefore cannot certify — that was a vacuity hole (profile_gate_ids
-    listed requirements the audit never satisfied).
+    ``certified`` is true only when the fold rules pass: stage fails, required
+    skips, gate failures/missings, and mock-under-live consistency. An empty
+    gate list cannot certify when the profile lists required gates.
     """
     failures: list[str] = []
+    required_stages = required_stage_names_for_profile(profile)
+
     for stage in stages:
-        if stage.status != "ok":
+        if stage.status == "fail":
             failures.append(f"stage:{stage.name}:{stage.status}")
+        elif stage.status == "skipped" and stage.name in required_stages:
+            failures.append(f"stage:{stage.name}:skipped")
+        if generative_executor == "live" and stage.executor == "mock":
+            failures.append(f"stage:{stage.name}:mock_under_live")
+
     by_id = {gate.id: gate for gate in gates}
     for gate in gates:
         if gate.required and gate.status != "ok":
@@ -163,6 +229,7 @@ def build_certification_report(
             failures.append(f"gate:{gate_id}:missing")
 
     return CertificationReport(
+        schema_version=CERTIFICATION_SCHEMA_VERSION,
         compliance_profile=profile.value,
         certified=len(failures) == 0,
         repo_path=repo_path,
@@ -186,6 +253,42 @@ def write_certification_json(out_dir: str | Path, report: CertificationReport) -
     return path
 
 
+def stages_for_live_certification(prior: list[StageRecord]) -> list[StageRecord]:
+    """Derive stage facts for a live gates rewrite (not a LWW merge).
+
+    Keep deterministic prior rows; drop generative history (including legacy v1
+    rows that default ``executor=deterministic``); append ``generative_external``.
+    """
+    det = deterministic_stage_names()
+    gen = generative_stage_names()
+    kept: list[StageRecord] = []
+    for stage in prior:
+        if stage.name in gen or stage.name == GENERATIVE_EXTERNAL_STAGE:
+            continue
+        if stage.executor in ("mock", "live"):
+            continue
+        if stage.name not in det and stage.executor != "deterministic":
+            continue
+        if stage.name in det:
+            kept.append(
+                stage.model_copy(update={"executor": "deterministic"})
+                if stage.executor != "deterministic"
+                else stage
+            )
+        elif stage.executor == "deterministic":
+            # Non-graph deterministic-labelled row (unusual); keep as-is.
+            kept.append(stage)
+    kept.append(
+        StageRecord(
+            name=GENERATIVE_EXTERNAL_STAGE,
+            status="ok",
+            executor="live",
+            detail="docs produced outside PipelineRunner; proven by live gates",
+        )
+    )
+    return kept
+
+
 def stage_records_from_runner_results(
     results: list[tuple[str, str, float, str]],
     prefix: str = "pipeline:",
@@ -201,6 +304,7 @@ def stage_records_from_runner_results(
                 name=name,
                 status=_stage_status_from_runner(status),
                 detail=detail,
+                executor=_stage_executor_from_runner(status, name),
             )
         )
     return records

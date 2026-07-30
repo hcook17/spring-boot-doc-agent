@@ -210,8 +210,10 @@ class CertificationReportTest(unittest.TestCase):
             self.assertTrue(path.is_file())
             data = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(data["schema_version"], 1)
+            self.assertEqual(data["stages"][0]["executor"], "deterministic")
             self.assertEqual(data["compliance_profile"], "scan_only")
             self.assertTrue(data["certified"])
+            self.assertIn("executor", data["stages"][0])
 
     def test_failed_stage_with_empty_gates_not_certified(self):
         """Vacuously empty gate list must not imply certified when a stage failed."""
@@ -226,6 +228,94 @@ class CertificationReportTest(unittest.TestCase):
         self.assertFalse(report.certified)
         self.assertIn("stage:doc_writer:fail", report.failures)
         self.assertTrue(any(f.endswith(":missing") for f in report.failures))
+
+    def test_skipped_required_stage_fails(self):
+        gates = [
+            GateRecord(id=gid, label=gid, status="ok")
+            for gid in sorted(CERTIFIED_GATE_IDS)
+        ]
+        report = build_certification_report(
+            ComplianceProfile.CERTIFIED,
+            "/repo",
+            "/out",
+            [
+                StageRecord(name="signal_scan", status="ok"),
+                StageRecord(name="doc_writer", status="skipped", executor="none"),
+            ],
+            gates,
+            generative_executor="mock",
+        )
+        self.assertFalse(report.certified)
+        self.assertIn("stage:doc_writer:skipped", report.failures)
+
+    def test_skipped_non_required_stage_does_not_fail_scan_only(self):
+        report = build_certification_report(
+            ComplianceProfile.SCAN_ONLY,
+            "/repo",
+            "/out",
+            [
+                StageRecord(name="signal_scan", status="ok"),
+                StageRecord(name="doc_writer", status="skipped", executor="none"),
+            ],
+            [GateRecord(id=SCAN_ONLY_GATE_ID, label="signals", status="ok")],
+        )
+        self.assertTrue(report.certified)
+        self.assertEqual(report.failures, [])
+
+    def test_mock_under_live_consistency(self):
+        gates = [
+            GateRecord(id=gid, label=gid, status="ok")
+            for gid in sorted(CERTIFIED_GATE_IDS)
+        ]
+        report = build_certification_report(
+            ComplianceProfile.CERTIFIED,
+            "/repo",
+            "/out",
+            [
+                StageRecord(name="signal_scan", status="ok"),
+                StageRecord(name="doc_writer", status="ok", executor="mock"),
+            ],
+            gates,
+            generative_executor="live",
+        )
+        self.assertFalse(report.certified)
+        self.assertIn("stage:doc_writer:mock_under_live", report.failures)
+
+    def test_stage_records_from_runner_preserve_mock_executor(self):
+        from doc_engine.pipeline.compliance import stage_records_from_runner_results
+
+        rows = stage_records_from_runner_results(
+            [
+                ("pipeline:signal_scan", "OK", 0.1, "exit 0"),
+                ("pipeline:doc_writer", "MOCK", 0.2, "mocked"),
+            ]
+        )
+        by_name = {r.name: r for r in rows}
+        self.assertEqual(by_name["signal_scan"].executor, "deterministic")
+        self.assertEqual(by_name["doc_writer"].status, "ok")
+        self.assertEqual(by_name["doc_writer"].executor, "mock")
+
+    def test_stages_for_live_certification_strips_generative_and_appends_external(self):
+        from doc_engine.pipeline.compliance import (
+            GENERATIVE_EXTERNAL_STAGE,
+            stages_for_live_certification,
+        )
+
+        prior = [
+            StageRecord(name="signal_scan", status="ok"),
+            StageRecord(name="doc_writer", status="ok", executor="mock"),
+            StageRecord(name="architect", status="skipped", executor="none"),
+            # Legacy v1 shape: generative name, default executor=deterministic
+            StageRecord(name="file_summarize", status="ok"),
+        ]
+        derived = stages_for_live_certification(prior)
+        names = [s.name for s in derived]
+        self.assertEqual(names.count("signal_scan"), 1)
+        self.assertNotIn("doc_writer", names)
+        self.assertNotIn("architect", names)
+        self.assertNotIn("file_summarize", names)
+        self.assertEqual(names[-1], GENERATIVE_EXTERNAL_STAGE)
+        self.assertEqual(derived[-1].executor, "live")
 
 
 class FinishMessagingTest(unittest.TestCase):

@@ -6,10 +6,10 @@ After Claude/Cursor agents write docs into a run directory, call:
 
 Deterministic Stage 0 still comes from ``doc-engine pipeline run``.
 
-On every invocation this module **rewrites** ``certification.json`` with
-``generative_executor: "live"`` and the gate audit that just ran, so
-``doc-engine certification verify`` reflects live mechanical results (not a
-stale mock/none certificate).
+On every invocation this module **rewrites** ``certification.json`` as a
+derived view: ``generative_executor: "live"``, gate audit from this run, and
+stage facts via ``stages_for_live_certification`` (deterministic prior rows +
+``generative_external`` — not a LWW merge of mock generative history).
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ from doc_engine.pipeline.compliance import (
     GateRecord,
     StageRecord,
     build_certification_report,
+    stages_for_live_certification,
     write_certification_json,
 )
 
@@ -64,8 +65,7 @@ def _write_live_certification(
     repo_path: str,
     gate_records: list[GateRecord],
 ) -> Path:
-    """Merge live gate results into certification.json (executor=live)."""
-    # Ensure every CERTIFIED profile gate id is represented.
+    """Derive live certification.json (executor=live) from gate facts + prior stages."""
     by_id = {g.id: g for g in gate_records}
     if _LIVE_SKIPPED_GATE not in by_id:
         gate_records.append(
@@ -77,11 +77,12 @@ def _write_live_certification(
                 detail="live gates path does not invoke pytest",
             )
         )
+    stages = stages_for_live_certification(_load_prior_stages(out_dir))
     report = build_certification_report(
         ComplianceProfile.CERTIFIED,
         repo_path,
         out_dir,
-        _load_prior_stages(out_dir),
+        stages,
         gate_records,
         generative_executor="live",
     )

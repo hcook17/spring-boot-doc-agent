@@ -57,6 +57,17 @@
           "default": "",
           "title": "Detail",
           "type": "string"
+        },
+        "executor": {
+          "default": "deterministic",
+          "enum": [
+            "deterministic",
+            "none",
+            "mock",
+            "live"
+          ],
+          "title": "Executor",
+          "type": "string"
         }
       },
       "required": [

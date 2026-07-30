@@ -1078,3 +1078,13 @@ Assumptions affected:
 - Known wrap false-positive pin of 2 / only `api_surface__mapping` — [New info — live measure is 12 across annotation-arg rules; semantic arm path labels use nested report paths]
 - Runnable `certification.py` docstring contract — [Resolved — Usage line for `python -m doc_engine.tools.certification`]
 Files touched: tests/ratchets/test_drift_normalization.py, scripts/ratchets/drift_match_normalizers.py, scripts/ratchets/java_perturbations.py, src/doc_engine/tools/certification.py, claude/session-log.md
+
+## 2026-07-30 — B2.5 certification as derived view (DDIA)
+Commit: 5ef7459
+Tests: 62 passed (compliance + live_gates + verify_certification + artifact_schemas)
+Assumptions affected:
+- Live gates LWW-merges prior stages and stamps generative_executor=live — [Resolved — `stages_for_live_certification` keeps deterministic rows, drops generative/mock, appends `generative_external`]
+- Stage MOCK status erased to ok with no executor provenance — [Resolved — `StageRecord.executor`; additive on schema_version 1]
+- Any non-ok stage fails cert (skipped poisons live rewrite) — [Resolved — skip fails only if stage required by profile; mock_under_live consistency]
+- Adoption-blockers B2.5 open — [Resolved]
+Files touched: src/doc_engine/pipeline/compliance.py, src/doc_engine/pipeline/live_gates.py, scripts/schemas/certification.schema.json, action.yml, tests/doc_engine/test_compliance.py, tests/doc_engine/test_live_gates.py, src/doc_engine/pipeline/adapters.md, claude/research/certification-derived-view-2026-07-30.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
