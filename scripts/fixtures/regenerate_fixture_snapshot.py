@@ -12,7 +12,6 @@ Usage:
 
 import argparse
 import json
-import os
 import sys
 
 from doc_engine.paths import scripts_dir

@@ -39,7 +39,6 @@ from __future__ import annotations
 
 import re
 import sys
-from pathlib import Path
 from typing import FrozenSet
 
 from doc_engine.paths import repo_root
