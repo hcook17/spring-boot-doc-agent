@@ -73,8 +73,16 @@ class RegistryAnchorsTest(unittest.TestCase):
     def test_every_mutator_names_a_real_suite(self) -> None:
         for m in mutate.MUTATORS:
             with self.subTest(mutator=m.name):
-                self.assertTrue((mutate.REPO_ROOT / "scripts" / m.expected_caught_by).is_file(),
-                                f"{m.name} names a suite that does not exist")
+                try:
+                    path = mutate.resolve_suite_path(
+                        mutate.REPO_ROOT, m.expected_caught_by
+                    )
+                except FileNotFoundError:
+                    path = None
+                self.assertIsNotNone(
+                    path,
+                    f"{m.name} names a suite that does not exist",
+                )
 
     def test_every_mutator_states_why(self) -> None:
         """A survivor report is only actionable if it says what stopped being

@@ -65,6 +65,8 @@ import tempfile
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional
 
+import suite_layout
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BASELINE_FILE = Path(__file__).resolve().parent / "mutation_baseline.json"
 SCHEMA_VERSION = 1
@@ -250,9 +252,27 @@ def apply_mutation(root: Path, mutator: Mutator) -> Optional[str]:
     return _apply_literal(path, mutator)
 
 
+def resolve_suite_path(root: Path, suite: str) -> Path:
+    """Resolve ``test_*.py`` under pyproject testpaths (not scripts/)."""
+    name = Path(suite).name
+    for rel in suite_layout.suite_roots(root):
+        candidate = root / rel / name
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError(
+        f"suite {name!r} not found under "
+        f"{', '.join(suite_layout.suite_roots(root))}"
+    )
+
+
 def run_suite(root: Path, suite: str) -> int:
-    result = subprocess.run([sys.executable, str(root / "scripts" / suite)],
-                            capture_output=True, text=True, cwd=str(root))
+    path = resolve_suite_path(root, suite)
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", str(path), "-q", "--tb=no"],
+        capture_output=True,
+        text=True,
+        cwd=str(root),
+    )
     return result.returncode
 
 

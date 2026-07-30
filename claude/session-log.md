@@ -922,3 +922,10 @@ Assumptions affected:
 - Legacy scripts/test_* as valid suites in hooks/claims — [Resolved — deleted; no dual-path acceptance]
 - Pydantic/SPI fold into hygiene — [Still accurate deferred — STATUS sequencing lock; research note claude/deterministic-boundary-schemas-spi-research-2026-07-29.md]
 Files touched: scripts/suite_layout.py, scripts/check_repo_claims.py, adapters/claude/hooks/require_hardened_tests.py, tests/test_suite_layout.py, tests/test_check_repo_claims.py, tests/test_require_hardened_tests.py, STATUS.md, claude/deterministic-boundary-schemas-spi-research-2026-07-29.md, claude/session-log.md
+
+## 2026-07-29 — Mutate harness resolves suites under tests/ (PR #60 CI)
+Commit: uncommitted
+Tests: 23/23 test_mutate.py passed
+Assumptions affected:
+- mutate.py expected_caught_by under scripts/ — [Resolved — resolve via suite_layout + pytest; false "killed" when suite path missing]
+Files touched: scripts/mutate.py, tests/test_mutate.py, claude/session-log.md
