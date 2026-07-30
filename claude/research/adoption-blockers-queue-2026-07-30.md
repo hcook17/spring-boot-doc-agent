@@ -99,9 +99,9 @@ Prefer outcome-bound tests over substring-only `verify:` where the claim is beha
 
 **DDIA card:** domain `02-encoding-and-evolution`; open `schema-evolution-and-data-outlives-code`, `encoding-and-compatibility`, `rel-schema-outlives-writers`. SoR = facts / claim keys. Larger fact-store redesign — research/ADR before code; do not fold into L2. Cite Phase-1 fact-store lock.
 
-### L4 — Branch protection (human) — **parallel (repo-admin; not agent)**
+### L4 — Branch protection (human) — **deferred until later (owner)**
 
-**DDIA card:** domain `05-maintainability-and-change`; open `maintainability-operability-evolvability`, `trust-but-verify-and-auditability`. `CONSTRAINTS.md` enterprise item 6 — `gh api` repo-admin; **not agent**. Choosing not to require CI would need a written deviation.
+**DDIA card:** domain `05-maintainability-and-change`; open `maintainability-operability-evolvability`, `trust-but-verify-and-auditability`. `CONSTRAINTS.md` enterprise item 6 — `gh api` repo-admin; **not agent**. Confirmed unprotected (404, 2026-07-30). **Owner is not doing L4 now** — does not block L2b / L3 sequencing. Choosing never to require CI would need a written deviation.
 
 ### L5 — Thin drift schema — **after L2 / L2b**
 
