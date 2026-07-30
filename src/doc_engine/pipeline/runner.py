@@ -41,7 +41,17 @@ class PipelineRunner:
             if not result.success:
                 context.log(f"  !! stage {spec.name} failed: {result.error or result.detail}")
                 break
-            self._validate_outputs(spec, context)
+            try:
+                self._validate_outputs(spec, context)
+            except FileNotFoundError as exc:
+                fail = StageResult(
+                    success=False,
+                    error=str(exc),
+                    detail="missing_required_output",
+                )
+                results[-1] = (spec.name, fail)
+                context.log(f"  !! stage {spec.name} failed: {exc}")
+                break
             self._refresh_context_artifacts(context)
         return results
 
