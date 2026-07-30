@@ -1,23 +1,22 @@
 name: Publish docs site
 
+# Builds the 14-file Spring taxonomy site via build_docs_site.
+# That tool is for *generated target-repo docs*, not this monorepo's
+# docs/product-architecture.md tree. Auto-push against docs/** was a
+# category error and failed on main after PR #59 moved the tool path.
+# Operators pass an explicit docs_dir (workflow_dispatch only).
+
 on:
   workflow_dispatch:
     inputs:
       docs_dir:
-        description: "Directory containing the 14 generated markdown docs"
+        description: "Directory with the 14 generated taxonomy markdown files (not this repo's docs/ product notes)"
         required: true
-        default: "docs"
+        default: ""
       site_name:
         description: "Site title"
         required: true
         default: "Repo Documentation"
-  push:
-    branches:
-      - main
-    paths:
-      - "docs/**"
-      - "site/**"
-      - "src/doc_engine/tools/build_docs_site.py"
 
 permissions:
   contents: read
@@ -45,9 +44,16 @@ jobs:
           pip install -r requirements-dev.txt
           pip install -e .
 
+      - name: Require docs_dir
+        run: |
+          if [ -z "${{ github.event.inputs.docs_dir }}" ]; then
+            echo "error: docs_dir is required (path to the 14-file taxonomy, e.g. a pipeline out-dir docs/)." >&2
+            exit 1
+          fi
+
       - name: Build site
         run: |
-          DOCS_DIR="${{ github.event.inputs.docs_dir || 'docs' }}"
+          DOCS_DIR="${{ github.event.inputs.docs_dir }}"
           SITE_NAME="${{ github.event.inputs.site_name || 'Repo Documentation' }}"
           python3 -m doc_engine.tools.build_docs_site --docs-dir "$DOCS_DIR" --out-dir _site --site-name "$SITE_NAME"
 

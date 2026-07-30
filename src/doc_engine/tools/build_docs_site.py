@@ -12,8 +12,8 @@ Produces a self-contained MkDocs site in the output directory.
 Usage:
     python -m doc_engine.tools.build_docs_site --docs-dir <path> --out-dir <path>
 
-Example from the repo root:
-    python -m doc_engine.tools.build_docs_site --docs-dir ocs-api-service-develop/docs --out-dir _site
+Example (pipeline-generated taxonomy directory, not this monorepo's docs/):
+    python -m doc_engine.tools.build_docs_site --docs-dir /path/to/run/docs --out-dir _site
 
 The output directory can be served locally with:
     python3 -m http.server --directory <out-dir> 8000
@@ -76,7 +76,12 @@ def _write_mkdocs_config(work_dir: Path, docs_dir: Path, site_name: str, repo_ur
     """Write a self-contained mkdocs.yml into the working directory."""
     nav = _build_nav(docs_dir)
     if not nav:
-        raise RuntimeError(f"no recognized markdown files found in {docs_dir}")
+        raise RuntimeError(
+            f"no recognized markdown files found in {docs_dir}. "
+            f"Expected the 14-file taxonomy "
+            f"({', '.join(name for name, _ in NAV_ORDER[:3])}, …) — "
+            f"not this monorepo's docs/ product notes."
+        )
 
     extra = ""
     if repo_url:
