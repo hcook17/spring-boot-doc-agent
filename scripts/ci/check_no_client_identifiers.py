@@ -1,37 +1,34 @@
 #!/usr/bin/env python3
-"""Gate the aggregate layer of a bytecode-oracle run before it can cross into tracked files.
+"""Fail closed when client identifiers would enter this repo's tracked tree.
 
 Usage:
+    # Repo-wide denylist (CI default) — scan every tracked path + text content
+    python3 scripts/ci/check_no_client_identifiers.py --tracked-tree
+
+    # Oracle aggregate allowlist (bytecode-oracle gate)
     python3 scripts/ci/check_no_client_identifiers.py <aggregate.json>
     python3 scripts/ci/check_no_client_identifiers.py <aggregate.json> --against-checkout <path>
 
 WHY THIS EXISTS
 ---------------
-``CONSTRAINTS.md`` carries a standing rule that a real target repository's name, packages and
-class names must never appear in this repo's own tracked files. It also records that the last
-time the rule was broken, the breach was "caught by the repo owner on review, not by any check -
-nothing mechanical looks for this". This script is the mechanical check that observation asked
-for.
+``CONSTRAINTS.md`` carries a standing rule that a real target repository's name,
+packages and class names must never appear in this repo's own tracked files.
+The last breach was "caught by the repo owner on review, not by any check".
 
-It is the second of two defences, and the weaker one. The first is that the oracle pseudonymises
-identifiers *before* writing anything, so an identifier-bearing artifact never exists on disk.
-This script assumes that defence could fail and checks the result anyway.
+Two complementary gates live in this module:
 
-ALLOWLIST, NOT DENYLIST
------------------------
-The check is structural: every key and every string value in the aggregate must come from a
-closed vocabulary. It does not hunt for known-bad substrings, because a denylist can only refuse
-what someone thought to enumerate, and the identifiers most worth catching are the ones nobody
-anticipated. Anything unrecognised fails, so a new field added upstream fails closed here and
-has to be reviewed rather than silently admitted.
+1. **Tracked-tree denylist** (``--tracked-tree``) — known-bad tokens from
+   ``scripts/ci/client_identifier_denylist.txt`` must not appear in any tracked
+   path or UTF-8 text file. The denylist file itself is the only allowed home
+   for those strings.
 
-An optional denylist pass (``--against-checkout``) runs on top when the local checkout is
-available, catching the case where a string happens to satisfy the vocabulary while still
-naming something real.
+2. **Aggregate allowlist** — every key/string in an oracle ``aggregate.json``
+   must come from a closed vocabulary (fail closed on unknown fields). Optional
+   ``--against-checkout`` cross-checks names present in a local target tree.
 
 EXIT CODES
 ----------
-0  clean; the aggregate carries no identifier and may cross
+0  clean
 1  a violation was found, or a required input was missing
 2  usage error
 """
@@ -41,9 +38,15 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable, List, Optional, Sequence
+
+from doc_engine.paths import repo_root
+
+REPO_ROOT = repo_root()
+DENYLIST_REL = Path("scripts/ci/client_identifier_denylist.txt")
 
 # Keys permitted anywhere in the aggregate. A key outside this set fails rather than being
 # skipped: an unknown key is exactly where an identifier would arrive.
@@ -101,9 +104,84 @@ PROSE_KEYS = {"note"}
 # enough to be a real type name. Used only for the prose fields and the denylist pass.
 PACKAGE_SHAPE = re.compile(r"\b[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*){2,}\b")
 
+# Skip content scan for these extensions (path names still checked).
+_BINARY_SUFFIXES = {
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".zip", ".jar",
+    ".class", ".so", ".dll", ".exe", ".whl", ".pyc", ".pyo",
+}
+
 
 class Violation(Exception):
     pass
+
+
+def load_denylist(root: Path) -> List[str]:
+    """Return non-empty denylist tokens from the committed denylist file."""
+    path = root / DENYLIST_REL
+    if not path.is_file():
+        raise FileNotFoundError(f"denylist missing: {DENYLIST_REL.as_posix()}")
+    tokens: List[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        tokens.append(stripped)
+    if not tokens:
+        raise ValueError(f"{DENYLIST_REL.as_posix()} has no tokens")
+    return tokens
+
+
+def _tracked_paths(root: Path) -> List[str]:
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-z"],
+        capture_output=True,
+        check=True,
+    )
+    return [p for p in result.stdout.decode("utf-8", errors="replace").split("\0") if p]
+
+
+def scan_paths_for_tokens(
+    root: Path,
+    rel_paths: Iterable[str],
+    tokens: Optional[Sequence[str]] = None,
+    *,
+    skip_denylist_file: bool = True,
+) -> List[str]:
+    """Return findings for denylist tokens in paths and UTF-8 file contents.
+
+    Used by ``--tracked-tree`` and by unit tests against a synthetic file set.
+    """
+    token_list = list(tokens) if tokens is not None else load_denylist(root)
+    denylist_posix = DENYLIST_REL.as_posix()
+    findings: List[str] = []
+    for rel in rel_paths:
+        posix = rel.replace("\\", "/")
+        if skip_denylist_file and posix == denylist_posix:
+            continue
+        for token in token_list:
+            if token in posix:
+                findings.append(f"path {posix!r} contains denylist token {token!r}")
+        path = root / rel
+        if not path.is_file():
+            continue
+        if path.suffix.lower() in _BINARY_SUFFIXES:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for token in token_list:
+            if token in text:
+                findings.append(
+                    f"{posix}: content contains denylist token {token!r}"
+                )
+    return findings
+
+
+def scan_tracked_tree(root: Path | None = None) -> List[str]:
+    """Scan every git-tracked path under *root* for denylist tokens."""
+    base = root if root is not None else REPO_ROOT
+    return scan_paths_for_tokens(base, _tracked_paths(base))
 
 
 def _walk(node: Any, path: str, parent_key: str | None, findings: list[str]) -> None:
@@ -173,16 +251,70 @@ def _denylist_pass(payload: str, checkout: Path, findings: list[str]) -> None:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        description="Fail if an oracle aggregate carries any client identifier.",
+        description="Fail if client identifiers appear in tracked files or an oracle aggregate.",
     )
-    parser.add_argument("aggregate", type=Path, help="path to aggregate.json")
+    parser.add_argument(
+        "aggregate",
+        type=Path,
+        nargs="?",
+        default=None,
+        help="path to aggregate.json (omit when using --tracked-tree)",
+    )
+    parser.add_argument(
+        "--tracked-tree",
+        action="store_true",
+        help="scan every git-tracked path/content against the client denylist",
+    )
     parser.add_argument(
         "--against-checkout",
         type=Path,
         default=None,
-        help="optional local checkout to cross-check names against",
+        help="optional local checkout to cross-check aggregate names against",
+    )
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="repo root for --tracked-tree (default: doc_engine.paths.repo_root())",
     )
     args = parser.parse_args(argv)
+
+    if args.tracked_tree:
+        if args.aggregate is not None:
+            print(
+                "ERROR: pass either --tracked-tree or an aggregate path, not both",
+                file=sys.stderr,
+            )
+            return 2
+        root = args.root if args.root is not None else REPO_ROOT
+        try:
+            findings = scan_tracked_tree(root)
+        except (FileNotFoundError, ValueError, subprocess.CalledProcessError) as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
+        if findings:
+            print(
+                f"CLIENT IDENTIFIER GATE FAILED: {len(findings)} finding(s) in tracked tree",
+                file=sys.stderr,
+            )
+            for finding in findings:
+                print(f"  - {finding}", file=sys.stderr)
+            print(
+                "\nPurge the token from tracked files, or add it only to "
+                f"{DENYLIST_REL.as_posix()} if it is a newly forbidden name.",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"client identifier gate: clean tracked tree ({root})")
+        return 0
+
+    if args.aggregate is None:
+        parser.print_usage(sys.stderr)
+        print(
+            "error: aggregate path required unless --tracked-tree is set",
+            file=sys.stderr,
+        )
+        return 2
 
     if not args.aggregate.is_file():
         print(f"ERROR: no aggregate at {args.aggregate}", file=sys.stderr)

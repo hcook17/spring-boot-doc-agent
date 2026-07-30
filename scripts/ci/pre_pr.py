@@ -229,11 +229,12 @@ def _suite(name: str, kind: str, fn: SuiteFn) -> SuiteResult:
     return SuiteResult(name, status, ms, kind, detail=f"exit={code}")
 
 
-def _py_script(*rel: str) -> SuiteFn:
+def _py_script(*rel: str, extra_args: Optional[Sequence[str]] = None) -> SuiteFn:
     path = REPO_ROOT.joinpath(*rel)
+    extras = list(extra_args or ())
 
     def run() -> int:
-        proc = _run([sys.executable, str(path)])
+        proc = _run([sys.executable, str(path), *extras])
         sys.stdout.write(proc.stdout)
         sys.stderr.write(proc.stderr)
         return proc.returncode
@@ -303,6 +304,18 @@ def build_suites(mode: str) -> List[Tuple[str, str, SuiteFn]]:
         hard.append(
             ("check_repo_claims", "hard", _py_script("scripts", "ci", "check_repo_claims.py"))
         )
+        hard.append(
+            (
+                "check_no_client_identifiers",
+                "hard",
+                _py_script(
+                    "scripts",
+                    "ci",
+                    "check_no_client_identifiers.py",
+                    extra_args=["--tracked-tree"],
+                ),
+            )
+        )
         return hard
 
     # standard (path-risk default) and full share CI hard suites
@@ -317,6 +330,16 @@ def build_suites(mode: str) -> List[Tuple[str, str, SuiteFn]]:
                 "check_repo_claims",
                 "hard",
                 _py_script("scripts", "ci", "check_repo_claims.py"),
+            ),
+            (
+                "check_no_client_identifiers",
+                "hard",
+                _py_script(
+                    "scripts",
+                    "ci",
+                    "check_no_client_identifiers.py",
+                    extra_args=["--tracked-tree"],
+                ),
             ),
             (
                 "rule_coverage",

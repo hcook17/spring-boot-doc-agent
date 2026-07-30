@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "$comment": "Per-rule hit counts from a real corpus, measured on a dev machine because the corpus is too large to track. The gate is a ratchet: a rule that used to fire and now fires zero times is a regression. Rising counts are always fine and do not need a re-measure. Regenerate with: python3 scripts/coverage/rule_coverage.py <repo> --update",
-  "corpus": "ocs-api-service-develop",
+  "corpus": "external-dev-corpus",
   "counts": {
     "api_surface__controller": 49,
     "api_surface__mapping": 414,
