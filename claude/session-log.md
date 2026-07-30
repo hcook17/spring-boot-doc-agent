@@ -216,7 +216,7 @@ Assumptions affected:
 
 - `claude/steering-prompts/02-pluggability-research-prompt.md` ? "no schema, no validation, just shared understanding documented in prose" across the four inter-stage JSON artifacts ? [Still accurate ? both new scripts (`semantic_eval_helpers.py` reading `interview_answers.json`/doc output, `capacity_preflight.py` reading `groups.json`/`spring_signals.json`) are two more consumers of these unschema'd contracts, raising the cost of ever changing their shape without a schema, but the schema/validation gap itself is untouched by this change.]
 
-- `claude/steering-prompts/03-constraints-research-prompt.md` (via `CONSTRAINTS.md`'s "Known precision tradeoffs" item 3 and `SKILL.md`'s own "worth confirming against a real repo's actual size" note on the `references` bucket) ? [New info ? `skills/capacity-preflight/` and `scripts/capacity_preflight.py` now compute this as a concrete, per-repo number (group count, total subagent fan-out = `2*num_groups + 16`, references-bucket-tokens ื num_groups) instead of leaving it as an unmeasured assumption. Only run against the small `scripts/test_fixtures/spring_signals/` fixture so far (1 group, 18 dispatches, ~783 est. tokens) ? not yet validated against a real large/monorepo target, so the warning thresholds themselves remain stated guesses, not calibrated values.]
+- `claude/steering-prompts/03-constraints-research-prompt.md` (via `CONSTRAINTS.md`'s "Known precision tradeoffs" item 3 and `SKILL.md`'s own "worth confirming against a real repo's actual size" note on the `references` bucket) ? [New info ? `skills/capacity-preflight/` and `scripts/capacity_preflight.py` now compute this as a concrete, per-repo number (group count, total subagent fan-out = `2*num_groups + 16`, references-bucket-tokens ร— num_groups) instead of leaving it as an unmeasured assumption. Only run against the small `scripts/test_fixtures/spring_signals/` fixture so far (1 group, 18 dispatches, ~783 est. tokens) ? not yet validated against a real large/monorepo target, so the warning thresholds themselves remain stated guesses, not calibrated values.]
 
 - `claude/steering-prompts/04-analytics-logging-research-prompt.md` ? item 2, a `run_manifest.json` recording per-stage timing/pass-fail/evidence-tag counts, still not built ? [New info, not resolved ? `capacity-preflight` is a pre-run estimate only; it doesn't close this gap, but a future `run_manifest.json` should record its predicted numbers (group count, fan-out, references-bucket tokens) alongside the run's actual observed values, closing a calibration loop this prompt didn't previously name. Worth folding into that prompt's scope if it's picked up next.]
 
@@ -490,9 +490,9 @@ Tests: not run (markdown-only change). Verified instead by resolving every backt
 
 Assumptions affected:
 
-- `claude/steering-prompts/12-review-session-launcher.md` งA ? "Copy งA verbatim into a new terminal session" ? [Resolved ? งA instructed a fresh session to read `08-review-persona-and-standards.md` and `09-context-traversal-protocol.md`. Neither exists: `08-` is the dependency-pinning task prompt and `09-` is tool-quirks indexing, both unrelated. The three review-layer files were renumbered on disk to `10`/`11`/`12` without updating their bodies, so all three H1s and every cross-reference still carried the pre-rename numbers. Headers and all cross-references (`11-?` "Pairs with", "ง2 of file 08", "per file 08 ง4"; `12-?` "file-09 interleave", "file-08 evidence tiers") corrected. The launcher's three paths now all resolve.]
+- `claude/steering-prompts/12-review-session-launcher.md` ยงA ? "Copy ยงA verbatim into a new terminal session" ? [Resolved ? ยงA instructed a fresh session to read `08-review-persona-and-standards.md` and `09-context-traversal-protocol.md`. Neither exists: `08-` is the dependency-pinning task prompt and `09-` is tool-quirks indexing, both unrelated. The three review-layer files were renumbered on disk to `10`/`11`/`12` without updating their bodies, so all three H1s and every cross-reference still carried the pre-rename numbers. Headers and all cross-references (`11-?` "Pairs with", "ยง2 of file 08", "per file 08 ยง4"; `12-?` "file-09 interleave", "file-08 evidence tiers") corrected. The launcher's three paths now all resolve.]
 
-- `claude/steering-prompts/12-review-session-launcher.md` งB ? filename convention cited `archunit-scanner-scoping-2026-07-23.md` as "the existing shape" ? [Resolved ? that file does not exist in this repo. Repointed at `claude/drift-check-manifest-baseline-research-2026-07-25.md`, which does exist and matches the stated `<topic>-<kind>-<date>` shape.]
+- `claude/steering-prompts/12-review-session-launcher.md` ยงB ? filename convention cited `archunit-scanner-scoping-2026-07-23.md` as "the existing shape" ? [Resolved ? that file does not exist in this repo. Repointed at `claude/drift-check-manifest-baseline-research-2026-07-25.md`, which does exist and matches the stated `<topic>-<kind>-<date>` shape.]
 
 - `CLAUDE.md` ? "`claude/steering-prompts/` contains five research/scaffold prompts (`00` shared standards, `01`?`05`)" and "read the five prompt files" ? [Resolved ? there are thirteen (`00`?`12`). A session obeying CLAUDE.md literally would never open `06`?`12`, which includes the entire review layer. Rewritten to describe the three actual groups (`00`?`05` research, `06`?`09` implementation tasks, `10`?`12` review), and to say which ones carry repo-state assumptions worth re-checking before a commit.]
 
@@ -508,7 +508,7 @@ Assumptions affected:
 
 - **Mirror-back required** (per `00-shared-research-standards.md`'s "Mirrored copy ? keep in sync"): prompts `00`, `10`, `11`, `12` were edited here. The canonical copies in the Claude project need the same edits, or the next Cowork session will re-introduce the broken numbering.
 
-- `claude/10-architecture-maturation-plan.md` ? [New info ? left untouched deliberately, per the repo owner's call. Its Phase 0 has three items that no longer match reality (ง0.2's unbounded loop was guarded in `5b8e8c8` with a named regression test *before* the plan's own date; ง0.4.2's `AstGrepInvocationError` shipped as `AstGrepNotFoundError`; ง0.1.4 asserts zizmor is "already wired into `_python-checks.yml`", a file that does not exist), and nine referenced files are missing, two of which it tells you to read. Its filename was also kept as-is rather than moved out of the `NN-` namespace it shares with `steering-prompts/10-`: two of the new prompts cite it by that exact path, so renaming would break more than the cosmetic collision it fixes. Needs a look by whoever owns it.]
+- `claude/10-architecture-maturation-plan.md` ? [New info ? left untouched deliberately, per the repo owner's call. Its Phase 0 has three items that no longer match reality (ยง0.2's unbounded loop was guarded in `5b8e8c8` with a named regression test *before* the plan's own date; ยง0.4.2's `AstGrepInvocationError` shipped as `AstGrepNotFoundError`; ยง0.1.4 asserts zizmor is "already wired into `_python-checks.yml`", a file that does not exist), and nine referenced files are missing, two of which it tells you to read. Its filename was also kept as-is rather than moved out of the `NN-` namespace it shares with `steering-prompts/10-`: two of the new prompts cite it by that exact path, so renaming would break more than the cosmetic collision it fixes. Needs a look by whoever owns it.]
 
 Files touched: CLAUDE.md, README.md, claude/session-log.md, claude/steering-prompts/00-shared-research-standards.md, claude/steering-prompts/10-review-persona-and-standards.md, claude/steering-prompts/11-context-traversal-protocol.md, claude/steering-prompts/12-review-session-launcher.md, claude/10-architecture-maturation-plan.md (added, unmodified), claude/jpa-hibernate-predicate-vocabulary-survey.md (added, unmodified), claude/hibernate-jakarta-fact-verification-2026-07-24.md (added, unmodified)
 
@@ -536,7 +536,7 @@ Assumptions affected:
 
 - `claude/llms/README.md` ? "a bounded grace window, not a hole ... nothing stays undocumented past one PR cycle" ? [Resolved ? falsified by seven PRs. #21-#27 all merged with no `pr-N.md`; `python3 scripts/check_llms_coverage.py` prints all seven today. The window's logic is sound only while the check can fail, and `ENFORCE = False` removed that. The table now carries a row per undocumented PR instead of stopping at #21, and the paragraph states the three real options rather than asserting a bound that did not hold.]
 
-- `.github/workflows/ci.yml` ? step named "check_llms_coverage.py (fails on a merged PR with no claude/llms/pr-N.md)" ? [Resolved ? renamed to say "reports ... non-blocking", because with `ENFORCE = False` the step cannot fail. `claude/steering-prompts/10-review-persona-and-standards.md` ง4 lists "a gate that is not a gate" as an anti-pattern this project has actually committed; this was the instance. `ENFORCE` itself is left `False` ? flipping it is a policy call that should be made together with backfilling #21-#27, not smuggled into a docs sweep.]
+- `.github/workflows/ci.yml` ? step named "check_llms_coverage.py (fails on a merged PR with no claude/llms/pr-N.md)" ? [Resolved ? renamed to say "reports ... non-blocking", because with `ENFORCE = False` the step cannot fail. `claude/steering-prompts/10-review-persona-and-standards.md` ยง4 lists "a gate that is not a gate" as an anti-pattern this project has actually committed; this was the instance. `ENFORCE` itself is left `False` ? flipping it is a policy call that should be made together with backfilling #21-#27, not smuggled into a docs sweep.]
 
 - `claude/llms/pr-28.md` frontmatter ? `state: OPEN` ? [Resolved ? PR #28 merged as `03c16dd` during this session. Set to `MERGED` with the merge commit recorded, and its index row updated. Its `head_commit` also moved to `9d15ed3`, the branch's real head, rather than the mid-branch `2cfb4e0` it had pinned.]
 
@@ -586,7 +586,7 @@ Tests: not run (markdown-only). Verified instead against `git log` per file and 
 
 Assumptions affected:
 
-- `claude/steering-prompts/00-shared-research-standards.md` ? "This file and its siblings (`01` through `12`) are mirrored here from the Claude project's `claude/steering-prompts/` docs" ? [Resolved ? false for six of them, and I introduced it: PR #29 widened the original, correct `01`?`05` to `01`?`12` during a docs sweep without checking what the project contains. Corrected to state the real split. `00`?`06` are mirrored and have a canonical project copy; `07`?`09` were authored in this repo (`03cce58`, `f3af862`, `14f7a91`); `10`?`12` were authored outside the project and landed here in `5bd750b`. This is the "prose winning over reality" anti-pattern `claude/10-architecture-maturation-plan.md` ง4.3 lists as one this project has actually committed ? committed again here, and the corrected paragraph says so rather than quietly fixing it.]
+- `claude/steering-prompts/00-shared-research-standards.md` ? "This file and its siblings (`01` through `12`) are mirrored here from the Claude project's `claude/steering-prompts/` docs" ? [Resolved ? false for six of them, and I introduced it: PR #29 widened the original, correct `01`?`05` to `01`?`12` during a docs sweep without checking what the project contains. Corrected to state the real split. `00`?`06` are mirrored and have a canonical project copy; `07`?`09` were authored in this repo (`03cce58`, `f3af862`, `14f7a91`); `10`?`12` were authored outside the project and landed here in `5bd750b`. This is the "prose winning over reality" anti-pattern `claude/10-architecture-maturation-plan.md` ยง4.3 lists as one this project has actually committed ? committed again here, and the corrected paragraph says so rather than quietly fixing it.]
 
 - `CLAUDE.md` ? "contains thirteen numbered prompts, plus a canonical copy that also lives in this project's attached Claude project", and "no access to the Claude project where the canonical steering prompts live" ? [Resolved ? both implied all thirteen have a project copy. Scoped to `00`?`06` in each place.]
 
@@ -820,7 +820,7 @@ Tests: `test_build_cross_group_edges.py` 20/20 (new; 2 of them opt-in via `PIPEL
 
 Assumptions affected:
 
-- `skills/document-spring-repo/SKILL.md` Stage 1 ? "It's cheap ? file/line/package-or-import-text triples, not source ? so passing all of it to every dispatch should be inexpensive regardless of repo size, but this is worth confirming against a real repo's actual `references` bucket size rather than just assumed" ? [Resolved ? confirmed, and the assumption was wrong in the direction that matters. The per-row cost is indeed small; the *volume* is `g ื |R|`, and both terms grow with repo size, so shipped volume is quadratic. Measured on a public 109-file sample repo: 1030 rows broadcast, 75 load-bearing. The prompt's own hedge asked for exactly this measurement; this is the answer.]
+- `skills/document-spring-repo/SKILL.md` Stage 1 ? "It's cheap ? file/line/package-or-import-text triples, not source ? so passing all of it to every dispatch should be inexpensive regardless of repo size, but this is worth confirming against a real repo's actual `references` bucket size rather than just assumed" ? [Resolved ? confirmed, and the assumption was wrong in the direction that matters. The per-row cost is indeed small; the *volume* is `g ร— |R|`, and both terms grow with repo size, so shipped volume is quadratic. Measured on a public 109-file sample repo: 1030 rows broadcast, 75 load-bearing. The prompt's own hedge asked for exactly this measurement; this is the answer.]
 
 - `agents/file-summarizer.md` step 3 ? "cross-check this file's own package/import lines against the repo-wide `references` bucket's package/import entries" ? [Resolved ? deleted. That instruction was a `package`/`import` string join performed by a language model, once per group, with the whole right-hand table in context. It is now a hash join in Stage 0: build side = package declarations, probe side = imports. The subagent receives resolved arcs as ground truth, the same way it already receives the signal-scan slice.]
 
@@ -828,7 +828,7 @@ Assumptions affected:
 
 - `claude/10-architecture-maturation-plan.md` ? the DDIA audit annotation's gap 1, "derived data being re-derived probabilistically per worker instead of once in the system-of-record layer" ? [Resolved for this instance. One of the three gaps the audit named is closed: the cross-group relation is now computed once in the deterministic layer, exactly, and is legitimately taggable `[Evidenced ? path:line]` rather than being an LLM inference the tag grammar cannot honestly label. The other two gaps (no determinism probe, no inter-stage schemas beyond `spring_signals.json`/`run_manifest.json`) remain ? though `cross_group_edges.json` ships with a `schema_version`, which is a start.]
 
-- `skills/capacity-preflight/SKILL.md` and `scripts/capacity_preflight.py` ? the `references_bucket_total_across_groups_est_tokens` metric and its 500k warning threshold ? [**New info ? now measures a cost the pipeline no longer pays.** It computes references-bucket-tokens ื group-count, which was the broadcast volume. After this change each group receives only its own boundary. The metric is not wrong, it is stale: it will over-warn, and the number a reader should actually care about is the *cut* size. Deliberately not changed here ? picking the replacement threshold needs data from more than one repo. Flagged as the next preflight change.]
+- `skills/capacity-preflight/SKILL.md` and `scripts/capacity_preflight.py` ? the `references_bucket_total_across_groups_est_tokens` metric and its 500k warning threshold ? [**New info ? now measures a cost the pipeline no longer pays.** It computes references-bucket-tokens ร— group-count, which was the broadcast volume. After this change each group receives only its own boundary. The metric is not wrong, it is stale: it will over-warn, and the number a reader should actually care about is the *cut* size. Deliberately not changed here ? picking the replacement threshold needs data from more than one repo. Flagged as the next preflight change.]
 
 
 
@@ -968,13 +968,13 @@ Tests: `test_capacity_preflight.py` 9 ? 10 (one deleted, two added). Full suite 
 
 Assumptions affected:
 
-- `claude/steering-prompts/03-constraints-research-prompt.md` (via `CONSTRAINTS.md`'s "Known precision tradeoffs" item 3, the entry the 2026-07-25 log entry cited when `capacity-preflight` was built) ? "`capacity-preflight` turns this into a concrete, per-repo number: group count, total subagent fan-out, references-bucket-tokens ื num_groups" ? [**Resolved for two of three dimensions, falsified for the third.** Group count and fan-out were and remain correct. The third measured `len(json.dumps(references)) ื num_groups`, a quantity commit `abd3ade` had already eliminated by replacing Stage 1's broadcast with a partitioned join. Measured on a real service: 7,627,230 est. tokens reported against 358,645 actually shipped, ~21x, in the direction of alarm. Now measures the per-group `cross_group_edges.json` slice, reported as a distribution rather than a scalar, with the threshold keyed on `max` ? a context window is breached by one dispatch, not by a sum.]
+- `claude/steering-prompts/03-constraints-research-prompt.md` (via `CONSTRAINTS.md`'s "Known precision tradeoffs" item 3, the entry the 2026-07-25 log entry cited when `capacity-preflight` was built) ? "`capacity-preflight` turns this into a concrete, per-repo number: group count, total subagent fan-out, references-bucket-tokens ร— num_groups" ? [**Resolved for two of three dimensions, falsified for the third.** Group count and fan-out were and remain correct. The third measured `len(json.dumps(references)) ร— num_groups`, a quantity commit `abd3ade` had already eliminated by replacing Stage 1's broadcast with a partitioned join. Measured on a real service: 7,627,230 est. tokens reported against 358,645 actually shipped, ~21x, in the direction of alarm. Now measures the per-group `cross_group_edges.json` slice, reported as a distribution rather than a scalar, with the threshold keyed on `max` ? a context window is breached by one dispatch, not by a sum.]
 
-- `claude/steering-prompts/01-testability-research-prompt.md` ? "real, checked-in tests for its two deterministic scripts ? That's solid" ? [New info, second instance this session. `test_references_bucket_tokens_scale_with_group_count` asserted that per-dispatch payload stays constant while total rises linearly with group count ? i.e. it pinned `cost = |R| ื g`, the broadcast model, *as an invariant*. It kept passing after `abd3ade` because it exercised `capacity_preflight`'s own arithmetic rather than the pipeline's behavior, so it was defending code that no longer existed. Deleted and replaced with its inverse. Worth stating as a class: a test written against a consumer's internal arithmetic, rather than against the producer's contract, survives the contract changing ? and then actively resists the fix.]
+- `claude/steering-prompts/01-testability-research-prompt.md` ? "real, checked-in tests for its two deterministic scripts ? That's solid" ? [New info, second instance this session. `test_references_bucket_tokens_scale_with_group_count` asserted that per-dispatch payload stays constant while total rises linearly with group count ? i.e. it pinned `cost = |R| ร— g`, the broadcast model, *as an invariant*. It kept passing after `abd3ade` because it exercised `capacity_preflight`'s own arithmetic rather than the pipeline's behavior, so it was defending code that no longer existed. Deleted and replaced with its inverse. Worth stating as a class: a test written against a consumer's internal arithmetic, rather than against the producer's contract, survives the contract changing ? and then actively resists the fix.]
 
 
 
-Details. The stale dimension was baked into eight places (module docstring assumption 3, `_load_or_scan_references`, `estimate_references_bucket_tokens`, the `ื num_groups` multiply, one warning, three report keys, one CLI flag, the summary print) plus six prose repetitions across `skills/capacity-preflight/SKILL.md`, `README.md`, and `skills/document-spring-repo/SKILL.md`.
+Details. The stale dimension was baked into eight places (module docstring assumption 3, `_load_or_scan_references`, `estimate_references_bucket_tokens`, the `ร— num_groups` multiply, one warning, three report keys, one CLI flag, the summary print) plus six prose repetitions across `skills/capacity-preflight/SKILL.md`, `README.md`, and `skills/document-spring-repo/SKILL.md`.
 
 
 
@@ -1020,7 +1020,7 @@ Three bugs were found by writing the fixture, not by reading the code. All three
 
 1. **`partition_repo.build_groups()` could loop forever.** The zero-progress guard only re-checked the hard cap, so a carry that was itself large enough to re-trip the *soft target* looped: same file re-evaluated against an identical group, `i` frozen, `groups` growing without bound (2927 groups and climbing before the probe was killed). Trigger is a single carried file whose tokens land in `[target_per_group, max_tokens)` ? reproduced with a 2916-token file at `--max-tokens 3000`. Guard now re-checks both triggers. This is a hang, not a wrong answer: Stage 0 would never return.
 
-2. **ast-grep's stdout was decoded with the locale codec.** `subprocess.run(..., text=True)` with no `encoding=`; matched source text flows into every evidence row's `match` field. On a cp1252 Windows box a character whose UTF-8 contains `0x81/0x8D/0x8F/0x90/0x9D` (Cyrillic `?`, `ม`) crashed the scan outright, while `้`/`?`/emoji became silent mojibake in cited documentation. Now explicit `encoding="utf-8", errors="replace"`.
+2. **ast-grep's stdout was decoded with the locale codec.** `subprocess.run(..., text=True)` with no `encoding=`; matched source text flows into every evidence row's `match` field. On a cp1252 Windows box a character whose UTF-8 contains `0x81/0x8D/0x8F/0x90/0x9D` (Cyrillic `?`, `ร`) crashed the scan outright, while `รฉ`/`?`/emoji became silent mojibake in cited documentation. Now explicit `encoding="utf-8", errors="replace"`.
 
 3. **Config files were read as `utf-8`, not `utf-8-sig`.** A BOM survived as a literal `\ufeff`, which is category `Cf` and matches neither `\s` nor `\w`, so every `^\s*`-anchored regex failed on line 1 ? dropping that line's key and never flagging a credential on it. Worse when line 1 is a group header: it never enters the indent stack and every descendant key silently loses its prefix, producing a key set that looks plausible and is wrong.
 
@@ -1104,7 +1104,7 @@ Assumptions affected:
 
 
 
-Fixed as a *class* rather than an instance, per `10-review-persona-and-standards.md` ง1: `partition_repo.to_posix()` / `relpath_posix()` are now the one named home for the rule, both prior sites route through them, and the history lives on the function instead of in a comment asking the next author to remember. A bug fixed three times in three places is the signal that the fix belonged in one place.
+Fixed as a *class* rather than an instance, per `10-review-persona-and-standards.md` ยง1: `partition_repo.to_posix()` / `relpath_posix()` are now the one named home for the rule, both prior sites route through them, and the history lives on the function instead of in a comment asking the next author to remember. A bug fixed three times in three places is the signal that the fix belonged in one place.
 
 
 
@@ -1248,7 +1248,7 @@ Assumptions affected:
 
 
 
-`scripts/_ast_signature.py` returns `level:digest`, never a bare hash. Three levels, named after the clone-detection taxonomy (Zhang & Saber, `arXiv:2506.14470` งII-A, opened and quoted rather than paraphrased): `raw` (bytes), `t1` (Type-1 ? `ast.dump(include_attributes=False)`, so comments and formatting vanish), `t2` (`t1` plus docstrings, which are string literals and therefore a deliberately *partial* Type-2).
+`scripts/_ast_signature.py` returns `level:digest`, never a bare hash. Three levels, named after the clone-detection taxonomy (Zhang & Saber, `arXiv:2506.14470` ยงII-A, opened and quoted rather than paraphrased): `raw` (bytes), `t1` (Type-1 ? `ast.dump(include_attributes=False)`, so comments and formatting vanish), `t2` (`t1` plus docstrings, which are string literals and therefore a deliberately *partial* Type-2).
 
 
 
@@ -1378,7 +1378,7 @@ Tests: 745/745 passing (`python3 -m unittest discover -s scripts -p "test_*.py"`
 
 Assumptions affected:
 
-- `claude/steering-prompts/10-review-persona-and-standards.md` ? its DDIA/testing/security anchors (ง5-6) were framed exclusively as a lens for reviewing *this plugin's own* fact-store design ? [New info ? the same anchors (DDIA 2e; now also Aniche's *Effective Software Testing*, a distinct book from the Meszaros/xUnit anchor already there) now also apply one layer down, via `agents/software-architect-and-testing.md`, to the *target* repo a pipeline run documents. The prompt's own anchors are unedited and still accurate for their original scope; this is an additional application, not a correction.]
+- `claude/steering-prompts/10-review-persona-and-standards.md` ? its DDIA/testing/security anchors (ยง5-6) were framed exclusively as a lens for reviewing *this plugin's own* fact-store design ? [New info ? the same anchors (DDIA 2e; now also Aniche's *Effective Software Testing*, a distinct book from the Meszaros/xUnit anchor already there) now also apply one layer down, via `agents/software-architect-and-testing.md`, to the *target* repo a pipeline run documents. The prompt's own anchors are unedited and still accurate for their original scope; this is an additional application, not a correction.]
 
 - `claude/steering-prompts/00-shared-research-standards.md` and `11-context-traversal-protocol.md` ? arXiv/GitHub-stars-and-recency/DeepWiki-as-orientation methodology and the DFS/BFS bounded-traversal protocol, previously prose conventions for steering-prompt authors only ? [New info ? now also implemented as an actual agent capability (`WebFetch`, no agent previously had it) rather than only a documentation convention. No prior agent could ground an external-fitness claim in research at all; this is the first one that can, following both files' discipline rather than inventing a lighter version.]
 
@@ -1474,7 +1474,7 @@ Files touched: scripts/spring_signal_scan.py, scripts/test_spring_signal_scan.py
 
 
 
-## 2026-07-27 ? Build-file structural signals (Gradle/Groovy/Maven/version catalogs) close CONSTRAINTS ง11
+## 2026-07-27 ? Build-file structural signals (Gradle/Groovy/Maven/version catalogs) close CONSTRAINTS ยง11
 
 Commit: f0be9de
 
@@ -1484,7 +1484,7 @@ Assumptions affected:
 
 - `claude/steering-prompts/03-constraints-research-prompt.md` ? build-file heuristics now a real signal source, not just filename classification ? [Resolved ? `scripts/_build_signal_extract.py` added, wired into `spring_signal_scan.py`, with five `deployment__build_*` rule ids and drift tier-2 re-verification.]
 
-- `CONSTRAINTS.md` ง11 ? "Gradle build scripts get filename-level classification only" ? [Resolved ? now **Partially resolved**: deterministic plugin/dependency/module/toolchain/catalog extraction; dynamic Groovy and full task graph remain out of scope.]
+- `CONSTRAINTS.md` ยง11 ? "Gradle build scripts get filename-level classification only" ? [Resolved ? now **Partially resolved**: deterministic plugin/dependency/module/toolchain/catalog extraction; dynamic Groovy and full task graph remain out of scope.]
 
 - `skills/document-spring-repo/references/doc-taxonomy.md` ? operations.md / local_development.md now prefer `deployment__build_*` rows over an agent's own reading of build scripts. ? [Resolved ? evidence section updated.]
 
@@ -1870,7 +1870,7 @@ Tests: check_repo_claims + ruff + check_code_quality (after staging deletes); ta
 
 Assumptions affected:
 
-- `claude/10-architecture-maturation-plan.md` Phase 0.1 PORTING/local_ci as current work ? [New info ? banner: superseded by portable-kernel CI; ง0 + Phase 1?3 still product thesis]
+- `claude/10-architecture-maturation-plan.md` Phase 0.1 PORTING/local_ci as current work ? [New info ? banner: superseded by portable-kernel CI; ยง0 + Phase 1?3 still product thesis]
 
 - `claude/steering-prompts/07-ci-scaffold-task-prompt.md` body as implementable brief ? [Still accurate as historical; body banner added ? do not re-add verify_llms_docs]
 
@@ -1920,7 +1920,7 @@ Assumptions affected:
 
 - `claude/steering-prompts/00-shared-research-standards.md` ? primary-confirmation / star+recency bar for GitHub+arXiv ? [Still accurate ? applied in `claude/research/fact-store-prior-art-corpus-2026-07-30.md`]
 
-- `claude/10-architecture-maturation-plan.md` ง0?1 / JPA survey as executable Phase 1 specs ? [New info ? outdated relative to portable kernel, packaging pause, contested map, default scanners; thesis revalidated externally; Phase 1 gated on decision memo **REFINE**, thin dual-emit only]
+- `claude/10-architecture-maturation-plan.md` ยง0?1 / JPA survey as executable Phase 1 specs ? [New info ? outdated relative to portable kernel, packaging pause, contested map, default scanners; thesis revalidated externally; Phase 1 gated on decision memo **REFINE**, thin dual-emit only]
 
 Files touched: claude/research/fact-store-prior-art-corpus-2026-07-30.md, claude/research/fact-store-approaches-collation-2026-07-30.md, claude/research/fact-store-phase1-decision-memo-2026-07-30.md, claude/10-architecture-maturation-plan.md, claude/jpa-hibernate-predicate-vocabulary-survey.md, STATUS.md, claude/session-log.md
 
@@ -1936,7 +1936,7 @@ Assumptions affected:
 
 - `claude/10-architecture-maturation-plan.md` Phase 1 / fact-store ?no store yet? ? [New info ? thin sidecar `facts.jsonl` dual-emitted from Stage 0; maps kept; not cert-required]
 
-- Decision memo ง3 thin dual-emit ? [Resolved ? `doc_engine.scanning.facts` + CLI write + signal_scan outputs]
+- Decision memo ยง3 thin dual-emit ? [Resolved ? `doc_engine.scanning.facts` + CLI write + signal_scan outputs]
 
 Files touched: src/doc_engine/scanning/facts.py, src/doc_engine/tools/spring_signal_scan.py, src/doc_engine/pipeline/stages.py, src/doc_engine/pipeline/runner.py, tests/test_facts_ledger.py, tests/test_spring_signal_scan.py, claude/research/facts-ledger-schema-2026-07-30.md, STATUS.md, claude/10-architecture-maturation-plan.md, claude/session-log.md
 
@@ -1986,7 +1986,7 @@ Assumptions affected:
 
 - Drift tier-2 documented as per-file ast-grep ? [Resolved ? docstring/README match full-scan-then-filter]
 
-- Decision memo ง5 ?no Phase 1 emitter until ask? ? [Resolved ? gate closed; dual-emit PR #63]
+- Decision memo ยง5 ?no Phase 1 emitter until ask? ? [Resolved ? gate closed; dual-emit PR #63]
 
 - Glean prior-art corpus stale ? [Still accurate as mechanism cite ? no star re-measure; post-dual-emit banner added]
 
@@ -2234,3 +2234,13 @@ Assumptions affected:
 - Operational completeness certifiable by shared Fail-if boilerplate / hollow domains ? [Resolved ? demote ch04/ch10/domains 08/10; Fail-if uniqueness N=5; domain must own local concepts/]
 - STATUS/queue claimed campaign/L2 done ahead of merge ? [Resolved ? L2 open; N-wave honesty pass required; cite claims-and-status-drift]
 Files touched: src/doc_engine/tools/capacity_preflight.py, tests/doc_engine/test_capacity_preflight.py, tests/research/test_ddia_north_star_*.py, docs/design/ddia-north-star/**, STATUS.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
+
+## 2026-07-30 โ€” UTF-8 session-log + capacity skill partial_proxy + L2b queue
+Commit: uncommitted
+Tests: check_repo_claims OK after cp1252โ’utf-8 rewrite
+Assumptions affected:
+- session-log append via PowerShell Add-Content is UTF-8 safe โ€” [Resolved โ€” false; rewrite as UTF-8; never Add-Content default]
+- capacity-preflight skill still describes magic 14 / no Stage-4 proxy โ€” [Resolved โ€” partial_proxy_pre_stage4 + L2b follow-up named]
+- N-wave Wave E not done vs honesty pass โ€” [Resolved โ€” honesty pass for slice; campaign still open for hollow domains]
+Files touched: claude/session-log.md, claude/research/adoption-blockers-queue-2026-07-30.md, skills/capacity-preflight/SKILL.md, adapters/claude/skills/capacity-preflight/SKILL.md
+

@@ -8,16 +8,16 @@ North-star (design SoR): [`docs/design/ddia-north-star/`](../../docs/design/ddia
 
 Every open L-item below carries a **DDIA card** (domain, ids, SoR vs derived, upstream check). Deviations live under [`docs/design/ddia-north-star/deviations/`](../../docs/design/ddia-north-star/deviations/).
 
-## DDIA north-star thorough campaign (N-wave) — **landed partial; honesty pass required**
+## DDIA north-star thorough campaign (N-wave) — **honesty pass for this slice; campaign not complete**
 
 | Wave | Status | Delivered |
 |------|--------|-----------|
-| Foundation | partial | Depth gate + operational ratchet + prior-art; anti-Goodhart uniqueness/domain-ownership added — not a proof of decision-readiness |
-| A | partial | Domain `07` + `ch07`; L2 **proxy** (not closed capacity risk) |
-| B | partial | Domain `09`; id-stable `batch-vs-stream`; `ch01`/`ch11`/`ch12` operational; `ch10` demoted bridge |
-| C | partial | Encoding/replication chapters deepened; domain `08` **partial** (hollow until local concept) |
-| D | partial | Domain `10` **partial** (hollow); `ch09`/`ch13`/`ch14` operational |
-| E | not done | Honesty pass (this work); campaign not complete |
+| Foundation | honesty pass | Depth gate + operational ratchet + prior-art; anti-Goodhart uniqueness/domain-ownership — not a proof of decision-readiness |
+| A | honesty pass | Domain `07` + `ch07`; L2 **proxy** landed (capacity risk **not** closed) |
+| B | honesty pass | Domain `09`; id-stable `batch-vs-stream`; `ch01`/`ch11`/`ch12` operational; `ch10` demoted bridge |
+| C | honesty pass | Encoding/replication chapters deepened; domain `08` remains **partial** (hollow until local concept) |
+| D | honesty pass | Domain `10` remains **partial** (hollow); `ch09`/`ch13`/`ch14` operational |
+| E | honesty pass / campaign open | Slice honesty (UTF-8, STATUS/queue, demotions, depth gate) landed; thorough catalog campaign **not** complete while hollow domains/bridges remain |
 
 Honest residual `partial`: domains `06`, `08`, `10`; `ch04`, `ch10`; lite concepts.
 
@@ -85,20 +85,28 @@ Prefer outcome-bound tests over substring-only `verify:` where the claim is beha
 
 **Work landed (measurement):** Stage-4 fan-out from `VALID_DOC_FILES`; partial proxy fields + omissions; `--stage4-shared-tokens-warn-threshold`; signals + `signals_omitted`; polarity + pipeline SoR mirror tests; domain 07 + operational `ch07`.
 
-**Still open for L2:** do not treat quiet proxy as closed capacity; optional later: post-summary calibration once Stage-1 artifacts exist (out of Stage-0 scope). Thin formal schema still L5 for `drift_report`.
+**Still open for L2 (post-summary calibration — separate follow-up, not Stage 0):**
+- After Stage 1 writes summaries (and Stage 3 interview), measure **actual** JSON sizes for summaries + `interview_answers` + signals vs the Stage-0 proxy; keep `metric_kind: partial_proxy_pre_stage4` at Stage 0 forever for pre-run estimates.
+- Recalibrate `--stage4-shared-tokens-warn-threshold` only with numbers from a real mid-size run (document the run).
+- Do **not** invent interview token guesses at Stage 0.
+- Thin formal schema still L5 for `drift_report`.
 
-### L3 — Claim-symbol single-token entities — **later**
+### L2b — Post-Stage-1 Stage-4 input calibration — **queued after #73**
+
+**DDIA card:** same as L2; SoR = on-disk `summaries.json` / `interview_answers.json` / `spring_signals.json` after they exist. Derived = optional calibration report or extend preflight in a post-Stage-1 mode. Scope: measure real sizes + return-payload gap statement; never claim Stage-0 proxy is full Stage-4 load.
+
+### L3 — Claim-symbol single-token entities — **later (after L2 / L2b settled)**
 
 **DDIA card:** domain `02-encoding-and-evolution`; open `schema-evolution-and-data-outlives-code`, `encoding-and-compatibility`, `rel-schema-outlives-writers`. SoR = facts / claim keys. Larger fact-store redesign — research/ADR before code; do not fold into L2. Cite Phase-1 fact-store lock.
 
-### L4 — Branch protection (human) — **parallel**
+### L4 — Branch protection (human) — **parallel (repo-admin; not agent)**
 
 **DDIA card:** domain `05-maintainability-and-change`; open `maintainability-operability-evolvability`, `trust-but-verify-and-auditability`. `CONSTRAINTS.md` enterprise item 6 — `gh api` repo-admin; **not agent**. Choosing not to require CI would need a written deviation.
 
-### L5 — Thin drift schema — **after L2**
+### L5 — Thin drift schema — **after L2 / L2b**
 
 **DDIA card:** domain `02-encoding-and-evolution`; open `encoding-and-compatibility`, schema memo slice 5. Scope: primarily **`drift_report`** (residual capacity fields only if L2 did not touch them). Additive + `schema_version` per `rel-schema-outlives-writers`; do not invent fields without writers.
 
-### L6 — Coverage SoR hygiene follow-ons — **after L2**
+### L6 — Coverage SoR hygiene follow-ons — **after L2 / L2b**
 
 **DDIA card:** domains `01` + `04`; cite `dev-coverage-denominator-codeql`, `coverage-gates`, `rel-gate-needs-witness`. Work: `rule_coverage_baseline.json` schema_version regenerate if needed; optional `codeql_rule_count` derivation; residual doc debt. **Do not** invent client-named semgrep recall baseline (`dev-fp-ratchet-separate-from-recall`).
