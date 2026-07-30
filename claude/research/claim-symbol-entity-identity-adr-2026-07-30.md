@@ -4,39 +4,31 @@
 **Status:** Proposed (research only — **no code in this change**)  
 **Queue:** L3 — Claim-symbol single-token entities  
 **DDIA:** domain `02-encoding-and-evolution`; `schema-evolution-and-data-outlives-code`, `encoding-and-compatibility`, `rel-schema-outlives-writers`; SoR vs derived in domain `01`  
-**Depends on:** Phase 1 dual-emit lock ([fact-store-phase1-decision-memo-2026-07-30.md](fact-store-phase1-decision-memo-2026-07-30.md)); L2b measurement on `main` (PR #74); L2b threshold **default retained at 80000** after calibration research ([l2b-stage4-threshold-calibration-2026-07-30.md](l2b-stage4-threshold-calibration-2026-07-30.md), PR #75/#77) — mid-size run still required to *change* 80k, not to author this ADR
+**Depends on:** Phase 1 dual-emit lock ([fact-store-phase1-decision-memo-2026-07-30.md](fact-store-phase1-decision-memo-2026-07-30.md)); L2b on `main` (PR #74); threshold **retain 80000** ([l2b-stage4-threshold-calibration-2026-07-30.md](l2b-stage4-threshold-calibration-2026-07-30.md), PR #75/#77)
 
-**Decision (amended 2026-07-30):** canonical type-level identity is **FQCN (A)**. Dual-read (D) is **not** the architecture — at most a short compatibility note for stale on-disk `schema_version=1` files, not a standing dual-identity design.
+**Decision:** **Principal-complete SCIP-inspired symbol architecture (B)** as the facts SoR identity. First code PR: complete grammar + `format`/`parse`/`display` module + type-level `MAPS_TO` emission. Prefer a slightly bolder first cut when incremental risk is small and it clearly advances the project (see §5). Dual-read (D) and forever-simple-name (C) rejected. Bare FQCN (A) is display/join aid, not the machine key.
 
 ---
 
 ## 1. Problem
 
-Phase 1 ships a thin `facts.jsonl` ledger (`FACTS_LEDGER_SCHEMA_VERSION = 1`) beside `spring_signals.json`. Entity identity in that ledger is **not** collision-safe:
+Phase 1 `facts.jsonl` (`FACTS_LEDGER_SCHEMA_VERSION = 1`) keys `MAPS_TO` on **simple class name**. Contested multi-edge admits collisions; it does not fix the key. CONSTRAINTS already separates that partial fix from the **FQCN / fact-tuple / symbol backlog**. L3 is that backlog.
 
-| Fact kind | Today’s `subject` | Failure mode |
-|-----------|-------------------|--------------|
-| Evidence | File path | Fine as a locator; not an addressable *type* / *member* entity |
-| `MAPS_TO` | **Simple class name** | Two packages can share `User`; contested multi-edge does not fix the key |
-| Qualifiers | Status / table_name_source | Carry provenance, not identity |
+This is **not** unfinished Phase 1. Dual-emit is done. No maturation §0–1 / JPA survey dump.
 
-CONSTRAINTS already separates **resolved contested multi-`MAPS_TO`** from the **FQCN / fact-tuple backlog**. L3 is that backlog: how entities become **single-token, stable claim-symbols** in the facts SoR.
-
-This is **not** unfinished Phase 1. Dual-emit is done. Walking `claude/10-architecture-maturation-plan.md` §0–1 or the JPA survey as an executable dump is forbidden by the Phase 1 memo.
-
-**Important shape of the SoR:** `facts.jsonl` is a **scan-time projection** of `spring_signals.json`, rewritten on every `spring_signal_scan` run. It is not a durable append-only store whose old subject strings must be dual-read forever. That fact changes the migration story (see §5).
+**SoR shape:** facts are a **scan-time projection** of `spring_signals.json` — regenerated each run. Migration is a versioned cutover, not forever dual-read.
 
 ---
 
 ## 2. Non-goals
 
 - No full JPA / Hibernate predicate vocabulary dump.
-- No Glean / SCIP / Kythe wire protocol or in-process index service (borrowing *ideas* from SCIP symbol grammar is fine; shipping SCIP is not).
-- No packaging mega-PR, product SPI, or HttpLLM executor vehicle.
-- No fold into L2/L2b capacity, L5 `drift_report` schema, or L6 coverage hygiene.
-- No inventing a mid-size capacity threshold as part of this ADR.
-- No standing **dual-identity** design (two live keys for the same `MAPS_TO` fact) as the answer to L3 — that confuses migration with identity.
-- No silently breaking Path A `entity_table_map` consumers in the first L3 code PR (Path A identity may stay simple-name until a *separate* Path A evolution).
+- No SCIP / Glean / Kythe **wire protocol** or index service (copy the symbol *model*; do not ship protobuf Stage 0).
+- No packaging mega-PR, product SPI, or HttpLLM vehicle.
+- No fold into L2/L2b, L5 `drift_report`, or L6 coverage hygiene.
+- No standing dual-identity (simple name *and* symbol as live SoR keys).
+- No silently breaking Path A `entity_table_map` in the first L3 PR (Path A may lag).
+- No inventing mid-size capacity numbers here.
 
 ---
 
@@ -44,135 +36,156 @@ This is **not** unfinished Phase 1. Dual-emit is done. Walking `claude/10-archit
 
 | Axis | Location |
 |------|----------|
-| Writer | `doc_engine.tools.spring_signal_scan` → `facts_from_signals` / `write_facts_jsonl` |
+| Writer | `spring_signal_scan` → `facts_from_signals` / `write_facts_jsonl` |
 | Module | [`src/doc_engine/scanning/facts.py`](../../src/doc_engine/scanning/facts.py) |
-| Contract | `Fact` / `FACTS_LEDGER_SCHEMA_VERSION = 1` in [`src/doc_engine/pipeline/artifacts.py`](../../src/doc_engine/pipeline/artifacts.py); `scripts/schemas/facts.schema.json` |
-| Path A SoR | `spring_signals.json` (`entity_table_map` + evidence); facts are dual-emit sidecar, not cert-required |
-| Merge key today | `_merge_signals.py` — keyed by **simple class name alone** (documented collision) |
-| Schema memo | [facts-ledger-schema-2026-07-30.md](facts-ledger-schema-2026-07-30.md) |
-| Prior art | [fact-store-prior-art-corpus-2026-07-30.md](fact-store-prior-art-corpus-2026-07-30.md), [fact-store-approaches-collation-2026-07-30.md](fact-store-approaches-collation-2026-07-30.md) |
+| Contract | `Fact` / `FACTS_LEDGER_SCHEMA_VERSION` in [`artifacts.py`](../../src/doc_engine/pipeline/artifacts.py); `scripts/schemas/facts.schema.json` |
+| Path A | `entity_table_map` simple-name keys; facts sidecar, not cert-required |
+| Merge | `_merge_signals.py` — simple name only (documented collision) |
+| Prior art | [fact-store-prior-art-corpus-2026-07-30.md](fact-store-prior-art-corpus-2026-07-30.md) **P1 SCIP**; collation memo |
 
 ---
 
-## 4. Research basis (why FQCN, not dual-read)
+## 4. Research basis
 
-### 4.1 Java / JPA mental model
+**SCIP / SemanticDB principle:** one parseable symbol string; `display_name` for humans; descriptors grow type → field → method without changing the field that holds identity.
 
-In Java, a type’s stable address is its **binary / fully-qualified name** (`com.acme.billing.User`), not the simple name. Contested multi-`MAPS_TO` already admits package-level collision; the backlog wording in CONSTRAINTS is FQCN for that reason. Optional persistence-unit (PU) qualification remains for multi-PU repos — as a **qualifier**, not a second subject namespace.
+**Why not stop at bare FQCN (A):** solves today’s `User` collision; does not lock an extension point. Later member facts either half-invent a grammar inside FQCN strings or force a **second** identity migration.
 
-### 4.2 Index-symbol prior art (ideas only)
+**Why not “vague thin B”:** under-specified dialects become three spellings of the same type. Principal bar = **complete architecture**, narrow first *production emit*.
 
-[SCIP](https://scip-code.org/docs.html) (and SemanticDB before it) centers identity on a **human-readable fully-qualified symbol string**, with a separate `display_name` for UI. Descriptors form a unique name across the package. That is the opposite of “keep the ambiguous key and dual-read a better one.”
-
-L3 borrows that *principle* (canonical string = FQN; simple name = display / Path A convenience), **not** SCIP’s wire format, package-manager tuple, or indexer service. Option B (local SCIP-like grammar) stays available later if we need member-level facts without inventing a private dialect prematurely.
-
-### 4.3 Why dual-read fails as the long-term answer
-
-| Claim | Reality here |
-|-------|----------------|
-| Dual-read protects durable rows | Facts are **regenerated each scan** from signals |
-| Dual-read is the identity model | It is a **temporary compatibility tactic** from DDIA `rel-schema-outlives-writers`, not a key design |
-| Forever dual honors Path A | Path A coexistence means **open signals map can lag** closed facts — not that facts themselves keep two subjects |
-
-Elevating D→A made migration the product. The product is **one collision-safe subject token**.
+**Why not full SCIP wire:** fights portable source-text Stage 0; prior-art corpus says copy the model, not the deployment.
 
 ---
 
-## 5. Options
+## 5. Posture: complete architecture, calculated forward risk
 
-### A — FQCN (+ optional PU qualifier) string tokens — **chosen**
+Ship like a principal engineer who is allowed to move:
 
-`MAPS_TO.subject` becomes the fully-qualified type name. Optional PU lives in `qualifiers` when multi-PU identity matters. Simple name may appear as a **non-key** display qualifier if consumers need it.
+| Must be complete in the first code PR | May be bold if risk is small | Do not boil the ocean |
+|----------------------------------------|------------------------------|------------------------|
+| Normative grammar: type, inner type, field, method forms; escaping; illegal tokens | Round-trip **tests** for field/method shapes even before any member row exists | SCIP protobuf / indexer service |
+| Sole writer API: `format` / `parse` / `display` (no ad hoc concat in `facts.py`) | Optional `qualifiers.symbol_kind` (`type` now) | Emitting speculative member **facts** with no predicate/consumer |
+| Type `MAPS_TO.subject` = symbol; required `display_name` + `fqcn` | Slightly richer Path A sidecar fields *only if* cert stays green and scope stays identity | JPA vocabulary dump / packaging fold |
+| `FACTS_LEDGER_SCHEMA_VERSION` bump; collision fixture (two-package `User`) | Grammar `version` constant beside ledger version | Forever dual-read of simple name + symbol |
+| Reject/warn stale schema rather than dual-read | Document Path A FQCN/symbol follow-on as next identity slice | Fake package-manager/version precision |
 
-- **Pros:** Matches Java; kills package collisions; readable in diffs and docs; aligns with SCIP/SemanticDB “FQN as symbol” without a wire dependency; matches CONSTRAINTS backlog wording.
-- **Cons:** Inner classes / Kotlin mangling need an explicit rule in the code PR; not member-level; writers must obtain package context from the scan (today merge keys only the simple name).
-
-### B — SCIP-inspired opaque single-token symbol grammar — **deferred**
-
-Documented local grammar for type *and later* method/field symbols — still not a SCIP wire dependency.
-
-- **Pros:** Extends to members without reshaping the eight-field contract.
-- **Cons:** Heavier; dialect risk. Revisit only when member-level facts are a near-term requirement.
-
-### C — Keep simple name + contested forever — **rejected**
-
-Rejects the L3 problem statement.
-
-### D — Hybrid dual-read migration — **rejected as architecture**
-
-Emitting both simple-name and FQCN subjects (or parallel predicates) with “readers prefer symbol” as the standing design.
-
-- Allowed only as a **short, dated compatibility window** for stale on-disk `schema_version=1` artifacts if a real external consumer requires it.
-- **Not** the research direction, **not** the end-state, **not** an excuse for forever-dual without a sunset.
-- Preferred cutover for this repo: bump `FACTS_LEDGER_SCHEMA_VERSION`, emit FQCN subjects on the next scan, update fixtures — because the ledger is regenerated.
+**Risk rule:** prefer the bolder option when (1) incremental engineering cost is modest vs type-only emit, (2) it prevents a foreseeable second migration, and (3) it does not invent SoR rows nobody reads. Round-trip tests for reserved descriptors clear that bar; inventing `MAPS_TO` for fields without a column predicate does not.
 
 ---
 
-## 6. Compatibility / versioning
+## 6. Options
 
-1. **Bump** `FACTS_LEDGER_SCHEMA_VERSION` when `MAPS_TO.subject` meaning changes from simple name → FQCN (reinterpretation of the same field name counts as a breaking semantic change).
-2. **Regenerate** unit fixtures and any committed sample `facts.jsonl` in the same code PR — do not “absorb” identity churn into drift baselines (`rel-schema-outlives-writers`).
-3. **Path A:** leave `entity_table_map` simple-name-keyed until a separate Path A identity change; facts may become FQCN-keyed while Path A cert stays green (open/closed coexistence from the schema-contracts memo). Do not fold Path A FQCN into the first L3 facts PR unless exit criteria still hold.
-4. **Stale files:** validators may reject or warn on `schema_version < N` rather than dual-reading two subject namespaces indefinitely.
-5. Citation `claim_symbols()` single-token gap (principal review §2.5) is **related product pain**, not this ADR’s SoR decision — do not conflate regex widening with fact-subject identity.
+### A — FQCN-only SoR key — **rejected as machine identity**
+
+Keep as **required display/join aid** (`qualifiers.fqcn`).
+
+### B — SCIP-inspired symbol architecture — **chosen**
+
+Illustrative form (normative text lands in the code PR):
+
+```text
+doc-engine spring . <namespace>/(<namespace>/)*<TypeName>#
+doc-engine spring . <namespace>/(<namespace>/)*<TypeName>#<field>.
+doc-engine spring . <namespace>/(<namespace>/)*<TypeName>#<method>().
+```
+
+| Entity | Symbol | Display |
+|--------|--------|---------|
+| `com.acme.billing.User` | `doc-engine spring . com/acme/billing/User#` | `User` |
+| `com.acme.auth.User` | `doc-engine spring . com/acme/auth/User#` | `User` |
+| Later field | `…/User#email.` | `User.email` |
+
+Placeholders for manager/version (`.`) until real module coordinates exist — document as placeholders, do not pretend precision.
+
+### C — Simple name + contested forever — **rejected**
+
+### D — Hybrid dual-read — **rejected as architecture**
 
 ---
 
-## 7. Consumers to name in any later code PR
+## 7. Impact over time
 
-- `facts_from_signals` / merge path — must carry package (or equivalent) into `MAPS_TO.subject`.
-- JPQL / lineage joins that key on class or table names.
-- Drift tier-2 and any citation paths that quote fact subjects.
-- Doc-writer / Stage-1 summaries that mention entity names (derived views — must not become a second SoR).
-- `facts.jsonl` unit fixtures and schema export under `scripts/schemas/`.
+### Near term (first L3 code PR)
+
+- **Workflow:** scan → package resolve → `symbol.format` → validate → write facts; CI holds grammar round-trips.
+- **Content:** machine `subject` = symbol; humans see `display_name` / `fqcn` in qualifiers and derived views.
+- **Data:** one ledger schema bump; collision-safe type keys; contested = mapping ambiguity, not identity ambiguity. Path A may still be simple-name-keyed.
+
+### Medium term (first real member predicate)
+
+- **Workflow:** same API, new descriptor kind in emitters that have a real consumer.
+- **Content:** new fact kinds; **type symbols unchanged**.
+- **Data:** additive rows; avoid subject rekeys for existing types.
+
+### Long term
+
+- **Workflow:** drift / lineage / machine citation ids join on symbols.
+- **Content:** markdown stays prose; symbols stay in ledgers unless a citation path deliberately quotes them.
+- **Data:** one identity namespace for the facts SoR lifetime — the payoff for designing B completely once.
 
 ---
 
-## 8. Decision (this ADR)
+## 8. Compatibility / versioning
+
+1. Bump `FACTS_LEDGER_SCHEMA_VERSION` when `MAPS_TO.subject` meaning changes.
+2. Regenerate fixtures in the same PR; do not absorb identity churn into drift baselines (`rel-schema-outlives-writers`).
+3. Path A may lag until a separate identity slice.
+4. Validators reject illegal symbols and stale schema versions rather than dual-reading two namespaces.
+5. `claim_symbols()` single-token prose gap remains related product pain — not solved by picking B alone.
+
+---
+
+## 9. Consumers to name in the code PR
+
+- New in-repo symbol module (format/parse/display + tests).
+- `facts_from_signals` / merge — package → type symbol.
+- JPQL / lineage / drift tier-2 / doc-writer derived views.
+- Fixtures + `scripts/schemas/` export.
+
+---
+
+## 10. Decision
 
 | Question | Answer |
 |----------|--------|
-| Confirm maturation §1 as written? | **No** (Phase 1 memo REFINE stands) |
-| Pivot away from facts SoR? | **No** |
-| Canonical type-level identity? | **FQCN string tokens (A)** |
-| Standing dual-read (D)? | **No** — rejected as architecture |
-| SCIP-like grammar (B)? | **Deferred** until member-level facts are near-term |
-| Simple name + contested only (C)? | **Rejected** |
+| Maturation §1 as written? | **No** (Phase 1 REFINE) |
+| Facts SoR? | **Yes** |
+| Machine identity? | **Complete SCIP-inspired symbol architecture (B)** |
+| FQCN (A)? | Display/`fqcn` qualifier only |
+| Dual-read (D) / simple-forever (C)? | **Rejected** |
+| First PR emit? | Type-level `MAPS_TO` + complete grammar/API/tests |
+| Calculated risk? | **Allowed** when modest cost prevents second migration and does not invent unread SoR |
 
-**Direction:** Implement **A** as the long-term facts SoR identity for type-level `MAPS_TO` / entity subjects. Migration is a **versioned cutover** of a regenerated ledger (plus Path A lag), not a dual-identity landing pad.
+**Exit criteria (later code PR):**
 
-**Exit criteria for a later code PR (not this change):**
-
-1. Written subject rule: FQCN form; inner-class / missing-package behavior; optional PU qualifier policy.
-2. Fixture with two same-simple-name types in different packages proving subjects differ.
-3. `FACTS_LEDGER_SCHEMA_VERSION` bumped; fixtures/schema export updated; no forever-dual subject namespace.
-4. Path A certification still green; facts validate-when-present unchanged in spirit.
-5. No JPA vocabulary dump; no packaging/SPI fold; no fold into L5/L6.
-6. STATUS/queue updated only after the code lands (or this ADR is superseded).
+1. Normative grammar (types, inner types, fields, methods, escaping, placeholders) + grammar/ledger versioning.
+2. Sole `format`/`parse`/`display` module; round-trip tests including reserved member shapes.
+3. Type `MAPS_TO` uses symbols; `display_name` + `fqcn` required; two-package collision fixture green.
+4. Schema bump; fixtures/schema export updated; no forever-dual SoR keys; no SCIP wire.
+5. Path A cert green; facts validate-when-present unchanged in spirit.
+6. No JPA dump; no packaging/SPI; no L5/L6 fold.
+7. STATUS/queue move only after code lands (or this ADR is superseded).
 
 ---
 
-## 9. Sequencing
+## 11. Sequencing
 
 ```text
-L2b CLI measure (PR #74, main)
-  → threshold default RETAIN 80000 (calibration research PR #75/#77)
-  → L3 ADR (this file) — decision A (FQCN)
-  → later: L3 code PR (FQCN subjects + schema bump) after exit criteria
-  → L5 drift_report schema / L6 coverage hygiene (separate themes)
-  → L4 branch protection (owner, deferred)
-  → mid-size measured_stage4_inputs run (frontier; required only to change 80k)
+L2b measure + retain 80000 (PR #74/#75/#77)
+  → L3 ADR (this file) — principal-complete B
+  → L3 code PR (grammar + symbol API + type MAPS_TO + schema bump)
+  → member rows only when a real predicate/consumer exists
+  → L5 / L6 separate; L4 owner-deferred
 ```
-
-Cite: `refactor-sequencing`, `claims-and-status-drift`, Phase 1 decision memo §3/§5.
 
 ---
 
-## 10. See also
+## 12. See also
 
 - [adoption-blockers-queue-2026-07-30.md](adoption-blockers-queue-2026-07-30.md) L3  
 - [fact-store-phase1-decision-memo-2026-07-30.md](fact-store-phase1-decision-memo-2026-07-30.md)  
 - [facts-ledger-schema-2026-07-30.md](facts-ledger-schema-2026-07-30.md)  
-- CONSTRAINTS.md — contested resolved; FQCN backlog  
-- SCIP protocol reference — FQN symbol + `display_name` (ideas only): https://scip-code.org/docs.html  
+- [fact-store-prior-art-corpus-2026-07-30.md](fact-store-prior-art-corpus-2026-07-30.md) P1  
+- CONSTRAINTS.md — contested resolved; symbol/FQCN backlog  
+- https://scip-code.org/docs.html (ideas only)  
 - `docs/design/ddia-north-star/domains/02-encoding-and-evolution/`

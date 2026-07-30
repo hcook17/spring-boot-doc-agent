@@ -2294,3 +2294,11 @@ Assumptions affected:
 - L3 research direction D then A (hybrid dual-read landing pad) — [Resolved — amended to canonical FQCN (A); D rejected as standing identity; migration = versioned cutover of regenerated facts]
 - Facts SoR is durable dual-read store — [New info — facts are scan-time projection; dual-read poorly motivated]
 Files touched: claude/research/claim-symbol-entity-identity-adr-2026-07-30.md, claude/session-log.md
+
+## 2026-07-30 — L3 ADR: principal-complete symbol (B), calculated forward risk
+Commit: uncommitted
+Tests: n/a (docs)
+Assumptions affected:
+- L3 identity D→A or bare FQCN (A) or vague thin B — [Resolved — principal-complete SCIP-inspired B; type emit + full grammar/API; bold OK when modest risk prevents second migration]
+- Dual-read as architecture — [Still accurate — rejected]
+Files touched: claude/research/claim-symbol-entity-identity-adr-2026-07-30.md, STATUS.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
