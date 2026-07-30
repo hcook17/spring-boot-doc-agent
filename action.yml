@@ -83,4 +83,6 @@ runs:
         CERT_PATH="${{ inputs.pipeline-artifacts-dir }}/certification.json"
         doc-engine certification verify --allow-mock "$CERT_PATH"
         echo "certification-path=$CERT_PATH" >> "$GITHUB_OUTPUT"
-        echo "certified=true" >> "$GITHUB_OUTPUT"
+        # Derived from the artifact (verify already required certified:true).
+        CERTIFIED="$(python -c "import json,sys; print(json.load(open(sys.argv[1], encoding='utf-8'))['certified'])" "$CERT_PATH")"
+        echo "certified=$CERTIFIED" >> "$GITHUB_OUTPUT"

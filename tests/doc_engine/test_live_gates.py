@@ -171,5 +171,65 @@ def test_live_gates_passing_writes_live_certified(monkeypatch):
         data = json.loads((out / "certification.json").read_text(encoding="utf-8"))
         assert data["generative_executor"] == "live"
         assert data["certified"] is True
+        assert data["schema_version"] == 1
+        stage_names = [s["name"] for s in data["stages"]]
+        assert "generative_external" in stage_names
+        assert "doc_writer" not in stage_names
+        assert all("executor" in s for s in data["stages"])
         ok, _ = verify_certification(out / "certification.json")
         assert ok
+
+
+def test_live_gates_strips_mock_generative_and_survives_skipped_poison(monkeypatch):
+    """Prior mock generative + skipped rows must not poison a live rewrite."""
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        docs = out / "docs"
+        docs.mkdir()
+        (out / "summaries.json").write_text("[]\n", encoding="utf-8")
+        prior = build_certification_report(
+            ComplianceProfile.CERTIFIED,
+            str(out / "repo"),
+            str(out),
+            stages=[
+                StageRecord(name="signal_scan", status="ok"),
+                StageRecord(name="doc_writer", status="ok", executor="mock"),
+                StageRecord(name="architect", status="skipped", executor="none"),
+            ],
+            gates=_live_ok_gates(),
+            generative_executor="mock",
+        )
+        # Prior may be uncertified due to skipped required stage; live rewrite must
+        # still be able to certify from derived stages + passing gates.
+        write_certification_json(out, prior)
+
+        monkeypatch.setattr(
+            live_gates.gates, "run_validate_all_artifacts", lambda _o: 0
+        )
+        monkeypatch.setattr(
+            live_gates.gates,
+            "run_pipeline_validators",
+            lambda _o, _r: (0, "ok"),
+        )
+        monkeypatch.setattr(
+            live_gates.gates,
+            "run_subprocess_gate",
+            lambda _argv: (0, "ok"),
+        )
+
+        code = live_gates.run_live_gates(
+            out_dir=str(out),
+            repo_path=str(out / "repo"),
+            docs_dir=str(docs),
+            no_write_check=True,
+        )
+        assert code == 0
+        data = json.loads((out / "certification.json").read_text(encoding="utf-8"))
+        assert data["certified"] is True
+        assert data["generative_executor"] == "live"
+        names = {s["name"] for s in data["stages"]}
+        assert "signal_scan" in names
+        assert "generative_external" in names
+        assert "doc_writer" not in names
+        assert "architect" not in names
+        assert not any("mock_under_live" in f for f in data["failures"])
