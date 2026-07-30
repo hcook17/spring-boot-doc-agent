@@ -2195,17 +2195,6 @@ Assumptions affected:
 Files touched: src/doc_engine/pipeline/live_gates.py, src/doc_engine/pipeline/compliance.py, src/doc_engine/pipeline/local_runner.py, src/doc_engine/cli.py, tests/doc_engine/test_live_gates.py, tests/doc_engine/test_compliance.py, claude/research/adoption-blockers-queue-2026-07-30.md, src/doc_engine/pipeline/adapters.md, claude/session-log.md
 
 
-## 2026-07-30 � L1 semgrep FP ratchet + DDIA north-star + coverage SoR hygiene
-Commit: uncommitted
-Tests: 32/32 passed (ddia north-star catalog + semgrep_rule_coverage); check_repo_claims OK (15 pre-existing held)
-Assumptions affected:
-- Semgrep coverage is positive-only / no FP measurement � [Resolved � negatives + check_fp_ratchet + semgrep_rule_fp_baseline.json; cite coverage-gates]
-- CLAUDE/CONSTRAINTS/tool-quirks say rule_coverage reads rule_fixtures � [Resolved � spring_signals + CodeQL denominator; rule_fixtures metamorphic-owned]
-- STATUS Next engineering still lists B1�B4 themes � [Resolved � B1�B5 done; L1/L2 sequencing; ddia-north-star link]
-- Adoption-blockers Explicitly later unnumbered � [Resolved � L1 done � L6 queued]
-- DDIA guidance trapped in chat / memory � [Resolved � claude/research/ddia-north-star/ catalog for build/review/refactor]
-Files touched: claude/research/ddia-north-star/**, claude/research/coverage-sor-derived-blindspot-2026-07-30.md, claude/research/adoption-blockers-queue-2026-07-30.md, scripts/coverage/semgrep_rule_coverage.py, scripts/coverage/semgrep_rule_fixtures_negative/**, scripts/coverage/semgrep_rule_fp_baseline.json, tests/coverage/test_semgrep_rule_coverage.py, tests/research/test_ddia_north_star_catalog.py, CLAUDE.md, CONSTRAINTS.md, STATUS.md, claude/tool-quirks.md, claude/steering-prompts/10-review-persona-and-standards.md, .github/workflows/ci.yml, claude/session-log.md
-
 ## 2026-07-30 — L1 semgrep FP ratchet + DDIA north-star + coverage SoR hygiene
 Commit: 1b12600
 Tests: 32/32 passed (ddia north-star catalog + semgrep_rule_coverage); check_repo_claims OK
