@@ -2244,3 +2244,12 @@ Assumptions affected:
 - N-wave Wave E not done vs honesty pass — [Resolved — honesty pass for slice; campaign still open for hollow domains]
 Files touched: claude/session-log.md, claude/research/adoption-blockers-queue-2026-07-30.md, skills/capacity-preflight/SKILL.md, adapters/claude/skills/capacity-preflight/SKILL.md
 
+## 2026-07-30 — Post-merge STATUS/CONSTRAINTS: L2b next; L4 still human
+Commit: uncommitted
+Tests: n/a (docs)
+Assumptions affected:
+- PR #73 still open / L1 only on branch — [Resolved — merged to main]
+- Branch protection unchecked — [Resolved — gh api protection 404 confirmed 2026-07-30; remains human L4]
+- Next engineering still points at L3 — [Resolved — Next = L2b post-summary calibration; L3 after L2/L2b]
+Files touched: STATUS.md, CONSTRAINTS.md, claude/session-log.md
+
