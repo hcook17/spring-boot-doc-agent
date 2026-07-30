@@ -35,7 +35,9 @@ Every generated file tags its claims as **evidenced in code**, **confirmed in in
 
 ## On the deterministic scan (`python -m doc_engine.tools.spring_signal_scan`)
 
-Java structural detection runs on [ast-grep](https://ast-grep.github.io/) (tree-sitter-based AST matching), not regex — see `src/doc_engine/scanning/resources/spring_ast_grep_rules.yml` for the rule set. It's still source-text analysis, not bytecode — no build step or classpath required, at some cost in precision (it won't resolve inherited annotations or interfaces implemented indirectly). See `claude/research/source-text-vs-bytecode-analysis.md` for a deeper comparison against compiled-bytecode/ArchUnit-style analysis. Needs the `ast-grep` binary on `PATH`:
+**Default scanners:** `filesystem` + `ast-grep` (no Java build required). Opt into CodeQL with `--scanners filesystem,codeql` when the CodeQL CLI and a build command are available — see `CONSTRAINTS.md` Runtime prerequisites item 1.
+
+Java structural detection on the default path uses [ast-grep](https://ast-grep.github.io/) (tree-sitter-based AST matching), not regex — see `src/doc_engine/scanning/resources/spring_ast_grep_rules.yml` for the rule set. It's still source-text analysis, not bytecode — no build step or classpath required, at some cost in precision (it won't resolve inherited annotations or interfaces implemented indirectly). See `claude/research/source-text-vs-bytecode-analysis.md` for a deeper comparison against compiled-bytecode/ArchUnit-style analysis. Needs the `ast-grep` binary on `PATH`:
 
 ```bash
 pip install -r requirements.txt   # pins ast-grep-cli, sqllineage, pathspec

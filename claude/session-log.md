@@ -939,3 +939,10 @@ Assumptions affected:
 - Current-state docs citing root `agents/` / bare `scripts/<product>.py` / `skills/tool-quirks` — [Resolved — retargeted to adapters/claude + `python -m doc_engine.tools.*`]
 - Unused `scripts/_src_bootstrap.py` / `tools/_bootstrap.py` — [Resolved — deleted]
 Files touched: README.md, CLAUDE.md, CONSTRAINTS.md, STATUS.md, MATURITY_ASSESSMENT.md, IMPLEMENTATION_HANDOFF.md, docs/product-architecture.md, skills/README.md, skill reference mirrors, claude/10-architecture-maturation-plan.md, claude/steering-prompts/07-*, claude/tool-quirks.md, src/doc_engine/cli.py, scripts/_src_bootstrap.py (deleted), src/doc_engine/tools/_bootstrap.py (deleted), scripts/code_quality_baseline.json, claude/session-log.md
+
+## 2026-07-29 — Stage 0 scanner voice: default ast-grep; CodeQL opt-in
+Commit: uncommitted
+Tests: check_repo_claims (expected)
+Assumptions affected:
+- CONSTRAINTS Runtime item 1 "CodeQL hard for Stage 0" — [Resolved — default is filesystem+ast-grep; CodeQL via --scanners; capacity_preflight does not require CodeQL]
+Files touched: CONSTRAINTS.md, README.md, claude/session-log.md
