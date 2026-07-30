@@ -10,11 +10,11 @@ Theme (review §10): controls that are real but one layer away from where they b
 - ~~Extend `check_no_client_identifiers` beyond bytecode-oracle JSON to a **repo-wide** denylist pass.~~ `python3 scripts/ci/check_no_client_identifiers.py --tracked-tree`; tokens live only in `scripts/ci/client_identifier_denylist.txt`.
 - ~~Regression: committed fixture that would fail CI if the string reappears in tracked paths.~~ Unit test plants a denylist token into a temp path set and asserts findings (token must not be committed outside the denylist file).
 
-## B2 — Live certification chain
+## B2 — Live certification chain — **done**
 
-- `doc-engine pipeline gates` must **write/merge** `certification.json` with `generative_executor: "live"` and the gates actually run.
-- `certification verify` rejects `none`/`mock` unless `--allow-mock`.
-- Regression: drop false docs into a deterministic_only cert run; verify must not stay OK after a live gates pass that should fail (and live path must update the certificate).
+- ~~`doc-engine pipeline gates` must **write/merge** `certification.json` with `generative_executor: "live"` and the gates actually run.~~
+- ~~`certification verify` rejects `none`/`mock` unless `--allow-mock`.~~
+- ~~Regression: drop false docs into a deterministic_only cert run; verify must not stay OK after a live gates pass that should fail (and live path must update the certificate).~~ Covered by `tests/doc_engine/test_live_gates.py` (stale mock cert overwritten; failing live gates → `certified: false`).
 
 ## B3 — Strict citations on the live gates path
 

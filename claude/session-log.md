@@ -1060,3 +1060,12 @@ Assumptions affected:
 - Client checkout names only caught on review / oracle aggregate — [Resolved — `--tracked-tree` denylist + CI/pre_pr wiring; tokens only in client_identifier_denylist.txt]
 - Adoption-blockers B1 open — [Resolved]
 Files touched: scripts/ci/check_no_client_identifiers.py, scripts/ci/client_identifier_denylist.txt, scripts/ci/pre_pr.py, .github/workflows/ci.yml, scripts/coverage/rule_coverage_baseline.json, tests/ci/test_check_no_client_identifiers.py, tests/doc_engine/test_artifact_schemas.py, tests/ratchets/test_mutate.py, claude/session-log.md, claude/research/adoption-blockers-queue-2026-07-30.md
+
+## 2026-07-30 — B2 live certification chain
+Commit: uncommitted
+Tests: 17 passed (test_live_gates + test_verify_certification)
+Assumptions affected:
+- pipeline gates does not rewrite certification.json — [Resolved — always writes generative_executor=live + gate audit]
+- certification verify accepts mock/none certified:true — [Resolved — reject unless --allow-mock]
+- Adoption-blockers B2 open — [Resolved]
+Files touched: src/doc_engine/pipeline/live_gates.py, src/doc_engine/tools/certification.py, src/doc_engine/cli.py, tests/doc_engine/test_live_gates.py, tests/doc_engine/test_verify_certification.py, .github/workflows/doc-engine.yml, action.yml, adapters/github/workflow-snippet.yml, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
