@@ -530,7 +530,9 @@ def compute_stage4_calibration(
 
     Requires on-disk summaries. Interview/signals optional (listed omitted if
     absent). When ``groups_data`` or a Stage-0 preflight report is supplied,
-    attach a derived proxy comparison. Does not change Stage-0 defaults.
+    attach a derived proxy comparison. If **both** are supplied, the Stage-0
+    report wins and a warning is emitted (groups are ignored for the ratio).
+    Does not change Stage-0 defaults. Not invoked by the Stage 0 pipeline step.
     """
     measured = measure_stage4_shared_pool_tokens(
         summaries_data,
@@ -546,7 +548,22 @@ def compute_stage4_calibration(
 
     proxy_comparison = None
     proxy_pool = None
+    proxy_source = None
+    both_proxy_sources = (
+        stage0_preflight_report is not None and groups_data is not None
+    )
     if stage0_preflight_report is not None:
+        if both_proxy_sources:
+            warnings.append({
+                "dimension": "stage4_proxy_comparison_source",
+                "value": "stage0_preflight_report",
+                "threshold": "groups_file_ignored",
+                "message": (
+                    "Both a Stage-0 preflight report and groups_data were supplied "
+                    "for proxy comparison; using stage0_preflight_report "
+                    "(groups ignored for the measured/proxy ratio)."
+                ),
+            })
         # Rebuild a pool-shaped dict from a prior Stage-0 report's flat fields.
         proxy_pool = {
             "metric_kind": stage0_preflight_report.get(
@@ -565,13 +582,17 @@ def compute_stage4_calibration(
                 "stage4_shared_pool_upper_bound_est_tokens", 0
             ),
         }
+        proxy_source = "stage0_preflight_report"
     elif groups_data is not None:
-        # Compare against Stage-0 proxy recomputed from the same groups + the
-        # signals used for measurement (or None).
-        proxy_pool = estimate_stage4_shared_pool_tokens(groups_data, signals_data)
+        # Compare against Stage-0 proxy recomputed from groups only (no signals)
+        # so the ratio highlights summary compression vs est_tokens, not a
+        # shared signals term on both sides.
+        proxy_pool = estimate_stage4_shared_pool_tokens(groups_data, None)
+        proxy_source = "groups_est_tokens_proxy"
 
     if proxy_pool is not None:
         proxy_comparison = compare_stage4_proxy_to_measured(proxy_pool, measured)
+        proxy_comparison["proxy_source"] = proxy_source
 
     return {
         "repo_path": (
@@ -594,7 +615,9 @@ def main():
     ap.add_argument("--overlap", type=float, default=0.10,
                      help="Same meaning as partition_repo.py's --overlap (default: 0.10)")
     ap.add_argument("--groups-file", default=None,
-                     help="Existing groups.json to read instead of re-running partition_repo.py's own grouping")
+                     help=("Existing groups.json (Stage 0 path: partition input; "
+                           "L2b: optional proxy compare from group est_tokens — "
+                           "ignored for the ratio if --stage0-preflight-report is also set)"))
     ap.add_argument("--signals-file", default=None,
                      help="Existing spring_signals.json to join against instead of re-scanning")
     ap.add_argument("--edges-file", default=None,
@@ -607,7 +630,8 @@ def main():
                      help="L2b: existing interview_answers.json (optional; omitted if absent)")
     ap.add_argument("--stage0-preflight-report", default=None,
                      help=("L2b: prior capacity_preflight_report.json from Stage 0 for "
-                           "derived proxy-vs-measured comparison"))
+                           "derived proxy-vs-measured comparison (wins over --groups-file "
+                           "when both are set; emits a warning)"))
     ap.add_argument("--group-warn-threshold", type=int, default=15,
                      help="Warn if num_groups exceeds this (default: 15, a stated heuristic guess)")
     ap.add_argument("--fanout-warn-threshold", type=int, default=40,

@@ -44,22 +44,23 @@ python -m doc_engine.tools.capacity_preflight <repo_path> \
 
 ## Step 2b — L2b post-artifact Stage-4 measurement (after summaries exist)
 
-When Stage 1 (and optionally Stage 3 interview) have written artifacts, measure **real** shared-pool input sizes instead of inventing Stage-0 interview guesses:
+**Opt-in CLI only** — the Stage 0 `capacity_preflight` pipeline step does **not** run this mode. After Stage 1 (and optionally Stage 3 interview) have written artifacts:
 
 ```bash
 python -m doc_engine.tools.capacity_preflight <repo_path> \
     --summaries-file <run_dir>/summaries.json \
     --interview-answers-file <run_dir>/interview_answers.json \
     --signals-file <run_dir>/spring_signals.json \
-    --groups-file <run_dir>/groups.json \
     --stage0-preflight-report <run_dir>/capacity_preflight_report.json \
     --out <run_dir>/capacity_stage4_calibration.json
 ```
 
+Or, instead of `--stage0-preflight-report`, pass `--groups-file <run_dir>/groups.json` to recompute the Stage-0 summary proxy from group `est_tokens` (signals are **not** re-added on that path, so the ratio highlights summary compression).
+
 - `--summaries-file` switches to `metric_kind: measured_stage4_inputs` (SoR = on-disk JSON chars/N).
 - Interview and signals are optional; missing ones are listed in `stage4_omitted_not_estimated` — never invented.
 - `stage4_return_payloads` stays omitted; capacity risk is **not** closed.
-- `--groups-file` and/or `--stage0-preflight-report` add a **derived** proxy-vs-measured comparison (`stage4_proxy_comparison`); they are not a second SoR.
+- Prefer **one** of `--stage0-preflight-report` **or** `--groups-file` for the derived proxy comparison. If both are set, the Stage-0 report wins and a `stage4_proxy_comparison_source` warning is emitted.
 - Default `--stage4-shared-tokens-warn-threshold` remains **80000** until a documented mid-size run recalibrates it. Do not raise the default to silence warnings without that note.
 
 ## Step 3 — threshold checks
@@ -81,6 +82,7 @@ The script prints a short summary and, if `--out` was given, writes the same dat
 
 - Does not change `partition_repo.py`'s own behavior, thresholds, or grouping logic.
 - Does not run any LLM stage itself — no `file-summarizer`/`architect-segment`/`gap-analyzer`/`doc-writer` dispatch happens here.
+- Does not wire L2b into the Stage 0 `capacity_preflight` pipeline argv — measurement stays a separate CLI after artifacts exist.
 - Does not validate whether the chars/N token heuristic matches Claude's real tokenizer — that calibration gap is named in `CONSTRAINTS.md` and stays open; this skill measures against the same heuristic, not a corrected one.
 - Does not invent Stage-0 interview token guesses; post-Stage-1 sizes are **measured** via `--summaries-file` (adoption-queue **L2b**).
 - Does not estimate Stage-4 **return** payloads — still omitted under `measured_stage4_inputs`.

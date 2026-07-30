@@ -380,7 +380,7 @@ class Stage4MeasuredCalibrationTest(unittest.TestCase):
             "/fake/repo",
             summaries_data=summaries,
             interview_answers={"pad": "i" * 400},
-            signals_data=None,
+            signals_data={"evidence": {"pad": "z" * 2000}},
             groups_data=groups,
             stage4_shared_tokens_warn_threshold=10_000_000,
         )
@@ -388,9 +388,15 @@ class Stage4MeasuredCalibrationTest(unittest.TestCase):
         self.assertIsNotNone(cmp_)
         self.assertEqual(cmp_["proxy_metric_kind"], "partial_proxy_pre_stage4")
         self.assertEqual(cmp_["measured_metric_kind"], "measured_stage4_inputs")
+        self.assertEqual(cmp_["proxy_source"], "groups_est_tokens_proxy")
+        # Groups-path proxy excludes signals so the ratio is about summaries.
         self.assertEqual(cmp_["stage0_proxy_shared_est_tokens"], 10_000)
         self.assertGreater(cmp_["measured_shared_est_tokens"], 0)
         self.assertIsNotNone(cmp_["measured_over_proxy_ratio"])
+        self.assertNotIn(
+            "stage4_proxy_comparison_source",
+            {w["dimension"] for w in report["warnings"]},
+        )
 
     def test_proxy_comparison_from_stage0_report(self):
         stage0 = {
@@ -408,6 +414,30 @@ class Stage4MeasuredCalibrationTest(unittest.TestCase):
         cmp_ = report["stage4_proxy_comparison"]
         self.assertEqual(cmp_["stage0_proxy_shared_est_tokens"], 1100)
         self.assertEqual(cmp_["measured_metric_kind"], "measured_stage4_inputs")
+        self.assertEqual(cmp_["proxy_source"], "stage0_preflight_report")
+
+    def test_both_proxy_sources_prefers_stage0_report_and_warns(self):
+        groups = _groups_data(2)
+        for g in groups["groups"]:
+            g["est_tokens"] = 50_000  # would dominate if wrongly chosen
+        stage0 = {
+            "stage4_metric_kind": "partial_proxy_pre_stage4",
+            "stage4_summaries_est_tokens": 1000,
+            "stage4_signals_est_tokens": 0,
+            "stage4_shared_pool_upper_bound_est_tokens": 1000,
+        }
+        report = capacity_preflight.compute_stage4_calibration(
+            "/fake/repo",
+            summaries_data=[{"x": "y" * 100}],
+            groups_data=groups,
+            stage0_preflight_report=stage0,
+            stage4_shared_tokens_warn_threshold=10_000_000,
+        )
+        cmp_ = report["stage4_proxy_comparison"]
+        self.assertEqual(cmp_["proxy_source"], "stage0_preflight_report")
+        self.assertEqual(cmp_["stage0_proxy_shared_est_tokens"], 1000)
+        dims = {w["dimension"] for w in report["warnings"]}
+        self.assertIn("stage4_proxy_comparison_source", dims)
 
     def test_default_stage4_threshold_unchanged(self):
         """L2b must not silently recalibrate the Stage-0 / L2b default (80k)."""
