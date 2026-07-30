@@ -95,9 +95,9 @@ Prefer outcome-bound tests over substring-only `verify:` where the claim is beha
 
 **DDIA card:** same as L2; SoR = on-disk Stage-4 inputs after they exist. Measurement mode **merged** (PR #74). **Calibration research (2026-07-30):** [`l2b-stage4-threshold-calibration-2026-07-30.md`](l2b-stage4-threshold-calibration-2026-07-30.md) — two independent arXiv reviews (2604.01664 ContextBudget; 2508.04903 RCR-Router), GitHub+DeepWiki (LiteLLM, LangGraph), prompt-11 BFS/DFS. **Decision: retain default 80000.** Changing the default still requires a documented mid-size `measured_stage4_inputs` run (frontier). Returns still omitted.
 
-### L3 — Claim-symbol single-token entities — **next (research/ADR before code)**
+### L3 — Claim-symbol single-token entities — **ADR proposed (research; no code)**
 
-**DDIA card:** domain `02-encoding-and-evolution`; open `schema-evolution-and-data-outlives-code`, `encoding-and-compatibility`, `rel-schema-outlives-writers`. SoR = facts / claim keys. Larger fact-store redesign — research/ADR before code; do not fold into L2. Cite Phase-1 fact-store lock. **Unlock:** L2b threshold *default* decision closed (retain); mid-size run still open for *changing* 80k but does not block L3 research.
+**DDIA card:** domain `02-encoding-and-evolution`; open `schema-evolution-and-data-outlives-code`, `encoding-and-compatibility`, `rel-schema-outlives-writers`. SoR = facts / claim keys. Larger fact-store redesign — research/ADR before code; do not fold into L2. Cite Phase-1 fact-store lock. **Unlock:** L2b threshold *default* retained (PR #75). **ADR:** [`claim-symbol-entity-identity-adr-2026-07-30.md`](claim-symbol-entity-identity-adr-2026-07-30.md) — direction **D→A** (hybrid dual-read toward FQCN tokens); reject keep-simple-name-forever; no JPA dump / no packaging fold. Code PR only after exit criteria in that ADR.
 
 ### L4 — Branch protection (human) — **deferred until later (owner)**
 

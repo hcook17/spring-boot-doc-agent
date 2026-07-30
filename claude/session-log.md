@@ -2278,3 +2278,11 @@ Assumptions affected:
 - May invent/recalibrate 80k from papers alone — [Resolved — REFUTED; retain 80000; mid-size measured_stage4_inputs run still required to change]
 - Calibration gate blocks all of L3 forever — [New info — default decision closed; L3 research may proceed; changing 80k still needs mid-size run]
 Files touched: claude/research/l2b-stage4-threshold-calibration-2026-07-30.md, STATUS.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
+
+## 2026-07-30 — L3 claim-symbol entity-identity ADR (research only)
+Commit: uncommitted
+Tests: n/a (ADR docs)
+Assumptions affected:
+- L3 unscoped / blocked on inventing 80k — [Resolved — ADR proposed; default retain closed in PR #75; mid-size run still needed only to change 80k]
+- Phase 1 unfinished / maturation §1 executable — [Still accurate — ADR REFINE; dual-emit done; FQCN is backlog D→A]
+Files touched: claude/research/claim-symbol-entity-identity-adr-2026-07-30.md, STATUS.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
