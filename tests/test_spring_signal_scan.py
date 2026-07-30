@@ -29,6 +29,7 @@ import tempfile
 import unittest
 from tests.conftest import REPO_ROOT, SCRIPTS_DIR, FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
 from doc_engine.scanning._resolve_lineage import _SQLLINEAGE_AVAILABLE
+from doc_engine.scanning.facts import facts_from_signals
 from doc_engine.tools import spring_signal_scan
 
 SCRIPT_DIR = SCRIPTS_DIR
@@ -316,6 +317,15 @@ class ScanDeterminismTest(unittest.TestCase):
         )
         self.assertFalse(lineage["available"])
         self.assertIn("contested", lineage["reason"])
+
+        # Dual-emit projection: contested → ≥2 MAPS_TO facts (memo §3).
+        maps = [
+            f
+            for f in facts_from_signals(result)
+            if f["predicate"] == "MAPS_TO" and f["subject"] == "User"
+        ]
+        self.assertGreaterEqual(len(maps), 2)
+        self.assertEqual({f["object"] for f in maps}, {"a_user", "b_user"})
 
 
 class SqlLineageExtractionTest(unittest.TestCase):

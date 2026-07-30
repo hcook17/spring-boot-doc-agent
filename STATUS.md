@@ -35,11 +35,11 @@ Last updated: 2026-07-30.
 
 Packaging / A+C / portable-kernel arc is **paused** on `main` (through PR #58 / suite-layout follow-ons). Do not open another packaging mega-PR.
 
-**Research gate closed (2026-07-30):** Pre–Phase 1 spike → [`claude/research/fact-store-phase1-decision-memo-2026-07-30.md`](claude/research/fact-store-phase1-decision-memo-2026-07-30.md) (**REFINE**). Corpus + collation sit beside it. **Do not treat** [`claude/10-architecture-maturation-plan.md`](claude/10-architecture-maturation-plan.md) §0–1 or the JPA survey as current executable specs — outdated relative to portable kernel / packaging pause / contested map / scanner defaults; thesis only, revalidated externally.
+**Phase 1 dual-emit landed (this arc):** Stage 0 writes `facts.jsonl` beside `spring_signals.json` ([`claude/research/facts-ledger-schema-2026-07-30.md`](claude/research/facts-ledger-schema-2026-07-30.md); memo [`fact-store-phase1-decision-memo-2026-07-30.md`](claude/research/fact-store-phase1-decision-memo-2026-07-30.md)). Evidence + contested multi-`MAPS_TO`; emit counters on stdout/stderr; maps unchanged; **not** a certification-required artifact. **Do not treat** [`claude/10-architecture-maturation-plan.md`](claude/10-architecture-maturation-plan.md) §0–1 or the JPA survey as executable specs for further Phase 1 dump work.
 
-**Chosen next engineering investment (do not mix; start only when explicitly asked):** thin **dual-emit fact ledger** per the memo (§3), not a full walk of the maturation plan or JPA catalog. Parallel, non-code: repo-admin **branch protection + required CI** on `main` (`CONSTRAINTS.md` enterprise item 6).
+**Next engineering (do not mix with dual-emit):** adoption blockers queue [`claude/research/adoption-blockers-queue-2026-07-30.md`](claude/research/adoption-blockers-queue-2026-07-30.md) — live cert chain, strict live gates, client-ID purge, wire unused validator, stale CONSTRAINTS/README. Parallel, non-code: repo-admin **branch protection + required CI** on `main` (`CONSTRAINTS.md` enterprise item 6).
 
-**Sequencing lock (do not fold):** Schema/SPI scoping (`claude/deterministic-boundary-schemas-spi-research-2026-07-29.md`) — implement only after / with fact-store Phase 1, not as a packaging sidecar.
+**Sequencing lock (do not fold):** Schema/SPI scoping — implement only after / with fact-store Phase 1, not as a packaging sidecar.
 
 Later / not now: redesign or delete llms coverage step; Option C `HttpLLMStageExecutor` (named customer only); entry-point SPI / deepen untyped `dict` boundaries outside existing artifact validators (research before code).
 

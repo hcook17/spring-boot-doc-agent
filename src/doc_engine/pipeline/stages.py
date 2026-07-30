@@ -55,7 +55,7 @@ def build_stage_specs() -> list[StageSpec]:
             name="signal_scan",
             kind=StageKind.DETERMINISTIC,
             manifest_stage=STAGE_SIGNAL_SCAN,
-            outputs=(ARTIFACT_FILENAMES["spring_signals"],),
+            outputs=(ARTIFACT_FILENAMES["spring_signals"], "facts.jsonl"),
             argv_builder=lambda ctx: _py_mod(
                 ctx,
                 MOD_SIGNAL_SCAN,

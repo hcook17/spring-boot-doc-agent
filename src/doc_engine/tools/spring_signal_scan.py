@@ -21,6 +21,12 @@ from doc_engine.paths import scripts_dir
 from doc_engine.scanning._paths import ast_grep_rules_path
 from doc_engine.scanning._resolve_lineage import extract_sql_lineage, resolve_jpql_to_lineage
 from doc_engine.scanning._scanner_filesystem import CONFIG_NAME_PATTERNS
+from doc_engine.scanning.facts import (
+    fact_emit_counts,
+    facts_from_signals,
+    facts_path_for_signals_out,
+    write_facts_jsonl,
+)
 from doc_engine.scanning.spring import (
     AstGrepError,
     AstGrepNotFoundError,
@@ -123,10 +129,25 @@ def main() -> int:
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
 
+    facts_path = facts_path_for_signals_out(args.out)
+    facts = facts_from_signals(result)
+    write_facts_jsonl(facts_path, facts)
+    emit = fact_emit_counts(facts)
+    # Structured stderr line for gap/error analysis across runs (not cert-gated).
+    print(
+        json.dumps({"event": "facts_emit", "path": str(facts_path), **emit}, sort_keys=True),
+        file=sys.stderr,
+    )
+
     counts = {k: len(v) for k, v in result["evidence"].items()}
     redaction_hit_count = sum(len(hits) for hits in result["redaction_zones"].values())
     print(
-        f"Wrote {args.out}. Files scanned: {result['files_scanned']}. "
+        f"Wrote {args.out} and {facts_path} "
+        f"(facts_total={emit['facts_total']}, "
+        f"facts_maps_to={emit['facts_maps_to']}, "
+        f"facts_maps_to_contested={emit['facts_maps_to_contested']}, "
+        f"facts_evidence={emit['facts_evidence']}). "
+        f"Files scanned: {result['files_scanned']}. "
         f"Entities found: {len(result['entity_table_map'])}. "
         f"Evidence counts: {counts}. "
         f"Redaction zones flagged: {redaction_hit_count} line(s) across "

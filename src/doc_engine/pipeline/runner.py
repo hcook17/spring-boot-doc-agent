@@ -41,7 +41,17 @@ class PipelineRunner:
             if not result.success:
                 context.log(f"  !! stage {spec.name} failed: {result.error or result.detail}")
                 break
-            self._validate_outputs(spec, context)
+            try:
+                self._validate_outputs(spec, context)
+            except FileNotFoundError as exc:
+                fail = StageResult(
+                    success=False,
+                    error=str(exc),
+                    detail="missing_required_output",
+                )
+                results[-1] = (spec.name, fail)
+                context.log(f"  !! stage {spec.name} failed: {exc}")
+                break
             self._refresh_context_artifacts(context)
         return results
 
@@ -98,12 +108,16 @@ class PipelineRunner:
             "interview_answers.json": "interview_answers",
         }
         for filename in spec.outputs:
+            path = context.out_dir / filename
+            if not path.is_file():
+                raise FileNotFoundError(
+                    f"stage {spec.name!r} did not produce required output {filename!r} "
+                    f"at {path}"
+                )
             artifact = name_map.get(filename)
             if not artifact:
                 continue
-            path = context.out_dir / filename
-            if path.is_file():
-                validate_artifact_file(artifact, path)
+            validate_artifact_file(artifact, path)
 
     def _refresh_context_artifacts(self, context: PipelineContext) -> None:
         if context.signals_path and context.signals_path.is_file():

@@ -7,12 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from doc_engine.pipeline.context import PipelineContext, StageKind
+from doc_engine.pipeline.context import PipelineContext, StageKind, StageSpec
 from doc_engine.pipeline.executor import MockStageExecutor, SubprocessStageRunner
 from doc_engine.pipeline.runner import PipelineRunner
 from doc_engine.pipeline.stages import build_stage_specs
 from doc_engine.pipeline.validation import validate_artifact_file
-
 from tests.conftest import FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
 
 
@@ -97,6 +96,29 @@ def test_subprocess_stage_runner_records_failure(pipeline_context):
         pipeline_context,
     )
     assert not result.success
+
+
+def test_missing_required_output_is_stage_failure_not_crash(pipeline_context):
+    """Declared outputs must fail cleanly as StageResult, not raise FileNotFoundError."""
+    spec = StageSpec(
+        name="noop_missing_facts",
+        kind=StageKind.DETERMINISTIC,
+        outputs=("facts.jsonl",),
+        argv_builder=lambda ctx: [ctx.python, "-c", "pass"],
+    )
+    runner = PipelineRunner(
+        generative_executor=MockStageExecutor({}),
+        stages=[spec],
+        validate_boundaries=True,
+    )
+    results = runner.run(pipeline_context)
+    assert len(results) == 1
+    name, result = results[0]
+    assert name == "noop_missing_facts"
+    assert result.success is False
+    assert result.detail == "missing_required_output"
+    assert result.error is not None
+    assert "facts.jsonl" in result.error
 
 
 def _write_summaries(ctx: PipelineContext) -> str:
