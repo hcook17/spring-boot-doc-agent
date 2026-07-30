@@ -149,8 +149,8 @@ MUTATORS: List[Mutator] = [
         "dropping one silently halves a rule"),
     Mutator(
         "derived-count-edited", "CLAUDE.md", "",
-        "<!-- derived: predicate_count -->5<!-- /derived -->",
-        "<!-- derived: predicate_count -->4<!-- /derived -->",
+        "<!-- derived: predicate_count -->7<!-- /derived -->",
+        "<!-- derived: predicate_count -->6<!-- /derived -->",
         "test_check_repo_claims.py",
         'CLAUDE.md read "Three forms" for two windows after a fourth and fifth landed'),
     Mutator(

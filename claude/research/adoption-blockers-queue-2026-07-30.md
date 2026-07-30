@@ -30,7 +30,7 @@ Theme (review §10): controls that are real but one layer away from where they b
 
 - README / drift docstring: tier-2 is full-repo filter, not per-file ast-grep subprocess.
 - `CONSTRAINTS.md`: overlap-cascade / `carry_forward` / CI enumeration warnings that outlived the fixes.
-- Prefer outcome-bound tests over substring-only `verify:` where the claim is behavioral.
+- Prefer outcome-bound tests over substring-only `verify:` where the claim is behavioral. Closed vocabulary now includes `called_by:` and `behavior:<key>` (pre-registered in `check_repo_claims.py`, like `DERIVATIONS`); product wiring that needs runtime shape lives in `tests/test_control_wiring.py`. Attach live `verify:` for Phase B claims only when the underlying wiring is true.
 
 ## Explicitly later (weeks — not this PR)
 

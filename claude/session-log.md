@@ -977,3 +977,11 @@ Assumptions affected:
 - Friend PE review adoption blockers vs fact-store Phase 1 — [New info — sequenced: dual-emit first; blockers queued in `claude/research/adoption-blockers-queue-2026-07-30.md`, not mixed into dual-emit]
 - Operator Path A artifact list omitting facts.jsonl — [Resolved — pilot guide names sidecar as non-cert]
 Files touched: src/doc_engine/scanning/facts.py, src/doc_engine/tools/spring_signal_scan.py, tests/test_facts_ledger.py, docs/guides/operator-pilot.md, claude/research/facts-ledger-schema-2026-07-30.md, claude/research/adoption-blockers-queue-2026-07-30.md, STATUS.md, claude/session-log.md
+
+## 2026-07-30 — Control-wiring gates (called_by / behavior / wiring tests)
+Commit: control-wiring-gates (this PR)
+Tests: 107 passed (test_check_repo_claims + test_control_wiring + test_pipeline_runner); check_repo_claims OK
+Assumptions affected:
+- `CLAUDE.md` / check_repo_claims closed verify: vocabulary (five forms only) — [Resolved — seven forms: added `called_by:` + closed `behavior:<key>`; documents still cannot supply shell/pytest]
+- Controls that sit one layer from where they bite — [New info — `tests/test_control_wiring.py` seeds already-true dual-emit/missing-output bites; Phase B stays separate]
+Files touched: scripts/check_repo_claims.py, scripts/mutate.py, tests/test_check_repo_claims.py, tests/test_control_wiring.py, CLAUDE.md, claude/session-log.md, claude/research/adoption-blockers-queue-2026-07-30.md
