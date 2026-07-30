@@ -979,9 +979,20 @@ Assumptions affected:
 Files touched: src/doc_engine/scanning/facts.py, src/doc_engine/tools/spring_signal_scan.py, tests/test_facts_ledger.py, docs/guides/operator-pilot.md, claude/research/facts-ledger-schema-2026-07-30.md, claude/research/adoption-blockers-queue-2026-07-30.md, STATUS.md, claude/session-log.md
 
 ## 2026-07-30 — Control-wiring gates (called_by / behavior / wiring tests)
-Commit: control-wiring-gates (this PR)
+Commit: 8dfe156 (PR #64)
 Tests: 107 passed (test_check_repo_claims + test_control_wiring + test_pipeline_runner); check_repo_claims OK
 Assumptions affected:
 - `CLAUDE.md` / check_repo_claims closed verify: vocabulary (five forms only) — [Resolved — seven forms: added `called_by:` + closed `behavior:<key>`; documents still cannot supply shell/pytest]
 - Controls that sit one layer from where they bite — [New info — `tests/test_control_wiring.py` seeds already-true dual-emit/missing-output bites; Phase B stays separate]
 Files touched: scripts/check_repo_claims.py, scripts/mutate.py, tests/test_check_repo_claims.py, tests/test_control_wiring.py, CLAUDE.md, claude/session-log.md, claude/research/adoption-blockers-queue-2026-07-30.md
+
+## 2026-07-30 — Stale-claims hygiene (B5 before Phase B)
+Commit: stale-claims-hygiene (this PR)
+Tests: kitchen-sink + drift + check_repo_claims (see PR)
+Assumptions affected:
+- `CONSTRAINTS.md` CI enumerates suites by hand / overlap still Flagged / ENFORCE=False in STATUS — [Resolved — corrected against `pytest tests/` + `carried_in_paths` + advisory llms coverage]
+- Drift tier-2 documented as per-file ast-grep — [Resolved — docstring/README match full-scan-then-filter]
+- Decision memo §5 “no Phase 1 emitter until ask” — [Resolved — gate closed; dual-emit PR #63]
+- Glean prior-art corpus stale — [Still accurate as mechanism cite — no star re-measure; post-dual-emit banner added]
+- Ordinal claim keys churn C-missing baseline on every CONSTRAINTS edit — [Resolved — content-stable digest keys + refuse-revival tombstone for absent globs]
+Files touched: scripts/check_repo_claims.py, scripts/repo_claims_baseline.json, tests/test_check_repo_claims.py, CLAUDE.md, CONSTRAINTS.md, STATUS.md, README.md, src/doc_engine/tools/spring_drift_check.py, tests/test_enterprise_kitchen_sink.py, claude/research/fact-store-phase1-decision-memo-2026-07-30.md, claude/research/fact-store-prior-art-corpus-2026-07-30.md, claude/research/fact-store-approaches-collation-2026-07-30.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/10-architecture-maturation-plan.md, claude/jpa-hibernate-predicate-vocabulary-survey.md, claude/session-log.md

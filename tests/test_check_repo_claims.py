@@ -1066,6 +1066,102 @@ class TestRealRepo(unittest.TestCase):
             self.assertEqual(claims[0].predicates, ())
             self.assertEqual(claims[1].predicates, ("path_absent:gone.txt",))
 
+    def test_claim_key_survives_insert_above(self) -> None:
+        """Ordinal keys churned the baseline on every CONSTRAINTS edit; content
+        digests must not."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            body = (
+                "**[Resolved]** ships the ledger beside signals.\n\n"
+                "**[Flagged]** unchecked hole.\n"
+            )
+            (root / "CONSTRAINTS.md").write_text(body, encoding="utf-8")
+            before = {
+                c.status: c.key
+                for c in crc.extract_bracket_tag_claims(root, root / "CONSTRAINTS.md")
+            }
+            (root / "CONSTRAINTS.md").write_text(
+                "**[New info]** inserted above.\n\n" + body, encoding="utf-8")
+            after = {
+                c.status: c.key
+                for c in crc.extract_bracket_tag_claims(root, root / "CONSTRAINTS.md")
+            }
+            self.assertEqual(before["Resolved"], after["Resolved"])
+            self.assertEqual(before["Flagged"], after["Flagged"])
+            self.assertNotEqual(after["New info"], before["Resolved"])
+
+    def test_claim_key_follows_body_not_position_on_reorder(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "CONSTRAINTS.md").write_text(
+                "**[Resolved]** alpha body unique.\n\n"
+                "**[Flagged]** beta body unique.\n",
+                encoding="utf-8")
+            first = {
+                c.status: c.key
+                for c in crc.extract_bracket_tag_claims(root, root / "CONSTRAINTS.md")
+            }
+            (root / "CONSTRAINTS.md").write_text(
+                "**[Flagged]** beta body unique.\n\n"
+                "**[Resolved]** alpha body unique.\n",
+                encoding="utf-8")
+            second = {
+                c.status: c.key
+                for c in crc.extract_bracket_tag_claims(root, root / "CONSTRAINTS.md")
+            }
+            self.assertEqual(first["Resolved"], second["Resolved"])
+            self.assertEqual(first["Flagged"], second["Flagged"])
+
+    def test_claim_key_changes_when_lead_sentence_rewritten(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "CONSTRAINTS.md").write_text(
+                "**[Resolved]** original lead sentence about the tool.\n",
+                encoding="utf-8")
+            key1 = crc.extract_bracket_tag_claims(
+                root, root / "CONSTRAINTS.md")[0].key
+            (root / "CONSTRAINTS.md").write_text(
+                "**[Resolved]** completely different lead about another fact.\n",
+                encoding="utf-8")
+            key2 = crc.extract_bracket_tag_claims(
+                root, root / "CONSTRAINTS.md")[0].key
+            self.assertNotEqual(key1, key2)
+
+    def test_claim_key_ignores_verify_comment_text(self) -> None:
+        """Adding predicates must not reinvent identity."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "CONSTRAINTS.md").write_text(
+                "**[Resolved]** same lead about the ledger.\n", encoding="utf-8")
+            key1 = crc.extract_bracket_tag_claims(
+                root, root / "CONSTRAINTS.md")[0].key
+            (root / "CONSTRAINTS.md").write_text(
+                "**[Resolved]** same lead about the ledger. "
+                "<!-- verify: path_exists:x.txt -->\n",
+                encoding="utf-8")
+            key2 = crc.extract_bracket_tag_claims(
+                root, root / "CONSTRAINTS.md")[0].key
+            self.assertEqual(key1, key2)
+
+    def test_refuse_revival_tombstone_exempts_absent_glob(self) -> None:
+        """Intentional absence prose must not fail check B on a zero-match glob."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "CONSTRAINTS.md").write_text(
+                "CI refuses revival of `scripts/test_*.py` forwarders.\n",
+                encoding="utf-8")
+            self.assertEqual(crc.check_references(root, ["CONSTRAINTS.md"]), [])
+
+    def test_live_claim_still_flags_absent_glob(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "CONSTRAINTS.md").write_text(
+                "Wire suites via `scripts/test_*.py` in CI.\n",
+                encoding="utf-8")
+            findings = crc.check_references(root, ["CONSTRAINTS.md"])
+            self.assertTrue(any("scripts/test_*.py" in f.message for f in findings),
+                            findings)
+
     def test_the_checker_actually_inspects_files(self) -> None:
         """Non-vacuity against the real tree: if tracked_markdown() ever
         returned nothing, every markdown check would report clean forever."""

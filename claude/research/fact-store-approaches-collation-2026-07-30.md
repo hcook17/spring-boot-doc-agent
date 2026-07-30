@@ -2,6 +2,8 @@
 
 Companion to [`fact-store-prior-art-corpus-2026-07-30.md`](fact-store-prior-art-corpus-2026-07-30.md). Semantic DFS/BFS against **primary** docs only (not DeepWiki prose). Protocol: [`../steering-prompts/11-context-traversal-protocol.md`](../steering-prompts/11-context-traversal-protocol.md).
 
+> **Post–dual-emit (2026-07-30):** Thin `facts.jsonl` ledger shipped (PR #63). Matrix still useful for “don’t stand up Glean/Neo4j as product SoR”; Current Stage 0 row is partially superseded by dual-emit beside the evidence bag.
+
 **Anchor nodes:** SCIP Relationship/SymbolInformation; Glean “facts + Angle”; Kythe graph overview; CodeWiki/RepoDoc paper abstracts; this product’s Stage 0 JSON (`evidence` bag + maps) and contested `entity_table_map` behavior.
 
 ---

@@ -95,6 +95,7 @@ to keep true of everything else in ci.yml.
 
 import argparse
 import ast
+import hashlib
 import json
 import re
 import subprocess
@@ -219,7 +220,8 @@ FENCE_RE = re.compile(r"^[ \t]*(?:```|~~~).*?^[ \t]*(?:```|~~~)",
 # silently excuse a neighbouring claim.
 TOMBSTONE_RE = re.compile(
     r"~~|\b(?:deleted|removed|no longer exists?|withdrawn|deprecated)\b"
-    r"|not in this repo|live in the Claude project",
+    r"|not in this repo|live in the Claude project"
+    r"|refuse(?:s|d)? revival|no longer (?:present|applies)",
     re.IGNORECASE,
 )
 
@@ -993,6 +995,26 @@ class Claim(NamedTuple):
 # join this check. Semicolon-separated so one claim can carry several.
 INLINE_VERIFY_RE = re.compile(r"<!--\s*verify:\s*(.+?)\s*-->", re.DOTALL)
 
+# Claim identity must survive insert/reorder the same way Finding.fingerprint
+# survives reflow. Ordinal indices (#0, #1, …) shift whenever a tag is added
+# or removed and churn the C-missing baseline. Digest of normalized status +
+# lead body text is stable under reorder; rewriting the lead is a new claim.
+CLAIM_LEAD_CHARS = 120
+
+
+def claim_body_lead(body: str) -> str:
+    """Whitespace-collapsed claim body with verify comments stripped."""
+    stripped = INLINE_VERIFY_RE.sub("", body)
+    return " ".join(stripped.split())[:CLAIM_LEAD_CHARS]
+
+
+def claim_stable_key(rel: str, status: str, body: str) -> str:
+    """Content-stable claim key: path + digest(status bucket, lead text)."""
+    material = f"{normalize_status(status)}\n{claim_body_lead(body)}"
+    digest = hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+    return f"{rel}#{digest}"
+
+
 # A CONSTRAINTS.md entry opens with a bolded bracket tag: **[Resolved]**,
 # **[Partially resolved, 2026-07-24]**, **[Flagged, not yet resolved]**.
 #
@@ -1031,7 +1053,12 @@ def extract_bracket_tag_claims(root: Path, path: Path) -> List[Claim]:
     word nothing can contradict.
 
     A claim's predicates are those appearing between its own tag and the next
-    one, so predicates attach to the entry that declares them."""
+    one, so predicates attach to the entry that declares them.
+
+    Keys are content-stable (status bucket + lead body digest), not ordinals:
+    inserting or reordering tags must not invent new C-missing fingerprints.
+    Rewriting the lead sentence intentionally creates a new claim.
+    """
     text = path.read_text(encoding="utf-8")
     rel = path.relative_to(root).as_posix()
     spans = fenced_spans(text)
@@ -1052,10 +1079,8 @@ def extract_bracket_tag_claims(root: Path, path: Path) -> List[Claim]:
         )
         status = match.group(1).split(",")[0].strip()
         line = text.count("\n", 0, match.start()) + 1
-        # Keyed on status + ordinal rather than line: the fingerprint must
-        # survive a paragraph moving, for the same reason Finding's does.
         claims.append(Claim("constraints", rel, line, status, predicates,
-                            f"{rel}#{index}:{status}"))
+                            claim_stable_key(rel, status, body)))
     return claims
 
 

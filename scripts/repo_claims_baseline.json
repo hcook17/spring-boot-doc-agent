@@ -3,63 +3,63 @@
   "$comment": "Findings present when check_repo_claims.py was adopted. The gate fails only on findings NOT listed here, the same ratchet code_quality_baseline.json uses. Shrinking this file is always correct; growing it needs a reason in the PR that does it.",
   "accepted": [
     [
-      "C-missing:CONSTRAINTS.md#0:Correction",
+      "C-missing:CONSTRAINTS.md#08f53e2e04dc8ad2",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#10:Revised",
+      "C-missing:CONSTRAINTS.md#0ddd4976fcc93290",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#12:New info \u2014 the wording above ran ahead of the code",
+      "C-missing:CONSTRAINTS.md#1564c3de8962de9e",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#15:Violated and fixed",
+      "C-missing:CONSTRAINTS.md#19ba817d1c0c373a",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#16:New info \u2014 the stated scope held in principle but not on line 1",
+      "C-missing:CONSTRAINTS.md#269c4fe5431689d2",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#17:Corrected 2026-07-24",
+      "C-missing:CONSTRAINTS.md#29f8436d056564b9",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#1:Resolved",
+      "C-missing:CONSTRAINTS.md#2ae6750b06e15331",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#2:Addendum",
+      "C-missing:CONSTRAINTS.md#426e8690e84e37ae",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#3:Correction",
+      "C-missing:CONSTRAINTS.md#664b11b18f104f8e",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#4:Extended",
+      "C-missing:CONSTRAINTS.md#7e2aa4f71983d0be",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#5:Revised",
+      "C-missing:CONSTRAINTS.md#840763d6295deafd",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#6:Extended",
+      "C-missing:CONSTRAINTS.md#89fe34747eeafdec",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#7:Resolved",
+      "C-missing:CONSTRAINTS.md#b77dbed826d77b97",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#8:Reopened 2026-07-25 \u2014 the automated re-check was deleted as a security defect. This gap is open again",
+      "C-missing:CONSTRAINTS.md#c0c63f220d15fa73",
       "declares a status with no verify: predicates, so nothing checks it"
     ],
     [
-      "C-missing:CONSTRAINTS.md#9:Resolved",
+      "C-missing:CONSTRAINTS.md#ceda397d39191bb6",
       "declares a status with no verify: predicates, so nothing checks it"
     ]
   ]
