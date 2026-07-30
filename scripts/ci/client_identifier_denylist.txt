@@ -1,0 +1,8 @@
+# Known client / target-checkout identifiers that must never appear in this
+# repo's tracked paths or file contents. One token per line; `#` comments and
+# blank lines ignored.
+#
+# This file is the only tracked place allowed to contain these strings; the
+# --tracked-tree scan skips this path. Add a token here, then purge every other
+# tracked hit before the gate will pass.
+ocs-api-service-develop

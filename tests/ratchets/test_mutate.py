@@ -259,9 +259,17 @@ class SandboxIsolationTest(unittest.TestCase):
             dest.mkdir()
             mutate.materialize(dest)
             self.assertTrue((dest / "scripts" / "ratchets" / "set_delta.py").is_file())
-            # The working tree carries an untracked target repo of ~101MB;
-            # copying it per mutation would make this harness unusable.
-            self.assertFalse((dest / "ocs-api-service-develop").exists())
+            # Working-tree target checkouts stay untracked; materialize must
+            # not pull them in. Assert via denylist tokens without hardcoding
+            # a client name in this suite.
+            import check_no_client_identifiers as client_gate  # noqa: E402
+
+            for token in client_gate.load_denylist(mutate.REPO_ROOT):
+                self.assertFalse(
+                    (dest / token).exists(),
+                    f"materialize copied denylisted checkout dir {token!r}",
+                )
+            self.assertFalse((dest / "target-repo").exists())
             self.assertFalse((dest / ".git").exists())
 
 

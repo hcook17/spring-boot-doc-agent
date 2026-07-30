@@ -195,6 +195,61 @@ class DenylistPassTest(unittest.TestCase):
             self.assertEqual(result, [])
 
 
+class TrackedTreeDenylistTest(unittest.TestCase):
+    """Repo-wide denylist: plant a token outside the denylist file and assert bite."""
+
+    def test_denylist_file_loads_at_least_one_token(self) -> None:
+        tokens = gate.load_denylist(REPO_ROOT)
+        self.assertGreaterEqual(len(tokens), 1)
+
+    def test_planted_token_in_temp_path_is_reported(self) -> None:
+        tokens = gate.load_denylist(REPO_ROOT)
+        token = tokens[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rel = "docs/note.md"
+            path = root / rel
+            path.parent.mkdir(parents=True)
+            path.write_text(f"mentions {token} once\n", encoding="utf-8")
+            findings = gate.scan_paths_for_tokens(
+                root, [rel], tokens=tokens, skip_denylist_file=True
+            )
+            self.assertTrue(findings)
+            self.assertTrue(any(token in f for f in findings))
+
+    def test_planted_token_in_path_name_is_reported(self) -> None:
+        tokens = gate.load_denylist(REPO_ROOT)
+        token = tokens[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rel = f"vendor/{token}/README.md"
+            path = root / rel
+            path.parent.mkdir(parents=True)
+            path.write_text("clean body\n", encoding="utf-8")
+            findings = gate.scan_paths_for_tokens(
+                root, [rel], tokens=tokens, skip_denylist_file=True
+            )
+            self.assertTrue(any("path" in f and token in f for f in findings))
+
+    def test_clean_temp_tree_has_no_findings(self) -> None:
+        tokens = gate.load_denylist(REPO_ROOT)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rel = "README.md"
+            (root / rel).write_text("no client checkout names here\n", encoding="utf-8")
+            self.assertEqual(
+                gate.scan_paths_for_tokens(
+                    root, [rel], tokens=tokens, skip_denylist_file=True
+                ),
+                [],
+            )
+
+    def test_tracked_tree_cli_exits_zero_on_this_repo(self) -> None:
+        code, out, err = run_main(["--tracked-tree"])
+        self.assertEqual(code, 0, err)
+        self.assertIn("clean tracked tree", out)
+
+
 class CliExitCodeTest(unittest.TestCase):
     def test_a_clean_aggregate_exits_zero(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -239,10 +294,9 @@ class CliExitCodeTest(unittest.TestCase):
             self.assertIn("not valid JSON", err)
 
     def test_usage_error_exits_two(self) -> None:
-        with contextlib.redirect_stderr(io.StringIO()):
-            with self.assertRaises(SystemExit) as ctx:
-                gate.main([])
-        self.assertEqual(ctx.exception.code, 2)
+        code, _, err = run_main([])
+        self.assertEqual(code, 2)
+        self.assertIn("aggregate path required", err)
 
 
 if __name__ == "__main__":

@@ -4,11 +4,11 @@ Queued from the external principal review (`spring-boot-doc-agent-review.md`) af
 
 Theme (review §10): controls that are real but one layer away from where they bite.
 
-## B1 — Client identifier purge + repo-wide denylist
+## B1 — Client identifier purge + repo-wide denylist — **done**
 
-- Purge `ocs-api-service-develop` from tracked hits (baseline, tests, session-log fingerprint).
-- Extend `check_no_client_identifiers` (or CI gate) beyond bytecode-oracle JSON to a **repo-wide** denylist pass.
-- Regression: committed fixture that would fail CI if the string reappears in tracked paths.
+- ~~Purge known client checkout dirname from tracked hits (baseline, tests, session-log fingerprint).~~
+- ~~Extend `check_no_client_identifiers` beyond bytecode-oracle JSON to a **repo-wide** denylist pass.~~ `python3 scripts/ci/check_no_client_identifiers.py --tracked-tree`; tokens live only in `scripts/ci/client_identifier_denylist.txt`.
+- ~~Regression: committed fixture that would fail CI if the string reappears in tracked paths.~~ Unit test plants a denylist token into a temp path set and asserts findings (token must not be committed outside the denylist file).
 
 ## B2 — Live certification chain
 

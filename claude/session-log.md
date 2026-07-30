@@ -762,7 +762,7 @@ Files touched: scripts/_codeql_runner.py, scripts/spring_signal_scan.py, scripts
 
 ## 2026-07-27 ? Unified signal framework, doc_engine SDK, and GitHub Action for product architecture
 Commit: uncommitted
-Tests: test_spring_signal_scan.py 58/58 passing (with and without SPRING_SIGNAL_USE_SNAPSHOT); multi-scanner run on ocs-api-service-develop (filesystem+ast-grep) produced 629 Java files, 53 entities, 4,224 evidence rows; doc_engine SDK scan/docs/site smoke test passed; check_repo_claims.py OK (14 pre-existing baseline findings unchanged).
+Tests: test_spring_signal_scan.py 58/58 passing (with and without SPRING_SIGNAL_USE_SNAPSHOT); multi-scanner run on an external Spring service checkout (filesystem+ast-grep) produced 629 Java files, 53 entities, 4,224 evidence rows; doc_engine SDK scan/docs/site smoke test passed; check_repo_claims.py OK (14 pre-existing baseline findings unchanged).
 Assumptions affected:
 - `claude/steering-prompts/02-pluggability-research-prompt.md` ? "Stage 0 is a single monolithic scanner" ? [Resolved ? `spring_signal_scan.py` now orchestrates pluggable backends via `_orchestrator.py`: `FilesystemBackend`, `CodeQLBackend`, `AstGrepBackend`, merged by `SpringSignalMerger`, lineage resolved by `SpringLineageResolver`. New scanners can implement the `Scanner` protocol in `_signal_framework.py`.]
 - `CONSTRAINTS.md` Known precision items 2, 7, 11 ? verify predicates that anchored to `scripts/spring_signal_scan.py` ? [Resolved ? predicates updated to `_merge_signals.py`, `_resolve_lineage.py`, and `_scanner_filesystem.py` after code was extracted; no claim semantics changed, only the file that now hosts the evidence.]
@@ -1052,3 +1052,11 @@ Assumptions affected:
 - Hand-rolled `{"certified": True}` fixtures still valid after CertificationReport.model_validate — [Resolved — tests mint via build_certification_report/write_certification_json; incomplete dicts assert schema failure]
 - Empty gate audit can certify when profile_gate_ids non-empty — [Resolved — build_certification_report treats missing required gates as failures]
 Files touched: src/doc_engine/pipeline/compliance.py, tests/doc_engine/test_verify_certification.py, tests/doc_engine/test_compliance.py, claude/session-log.md
+
+## 2026-07-30 — B1 client identifier tracked-tree denylist
+Commit: uncommitted
+Tests: 33 passed (check_no_client_identifiers + materialize isolation); --tracked-tree clean
+Assumptions affected:
+- Client checkout names only caught on review / oracle aggregate — [Resolved — `--tracked-tree` denylist + CI/pre_pr wiring; tokens only in client_identifier_denylist.txt]
+- Adoption-blockers B1 open — [Resolved]
+Files touched: scripts/ci/check_no_client_identifiers.py, scripts/ci/client_identifier_denylist.txt, scripts/ci/pre_pr.py, .github/workflows/ci.yml, scripts/coverage/rule_coverage_baseline.json, tests/ci/test_check_no_client_identifiers.py, tests/doc_engine/test_artifact_schemas.py, tests/ratchets/test_mutate.py, claude/session-log.md, claude/research/adoption-blockers-queue-2026-07-30.md

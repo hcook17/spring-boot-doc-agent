@@ -133,6 +133,9 @@ jobs:
       # depth print as advisory only (schema v4). Baseline:
       # scripts/ratchets/code_quality_baseline.json. Regenerate with `--update` when
       # annotation/docstring floors genuinely improve or the measured set grows.
+      - name: check_no_client_identifiers.py (tracked-tree denylist)
+        run: python3 scripts/ci/check_no_client_identifiers.py --tracked-tree
+
       - name: check_code_quality.py (annotation + docstring hard; size advisory)
         run: python3 scripts/ci/check_code_quality.py
 

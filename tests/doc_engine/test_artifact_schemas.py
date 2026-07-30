@@ -85,10 +85,11 @@ def test_summaries_invalid_spring_role():
         }])
 
 
-def test_interview_answers_from_ocs_fixture():
-    path = REPO_ROOT / "ocs-api-service-develop" / "interview_answers.json"
+def test_interview_answers_from_local_target_repo():
+    """Optional live artifact: put interview_answers.json under gitignored target-repo/."""
+    path = REPO_ROOT / "target-repo" / "interview_answers.json"
     if not path.is_file():
-        pytest.skip("ocs-api-service-develop/interview_answers.json not present")
+        pytest.skip("target-repo/interview_answers.json not present")
     model = validate_artifact_file("interview_answers", path)
     assert isinstance(model, InterviewAnswersArtifact)
     assert len(model.root) > 0
