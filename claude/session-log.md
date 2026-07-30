@@ -1090,8 +1090,8 @@ Assumptions affected:
 Files touched: src/doc_engine/pipeline/compliance.py, src/doc_engine/pipeline/live_gates.py, scripts/schemas/certification.schema.json, action.yml, tests/doc_engine/test_compliance.py, tests/doc_engine/test_live_gates.py, src/doc_engine/pipeline/adapters.md, claude/research/certification-derived-view-2026-07-30.md, claude/research/adoption-blockers-queue-2026-07-30.md, claude/session-log.md
 
 ## 2026-07-30 — B3 strict citations on live gates
-Commit: 298f494
-Tests: pending
+Commit: f89edfe
+Tests: 38 passed (live_gates + compliance)
 Assumptions affected:
 - Live gates citation_coverage is worklist-only unless `--strict-citations` — [Resolved — certified profile (default / `--compliance-profile certified`) enables `--strict`, shared `citations_are_strict`]
 - Adoption-blockers B3 open — [Resolved]
