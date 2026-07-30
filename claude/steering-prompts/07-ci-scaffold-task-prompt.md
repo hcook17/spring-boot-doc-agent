@@ -9,6 +9,8 @@ verify:
 
 # Task prompt: scaffold this repo's first CI job, plus a meta-verification script for claude/llms/
 
+> **Historical body.** Frontmatter `status` is resolved. Do **not** implement `scripts/verify_llms_docs.py` (deleted as a security defect — `path_absent` in `verify:`). CI is `.github/workflows/ci.yml` + `pytest tests/`. Completeness for `claude/llms/` is advisory `scripts/check_llms_coverage.py` only. The prose below is the original task brief, left as record per `CLAUDE.md`.
+
 Self-contained — read this without assuming any other conversation's context.
 
 Context: `spring-boot-doc-agent` is a Claude Code plugin (this repo) with real Python test suites — `test_spring_signal_scan.py`, `test_partition_repo.py`, `test_spring_drift_check.py` (needs the `ast-grep` binary on `PATH`), and `test_pipeline_stages.py` (stdlib only, no `ast-grep` needed) — run entirely by hand today. There is no `.github/workflows/` directory and no CI of any kind, confirmed absent (`CONSTRAINTS.md`'s "Integration gaps" item 2 and "Enterprise-readiness gaps" item 6).

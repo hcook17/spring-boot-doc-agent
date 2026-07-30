@@ -8,12 +8,14 @@ copies of the same fact is a known drift risk in this project specifically).
 Two callers share this module rather than each growing their own pattern
 list:
 
-  - spring_signal_scan.py: flags line numbers in configuration/deployment
-    files as `redaction_zones` evidence, so Stage 1 (file-summarizer) has a
-    mechanical signal for which lines not to transcribe (see agents/
-    file-summarizer.md and CONSTRAINTS.md's "Secret/credential leakage"
-    entry for the gap this closes).
-  - check_no_secrets_leaked.py: re-applies the exact same heuristics to a
+  - spring_signal_scan (``python -m doc_engine.tools.spring_signal_scan``):
+    flags line numbers in configuration/deployment files as `redaction_zones`
+    evidence, so Stage 1 (file-summarizer) has a mechanical signal for which
+    lines not to transcribe (see `adapters/claude/agents/file-summarizer.md`
+    and CONSTRAINTS.md's "Secret/credential leakage" entry for the gap this
+    closes).
+  - check_no_secrets_leaked (``python -m doc_engine.tools.check_no_secrets_leaked``):
+    re-applies the exact same heuristics to a
     completed run's own output artifacts (summaries.json, docs/*.md) as a
     deterministic defense-in-depth check — an LLM subagent's compliance
     with a prompt instruction is not a guarantee, so this project's own

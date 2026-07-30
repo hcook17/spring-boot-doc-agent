@@ -109,8 +109,8 @@ External catalogs ([awesome-design-patterns](https://github.com/DovAmir/awesome-
 | Strategy | `MockStageExecutor`, `SubprocessStageRunner` | Generative vs deterministic |
 | Dataclass | `PipelineContext` | In-process orchestration state |
 | Pydantic | `artifacts.py`, compliance models | Artifact contracts |
-| Facade | `cli.py` | Single CLI entry |
-| Bootstrap | ~~`tools/_bootstrap.py`~~ | Retired no-op; product tools are package modules |
+| Facade | `cli.py` | Single CLI entry (`pipeline run` / `gates` / `certification`; `docs`/`site` are placeholders) |
+| ~~Bootstrap~~ | deleted | Former `tools/_bootstrap.py` path-hack removed; use `pip install -e .` |
 
 Legacy `Engine.generate_docs()` / `build_site()` are placeholders — use `doc-engine pipeline run` for real orchestration.
 
