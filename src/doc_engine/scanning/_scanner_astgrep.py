@@ -26,7 +26,55 @@ RULE_FILE = ast_grep_rules_path()
 
 # Windows CreateProcess fails with WinError 206 when hundreds of absolute paths
 # are passed as separate argv entries (common on large Java repos).
+# Budget is conservative vs the ~32KiB CreateProcess ceiling; chunking keeps
+# ScanContext's exact inventory instead of falling back to a repo-root walk.
 _PATH_LIST_CHAR_LIMIT = 7000 if sys.platform == "win32" else 2 ** 31
+
+
+def _argv_char_len(parts: List[str]) -> int:
+    """Approximate CreateProcess argv cost: sum of lengths plus one separator each."""
+    return sum(len(part) + 1 for part in parts)
+
+
+def chunk_paths_for_argv(
+    base_argv: List[str],
+    paths: List[str],
+    limit: int,
+) -> List[List[str]]:
+    """Partition ``paths`` so each ``base_argv + chunk`` stays within ``limit`` chars.
+
+    Preserves path order. A single path that alone exceeds the remaining budget
+    still becomes its own chunk (CreateProcess will fail loudly rather than
+    silently widening the scan to the repo root).
+    """
+    if not paths:
+        return []
+    base_len = _argv_char_len(base_argv)
+    budget = max(limit - base_len, 1)
+    chunks: List[List[str]] = []
+    current: List[str] = []
+    current_len = 0
+    for path in paths:
+        cost = len(path) + 1
+        if current and current_len + cost > budget:
+            chunks.append(current)
+            current = []
+            current_len = 0
+        current.append(path)
+        current_len += cost
+        if current_len > budget and len(current) == 1:
+            # Solo path exceeds budget — emit it alone and continue.
+            chunks.append(current)
+            current = []
+            current_len = 0
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _is_windows_cmdline_too_long(exc: OSError) -> bool:
+    """True when CreateProcess rejected the argv (WinError 206)."""
+    return getattr(exc, "winerror", None) == 206
 
 
 class AstGrepBackend(ScannerBackend):
@@ -74,10 +122,78 @@ class AstGrepBackend(ScannerBackend):
         cmd.append(repo_path)
         return cmd
 
-    def _path_list_too_long(self, base_argv: List[str], paths: List[str]) -> bool:
-        total = sum(len(part) + 1 for part in base_argv)
-        total += sum(len(path) + 1 for path in paths)
-        return total > _PATH_LIST_CHAR_LIMIT
+    def _invoke_ast_grep(self, cmd: List[str]) -> List[Dict[str, Any]]:
+        """Run one ast-grep argv; return parsed match list or [] on soft failure."""
+        try:
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True,
+                encoding="utf-8", errors="replace",
+            )
+        except OSError as exc:
+            if _is_windows_cmdline_too_long(exc):
+                raise
+            print(f"warning: ast-grep failed to start: {exc}", file=sys.stderr)
+            return []
+        if proc.returncode != 0:
+            print(f"warning: ast-grep exited with status {proc.returncode}", file=sys.stderr)
+            print(proc.stderr, file=sys.stderr)
+            return []
+        try:
+            return json.loads(proc.stdout) if proc.stdout.strip() else []
+        except json.JSONDecodeError as e:
+            print(f"warning: could not parse ast-grep output: {e}", file=sys.stderr)
+            return []
+
+    def _invoke_ast_grep_chunked(
+        self,
+        base_argv: List[str],
+        paths: List[str],
+        *,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Scan ``paths`` in argv-sized chunks; never widen to repo-root."""
+        char_limit = _PATH_LIST_CHAR_LIMIT if limit is None else limit
+        chunks = chunk_paths_for_argv(base_argv, paths, char_limit)
+        if len(chunks) > 1:
+            print(
+                "warning: Java path list exceeds this platform's command-line "
+                f"budget ({len(paths)} files); scanning in {len(chunks)} "
+                "ast-grep batches to preserve ScanContext inventory",
+                file=sys.stderr,
+            )
+        matches: List[Dict[str, Any]] = []
+        for chunk in chunks:
+            cmd = base_argv + chunk
+            try:
+                matches.extend(self._invoke_ast_grep(cmd))
+            except OSError as exc:
+                if not _is_windows_cmdline_too_long(exc):
+                    raise
+                if len(chunk) == 1:
+                    print(
+                        "warning: single Java path still exceeds CreateProcess "
+                        f"argv limit; skipping: {chunk[0]}",
+                        file=sys.stderr,
+                    )
+                    continue
+                # Heuristic under-shot the real ceiling — bisect this chunk.
+                mid = len(chunk) // 2
+                print(
+                    "warning: CreateProcess WinError 206 on a path batch "
+                    f"({len(chunk)} files); bisecting and retrying",
+                    file=sys.stderr,
+                )
+                matches.extend(
+                    self._invoke_ast_grep_chunked(
+                        base_argv, chunk[:mid], limit=char_limit,
+                    )
+                )
+                matches.extend(
+                    self._invoke_ast_grep_chunked(
+                        base_argv, chunk[mid:], limit=char_limit,
+                    )
+                )
+        return matches
 
     def _run_ast_grep(
         self,
@@ -101,31 +217,10 @@ class AstGrepBackend(ScannerBackend):
             if not java_files:
                 return []
             paths = [entry.full_path for entry in java_files]
-            if self._path_list_too_long(base_argv, paths):
-                print(
-                    "warning: too many Java file paths for this platform's command-line "
-                    f"limit ({len(paths)} files); scanning repo root instead",
-                    file=sys.stderr,
-                )
-                cmd = self._repo_root_scan_argv(ast_grep_path, repo_path)
-            else:
-                cmd = base_argv + paths
-        else:
-            cmd = self._repo_root_scan_argv(ast_grep_path, repo_path)
+            return self._invoke_ast_grep_chunked(base_argv, paths)
 
-        proc = subprocess.run(
-            cmd, capture_output=True, text=True,
-            encoding="utf-8", errors="replace",
-        )
-        if proc.returncode != 0:
-            print(f"warning: ast-grep exited with status {proc.returncode}", file=sys.stderr)
-            print(proc.stderr, file=sys.stderr)
-            return []
-        try:
-            return json.loads(proc.stdout) if proc.stdout.strip() else []
-        except json.JSONDecodeError as e:
-            print(f"warning: could not parse ast-grep output: {e}", file=sys.stderr)
-            return []
+        # No inventory supplied — single root scan with exclude globs (legacy).
+        return self._invoke_ast_grep(self._repo_root_scan_argv(ast_grep_path, repo_path))
 
     def scan(
         self,

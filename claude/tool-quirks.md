@@ -354,3 +354,12 @@ Resolution / workaround:
 1. **Write path:** never append session-log (or other tracked `.md`) with PowerShell `Add-Content` default encoding. Prefer `Path.write_text(..., encoding="utf-8")` / `Path.open(..., encoding="utf-8")` from Python, or PowerShell `Out-File -Encoding utf8` / `Add-Content -Encoding utf8`.
 2. **Read path:** `check_repo_claims.py` Check G preflights tracked markdown; non-UTF-8 yields a hard Finding (path, byte offset, hint) instead of a traceback. Skip unreadable files for later checks so one bad file does not hide the rest.
 Related: same class as the `subprocess text=True` / cp1252 console decoding note in the 2026-07-25 semgrep entry above — locale default vs UTF-8 contract, different surface.
+
+---
+
+## 2026-07-30 — Windows CreateProcess WinError 206 on large Java path lists; repo-root ast-grep fallback silently widened ScanContext inventory
+Tools/commands involved: `ast-grep scan` via `doc_engine.scanning._scanner_astgrep.AstGrepBackend`, Windows CreateProcess (~32KiB argv ceiling), ocs-api-service-scale repos (~600+ `.java` absolute paths)
+Status: [Resolved — 2026-07-30]
+Symptom: on Windows, Stage-0 warned `too many Java file paths ... scanning repo root instead` and issued one `ast-grep scan <repo_root>` with exclude globs. That diverged from `ScanContext.java_files` (walk inventory): `--no-ignore` root mode can see files the shared walk never listed, and evidence/`facts_evidence` looked complete while coverage was no longer inventory-bounded. Hit live on ocs (~596 Java paths).
+Cause: `_PATH_LIST_CHAR_LIMIT` (7000-char heuristic) gated a **single** all-paths argv; over budget fell back to root instead of batching. ast-grep has no `@file` / path-list stdin for this.
+Resolution: chunk `ScanContext` paths so each `base_argv + chunk` stays under the budget; concatenate match JSON; on residual WinError 206 bisect the offending chunk. Repo-root argv remains only when no inventory is supplied (`java_files is None`). Regression: `tests/doc_engine/test_scan_context_wiring.py` (chunk helper, multi-call under tiny limit, bisect-on-206).

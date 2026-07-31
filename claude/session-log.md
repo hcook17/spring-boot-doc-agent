@@ -2318,4 +2318,12 @@ Assumptions affected:
 - L3 ADR research-only / FQCN backlog open — [Resolved — grammar memo + symbol API + type MAPS_TO emit; FACTS_LEDGER_SCHEMA_VERSION=2; Path A simple-name residual]
 - Dual-read as standing identity — [Still accurate — rejected; write-time parse bite]
 - Tests as emit-mirror theater — [Resolved — deviation-named contracts + grammar goldens]
-Files touched: src/doc_engine/scanning/symbol.py, facts.py, java_extract.py, _merge_signals.py, _scanner_*, artifacts.py, scripts/schemas/facts.schema.json, claude/research/claim-symbol-grammar-2026-07-30.md, ADR, facts-ledger-schema, STATUS, queue, CONSTRAINTS, tests/doc_engine/test_symbol.py, test_facts_ledger.py, test_java_extract_package.py, test_artifact_serde_matrix.py, test_spring_signal_scan.py, session-log
+Files touched: src/doc_engine/scanning/symbol.py, facts.py, java_extract.py, _merge_signals.py, _scanner_*, artifacts.py, scripts/schemas/facts.schema.json, claude/research/claim-symbol-grammar-2026-07-30.md, ADR, facts-ledger-schema, STATUS, queue, CONSTRAINTS, tests/doc_engine/test_symbol.py, test_facts_ledger.py, test_java_extract_package.py, test_artifact_serde_matrix.py, test_spring_signal_scan.py, session-log
+## 2026-07-30 - ScanContext inventory argv class closure (own wrong oracle)
+Commit: pending
+Tests: pytest tests/doc_engine/test_scan_context_wiring.py - 13 passed; pytest tests/ci/test_check_repo_claims.py -k behavior - 3 passed; check_repo_claims.py OK
+Assumptions affected:
+- 2026-07-28 Windows ast-grep path-list fallback as correct fix - [Resolved - wrong oracle; chunk/bisect preserves ScanContext inventory; behavior:astgrep_inventory_never_widens_to_repo_root forbids inventory->repo-root]
+- Wiring tests locking repo-root under pressure - [Resolved - replaced with chunk/equivalence/warning/tombstone + java_files=None legacy-root only]
+- tool-quirks alone as SoR for scanner semantics - [New info - CONSTRAINTS Known precision item 14 is product SoR; quirks remains ambient]
+Files touched: src/doc_engine/scanning/_scanner_astgrep.py, scripts/ci/check_repo_claims.py, tests/doc_engine/test_scan_context_wiring.py, tests/README.md, CONSTRAINTS.md, STATUS.md, claude/session-log.md, claude/tool-quirks.md
