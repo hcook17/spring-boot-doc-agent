@@ -15,10 +15,21 @@ layout, not optional packaging.
 
 Root keeps `conftest.py` (shared `sys.path` for `scripts/{ci,ratchets,coverage,fixtures}`) and `__init__.py`.
 
+### Platform-boundary oracles (`doc_engine/` scanners)
+
+When touching `src/doc_engine/scanning/_scanner_*.py`, argv builders, `ScanContext`, or `_PATH_LIST_*` / `sys.platform` branches, update [`tests/doc_engine/test_scan_context_wiring.py`](doc_engine/test_scan_context_wiring.py). The oracle is the **ScanContext inventory invariant**, not “ast-grep exited 0”:
+
+- With `java_files` supplied: never fall back to a bare repo-root argv; chunk/bisect under budget pressure.
+- Assert the batching warning (`preserve ScanContext inventory`); tombstone `scanning repo root instead`.
+- Equivalence: unlimited budget (one call) vs tiny budget (N calls) → same concatenated match list.
+- Injectable `_PATH_LIST_CHAR_LIMIT` + raised `OSError(winerror=206)` keep these non-vacuous on Linux CI; `java_files is None` remains the only intentional root-scan path.
+- Mechanical twin: `behavior:astgrep_inventory_never_widens_to_repo_root` in `scripts/ci/check_repo_claims.py` (see `CONSTRAINTS.md` Known precision item 14).
+
 ```bash
 pytest tests/ -q
 pytest tests/ci/test_pre_pr.py -v
 pytest tests/doc_engine/test_spring_signal_scan.py -v
+pytest tests/doc_engine/test_scan_context_wiring.py -v
 ```
 
 Inventory without hardcoding a count: `python -c "from pathlib import Path; print(*(sorted(Path('tests').rglob('test_*.py')), sep='\n'))"`.

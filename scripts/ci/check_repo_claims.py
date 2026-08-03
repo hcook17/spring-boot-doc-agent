@@ -879,11 +879,107 @@ def _behavior_runner_missing_output_is_stage_result(root: Path) -> Tuple[bool, s
     )
 
 
+def _call_attr_names(node: ast.AST) -> List[str]:
+    """Attribute/Name tails of Call nodes under ``node`` (static only)."""
+    names: List[str] = []
+    for sub in ast.walk(node):
+        if not isinstance(sub, ast.Call):
+            continue
+        func = sub.func
+        if isinstance(func, ast.Attribute):
+            names.append(func.attr)
+        elif isinstance(func, ast.Name):
+            names.append(func.id)
+    return names
+
+
+def _is_java_files_is_not_none(test: ast.AST) -> bool:
+    """True for ``java_files is not None`` (the inventory-supplied branch)."""
+    if not isinstance(test, ast.Compare):
+        return False
+    if not (isinstance(test.left, ast.Name) and test.left.id == "java_files"):
+        return False
+    if len(test.ops) != 1 or not isinstance(test.ops[0], ast.IsNot):
+        return False
+    if len(test.comparators) != 1:
+        return False
+    comp = test.comparators[0]
+    return isinstance(comp, ast.Constant) and comp.value is None
+
+
+def _behavior_astgrep_inventory_never_widens_to_repo_root(
+    root: Path,
+) -> Tuple[bool, str]:
+    """With ScanContext inventory, ast-grep must chunk — never repo-root fallback."""
+    path = root / "src" / "doc_engine" / "scanning" / "_scanner_astgrep.py"
+    if not path.is_file():
+        return False, "src/doc_engine/scanning/_scanner_astgrep.py missing"
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except SyntaxError as exc:
+        return False, f"_scanner_astgrep.py does not parse: {exc}"
+
+    run_fn: Optional[ast.FunctionDef] = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == "AstGrepBackend":
+            for item in node.body:
+                if isinstance(item, ast.FunctionDef) and item.name == "_run_ast_grep":
+                    run_fn = item
+                    break
+    if run_fn is None:
+        return False, "AstGrepBackend._run_ast_grep not found"
+
+    inventory_if: Optional[ast.If] = None
+    for stmt in run_fn.body:
+        if isinstance(stmt, ast.If) and _is_java_files_is_not_none(stmt.test):
+            inventory_if = stmt
+            break
+    if inventory_if is None:
+        return False, (
+            "_run_ast_grep has no `if java_files is not None` inventory branch"
+        )
+
+    inv_calls = _call_attr_names(inventory_if)
+    if "_repo_root_scan_argv" in inv_calls:
+        return False, (
+            "inventory branch (`java_files is not None`) calls "
+            "_repo_root_scan_argv — must chunk, not widen to repo root"
+        )
+    if "_invoke_ast_grep_chunked" not in inv_calls:
+        return False, (
+            "inventory branch does not call _invoke_ast_grep_chunked"
+        )
+
+    # Legacy path: when inventory is absent, root scan must remain intentional.
+    orelse_nodes: List[ast.AST] = list(inventory_if.orelse)
+    if not orelse_nodes:
+        # Flat if/return style: statements after the If in _run_ast_grep.
+        after = False
+        for stmt in run_fn.body:
+            if stmt is inventory_if:
+                after = True
+                continue
+            if after:
+                orelse_nodes.append(stmt)
+    legacy_calls: List[str] = []
+    for node in orelse_nodes:
+        legacy_calls.extend(_call_attr_names(node))
+    if "_repo_root_scan_argv" not in legacy_calls:
+        return False, (
+            "legacy path (no inventory) no longer calls _repo_root_scan_argv — "
+            "root scan must remain explicit when java_files is None"
+        )
+    return True, ""
+
+
 # Closed outcome-bound keys — documents select a key; this file owns the check.
 # Never accept a pytest node id or shell string from markdown (verify_llms_docs hazard).
 BEHAVIOR_CHECKS: Dict[str, Callable[[Path], Tuple[bool, str]]] = {
     "signal_scan_declares_facts_jsonl": _behavior_signal_scan_declares_facts_jsonl,
     "runner_missing_output_is_stage_result": _behavior_runner_missing_output_is_stage_result,
+    "astgrep_inventory_never_widens_to_repo_root": (
+        _behavior_astgrep_inventory_never_widens_to_repo_root
+    ),
 }
 
 
