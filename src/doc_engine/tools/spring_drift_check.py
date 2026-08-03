@@ -247,6 +247,10 @@ STATUS_UNKNOWN_NO_SIGNATURE = "unknown_no_prior_signature"
 STATUS_CONFIG_STRUCTURE_CHANGED = "config_structure_changed"
 STATUS_CONFIG_VALUES_ONLY_CHANGED = "config_values_only_changed_review_needed"
 
+# Wire version for drift_report.json (L5 thin operator schema). Bump only on
+# breaking changes; additive fields keep the same version per rel-schema-outlives-writers.
+DRIFT_REPORT_SCHEMA_VERSION = 1
+
 
 def load_signals(path):
     with open(path) as f:
@@ -775,6 +779,7 @@ def check_drift(repo_path, signals, manifest=None):
         results.sort(key=lambda r: (r["file"] or "", r["line"] or 0, r["source"]))
         status_counts = Counter(r["status"] for r in results)
         return {
+            "schema_version": DRIFT_REPORT_SCHEMA_VERSION,
             "repo_path": os.path.abspath(repo_path),
             "prior_scan_repo_path": signals.get("repo_path"),
             "file_signatures_baseline": baseline_provenance,
@@ -869,6 +874,7 @@ def check_drift(repo_path, signals, manifest=None):
     status_counts = Counter(r["status"] for r in results)
 
     return {
+        "schema_version": DRIFT_REPORT_SCHEMA_VERSION,
         "repo_path": os.path.abspath(repo_path),
         "prior_scan_repo_path": signals.get("repo_path"),
         "file_signatures_baseline": baseline_provenance,

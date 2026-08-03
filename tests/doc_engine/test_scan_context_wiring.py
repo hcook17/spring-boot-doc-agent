@@ -52,8 +52,14 @@ class AstGrepScanContextWiringTest(unittest.TestCase):
         with mock.patch.object(backend, "_find_ast_grep", return_value="/bin/ast-grep"):
             with mock.patch("subprocess.run") as run_mock:
                 run_mock.return_value = mock.Mock(returncode=0, stdout="[]", stderr="")
-                backend._run_ast_grep(str(FIXTURE_DIR), java_files=ctx.java_files)
+                matches, receipt = backend._run_ast_grep(
+                    str(FIXTURE_DIR),
+                    java_files=ctx.java_files,
+                    file_signatures=dict(ctx.file_signatures),
+                )
 
+        self.assertEqual(matches, [])
+        self.assertEqual(receipt["status"], "complete")
         cmd = run_mock.call_args[0][0]
         for path in expected_paths:
             self.assertIn(path, cmd)
@@ -63,8 +69,13 @@ class AstGrepScanContextWiringTest(unittest.TestCase):
         backend = AstGrepBackend()
         with mock.patch.object(backend, "_find_ast_grep", return_value="/bin/ast-grep"):
             with mock.patch("subprocess.run") as run_mock:
-                result = backend._run_ast_grep(str(FIXTURE_DIR), java_files=[])
-        self.assertEqual(result, [])
+                matches, receipt = backend._run_ast_grep(
+                    str(FIXTURE_DIR),
+                    java_files=[],
+                    file_signatures={},
+                )
+        self.assertEqual(matches, [])
+        self.assertEqual(receipt["status"], "complete")
         run_mock.assert_not_called()
 
     def test_run_ast_grep_chunks_paths_instead_of_repo_root_fallback(self):
@@ -79,7 +90,11 @@ class AstGrepScanContextWiringTest(unittest.TestCase):
             ):
                 with mock.patch("subprocess.run") as run_mock:
                     run_mock.return_value = mock.Mock(returncode=0, stdout="[]", stderr="")
-                    backend._run_ast_grep(str(FIXTURE_DIR), java_files=ctx.java_files)
+                    backend._run_ast_grep(
+                        str(FIXTURE_DIR),
+                        java_files=ctx.java_files,
+                        file_signatures=dict(ctx.file_signatures),
+                    )
 
         self.assertGreater(run_mock.call_count, 1)
         seen = []
@@ -106,7 +121,11 @@ class AstGrepScanContextWiringTest(unittest.TestCase):
                 with mock.patch("subprocess.run") as run_mock:
                     run_mock.return_value = mock.Mock(returncode=0, stdout="[]", stderr="")
                     with contextlib.redirect_stderr(err):
-                        backend._run_ast_grep(str(FIXTURE_DIR), java_files=ctx.java_files)
+                        backend._run_ast_grep(
+                            str(FIXTURE_DIR),
+                            java_files=ctx.java_files,
+                            file_signatures=dict(ctx.file_signatures),
+                        )
 
         text = err.getvalue()
         self.assertIn("preserve ScanContext inventory", text)
@@ -124,6 +143,7 @@ class AstGrepScanContextWiringTest(unittest.TestCase):
             )
             for i in range(4)
         ]
+        sigs = {e.rel_path: f"sig{i}" for i, e in enumerate(entries)}
 
         def _stdout_for_cmd(cmd, **_kwargs):
             files = [p for p in cmd if str(p).endswith(".java")]
@@ -135,29 +155,33 @@ class AstGrepScanContextWiringTest(unittest.TestCase):
                 "doc_engine.scanning._scanner_astgrep._PATH_LIST_CHAR_LIMIT", 2**31,
             ):
                 with mock.patch("subprocess.run", side_effect=_stdout_for_cmd) as one_mock:
-                    single = backend._run_ast_grep("/repo", java_files=entries)
+                    single, _ = backend._run_ast_grep(
+                        "/repo", java_files=entries, file_signatures=sigs,
+                    )
             with mock.patch(
                 "doc_engine.scanning._scanner_astgrep._PATH_LIST_CHAR_LIMIT", 40,
             ):
                 with mock.patch("subprocess.run", side_effect=_stdout_for_cmd) as many_mock:
-                    chunked = backend._run_ast_grep("/repo", java_files=entries)
+                    chunked, _ = backend._run_ast_grep(
+                        "/repo", java_files=entries, file_signatures=sigs,
+                    )
 
         self.assertEqual(one_mock.call_count, 1)
         self.assertGreater(many_mock.call_count, 1)
         self.assertEqual(single, chunked)
         self.assertEqual([m["file"] for m in single], [e.full_path for e in entries])
 
-    def test_run_ast_grep_none_inventory_uses_repo_root(self):
-        """Legacy path: java_files is None still scans repo root intentionally."""
+    def test_run_ast_grep_none_inventory_fails_closed(self):
+        """Legacy path: java_files is None cannot prove covering — raises."""
+        from doc_engine.scanning.spring import AstGrepError
+
         backend = AstGrepBackend()
         with mock.patch.object(backend, "_find_ast_grep", return_value="/bin/ast-grep"):
             with mock.patch("subprocess.run") as run_mock:
                 run_mock.return_value = mock.Mock(returncode=0, stdout="[]", stderr="")
-                backend._run_ast_grep(str(FIXTURE_DIR), java_files=None)
-
-        cmd = run_mock.call_args[0][0]
-        self.assertEqual(cmd[-1], str(FIXTURE_DIR))
-        self.assertTrue(any(part == "--globs" for part in cmd))
+                with self.assertRaises(AstGrepError) as ctx:
+                    backend._run_ast_grep(str(FIXTURE_DIR), java_files=None)
+        self.assertIn("inventory not supplied", str(ctx.exception))
 
     def test_run_ast_grep_bisects_on_winerror_206(self):
         backend = AstGrepBackend()
@@ -170,6 +194,7 @@ class AstGrepScanContextWiringTest(unittest.TestCase):
             )
             for i in range(4)
         ]
+        sigs = {e.rel_path: f"sig{i}" for i, e in enumerate(entries)}
         win_exc = OSError(22, "filename or extension is too long")
         win_exc.winerror = 206
 
@@ -188,15 +213,47 @@ class AstGrepScanContextWiringTest(unittest.TestCase):
 
         with mock.patch.object(backend, "_find_ast_grep", return_value="/bin/ast-grep"):
             with mock.patch("subprocess.run", side_effect=_run) as run_mock:
-                matches = backend._run_ast_grep("/repo", java_files=entries)
+                matches, receipt = backend._run_ast_grep(
+                    "/repo", java_files=entries, file_signatures=sigs,
+                )
 
         self.assertEqual(run_mock.call_count, 3)
         self.assertEqual(len(matches), 2)
+        self.assertEqual(receipt["status"], "complete")
+        self.assertGreaterEqual(receipt.get("winerror_206_bisects", 0), 1)
         for call in run_mock.call_args_list:
             cmd = call[0][0]
             # Inventory paths only — never a bare repo-root argv.
             self.assertTrue(any(str(p).endswith(".java") for p in cmd))
             self.assertNotEqual(cmd[-1], "/repo")
+
+    def test_mid_batch_nonzero_exit_fails_closed(self):
+        from doc_engine.scanning.spring import AstGrepError
+
+        backend = AstGrepBackend()
+        entries = [
+            FileEntry(
+                full_path=f"/repo/B{i}.java",
+                rel_path=f"B{i}.java",
+                name=f"B{i}.java",
+                ext=".java",
+            )
+            for i in range(2)
+        ]
+        sigs = {e.rel_path: "x" for e in entries}
+        with mock.patch.object(backend, "_find_ast_grep", return_value="/bin/ast-grep"):
+            with mock.patch(
+                "doc_engine.scanning._scanner_astgrep._PATH_LIST_CHAR_LIMIT", 40,
+            ):
+                with mock.patch("subprocess.run") as run_mock:
+                    run_mock.return_value = mock.Mock(
+                        returncode=1, stdout="", stderr="boom",
+                    )
+                    with self.assertRaises(AstGrepError) as ctx:
+                        backend._run_ast_grep(
+                            "/repo", java_files=entries, file_signatures=sigs,
+                        )
+        self.assertIn("exited with status 1", str(ctx.exception))
 
 
 class CodeQLScanContextWiringTest(unittest.TestCase):

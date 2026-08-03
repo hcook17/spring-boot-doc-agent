@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from doc_engine.core.context import ScanContext
 from doc_engine.core.protocols import Scanner
 from doc_engine.scanning._merge_signals import SpringSignalMerger
-from doc_engine.scanning._orchestrator import run_scan
+from doc_engine.scanning._orchestrator import CoveringProofError, run_scan
 from doc_engine.scanning._resolve_lineage import (
     SpringLineageResolver,
 )
@@ -120,3 +120,5 @@ def scan(
         if isinstance(exc, CodeQLNotFoundError):
             raise CodeQLNotFoundError(str(exc)) from exc
         raise CodeQLScannerError(str(exc)) from exc
+    except CoveringProofError:
+        raise

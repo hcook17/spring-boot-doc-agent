@@ -75,6 +75,9 @@ with the reasoning recorded at the assertion:
   fixed  overlap cascades past adjacent groups — carry_forward no longer
          re-carries overlap seed files (Ch06 + RealEnterpriseRepoTest)
   fixed  `application-dev-local.yml` is now recognized as a config file
+  fixed  Stage-0 covering sibling + Path A internal-key strip (Ch10) —
+         `covering_proof.json` beside `spring_signals.json`; ABSENCE/UNPROVEN
+         stamps in `facts.jsonl`; no `_covering_proof` leak into Path A
   open   a write into a gitignored path is invisible to the write-scope gate
 
 Run with:
@@ -123,6 +126,7 @@ from doc_engine.pipeline.mock_stages import (
 )
 from doc_engine.tools import partition_repo, run_manifest, spring_signal_scan
 from doc_engine.tools.doc_tag_utils import VALID_DOC_FILES
+from doc_engine.scanning.covering import verify_covering_proof
 
 SCRIPT_DIR = SCRIPTS_DIR
 PY = sys.executable
@@ -579,10 +583,23 @@ def setUpModule():
         with open(os.path.join(out_dir, name), encoding="utf-8") as f:
             return json.load(f)
 
+    def load_facts():
+        path = os.path.join(out_dir, "facts.jsonl")
+        if not os.path.isfile(path):
+            return []
+        rows = []
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    rows.append(json.loads(line))
+        return rows
+
     _STATE.update({
         "tmp": tmp, "repo": repo, "out": out_dir, "steps": steps,
         "snapshots": snapshots, "docs": os.path.join(repo, "docs"),
         "signals": load("spring_signals.json"),
+        "covering_proof": load("covering_proof.json"),
+        "facts": load_facts(),
         "groups": load("groups.json"),
         "edges": load("cross_group_edges.json"),
         "manifest": load("run_manifest.json"),
@@ -1194,7 +1211,8 @@ class Ch10CommandChainTest(unittest.TestCase):
 
     def test_every_expected_artifact_exists_and_is_non_empty(self):
         out = _STATE["out"]
-        for name in ("spring_signals.json", "groups.json", "cross_group_edges.json",
+        for name in ("spring_signals.json", "covering_proof.json", "facts.jsonl",
+                     "groups.json", "cross_group_edges.json",
                      "capacity_preflight_report.json", "run_manifest.json",
                      "summaries.json", "architecture_merged.md", "gap_questions.json",
                      "interview_answers.json", "drift_report.json"):
@@ -1202,6 +1220,39 @@ class Ch10CommandChainTest(unittest.TestCase):
                 path = os.path.join(out, name)
                 self.assertTrue(os.path.isfile(path), f"{name} missing")
                 self.assertGreater(os.path.getsize(path), 0)
+
+    def test_covering_proof_verifies_against_path_a_inventory(self):
+        """Deviation: chain greens without a verifiable covering_proof sibling."""
+        signals = _STATE["signals"]
+        proof = _STATE["covering_proof"]
+        self.assertNotIn("_covering_proof", signals)
+        self.assertNotIn("_scan_partials_meta", signals)
+        ok, why = verify_covering_proof(
+            proof,
+            file_signatures=signals["file_signatures"],
+            scanner_version=signals["scanner_version"],
+        )
+        self.assertTrue(ok, why)
+        scanners = {r["scanner"] for r in proof["receipts"]}
+        self.assertEqual(scanners, {"filesystem", "ast-grep"})
+        self.assertTrue(all(r["status"] == "complete" for r in proof["receipts"]))
+
+    def test_facts_ledger_has_absence_or_unproven_stamps(self):
+        """Deviation: dual-emit facts omit ABSENCE/UNPROVEN covering writers."""
+        predicates = {row.get("predicate") for row in _STATE["facts"]}
+        self.assertTrue(
+            predicates & {"ABSENCE", "UNPROVEN"},
+            f"expected ABSENCE/UNPROVEN in facts; got {sorted(predicates)}",
+        )
+        # Default filesystem,ast-grep profile must not claim entity recall.
+        self.assertNotIn("RECALL_MISS", predicates)
+
+    def test_signal_scan_stderr_emits_covering_event(self):
+        """Deviation: covering_proof written silently with no covering_emit telemetry."""
+        err = _STATE["steps"]["signal_scan"].stderr or ""
+        compact = err.replace(" ", "")
+        self.assertIn('"event":"covering_emit"', compact, err[-2000:])
+        self.assertIn("inventory_root", err)
 
     def test_summaries_cover_every_grouped_file(self):
         with open(os.path.join(_STATE["out"], "summaries.json"), encoding="utf-8") as f:
@@ -1220,11 +1271,26 @@ class Ch10CommandChainTest(unittest.TestCase):
         series, exercised against the small checked-in fixture rather than
         paying for a second enterprise-scale scan."""
         with tempfile.TemporaryDirectory() as d:
+            run_dir = os.path.join(d, "run")
             proc = _run([PY, "-m", "doc_engine.pipeline.local_runner",
                          os.path.join(SCRIPT_DIR, "fixtures", "spring_signals"),
-                         "--out-dir", os.path.join(d, "run"), "--skip-drift"])
+                         "--out-dir", run_dir, "--skip-drift"])
             self.assertEqual(proc.returncode, 0, proc.stdout[-4000:] + proc.stderr[-2000:])
             self.assertIn("RESULT: every gate passed", proc.stdout)
+            covering = os.path.join(run_dir, "covering_proof.json")
+            signals_path = os.path.join(run_dir, "spring_signals.json")
+            self.assertTrue(os.path.isfile(covering), "local_runner missing covering_proof.json")
+            with open(signals_path, encoding="utf-8") as f:
+                signals = json.load(f)
+            with open(covering, encoding="utf-8") as f:
+                proof = json.load(f)
+            self.assertNotIn("_covering_proof", signals)
+            ok, why = verify_covering_proof(
+                proof,
+                file_signatures=signals["file_signatures"],
+                scanner_version=signals["scanner_version"],
+            )
+            self.assertTrue(ok, why)
 
 
 class Ch10StalenessTest(unittest.TestCase):

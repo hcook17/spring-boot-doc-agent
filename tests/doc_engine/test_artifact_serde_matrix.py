@@ -17,8 +17,7 @@ from doc_engine.scanning.facts import facts_from_signals, write_facts_jsonl
 
 # Remaining operator / parallel-track artifacts (slices 5+ / hand schema).
 _UNSCHEMATIZED = {
-    "drift_report": "slice 5 — operator report",
-    "capacity_preflight_report": "slice 5 — operator report",
+    "capacity_preflight_report": "slice 5 — operator report (residual after L5 drift)",
     "run_manifest": "parallel hand-schema track",
 }
 

@@ -42,10 +42,13 @@ def test_evidence_subject_remains_file_path_not_symbol() -> None:
         "entity_table_map": {},
     }
     facts = facts_from_signals(signals)
-    assert len(facts) == 1
-    assert facts[0]["subject"] == "src/FooController.java"
+    evidence = [f for f in facts if f.get("rule_id") == "web__rest_controller"]
+    assert len(evidence) == 1
+    assert evidence[0]["subject"] == "src/FooController.java"
     with pytest.raises(SymbolError):
-        parse(facts[0]["subject"])
+        parse(evidence[0]["subject"])
+    # Covering writers stamp UNPROVEN when S1 proof is absent from signals.
+    assert any(f.get("predicate") == "UNPROVEN" for f in facts)
 
 
 def test_contested_maps_to_distinct_symbols_and_stable_display() -> None:
@@ -236,4 +239,7 @@ def test_fact_emit_counts_by_predicate_and_contested_status() -> None:
         "facts_maps_to": 3,
         "facts_maps_to_contested": 2,
         "facts_evidence": 1,
+        "facts_absence": 0,
+        "facts_unproven": 0,
+        "facts_recall_miss": 0,
     }

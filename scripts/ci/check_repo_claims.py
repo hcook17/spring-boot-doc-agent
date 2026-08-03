@@ -950,10 +950,9 @@ def _behavior_astgrep_inventory_never_widens_to_repo_root(
             "inventory branch does not call _invoke_ast_grep_chunked"
         )
 
-    # Legacy path: when inventory is absent, root scan must remain intentional.
+    # No-inventory path must fail closed — never call _repo_root_scan_argv.
     orelse_nodes: List[ast.AST] = list(inventory_if.orelse)
     if not orelse_nodes:
-        # Flat if/return style: statements after the If in _run_ast_grep.
         after = False
         for stmt in run_fn.body:
             if stmt is inventory_if:
@@ -962,12 +961,21 @@ def _behavior_astgrep_inventory_never_widens_to_repo_root(
             if after:
                 orelse_nodes.append(stmt)
     legacy_calls: List[str] = []
+    raises = False
     for node in orelse_nodes:
         legacy_calls.extend(_call_attr_names(node))
-    if "_repo_root_scan_argv" not in legacy_calls:
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Raise):
+                raises = True
+    if "_repo_root_scan_argv" in legacy_calls:
         return False, (
-            "legacy path (no inventory) no longer calls _repo_root_scan_argv — "
-            "root scan must remain explicit when java_files is None"
+            "no-inventory path still calls _repo_root_scan_argv — "
+            "must fail closed without widening to repo root"
+        )
+    if not raises:
+        return False, (
+            "no-inventory path does not raise — must fail closed when "
+            "java_files is None"
         )
     return True, ""
 

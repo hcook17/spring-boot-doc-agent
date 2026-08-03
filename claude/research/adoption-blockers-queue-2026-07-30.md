@@ -103,10 +103,25 @@ Prefer outcome-bound tests over substring-only `verify:` where the claim is beha
 
 **DDIA card:** domain `05-maintainability-and-change`; open `maintainability-operability-evolvability`, `trust-but-verify-and-auditability`. `CONSTRAINTS.md` enterprise item 6 — `gh api` repo-admin; **not agent**. Confirmed unprotected (404, 2026-07-30). **Owner is not doing L4 now** — does not block L2b / L3 sequencing. Choosing never to require CI would need a written deviation.
 
-### L5 — Thin drift schema — **after L2 / L2b**
+### Gap probe + AET — Stage-0 residual measurement — **landed (schema v2)**
+
+Tool: `python -m doc_engine.tools.gap_probe` (`GAP_PROBE_SCHEMA_VERSION = 2`). Rates memo: [`gap-probe-measurement-design-2026-07-30.md`](gap-probe-measurement-design-2026-07-30.md). **AET normative:** [`aet-measurement-2026-07-30.md`](aet-measurement-2026-07-30.md) — \(\hat{\mathcal{M}}\) with callable denoms, scoring-env \(\Delta\hat{\mathbf{r}}\), residuals, \(U_w\) comparison index, \(\Pi_B\)/\(L(B)\); axioms A1–A5. Opt-in ocs tests: [`tests/doc_engine/test_gap_probe_ocs_real_world.py`](../../tests/doc_engine/test_gap_probe_ocs_real_world.py) via `GAP_PROBE_OCS_ARTIFACTS_DIR` / `GAP_PROBE_OCS_REPO`+`GAP_PROBE_OCS_LIVE_SCAN`. **ocs 2026-07-30 (v1 baseline):** \(R_{\text{sym}}=1\), \(R_{\text{coll}}=0\), \(R_{\text{join}}=1\), \(\bar R_{\text{lin}}=0.49\), \(U=0.278\); dominant lineage failure = `dialect_or_syntax` (95).
+
+**Re-rank from thresholds (not narrative):**
+
+| Item | Decision |
+|------|----------|
+| Path A simple-name rekey | **Do not reopen** — \(R_{\text{coll}}=0\) and \(R_{\text{join}}=1\) on ocs |
+| L5 / L6 | **L5 drift done; L6 next** — capacity schema still slice-5 residual; AET does not displace product engineering |
+| Lineage dialect investment | **Measured residual** after L5/L6 — dominant stratum fired |
+| Capacity 80k | **Unchanged** — separate Stage-4 `measured_stage4_inputs` family |
+
+### L5 — Thin drift schema — **done (drift_report; capacity residual)**
 
 **DDIA card:** domain `02-encoding-and-evolution`; open `encoding-and-compatibility`, schema memo slice 5. Scope: primarily **`drift_report`** (residual capacity fields only if L2 did not touch them). Additive + `schema_version` per `rel-schema-outlives-writers`; do not invent fields without writers.
 
-### L6 — Coverage SoR hygiene follow-ons — **after L2 / L2b**
+**Landed:** `DRIFT_REPORT_SCHEMA_VERSION = 1` on both `check_drift` return paths; `DriftReportArtifact` (+ nested thin models) registered in `ARTIFACT_MODELS` / `ARTIFACT_FILENAMES`; `scripts/schemas/drift_report.schema.json`; contract tests in `tests/doc_engine/test_drift_report_schema.py`; opt-in ocs witness in `tests/doc_engine/test_drift_report_ocs_real_world.py` (`DRIFT_OCS_ARTIFACTS_DIR` + `DRIFT_OCS_REPO`). **Still open within slice 5:** thin `capacity_preflight_report` schema (fields already written by L2; no formal model yet).
+
+### L6 — Coverage SoR hygiene follow-ons — **next (after L5)**
 
 **DDIA card:** domains `01` + `04`; cite `dev-coverage-denominator-codeql`, `coverage-gates`, `rel-gate-needs-witness`. Work: `rule_coverage_baseline.json` schema_version regenerate if needed; optional `codeql_rule_count` derivation; residual doc debt. **Do not** invent client-named semgrep recall baseline (`dev-fp-ratchet-separate-from-recall`).
