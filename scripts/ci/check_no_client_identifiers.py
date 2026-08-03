@@ -140,6 +140,15 @@ def _tracked_paths(root: Path) -> List[str]:
     return [p for p in result.stdout.decode("utf-8", errors="replace").split("\0") if p]
 
 
+def _redact_tokens(text: str, tokens: Sequence[str]) -> str:
+    """Replace denylist tokens so CI logs never echo the forbidden strings."""
+    out = text
+    for token in tokens:
+        if token:
+            out = out.replace(token, "<denylist-token>")
+    return out
+
+
 def scan_paths_for_tokens(
     root: Path,
     rel_paths: Iterable[str],
@@ -150,6 +159,9 @@ def scan_paths_for_tokens(
     """Return findings for denylist tokens in paths and UTF-8 file contents.
 
     Used by ``--tracked-tree`` and by unit tests against a synthetic file set.
+    Finding strings intentionally omit the raw token (and redact it from any
+    path that would otherwise reprint it) so CI logs are not a second channel
+    for the identifiers this gate exists to keep out of the tree.
     """
     token_list = list(tokens) if tokens is not None else load_denylist(root)
     denylist_posix = DENYLIST_REL.as_posix()
@@ -158,9 +170,14 @@ def scan_paths_for_tokens(
         posix = rel.replace("\\", "/")
         if skip_denylist_file and posix == denylist_posix:
             continue
+        safe_path = _redact_tokens(posix, token_list)
         for token in token_list:
             if token in posix:
-                findings.append(f"path {posix!r} contains denylist token {token!r}")
+                findings.append(
+                    f"path {safe_path!r} matches a denylist entry "
+                    f"(token length {len(token)})"
+                )
+                break
         path = root / rel
         if not path.is_file():
             continue
@@ -173,8 +190,10 @@ def scan_paths_for_tokens(
         for token in token_list:
             if token in text:
                 findings.append(
-                    f"{posix}: content contains denylist token {token!r}"
+                    f"{safe_path}: content matches a denylist entry "
+                    f"(token length {len(token)})"
                 )
+                break
     return findings
 
 
@@ -300,8 +319,10 @@ def main(argv: list[str]) -> int:
             for finding in findings:
                 print(f"  - {finding}", file=sys.stderr)
             print(
-                "\nPurge the token from tracked files, or add it only to "
-                f"{DENYLIST_REL.as_posix()} if it is a newly forbidden name.",
+                "\nPurge the matching denylist entry from tracked files "
+                f"(see {DENYLIST_REL.as_posix()} for the forbidden set). "
+                "Findings above intentionally omit the raw token so CI logs "
+                "are not a second disclosure channel.",
                 file=sys.stderr,
             )
             return 1
