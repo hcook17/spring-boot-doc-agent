@@ -215,7 +215,10 @@ class TrackedTreeDenylistTest(unittest.TestCase):
                 root, [rel], tokens=tokens, skip_denylist_file=True
             )
             self.assertTrue(findings)
-            self.assertTrue(any(token in f for f in findings))
+            self.assertTrue(any("docs/note.md" in f for f in findings))
+            self.assertTrue(any("content matches a denylist entry" in f for f in findings))
+            joined = "\n".join(findings)
+            self.assertNotIn(token, joined)
 
     def test_planted_token_in_path_name_is_reported(self) -> None:
         tokens = gate.load_denylist(REPO_ROOT)
@@ -229,7 +232,10 @@ class TrackedTreeDenylistTest(unittest.TestCase):
             findings = gate.scan_paths_for_tokens(
                 root, [rel], tokens=tokens, skip_denylist_file=True
             )
-            self.assertTrue(any("path" in f and token in f for f in findings))
+            self.assertTrue(any("path" in f and "matches a denylist entry" in f for f in findings))
+            joined = "\n".join(findings)
+            self.assertNotIn(token, joined)
+            self.assertIn("<denylist-token>", joined)
 
     def test_clean_temp_tree_has_no_findings(self) -> None:
         tokens = gate.load_denylist(REPO_ROOT)
