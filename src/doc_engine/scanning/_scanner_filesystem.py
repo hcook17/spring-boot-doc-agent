@@ -181,10 +181,28 @@ class FilesystemBackend(ScannerBackend):
         for bucket in buckets.values():
             bucket.sort(key=lambda e: (e["file"], e.get("line", 0)))
 
+        from doc_engine.scanning.covering import (
+            COVERING_RECEIPT_KEY,
+            build_receipt,
+            inventory_root,
+        )
+
+        root = inventory_root(file_signatures)
+        receipt = build_receipt(
+            scanner=self.name,
+            version_hash=self.version_hash(),
+            scope="all_signatures",
+            expected_subset_root=root,
+            acked_subset_root=root,
+            status="complete",
+            covered_count=len(file_signatures),
+            batches=1,
+        )
         return {
             "evidence": buckets,
             "files_scanned": files_scanned,
             "file_signatures": file_signatures,
             "redaction_zones": redaction_zones,
             "config_key_sets": config_key_sets,
+            COVERING_RECEIPT_KEY: receipt,
         }

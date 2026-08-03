@@ -15,6 +15,7 @@ from doc_engine.scanning._resolve_lineage import (
 from doc_engine.scanning._scanner_registry import get_scanner, resolve_scanner_names
 from doc_engine.scanning.build_command import BuildCommandError, validate_build_command
 from doc_engine.scanning.support._codeql_runner import CodeQLError, CodeQLNotFoundError
+from doc_engine.scanning._orchestrator import CoveringProofError
 
 
 class CodeQLScannerError(RuntimeError):
@@ -120,3 +121,5 @@ def scan(
         if isinstance(exc, CodeQLNotFoundError):
             raise CodeQLNotFoundError(str(exc)) from exc
         raise CodeQLScannerError(str(exc)) from exc
+    except CoveringProofError:
+        raise

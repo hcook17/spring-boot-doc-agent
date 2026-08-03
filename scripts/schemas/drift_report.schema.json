@@ -1,0 +1,276 @@
+{
+  "$defs": {
+    "DriftBaselineProvenance": {
+      "additionalProperties": true,
+      "description": "Where tier-1 file_signatures came from (signals vs run_manifest).",
+      "properties": {
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "repo_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo Path"
+        },
+        "commit_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Commit Hash"
+        },
+        "dirty": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dirty"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "DriftBaselineProvenance",
+      "type": "object"
+    },
+    "DriftFileSummary": {
+      "additionalProperties": true,
+      "description": "Tier-1 file classification lists.",
+      "properties": {
+        "unchanged": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Unchanged",
+          "type": "array"
+        },
+        "changed": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Changed",
+          "type": "array"
+        },
+        "deleted": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Deleted",
+          "type": "array"
+        },
+        "added": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Added",
+          "type": "array"
+        }
+      },
+      "title": "DriftFileSummary",
+      "type": "object"
+    },
+    "DriftResultRow": {
+      "additionalProperties": true,
+      "description": "One citation outcome in drift_report.results.",
+      "properties": {
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "File"
+        },
+        "line": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line"
+        },
+        "rule_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rule Id"
+        },
+        "match": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Match"
+        },
+        "status": {
+          "enum": [
+            "unchanged",
+            "confirmed_still_present",
+            "drifted",
+            "file_deleted",
+            "suspected_drift_content_changed_no_rule_to_recheck",
+            "unknown_no_prior_signature",
+            "config_structure_changed",
+            "config_values_only_changed_review_needed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "tier": {
+          "title": "Tier",
+          "type": "integer"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        }
+      },
+      "required": [
+        "source",
+        "status",
+        "tier"
+      ],
+      "title": "DriftResultRow",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "drift_report.json \u2014 thin operator report from spring_drift_check (L5).",
+  "properties": {
+    "schema_version": {
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "repo_path": {
+      "title": "Repo Path",
+      "type": "string"
+    },
+    "prior_scan_repo_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Prior Scan Repo Path"
+    },
+    "file_signatures_baseline": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DriftBaselineProvenance"
+        },
+        {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      ],
+      "title": "File Signatures Baseline"
+    },
+    "file_summary": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DriftFileSummary"
+        },
+        {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      ],
+      "title": "File Summary"
+    },
+    "citations_checked": {
+      "title": "Citations Checked",
+      "type": "integer"
+    },
+    "status_counts": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Status Counts",
+      "type": "object"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/DriftResultRow"
+      },
+      "title": "Results",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "repo_path",
+    "file_signatures_baseline",
+    "file_summary",
+    "citations_checked",
+    "status_counts",
+    "results"
+  ],
+  "title": "DriftReportArtifact",
+  "type": "object"
+}

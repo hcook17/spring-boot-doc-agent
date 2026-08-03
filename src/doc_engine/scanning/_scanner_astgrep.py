@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ast-grep scanner backend."""
+"""ast-grep scanner backend — fail-closed extraction + covering receipts."""
 
 import hashlib
 import json
@@ -11,9 +11,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from doc_engine.core.context import FileEntry, ScanContext
-from doc_engine.core.excludes import DEFAULT_EXCLUDED_DIRS, load_gitignore_spec
+from doc_engine.core.excludes import load_gitignore_spec
 from doc_engine.scanning._paths import ast_grep_rules_path
 from doc_engine.scanning._scanner_base import ScannerBackend
+from doc_engine.scanning.covering import (
+    COVERING_RECEIPT_KEY,
+    build_receipt,
+    java_scope_paths,
+    subset_root,
+)
 from doc_engine.scanning.java_extract import (
     extract_entity,
     extract_query_from_astgrep_args,
@@ -25,14 +31,17 @@ from doc_engine.scanning.java_extract import (
 RULE_FILE = ast_grep_rules_path()
 
 # Windows CreateProcess fails with WinError 206 when hundreds of absolute paths
-# are passed as separate argv entries (common on large Java repos).
-# Budget is conservative vs the ~32KiB CreateProcess ceiling; chunking keeps
-# ScanContext's exact inventory instead of falling back to a repo-root walk.
+# are passed as separate argv entries. Chunking preserves ScanContext inventory.
 _PATH_LIST_CHAR_LIMIT = 7000 if sys.platform == "win32" else 2 ** 31
+
+_EVIDENCE_BUCKETS = {
+    "api_surface", "outbound_clients", "messaging", "persistence",
+    "raw_queries", "security", "configuration", "error_handling",
+    "observability", "deployment", "testing", "references",
+}
 
 
 def _argv_char_len(parts: List[str]) -> int:
-    """Approximate CreateProcess argv cost: sum of lengths plus one separator each."""
     return sum(len(part) + 1 for part in parts)
 
 
@@ -41,12 +50,7 @@ def chunk_paths_for_argv(
     paths: List[str],
     limit: int,
 ) -> List[List[str]]:
-    """Partition ``paths`` so each ``base_argv + chunk`` stays within ``limit`` chars.
-
-    Preserves path order. A single path that alone exceeds the remaining budget
-    still becomes its own chunk (CreateProcess will fail loudly rather than
-    silently widening the scan to the repo root).
-    """
+    """Partition ``paths`` so each ``base_argv + chunk`` stays within ``limit`` chars."""
     if not paths:
         return []
     base_len = _argv_char_len(base_argv)
@@ -63,7 +67,6 @@ def chunk_paths_for_argv(
         current.append(path)
         current_len += cost
         if current_len > budget and len(current) == 1:
-            # Solo path exceeds budget — emit it alone and continue.
             chunks.append(current)
             current = []
             current_len = 0
@@ -73,8 +76,12 @@ def chunk_paths_for_argv(
 
 
 def _is_windows_cmdline_too_long(exc: OSError) -> bool:
-    """True when CreateProcess rejected the argv (WinError 206)."""
     return getattr(exc, "winerror", None) == 206
+
+
+def _astgrep_errors():
+    from doc_engine.scanning.spring import AstGrepError, AstGrepNotFoundError
+    return AstGrepError, AstGrepNotFoundError
 
 
 class AstGrepBackend(ScannerBackend):
@@ -115,15 +122,9 @@ class AstGrepBackend(ScannerBackend):
             "--no-ignore", "exclude",
         ]
 
-    def _repo_root_scan_argv(self, ast_grep_path: str, repo_path: str) -> List[str]:
-        cmd = self._scan_base_argv(ast_grep_path)
-        for d in sorted(DEFAULT_EXCLUDED_DIRS):
-            cmd += ["--globs", f"!**/{d}/**"]
-        cmd.append(repo_path)
-        return cmd
-
     def _invoke_ast_grep(self, cmd: List[str]) -> List[Dict[str, Any]]:
-        """Run one ast-grep argv; return parsed match list or [] on soft failure."""
+        """Run one ast-grep argv; raise on any process/JSON failure (fail-closed)."""
+        AstGrepError, _ = _astgrep_errors()
         try:
             proc = subprocess.run(
                 cmd, capture_output=True, text=True,
@@ -132,17 +133,16 @@ class AstGrepBackend(ScannerBackend):
         except OSError as exc:
             if _is_windows_cmdline_too_long(exc):
                 raise
-            print(f"warning: ast-grep failed to start: {exc}", file=sys.stderr)
-            return []
+            raise AstGrepError(f"ast-grep failed to start: {exc}") from exc
         if proc.returncode != 0:
-            print(f"warning: ast-grep exited with status {proc.returncode}", file=sys.stderr)
-            print(proc.stderr, file=sys.stderr)
-            return []
+            raise AstGrepError(
+                f"ast-grep exited with status {proc.returncode}: "
+                f"{(proc.stderr or '').strip()}"
+            )
         try:
             return json.loads(proc.stdout) if proc.stdout.strip() else []
         except json.JSONDecodeError as e:
-            print(f"warning: could not parse ast-grep output: {e}", file=sys.stderr)
-            return []
+            raise AstGrepError(f"ast-grep output is not valid JSON: {e}") from e
 
     def _invoke_ast_grep_chunked(
         self,
@@ -150,8 +150,9 @@ class AstGrepBackend(ScannerBackend):
         paths: List[str],
         *,
         limit: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
-        """Scan ``paths`` in argv-sized chunks; never widen to repo-root."""
+    ) -> tuple[List[Dict[str, Any]], int, int]:
+        """Scan paths in argv chunks. Returns (matches, batch_count, bisects)."""
+        AstGrepError, _ = _astgrep_errors()
         char_limit = _PATH_LIST_CHAR_LIMIT if limit is None else limit
         chunks = chunk_paths_for_argv(base_argv, paths, char_limit)
         if len(chunks) > 1:
@@ -162,6 +163,7 @@ class AstGrepBackend(ScannerBackend):
                 file=sys.stderr,
             )
         matches: List[Dict[str, Any]] = []
+        bisects = 0
         for chunk in chunks:
             cmd = base_argv + chunk
             try:
@@ -170,57 +172,103 @@ class AstGrepBackend(ScannerBackend):
                 if not _is_windows_cmdline_too_long(exc):
                     raise
                 if len(chunk) == 1:
-                    print(
-                        "warning: single Java path still exceeds CreateProcess "
-                        f"argv limit; skipping: {chunk[0]}",
-                        file=sys.stderr,
-                    )
-                    continue
-                # Heuristic under-shot the real ceiling — bisect this chunk.
+                    raise AstGrepError(
+                        "single Java path exceeds CreateProcess argv limit; "
+                        f"incomplete inventory: {chunk[0]}"
+                    ) from exc
                 mid = len(chunk) // 2
+                bisects += 1
                 print(
                     "warning: CreateProcess WinError 206 on a path batch "
                     f"({len(chunk)} files); bisecting and retrying",
                     file=sys.stderr,
                 )
-                matches.extend(
-                    self._invoke_ast_grep_chunked(
-                        base_argv, chunk[:mid], limit=char_limit,
-                    )
+                left, lb, lbi = self._invoke_ast_grep_chunked(
+                    base_argv, chunk[:mid], limit=char_limit,
                 )
-                matches.extend(
-                    self._invoke_ast_grep_chunked(
-                        base_argv, chunk[mid:], limit=char_limit,
-                    )
+                right, rb, rbi = self._invoke_ast_grep_chunked(
+                    base_argv, chunk[mid:], limit=char_limit,
                 )
-        return matches
+                matches.extend(left)
+                matches.extend(right)
+                bisects += lbi + rbi
+                # batch count accounted at top-level via len(chunks); nested ok
+                _ = lb, rb
+        return matches, len(chunks), bisects
 
     def _run_ast_grep(
         self,
         repo_path: str,
         java_files: Optional[List[FileEntry]] = None,
-    ) -> List[Dict[str, Any]]:
+        *,
+        file_signatures: Optional[Dict[str, str]] = None,
+    ) -> tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        AstGrepError, AstGrepNotFoundError = _astgrep_errors()
         ast_grep_path = self._find_ast_grep()
         if ast_grep_path is None:
-            print(
-                "warning: ast-grep backend skipped — binary not on PATH. "
-                "Install ast-grep to enable this backend.",
-                file=sys.stderr,
+            raise AstGrepNotFoundError(
+                "ast-grep binary is not on PATH. "
+                "Install ast-grep to enable this backend."
             )
-            return []
         if not RULE_FILE.is_file():
-            print(f"warning: ast-grep rule file not found: {RULE_FILE}", file=sys.stderr)
-            return []
+            raise AstGrepNotFoundError(f"ast-grep rule file not found: {RULE_FILE}")
 
         base_argv = self._scan_base_argv(ast_grep_path)
+        sigs = file_signatures or {}
+        expected_paths = java_scope_paths(sigs) if sigs else []
+        expected_root = subset_root(sigs, expected_paths) if sigs else inventory_root_empty()
+
         if java_files is not None:
             if not java_files:
-                return []
+                acked_root = subset_root(sigs, []) if sigs else expected_root
+                status = "complete" if acked_root == expected_root else "failed"
+                error = (
+                    None
+                    if status == "complete"
+                    else "empty java_files inventory does not cover ScanContext java signatures"
+                )
+                receipt = build_receipt(
+                    scanner=self.name,
+                    version_hash=self.version_hash(),
+                    scope="java",
+                    expected_subset_root=expected_root,
+                    acked_subset_root=acked_root,
+                    status=status,
+                    covered_count=0,
+                    batches=0,
+                    error=error,
+                )
+                if status == "failed":
+                    raise AstGrepError(error or "ast-grep covering receipt failed")
+                return [], receipt
             paths = [entry.full_path for entry in java_files]
-            return self._invoke_ast_grep_chunked(base_argv, paths)
+            acked_rels = [entry.rel_path for entry in java_files]
+            matches, batches, bisects = self._invoke_ast_grep_chunked(base_argv, paths)
+            acked_root = subset_root(sigs, acked_rels) if sigs else expected_root
+            status = "complete" if acked_root == expected_root else "failed"
+            error = None
+            if status == "failed":
+                error = "acked java subset does not match ScanContext inventory"
+            receipt = build_receipt(
+                scanner=self.name,
+                version_hash=self.version_hash(),
+                scope="java",
+                expected_subset_root=expected_root,
+                acked_subset_root=acked_root,
+                status=status,
+                covered_count=len(acked_rels),
+                batches=batches,
+                winerror_206_bisects=bisects,
+                error=error,
+            )
+            if status == "failed":
+                raise AstGrepError(error or "ast-grep covering receipt failed")
+            return matches, receipt
 
-        # No inventory supplied — single root scan with exclude globs (legacy).
-        return self._invoke_ast_grep(self._repo_root_scan_argv(ast_grep_path, repo_path))
+        # No inventory — cannot prove covering; do not widen to repo-root scan.
+        raise AstGrepError(
+            "java_files inventory not supplied; repo-root scan cannot prove covering"
+        )
 
     def scan(
         self,
@@ -229,10 +277,18 @@ class AstGrepBackend(ScannerBackend):
         respect_gitignore: bool = False,
         **kwargs: Any,
     ) -> Dict[str, Any]:
+        AstGrepError, _ = _astgrep_errors()
         repo_path = os.path.abspath(repo_path)
         scan_context: Optional[ScanContext] = kwargs.get("scan_context")
         java_files = scan_context.java_files if scan_context is not None else None
-        matches = self._run_ast_grep(repo_path, java_files=java_files)
+        file_signatures = (
+            dict(scan_context.file_signatures) if scan_context is not None else {}
+        )
+        matches, receipt = self._run_ast_grep(
+            repo_path,
+            java_files=java_files,
+            file_signatures=file_signatures,
+        )
         gitignore_spec = load_gitignore_spec(repo_path) if respect_gitignore else None
 
         evidence: Dict[str, List[Dict[str, Any]]] = {}
@@ -258,7 +314,10 @@ class AstGrepBackend(ScannerBackend):
                 header = read_source_lines(repo_path, rel, 1, max_lines=40)
                 extracted = extract_entity(rel, text, package_source=header or None)
                 if extracted is None:
-                    continue
+                    raise AstGrepError(
+                        f"persistence__entity match at {rel}:{line} failed extract_entity "
+                        "(annotation-induced extract failure — STRUCTURAL)"
+                    )
                 class_name, map_entry = extracted
                 map_entry["rule_id"] = rule_id
                 map_entry["match"] = match_str
@@ -270,16 +329,10 @@ class AstGrepBackend(ScannerBackend):
                 continue
 
             bucket, _, _ = rule_id.partition("__")
-            if bucket not in evidence and bucket not in {
-                "api_surface", "outbound_clients", "messaging", "persistence",
-                "raw_queries", "security", "configuration", "error_handling",
-                "observability", "deployment", "testing", "references",
-            }:
-                print(
-                    f"warning: ast-grep rule id '{rule_id}' has no matching evidence bucket, skipping",
-                    file=sys.stderr,
+            if bucket not in _EVIDENCE_BUCKETS:
+                raise AstGrepError(
+                    f"ast-grep rule id '{rule_id}' has no matching evidence bucket"
                 )
-                continue
 
             entry: Dict[str, Any] = {
                 "file": rel, "line": line, "match": match_str, "rule_id": rule_id
@@ -301,4 +354,10 @@ class AstGrepBackend(ScannerBackend):
         return {
             "evidence": evidence,
             "entity_table_map_candidates": entity_table_map_candidates,
+            COVERING_RECEIPT_KEY: receipt,
         }
+
+
+def inventory_root_empty() -> str:
+    from doc_engine.scanning.covering import inventory_root
+    return inventory_root({})

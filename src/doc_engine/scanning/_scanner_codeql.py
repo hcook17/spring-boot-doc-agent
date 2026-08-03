@@ -160,4 +160,38 @@ class CodeQLBackend(ScannerBackend):
         for bucket in evidence.values():
             bucket.sort(key=lambda e: (e["file"], e.get("line", 0)))
 
-        return {"evidence": evidence, "entity_table_map_candidates": entity_candidates}
+        from doc_engine.scanning.covering import (
+            COVERING_RECEIPT_KEY,
+            build_receipt,
+            java_scope_paths,
+            subset_root,
+        )
+
+        sigs = dict(scan_context.file_signatures) if scan_context is not None else {}
+        expected_paths = java_scope_paths(sigs)
+        expected_root = subset_root(sigs, expected_paths)
+        if java_rels is not None:
+            acked = sorted(java_rels)
+        else:
+            acked = expected_paths
+        acked_root = subset_root(sigs, acked)
+        status = "complete" if acked_root == expected_root else "failed"
+        receipt = build_receipt(
+            scanner=self.name,
+            version_hash=self.version_hash(),
+            scope="java",
+            expected_subset_root=expected_root,
+            acked_subset_root=acked_root,
+            status=status,
+            covered_count=len(acked),
+            batches=1,
+            error=None if status == "complete" else "codeql acked java subset mismatch",
+        )
+        if status == "failed":
+            raise CodeQLError(receipt["error"] or "codeql covering receipt failed")
+
+        return {
+            "evidence": evidence,
+            "entity_table_map_candidates": entity_candidates,
+            COVERING_RECEIPT_KEY: receipt,
+        }

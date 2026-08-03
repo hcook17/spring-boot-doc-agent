@@ -104,6 +104,7 @@ def test_artifact_filenames_cover_models():
     assert set(ARTIFACT_FILENAMES) == {
         "spring_signals", "groups", "summaries", "interview_answers", "facts",
         "certification", "cross_group_edges", "gap_questions", "architecture_testing_review",
+        "drift_report",
     }
 
 

@@ -177,6 +177,70 @@ def _facts_from_evidence(
     return facts
 
 
+def covering_writer_facts(signals: Mapping[str, Any]) -> List[Dict[str, Any]]:
+    """ABSENCE/UNPROVEN + RECALL_MISS from covering proof + per-arm entity keys.
+
+    Internal keys ``_covering_proof`` / ``_scan_partials_meta`` are consumed when
+    present (orchestrator). Without a proof, absence stamps are all UNPROVEN and
+    recall is omitted.
+    """
+    from doc_engine.scanning.absence import write_absence_facts
+    from doc_engine.scanning.covering import verify_covering_proof
+    from doc_engine.scanning.recall_delta import write_recall_miss_facts
+
+    proof = signals.get("_covering_proof")
+    meta = signals.get("_scan_partials_meta") or {}
+    covering_ok = False
+    covering_root = None
+    scanner_version = signals.get("scanner_version")
+    astgrep_receipt_complete = False
+    if isinstance(proof, Mapping):
+        covering_root = proof.get("inventory_root")
+        # Re-verify against embedded file_signatures when present on signals.
+        sigs = signals.get("file_signatures") or {}
+        if isinstance(sigs, Mapping) and scanner_version:
+            covering_ok, _ = verify_covering_proof(
+                proof,
+                file_signatures=sigs,
+                scanner_version=str(scanner_version),
+            )
+        else:
+            covering_ok = False
+        for receipt in proof.get("receipts") or []:
+            if (
+                isinstance(receipt, Mapping)
+                and receipt.get("scanner") == "ast-grep"
+                and receipt.get("status") == "complete"
+            ):
+                astgrep_receipt_complete = True
+                break
+
+    facts = write_absence_facts(
+        signals,
+        covering_ok=covering_ok,
+        covering_root=covering_root if isinstance(covering_root, str) else None,
+        scanner_version=str(scanner_version) if scanner_version else None,
+        astgrep_receipt_complete=astgrep_receipt_complete,
+    )
+
+    entity_keys = meta.get("entity_keys_by_scanner") or {}
+    if isinstance(entity_keys, Mapping):
+        native = set(entity_keys.get("ast-grep") or [])
+        for arm in ("codeql", "multipass", "metamodel"):
+            oracle = set(entity_keys.get(arm) or [])
+            if oracle:
+                facts.extend(
+                    write_recall_miss_facts(
+                        signals,
+                        native_entity_keys=native,
+                        oracle_entity_keys=oracle,
+                        oracle_arm=arm,
+                    )
+                )
+                break
+    return facts
+
+
 def facts_from_signals(signals: Mapping[str, Any]) -> List[Dict[str, Any]]:
     """Project a spring_signals dict into sorted fact records."""
     default_scanner = _default_scanner(signals)
@@ -187,6 +251,7 @@ def facts_from_signals(signals: Mapping[str, Any]) -> List[Dict[str, Any]]:
     entity_table_map = signals.get("entity_table_map") or {}
     if isinstance(entity_table_map, Mapping):
         facts.extend(_maps_to_from_entity_table_map(entity_table_map, default_scanner))
+    facts.extend(covering_writer_facts(signals))
     facts.sort(key=_sort_key)
     return facts
 
@@ -228,6 +293,9 @@ def fact_emit_counts(facts: List[Mapping[str, Any]]) -> Dict[str, int]:
     maps_to = 0
     maps_to_contested = 0
     evidence = 0
+    absence = 0
+    unproven = 0
+    recall_miss = 0
     for fact in facts:
         predicate = fact.get("predicate")
         if predicate == "MAPS_TO":
@@ -235,6 +303,12 @@ def fact_emit_counts(facts: List[Mapping[str, Any]]) -> Dict[str, int]:
             quals = fact.get("qualifiers") or {}
             if isinstance(quals, Mapping) and quals.get("status") == "contested":
                 maps_to_contested += 1
+        elif predicate == "ABSENCE":
+            absence += 1
+        elif predicate == "UNPROVEN":
+            unproven += 1
+        elif predicate == "RECALL_MISS":
+            recall_miss += 1
         else:
             evidence += 1
     return {
@@ -242,4 +316,7 @@ def fact_emit_counts(facts: List[Mapping[str, Any]]) -> Dict[str, int]:
         "facts_maps_to": maps_to,
         "facts_maps_to_contested": maps_to_contested,
         "facts_evidence": evidence,
+        "facts_absence": absence,
+        "facts_unproven": unproven,
+        "facts_recall_miss": recall_miss,
     }

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "covering_proof.schema.json",
+  "title": "CoveringProof",
+  "description": "S1 Stage-0 covering proof: inventory_root over file_signatures plus per-backend receipts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "inventory_root",
+    "file_signature_algorithm",
+    "scanner_version",
+    "walk",
+    "barrier",
+    "receipts"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "inventory_root": { "type": "string", "minLength": 1 },
+    "file_signature_algorithm": { "type": "string", "const": "sha256" },
+    "scanner_version": { "type": "string", "minLength": 1 },
+    "walk": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "respect_gitignore": { "type": "boolean" }
+      }
+    },
+    "barrier": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["kind", "inventory_root"],
+      "properties": {
+        "kind": { "type": "string" },
+        "inventory_root": { "type": "string", "minLength": 1 }
+      }
+    },
+    "receipts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "scanner",
+          "version_hash",
+          "scope",
+          "expected_subset_root",
+          "acked_subset_root",
+          "status"
+        ],
+        "properties": {
+          "scanner": { "type": "string", "minLength": 1 },
+          "version_hash": { "type": "string", "minLength": 1 },
+          "scope": { "type": "string", "minLength": 1 },
+          "expected_subset_root": { "type": "string", "minLength": 1 },
+          "acked_subset_root": { "type": "string", "minLength": 1 },
+          "status": { "type": "string", "enum": ["complete", "failed"] },
+          "covered_count": { "type": "integer", "minimum": 0 },
+          "batches": { "type": "integer", "minimum": 0 },
+          "winerror_206_bisects": { "type": "integer", "minimum": 0 },
+          "error": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

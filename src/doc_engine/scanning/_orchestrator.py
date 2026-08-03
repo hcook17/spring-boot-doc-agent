@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
-"""Generic Stage 0 orchestrator.
-
-This module knows nothing about Java, Spring, or the fourteen-file taxonomy. It
-only knows the Scanner, Merger, and LineageResolver protocols and wires them
-together to produce a final Signal dict.
-"""
+"""Generic Stage 0 orchestrator with covering-proof barrier."""
 
 import hashlib
 from typing import Any, Dict, List
 
 from doc_engine.core.context import ScanContext
 from doc_engine.core.protocols import LineageResolver, Merger, Scanner
+from doc_engine.scanning.covering import (
+    build_covering_proof,
+    pop_receipt,
+    verify_covering_proof,
+)
+
+
+class CoveringProofError(RuntimeError):
+    """Raised when Stage-0 covering receipts fail the inventory barrier."""
 
 
 def _combined_scanner_version(scanners: List[Scanner]) -> str:
@@ -28,19 +32,7 @@ def run_scan(
     lineage_resolver: LineageResolver,
     **kwargs: Any,
 ) -> Dict[str, Any]:
-    """Run all scanners, merge their partial signals, and resolve lineage.
-
-    Args:
-        repo_path: absolute path to the target repository.
-        scanners: list of instantiated Scanner backends to run.
-        merger: a Merger implementation.
-        lineage_resolver: a LineageResolver implementation.
-        **kwargs: extra arguments passed to each scanner's scan() method.
-            scan_context: optional pre-built ScanContext (one walk for all consumers).
-
-    Returns:
-        A complete Signal dict (for the Spring implementation, a spring_signals.json).
-    """
+    """Run all scanners, merge, resolve lineage, attach covering proof."""
     if kwargs.get("scan_context") is None:
         respect_gitignore = bool(kwargs.get("respect_gitignore", False))
         kwargs = {
@@ -48,13 +40,53 @@ def run_scan(
             "scan_context": ScanContext.build(repo_path, respect_gitignore=respect_gitignore),
         }
 
+    scan_context: ScanContext = kwargs["scan_context"]
     scanner_version = _combined_scanner_version(scanners)
 
     partials = []
+    receipts = []
     for scanner in scanners:
         partial = scanner.scan(repo_path, **kwargs)
+        receipt = pop_receipt(partial)
+        if receipt is None:
+            raise CoveringProofError(
+                f"scanner {scanner.name!r} did not emit a covering_receipt"
+            )
+        if receipt.get("status") != "complete":
+            raise CoveringProofError(
+                f"scanner {scanner.name!r} covering receipt failed: "
+                f"{receipt.get('error')}"
+            )
+        receipts.append(receipt)
         partials.append(partial)
 
     scanner_names = [s.name for s in scanners]
     merged = merger.merge(partials, repo_path, scanner_version, scanner_names=scanner_names)
-    return lineage_resolver.resolve(merged, **kwargs)
+    resolved = lineage_resolver.resolve(merged, **kwargs)
+
+    proof = build_covering_proof(
+        file_signatures=scan_context.file_signatures,
+        scanner_version=scanner_version,
+        receipts=receipts,
+        respect_gitignore=bool(kwargs.get("respect_gitignore", False)),
+    )
+    ok, why = verify_covering_proof(
+        proof,
+        file_signatures=scan_context.file_signatures,
+        scanner_version=scanner_version,
+    )
+    if not ok:
+        raise CoveringProofError(why)
+
+    resolved["_covering_proof"] = proof
+    resolved["_scan_partials_meta"] = {
+        "scanner_names": scanner_names,
+        "entity_keys_by_scanner": {
+            name: sorted(
+                set(p.get("entity_table_map_candidates", {}) or {})
+                | set(p.get("entity_table_map", {}) or {})
+            )
+            for name, p in zip(scanner_names, partials)
+        },
+    }
+    return resolved
