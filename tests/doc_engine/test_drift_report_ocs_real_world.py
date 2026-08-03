@@ -1,12 +1,12 @@
-"""Opt-in L5 drift_report schema witness against ocs-api-service-develop.
+"""Opt-in L5 drift_report schema witness against a local real Spring checkout.
 
-This file ships with the plugin (no proprietary content). The ocs checkout and
+This file ships with the plugin (no proprietary content). The target checkout and
 its Stage-0 outputs do NOT — keep them local-only.
 
-Artifact lane (uses an existing spring_signals.json + live ocs tree)::
+Artifact lane (uses an existing spring_signals.json + live repo tree)::
 
-    DRIFT_OCS_ARTIFACTS_DIR=local-runs/ocs-l3-symbol \\
-    DRIFT_OCS_REPO=/path/to/ocs-api-service-develop/ocs-api-service-develop \\
+    DRIFT_OCS_ARTIFACTS_DIR=local-runs/<artifact-dir> \\
+    DRIFT_OCS_REPO=/path/to/local-spring-service \\
         pytest tests/doc_engine/test_drift_report_ocs_real_world.py -v
 
 If DRIFT_OCS_REPO is unset, the test falls back to spring_signals.json's
@@ -14,13 +14,9 @@ repo_path when that directory still exists.
 
 Live-scan lane (slow; fresh Stage 0 then drift against itself → all unchanged)::
 
-    DRIFT_OCS_REPO=/path/to/ocs-api-service-develop/ocs-api-service-develop \\
+    DRIFT_OCS_REPO=/path/to/local-spring-service \\
     DRIFT_OCS_LIVE_SCAN=1 \\
         pytest tests/doc_engine/test_drift_report_ocs_real_world.py -v -k live_scan
-
-Example Windows checkout layout::
-
-    .../Downloads/ocs-api-service-develop/ocs-api-service-develop/
 
 With env vars unset, every test is skipped (normal for CI / other machines).
 """
@@ -93,7 +89,7 @@ def ocs_signals_and_repo() -> tuple[dict, Path, Path]:
     if repo is None or not repo.is_dir():
         pytest.skip(
             "DRIFT_OCS_REPO not set and signals.repo_path is missing/absent — "
-            "point DRIFT_OCS_REPO at the ocs-api-service-develop tree"
+            "point DRIFT_OCS_REPO at a local Spring service checkout"
         )
     return signals, repo, signals_path
 

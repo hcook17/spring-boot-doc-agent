@@ -1,22 +1,18 @@
-"""Opt-in AET / gap_probe validation against ocs-api-service-develop artifacts.
+"""Opt-in AET / gap_probe validation against a local real Spring checkout.
 
-This file ships with the plugin (no proprietary content). The ocs checkout and
+This file ships with the plugin (no proprietary content). The target checkout and
 its Stage-0 outputs do NOT — keep them local-only.
 
 Artifact lane (fast; uses existing signals + facts)::
 
-    GAP_PROBE_OCS_ARTIFACTS_DIR=local-runs/ocs-l3-symbol \\
+    GAP_PROBE_OCS_ARTIFACTS_DIR=local-runs/<artifact-dir> \\
         pytest tests/doc_engine/test_gap_probe_ocs_real_world.py -v
 
-Live-scan lane (slow; re-runs Stage 0 on a local ocs tree)::
+Live-scan lane (slow; re-runs Stage 0 on a local Spring tree)::
 
-    GAP_PROBE_OCS_REPO=/path/to/ocs-api-service-develop/ocs-api-service-develop \\
+    GAP_PROBE_OCS_REPO=/path/to/local-spring-service \\
     GAP_PROBE_OCS_LIVE_SCAN=1 \\
         pytest tests/doc_engine/test_gap_probe_ocs_real_world.py -v -k live_scan
-
-Example Windows checkout layout::
-
-    .../Downloads/ocs-api-service-develop/ocs-api-service-develop/
 
 With env vars unset, every test is skipped (normal for CI / other machines).
 """
@@ -156,7 +152,7 @@ class TestOcsArtifactsAet:
 
 @pytest.mark.skipif(not LIVE_SCAN, reason="GAP_PROBE_OCS_LIVE_SCAN not enabled")
 class TestOcsLiveScanAet:
-    """Re-scan ocs-api-service-develop then run gap_probe (slow)."""
+    """Re-scan a local Spring checkout then run gap_probe (slow)."""
 
     def test_live_scan_then_gap_probe(self, tmp_path: Path) -> None:
         if not OCS_REPO:
