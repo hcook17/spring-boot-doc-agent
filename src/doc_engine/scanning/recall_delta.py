@@ -79,7 +79,7 @@ def collect_arm_entity_keys(
     native: Set[str] = set()
     oracle: Set[str] = set()
     oracle_arm: Optional[str] = None
-    for name, partial in zip(scanner_names, partials):
+    for name, partial in zip(scanner_names, partials, strict=True):
         keys = _entity_keys(partial)
         if name == "ast-grep":
             native |= keys

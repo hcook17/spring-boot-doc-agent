@@ -7,7 +7,7 @@ See claude/research/stage0-covering-absence-recall-2026-07-30.md.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional
 
 # Family → (evidence buckets that count as positive hits, dep regexes)
 _FAMILY_SPEC: Dict[str, Dict[str, Any]] = {

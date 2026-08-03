@@ -8,14 +8,13 @@ from typing import Any, Dict, List, Optional
 from doc_engine.core.context import ScanContext
 from doc_engine.core.protocols import Scanner
 from doc_engine.scanning._merge_signals import SpringSignalMerger
-from doc_engine.scanning._orchestrator import run_scan
+from doc_engine.scanning._orchestrator import CoveringProofError, run_scan
 from doc_engine.scanning._resolve_lineage import (
     SpringLineageResolver,
 )
 from doc_engine.scanning._scanner_registry import get_scanner, resolve_scanner_names
 from doc_engine.scanning.build_command import BuildCommandError, validate_build_command
 from doc_engine.scanning.support._codeql_runner import CodeQLError, CodeQLNotFoundError
-from doc_engine.scanning._orchestrator import CoveringProofError
 
 
 class CodeQLScannerError(RuntimeError):

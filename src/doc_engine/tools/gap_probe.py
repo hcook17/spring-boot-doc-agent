@@ -16,8 +16,8 @@ import sys
 from pathlib import Path
 
 from doc_engine.scanning.gap_probe import (
-    CoveringPreconditionError,
     GAP_PROBE_SCHEMA_VERSION,
+    CoveringPreconditionError,
     run_gap_probe,
 )
 

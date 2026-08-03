@@ -86,7 +86,7 @@ def run_scan(
                 set(p.get("entity_table_map_candidates", {}) or {})
                 | set(p.get("entity_table_map", {}) or {})
             )
-            for name, p in zip(scanner_names, partials)
+            for name, p in zip(scanner_names, partials, strict=True)
         },
     }
     return resolved
