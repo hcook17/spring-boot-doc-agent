@@ -17,6 +17,7 @@ DB="${DB:-$PWD/.codeql/ocs-api-service-db}"
 PACKS="${PACKS:-$PWD/codeql/packs}"
 OUT="${OUT:-$PWD/out}"
 CODEQL="${CODEQL:-codeql}"
+EXPECTED_DIR="${EXPECTED_DIR:-$(dirname "$0")}"
 
 # Wave 1 only. References/Security/Observability/Testing still emit the legacy
 # 3-column schema and are excluded on purpose.
@@ -55,4 +56,6 @@ done
 # where a contribution is missing and the query returns zero.
 echo
 echo "== row-count assertions =="
-python3 "$(dirname "$0")/check-assertions.py"
+python3 "$(dirname "$0")/check-assertions.py" \
+  --expected-dir "$EXPECTED_DIR" \
+  --out-dir "$OUT"
