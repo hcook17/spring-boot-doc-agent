@@ -81,20 +81,36 @@ def _family_witness(
 
 
 def _positive_hits(family: str, signals: Mapping[str, Any]) -> int:
+    """Count Path A rows that are *family-relevant* presence evidence.
+
+    Shared evidence buckets (e.g. observability for both redis and actuator)
+    must not count an unrelated ``rule_id`` as presence for every family that
+    lists the bucket — that erased UNPROVEN under hits-first short-circuit.
+    """
     spec = _FAMILY_SPEC[family]
+    if family == "config":
+        keys = signals.get("config_key_sets") or {}
+        return 1 if keys else 0
+
     evidence = signals.get("evidence") or {}
     n = 0
     for bucket in spec["buckets"]:
         for row in evidence.get(bucket) or []:
-            # Prefer structural rule hits over filename-only classify rows.
-            if row.get("rule_id") or family == "security":
+            rule_id = str(row.get("rule_id") or "")
+            match = str(row.get("match") or "")
+            hay = f"{rule_id} {match}"
+            # Prefer family-prefixed structural rules (messaging__, security__).
+            if rule_id.startswith(f"{family}__"):
                 n += 1
-            elif family in {"redis", "actuator", "feign", "aws_secrets", "messaging"}:
-                match = str(row.get("match") or "")
-                for pat in spec["dep_patterns"]:
-                    if pat.search(match):
-                        n += 1
-                        break
+                continue
+            # Dep-linked families: pattern must hit rule_id or match text.
+            hit = False
+            for pat in spec["dep_patterns"]:
+                if pat.search(hay):
+                    hit = True
+                    break
+            if hit:
+                n += 1
     return n
 
 

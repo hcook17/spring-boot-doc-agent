@@ -137,6 +137,38 @@ class CallableAbsenceFalsifiersTest(unittest.TestCase):
         messaging = [f for f in facts if f["subject"] == "family:messaging"]
         self.assertEqual(messaging, [])
 
+    def test_shared_bucket_rule_id_is_not_foreign_family_presence(self):
+        """Deviation: any observability rule_id counted as redis/actuator hits."""
+        from doc_engine.scanning.absence import _positive_hits
+
+        signals = {
+            "evidence": {
+                "observability": [
+                    {
+                        "file": "M.java",
+                        "line": 1,
+                        "match": "@Timed",
+                        "rule_id": "observability__timed",
+                    }
+                ],
+                "deployment": [],
+                "messaging": [],
+            },
+            "config_key_sets": {},
+        }
+        self.assertEqual(_positive_hits("redis", signals), 0)
+        self.assertEqual(_positive_hits("actuator", signals), 0)
+        facts = write_absence_facts(
+            signals,
+            covering_ok=True,
+            covering_root="root",
+            scanner_version="sv",
+            astgrep_receipt_complete=True,
+        )
+        redis = [f for f in facts if f["subject"] == "family:redis"]
+        self.assertEqual(len(redis), 1)
+        self.assertEqual(redis[0]["predicate"], "UNPROVEN")
+
     def test_empty_bucket_without_witness_never_absence(self):
         """Deviation: empty messaging bucket alone treated as feature absent."""
         signals = {
@@ -789,9 +821,30 @@ class FixtureCliCoveringSmokeTest(unittest.TestCase):
                 for line in facts.read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
+            # Stamps must match the writer recomputed from Path A + covering —
+            # do not require ABSENCE on a healthy fixture that truly has hits.
+            from doc_engine.scanning.absence import write_absence_facts
+            from doc_engine.scanning.gap_probe import _astgrep_receipt_complete
+
+            expected = write_absence_facts(
+                path_a,
+                covering_ok=ok,
+                covering_root=proof.get("inventory_root"),
+                scanner_version=path_a.get("scanner_version"),
+                astgrep_receipt_complete=_astgrep_receipt_complete(proof),
+            )
+            actual = [
+                r for r in fact_rows if r.get("predicate") in {"ABSENCE", "UNPROVEN"}
+            ]
+            self.assertEqual(
+                {(r["predicate"], r["subject"]) for r in actual},
+                {(r["predicate"], r["subject"]) for r in expected},
+            )
+            # Fixture still has non-callable families → at least one UNPROVEN.
             self.assertTrue(
-                any(r["predicate"] in {"ABSENCE", "UNPROVEN"} for r in fact_rows),
-                "expected ABSENCE/UNPROVEN stamps in facts.jsonl",
+                any(r["predicate"] == "UNPROVEN" for r in actual),
+                "healthy fixture must still stamp UNPROVEN for unwitnessed families "
+                f"(got {actual!r})",
             )
 
     def test_in_process_scan_attaches_covering_proof(self):
@@ -807,7 +860,22 @@ class FixtureCliCoveringSmokeTest(unittest.TestCase):
         self.assertTrue(ok, why)
         # Dual-emit covering writers see the attachment.
         facts = facts_from_signals(result)
-        self.assertTrue(any(f["predicate"] in {"ABSENCE", "UNPROVEN"} for f in facts))
+        from doc_engine.scanning.absence import write_absence_facts
+        from doc_engine.scanning.gap_probe import _astgrep_receipt_complete
+
+        expected = write_absence_facts(
+            result,
+            covering_ok=ok,
+            covering_root=result["_covering_proof"].get("inventory_root"),
+            scanner_version=result.get("scanner_version"),
+            astgrep_receipt_complete=_astgrep_receipt_complete(result["_covering_proof"]),
+        )
+        actual = [f for f in facts if f.get("predicate") in {"ABSENCE", "UNPROVEN"}]
+        self.assertEqual(
+            {(f["predicate"], f["subject"]) for f in actual},
+            {(f["predicate"], f["subject"]) for f in expected},
+        )
+        self.assertTrue(any(f["predicate"] == "UNPROVEN" for f in actual))
 
 
 def shutil_which(name: str):
