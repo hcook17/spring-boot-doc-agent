@@ -49,8 +49,20 @@ FIXTURE_DIR = scripts_dir() / "fixtures" / "spring_signals"
 BASELINE_FILE = SCRIPT_DIR / "rule_coverage_baseline.json"
 SCHEMA_VERSION = 2
 
-# Rule ids are explicit rule_id = "bucket__kind" strings inside the .ql files.
-RULE_ID_RE = re.compile(r'rule_id\s*=\s*"([a-z0-9_]+__[a-z0-9_]+)"')
+# Rule ids appear in two CodeQL spellings inside .ql files:
+#   rule_id = "bucket__kind"
+#   "bucket__kind" as rule_id
+# Missing the `as` form silently under-counts the pack (RawQueries.ql).
+RULE_ID_EQ_RE = re.compile(r'rule_id\s*=\s*"([a-z0-9_]+__[a-z0-9_]+)"')
+RULE_ID_AS_RE = re.compile(r'"([a-z0-9_]+__[a-z0-9_]+)"\s+as\s+rule_id')
+# Back-compat alias used by older tests / callers.
+RULE_ID_RE = RULE_ID_EQ_RE
+
+
+def _extract_rule_ids(text: str) -> List[str]:
+    """All rule_id literals from one .ql (or fixture) body, both spellings."""
+    return RULE_ID_EQ_RE.findall(text) + RULE_ID_AS_RE.findall(text)
+
 
 # Rules that legitimately cannot be exercised by the fixture, each with the
 # reason. Same shape as check_repo_claims.py's CI_EXEMPT_SUITES: an exemption
@@ -70,7 +82,7 @@ def rule_ids(rule_file: Optional[Path] = None) -> List[str]:
     else:
         sources = sorted(PACK_DIR.glob("*.ql"))
     for ql in sources:
-        ids.extend(RULE_ID_RE.findall(ql.read_text(encoding="utf-8")))
+        ids.extend(_extract_rule_ids(ql.read_text(encoding="utf-8")))
     # Deduplicate while preserving the order they appear in the pack.
     seen = set()
     unique: List[str] = []
@@ -160,6 +172,11 @@ def load_baseline() -> Optional[Dict[str, object]]:
 
 
 def write_baseline(target: Path, counts: collections.Counter[str]) -> None:
+    pack = set(rule_ids())
+    # Only pack-owned keys enter the SoR. Scanner hits can include filesystem
+    # filename tags (deployment__*) and must not reintroduce "orphans" that
+    # the committed-schema witness then rejects.
+    pack_counts = {k: int(v) for k, v in sorted(counts.items()) if k in pack}
     payload = {
         "schema_version": SCHEMA_VERSION,
         "$comment": (
@@ -173,7 +190,7 @@ def write_baseline(target: Path, counts: collections.Counter[str]) -> None:
             "with: python3 scripts/coverage/rule_coverage.py <repo> --update"
         ),
         "corpus": target.name,
-        "counts": dict(sorted(counts.items())),
+        "counts": pack_counts,
     }
     BASELINE_FILE.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 

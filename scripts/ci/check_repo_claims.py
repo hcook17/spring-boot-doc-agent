@@ -411,18 +411,21 @@ def derive_semgrep_rule_count(root: Path) -> str:
 def derive_codeql_rule_count(root: Path) -> str:
     """Coverage denominator: unique rule_id strings in the CodeQL pack.
 
-    Mirrors ``scripts/coverage/rule_coverage.rule_ids()`` — not the ast-grep
+    Mirrors ``scripts/coverage/rule_coverage.rule_ids()`` — both
+    ``rule_id = "…"`` and ``"…" as rule_id`` spellings. Not the ast-grep
     YAML inventory (``ast_grep_rule_count``) and not the metamorphic
     ``rule_fixtures/`` tree. Cite ``dev-coverage-denominator-codeql``.
     """
     pack = root / "codeql" / "spring-signals"
     if not pack.is_dir():
         return "0"
-    pattern = re.compile(r'rule_id\s*=\s*"([a-z0-9_]+__[a-z0-9_]+)"')
+    eq_pat = re.compile(r'rule_id\s*=\s*"([a-z0-9_]+__[a-z0-9_]+)"')
+    as_pat = re.compile(r'"([a-z0-9_]+__[a-z0-9_]+)"\s+as\s+rule_id')
     seen: set[str] = set()
     ordered: list[str] = []
     for ql in sorted(pack.glob("*.ql")):
-        for rid in pattern.findall(ql.read_text(encoding="utf-8")):
+        text = ql.read_text(encoding="utf-8")
+        for rid in eq_pat.findall(text) + as_pat.findall(text):
             if rid not in seen:
                 seen.add(rid)
                 ordered.append(rid)

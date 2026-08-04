@@ -14,6 +14,7 @@
     "persistence__relation": 97,
     "persistence__repository": 51,
     "persistence__transactional": 11,
+    "raw_queries__query": 198,
     "references__import": 8047,
     "references__package": 615,
     "references__stereotype": 64,

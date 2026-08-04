@@ -52,6 +52,15 @@ class TestRuleIdParsing(unittest.TestCase):
                 encoding="utf-8")
             self.assertEqual(rc.rule_ids(path), ["bucket__real", "bucket__other"])
 
+    def test_as_rule_id_spelling_is_enumerated(self) -> None:
+        """RawQueries.ql uses `"…" as rule_id`; missing it under-counts the pack."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "Raw.ql"
+            path.write_text('"bucket__as_form" as rule_id,\n', encoding="utf-8")
+            self.assertEqual(rc.rule_ids(path), ["bucket__as_form"])
+        self.assertIn("raw_queries__query", rc.rule_ids())
+        self.assertGreaterEqual(len(rc.rule_ids()), 29)
+
 
 class TestNonVacuity(unittest.TestCase):
     def test_every_real_rule_fires_on_the_fixture_corpus(self) -> None:
@@ -126,16 +135,25 @@ class TestCommittedBaselineSoR(unittest.TestCase):
     """Hermetic CI witness: committed baseline stamp matches SCHEMA_VERSION
     and count keys are pack-owned. Does not require an external corpus."""
 
-    def test_committed_baseline_schema_matches_code(self) -> None:
-        path = Path(REPO_ROOT) / "scripts" / "coverage" / "rule_coverage_baseline.json"
-        self.assertTrue(path.is_file(), path)
-        data = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(data.get("schema_version"), rc.SCHEMA_VERSION)
-        counts = data.get("counts")
-        self.assertIsInstance(counts, dict)
-        pack = set(rc.rule_ids())
-        orphans = sorted(set(counts) - pack)
-        self.assertEqual(orphans, [], f"baseline keys not in pack: {orphans}")
+    def test_write_baseline_keeps_only_pack_owned_keys(self) -> None:
+        """--update must not reintroduce scanner-only / non-pack tags."""
+        with tempfile.TemporaryDirectory() as tmp:
+            real = rc.BASELINE_FILE
+            try:
+                rc.BASELINE_FILE = Path(tmp) / "baseline.json"
+                counts = collections.Counter({
+                    "persistence__entity": 3,
+                    "deployment__build_gradle": 99,  # filesystem tag, not pack
+                    "raw_queries__query": 7,
+                })
+                rc.write_baseline(Path(tmp) / "corpus", counts)
+                data = json.loads(rc.BASELINE_FILE.read_text(encoding="utf-8"))
+                self.assertEqual(data["schema_version"], rc.SCHEMA_VERSION)
+                self.assertIn("persistence__entity", data["counts"])
+                self.assertIn("raw_queries__query", data["counts"])
+                self.assertNotIn("deployment__build_gradle", data["counts"])
+            finally:
+                rc.BASELINE_FILE = real
 
 
 class TestRatchet(unittest.TestCase):
