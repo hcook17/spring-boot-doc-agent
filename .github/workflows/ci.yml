@@ -228,3 +228,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/ci/check_llms_coverage.py
+
+  # Wave 0 static invariants for the spring-signals CodeQL pack. Runs without a
+  # CodeQL CLI, so it is the only automatable gate for the pack while Wave 0
+  # items 2-4 (compile, create-db.sh, Probe.ql) are blocked on the CLI and
+  # Artifactory. Exits non-zero if the count-claim enforcer, layering checks,
+  # or or-or lint find a violation.
+  codeql-signals-invariants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: spring-signals static invariants
+        run: python3 spring-signals/harness/check-invariants.py
