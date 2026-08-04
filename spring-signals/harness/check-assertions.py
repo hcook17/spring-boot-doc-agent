@@ -1,102 +1,159 @@
 #!/usr/bin/env python3
-"""Check query row counts against expectations.
-
-Reads two files from an expectations directory (default: the directory
-containing this script):
-  expected-empty.txt   one query name per line (blank/comment lines ignored)
-  expected-min.txt     one 'query rule_id min_count' triple per line
-
-Exits non-zero if any expectation is violated.
 """
+Assert query output against a per-repository expectations file. Exits non-zero
+on any mismatch.
+
+WHY THIS REPLACES THE INLINE LOOP IN run.sh
+The previous absence assertions printed `DIFF ... <-- investigate` and let the
+script exit 0, so nothing they claimed to assert could fail a run. The four
+non-empty assertions that mattered most -- the @RestController recall
+regression among them -- were not code at all, only a comment reading
+"checked manually until run.sh grows a min-rows mode".
+
+TWO KINDS OF EXPECTATION, AND THE DIFFERENCE IS THE POINT
+
+  "asserted"  hand-derived by reading the fixture source, then confirmed
+              against output. These encode intent. A mismatch is a bug in the
+              query (or an intended change that must be justified in the PR).
+
+  "snapshot"  recorded from a known-good run. These encode current behaviour,
+              nothing more. They catch drift; they do not certify correctness.
+              A snapshot must never be cited as evidence a rule is right.
+
+Generating every number from output and calling the result a test is circular:
+it asserts only that the code still does what it did. Keeping the two lists
+separate is what stops that from happening silently. `--record` regenerates
+ONLY the snapshot block and refuses to touch asserted values.
+
+Expectations schema:
+
+    {
+      "repo": "fixture-repo",
+      "asserted": {
+        "ApiSurface": {
+          "_rows": 27,
+          "api_surface__controller": 3,
+          "_note": "why these numbers are what they are"
+        }
+      },
+      "snapshot": { "Persistence": { "_rows": 41 } },
+      "known_defects": {
+        "NativeSql.sql__jdbc_call": "counts 2x: JdbcTemplate and JdbcOperations"
+      }
+    }
+
+`_rows` is the total row count for the query. Any other key is a rule_id.
+`known_defects` is documentation only; it is printed, never asserted, so a
+defect cannot be quietly normalised into an expectation.
+"""
+
 from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
+from collections import Counter
 from pathlib import Path
 
 
-def load_lines(path: Path) -> list[str]:
+def load_counts(out_dir: Path, query: str) -> tuple[int, Counter]:
+    path = out_dir / f"{query}.csv"
     if not path.exists():
-        return []
-    return [
-        ln.strip()
-        for ln in path.read_text().splitlines()
-        if ln.strip() and not ln.strip().startswith("#")
-    ]
+        return -1, Counter()
+    rows = 0
+    by_rule: Counter = Counter()
+    with path.open(newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            rows += 1
+            # v0 queries have a rule_id column too; v1 adds the rest.
+            rule = row.get("rule_id")
+            if rule:
+                by_rule[rule] += 1
+    return rows, by_rule
 
 
-def count_rows(query: str, out: Path) -> int:
-    csv_path = out / f"{query}.csv"
-    if not csv_path.exists():
-        return -1
-    with csv_path.open(newline="", encoding="utf-8") as fh:
-        return sum(1 for _ in csv.DictReader(fh))
-
-
-def count_by_rule_id(query: str, rule_id: str, out: Path) -> int:
-    csv_path = out / f"{query}.csv"
-    if not csv_path.exists():
-        return -1
-    with csv_path.open(newline="", encoding="utf-8") as fh:
-        return sum(1 for row in csv.DictReader(fh) if row.get("rule_id") == rule_id)
-
-
-def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument(
-        "--expected-dir",
-        type=Path,
-        default=Path(__file__).resolve().parent,
-        help="directory containing expected-empty.txt and expected-min.txt",
-    )
-    ap.add_argument(
-        "--out-dir",
-        type=Path,
-        default=Path(__file__).resolve().parent.parent / "out",
-        help="directory containing the generated query CSVs",
-    )
-    args = ap.parse_args(argv)
-
-    failed = 0
-
-    for ln in load_lines(args.expected_dir / "expected-empty.txt"):
-        parts = ln.split()
-        if len(parts) != 2:
-            print(f"BAD empty expectation line: {ln}")
-            failed += 1
+def compare(out_dir: Path, block: dict, label: str) -> tuple[list[str], list[str]]:
+    failures: list[str] = []
+    lines: list[str] = []
+    for query, expected in sorted(block.items()):
+        rows, by_rule = load_counts(out_dir, query)
+        if rows < 0:
+            failures.append(f"{label}: {query}: no {query}.csv in {out_dir}")
+            lines.append(f"  MISS {query} (no csv)")
             continue
-        query, expected = parts
-        expected_count = int(expected)
-        actual = count_rows(query, args.out_dir)
-        if actual == -1:
-            print(f"MISS {query} (no {args.out_dir / query}.csv)")
-            failed += 1
-        elif actual != expected_count:
-            print(f"FAIL {query} = {actual} (expected {expected_count})")
-            failed += 1
-        else:
-            print(f"OK   {query} = {expected_count}")
+        for key, want in expected.items():
+            if key.startswith("_note"):
+                continue
+            got = rows if key == "_rows" else by_rule.get(key, 0)
+            name = f"{query}" if key == "_rows" else f"{query}.{key}"
+            if got == want:
+                lines.append(f"  OK   {name} = {got}")
+            else:
+                lines.append(f"  FAIL {name} = {got} (expected {want})")
+                failures.append(f"{label}: {name} = {got}, expected {want}")
+    return failures, lines
 
-    for ln in load_lines(args.expected_dir / "expected-min.txt"):
-        parts = ln.split()
-        if len(parts) != 3:
-            print(f"BAD expectation line: {ln}")
-            failed += 1
+
+def record(out_dir: Path, spec_path: Path) -> int:
+    spec = json.loads(spec_path.read_text(encoding="utf-8"))
+    snapshot = spec.setdefault("snapshot", {})
+    asserted = spec.get("asserted", {})
+    for path in sorted(out_dir.glob("*.csv")):
+        query = path.stem
+        rows, by_rule = load_counts(out_dir, query)
+        entry = {"_rows": rows}
+        entry.update({rule: n for rule, n in sorted(by_rule.items())})
+        # Never shadow an asserted value with a recorded one.
+        for key in list(entry):
+            if key in asserted.get(query, {}):
+                del entry[key]
+        if entry:
+            snapshot[query] = entry
+    spec_path.write_text(json.dumps(spec, indent=2) + "\n", encoding="utf-8")
+    print(f"recorded snapshot block for {len(snapshot)} queries -> {spec_path}")
+    print("ASSERTED values were left untouched. Review the diff before committing.")
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", required=True, type=Path)
+    ap.add_argument("--expectations", required=True, type=Path)
+    ap.add_argument("--record", action="store_true",
+                    help="regenerate the snapshot block from --out; never edits asserted")
+    args = ap.parse_args()
+
+    if args.record:
+        return record(args.out, args.expectations)
+
+    spec = json.loads(args.expectations.read_text(encoding="utf-8"))
+    print(f"== assertions ({spec.get('repo', args.expectations.stem)}) ==")
+
+    failures: list[str] = []
+    for label, key in (("asserted", "asserted"), ("snapshot", "snapshot")):
+        block = spec.get(key) or {}
+        if not block:
             continue
-        query, rule_id, expected = parts
-        expected_count = int(expected)
-        actual = count_by_rule_id(query, rule_id, args.out_dir)
-        if actual == -1:
-            print(f"MISS {query} {rule_id} (no CSV)")
-            failed += 1
-        elif actual < expected_count:
-            print(f"FAIL {query} {rule_id} = {actual} (expected >= {expected_count})")
-            failed += 1
-        else:
-            print(f"OK   {query} {rule_id} = {actual} (expected >= {expected_count})")
+        print(f"-- {label} --")
+        f, lines = compare(args.out, block, label)
+        print("\n".join(lines))
+        failures += f
 
-    return 1 if failed else 0
+    defects = spec.get("known_defects") or {}
+    if defects:
+        print("-- known defects encoded in these numbers --")
+        for k, v in sorted(defects.items()):
+            print(f"  ! {k}: {v}")
+
+    print()
+    if failures:
+        print(f"FAILED: {len(failures)} assertion(s)")
+        for f in failures:
+            print(f"  {f}")
+        return 1
+    print("All assertions hold.")
+    return 0
 
 
 if __name__ == "__main__":

@@ -1,0 +1,89 @@
+{
+  "repo": "fixture-repo",
+  "asserted": {
+    "ApiSurface": {
+      "_rows": 18,
+      "api_surface__controller": 4,
+      "api_surface__endpoint": 7,
+      "api_surface__path_prefix": 2,
+      "api_surface__param_binding": 4,
+      "api_surface__body_binding": 1,
+      "_note": "Controllers: ApiFixtureController, OpenApiFixture, LegacyFixtureController, TestOnlyController. Endpoints: testOnly, documented, getBook, search, bulk, delete, ping. Path prefixes: ApiFixtureController and LegacyFixtureController class mappings. Param bindings: getBook id, search q (unnamed), search page, delete id. Body binding: bulk @RequestBody."
+    },
+    "Configuration": {
+      "_rows": 7,
+      "configuration__config_annotation": 4,
+      "configuration__typed_binding": 1,
+      "configuration__value_injection": 2,
+      "_note": "Config annotations: Application @SpringBootApplication, ConfigFixture @Configuration/@ComponentScan/@Bean. Typed binding: ConfigFixture @ConfigurationProperties. Value injection: timeout and name @Value fields."
+    },
+    "ErrorHandling": {
+      "_rows": 5,
+      "error__advice_class": 1,
+      "error__handler_method": 1,
+      "error__response_status": 1,
+      "error__throw_site": 2,
+      "_note": "ErrorFixture @RestControllerAdvice, one @ExceptionHandler, one @ResponseStatus, and two ResponseStatusException throw sites."
+    },
+    "HibernateTypes": {
+      "_rows": 6,
+      "hibernate__legacy_types_import": 1,
+      "hibernate__custom_type": 3,
+      "hibernate__legacy_types_library": 1,
+      "hibernate__filter": 1,
+      "_note": "HibernateFixture: one JsonBinaryType import, one legacy library usage, three custom type annotations (@TypeDefs, @TypeDef, @Type), one @Where filter."
+    },
+    "JakartaMigration": {
+      "_rows": 46,
+      "jakarta__pending_import": 18,
+      "jakarta__pending_annotation": 18,
+      "jakarta__migrated_import": 3,
+      "jakarta__migrated_annotation": 3,
+      "jakarta__pending_type": 3,
+      "jakarta__migrated_type": 1,
+      "_note": "Pending javax.* imports and annotations from Book, Chapter, BookDao, HibernateFixture and JakartaFixture (JSR-250). Migrated jakarta.* imports and annotations from MigratedEntity. Pending type from BookDao.entityManager() return type and two variable/field types. Migrated type from MigratedEntity."
+    },
+    "Messaging": {
+      "_rows": 6,
+      "messaging__client_type": 4,
+      "messaging__listener": 2,
+      "_note": "Client types: KafkaTemplate (impl wins), KafkaOperations (interface-only survives), RabbitTemplate, JmsTemplate. Listeners: KafkaListener and RabbitListener."
+    },
+    "NativeSql": {
+      "_rows": 8,
+      "sql__jdbc_call": 2,
+      "sql__data_query_native": 2,
+      "sql__data_query_jpql": 1,
+      "sql__named_native_query": 2,
+      "sql__named_jpql_query": 1,
+      "_note": "JdbcTemplate and NamedParameterJdbcTemplate calls in BookDao. Two native @Query methods (findNative, rename), one JPQL @Query (findJpql). Two @NamedNativeQuery and one @NamedQuery in Book."
+    },
+    "OpenApiSurface": {
+      "_rows": 5,
+      "openapi__tag": 2,
+      "openapi__operation": 2,
+      "openapi__schema": 1,
+      "_note": "Swagger 2 @Api tag, OpenAPI 3 @Tag, two @ApiOperation/@Operation operations, one inline @Schema."
+    },
+    "OutboundClients": {
+      "_rows": 4,
+      "outbound__type_usage": 3,
+      "outbound__feign": 1,
+      "_note": "RestTemplate field and accessor method, WebClient field, plus one FeignClient interface."
+    },
+    "Persistence": {
+      "_rows": 19,
+      "persistence__entity": 4,
+      "persistence__id": 5,
+      "persistence__relation": 1,
+      "persistence__table": 2,
+      "persistence__column": 2,
+      "persistence__transactional": 2,
+      "persistence__repository": 2,
+      "persistence__repository_marker": 1,
+      "_note": "Entities: Book, Chapter, HibernateFixture, MigratedEntity. IDs: one per entity plus MigratedEntity id. Relations: Chapter.book. Tables: Book (with schema), MigratedEntity (with schema). Columns: Book.isbn, HibernateFixture.payload. Transactional: BookDao touch and rename. Repositories: TopicRepository and BookBasedTopicRepository. Marker: BookBasedRepository."
+    }
+  },
+  "snapshot": {},
+  "known_defects": {}
+}

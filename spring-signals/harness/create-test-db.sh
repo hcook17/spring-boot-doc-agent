@@ -1,22 +1,32 @@
 #!/usr/bin/env bash
-# Build a CodeQL database from the local fixture repo and run Wave 1 queries.
-# This is a thin wrapper around create-db.sh and run.sh with fixture-specific
-# paths and expectations. It requires no Artifactory credentials.
+# One-command local runtime gate. No Artifactory, no credentials, no Gradle.
+#
+#   ./harness/create-test-db.sh
+#
+# Fetches the pinned fixture classpath, compiles the fixture with javac, builds
+# a CodeQL database from that traced build, runs the wave-1 queries, and asserts
+# against harness/expectations/fixture-repo.json.
+#
+# This is the gate that was missing while items 2-4 were described as "blocked
+# on CodeQL CLI + Artifactory". Only the ocs DATABASE needs Artifactory; the
+# CLI, the pack dependencies, and this fixture do not.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
-export REPO="${REPO:-$SCRIPT_DIR/fixture-repo}"
-export DB="${DB:-$SCRIPT_DIR/.codeql/fixture-db}"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+FIXTURE="$HERE/fixture-repo"
 export CODEQL="${CODEQL:-codeql}"
-export BUILD_COMMAND="${BUILD_COMMAND:-$REPO/build.sh}"
-export OUT="${OUT:-$SCRIPT_DIR/out}"
-export EXPECTED_DIR="${EXPECTED_DIR:-$SCRIPT_DIR/fixture-expected}"
+export PACKS="${PACKS:-$(cd "$HERE/../codeql/packs" && pwd)}"
+export DB="${DB:-$HERE/.codeql/fixture-db}"
+export OUT="${OUT:-$HERE/out-fixture}"
+export EXTRA_PACKS="${EXTRA_PACKS:-}"
 
-"$SCRIPT_DIR/create-db.sh"
+"$FIXTURE/fetch-deps.sh"
 
-# Clean previous query output so stale CSVs are not re-checked.
-rm -rf "$OUT"
+REPO="$FIXTURE" \
+BUILD_COMMAND="$FIXTURE/build.sh" \
+SOURCE_DIR="src" \
+"$HERE/create-db.sh"
 
-export PACKS="${PACKS:-$SCRIPT_DIR/../codeql/packs}"
-"$SCRIPT_DIR/run.sh"
+QUERIES="${QUERIES:-}" \
+EXPECTATIONS="${EXPECTATIONS:-$HERE/expectations/fixture-repo.json}" \
+"$HERE/run.sh"

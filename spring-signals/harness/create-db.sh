@@ -1,75 +1,105 @@
 #!/usr/bin/env bash
 # Build a CodeQL database for a Java repository.
 #
-# Default mode: ocs-api-service @ develop.
-#   Requires Artifactory credentials because the build resolves com.elsevier:*
-#   dependencies. Extraction quality degrades badly without them: unresolved types
-#   become <unknown>, and every typeIsOrExtends() predicate in the pack silently
-#   under-matches. Verify resolution BEFORE trusting any count.
+# Defaults target ocs-api-service and therefore need Artifactory credentials.
+# Every input is overridable so the same script builds a database for the
+# credential-free fixture in harness/fixture-repo (see create-test-db.sh).
 #
-# Local-fixture mode: set REPO and BUILD_COMMAND to point at a self-contained
-# repository that does not need Artifactory. For example:
-#   REPO=./fixture-repo BUILD_COMMAND="./gradlew --no-daemon compileJava" ./create-db.sh
-#   REPO=./fixture-repo BUILD_COMMAND="mvn -q compile" ./create-db.sh
-#   REPO=./fixture-repo BUILD_COMMAND="javac -d build/classes/java/main $(find src -name '*.java')" ./create-db.sh
+#   REPO            source root to extract              (default: $PWD)
+#   BUILD_COMMAND   command CodeQL traces               (default: the ocs gradle build)
+#   DB              database output path
+#   CODEQL          codeql executable
+#   SOURCE_DIR      subdirectory counted for the extraction check (default: src)
+#   PACKS           pack search root, for the coverage query
+#   STRICT_EXTRACTION  1 (default) = a nonzero delta fails the build
 #
-# Why an explicit --command instead of autobuild:
-#   - build.gradle may set `options.compilerArgs << "-Werror"` on compileJava
-#     and compileTestJava. Autobuild picks its own task set and can miss
-#     compileTestJava entirely, which silently drops test files from the DB.
-#   - The CodeQL CLI's own JVM is independent of the toolchain Gradle
-#     provisions; both must be present.
-#   - `installGitHooks` may be a dependency of compileJava and write into
-#     .git/hooks; in a detached checkout that task can fail and should be -x'd.
+# Why an explicit --command instead of autobuild, for the ocs default:
+#   - build.gradle sets `options.compilerArgs << "-Werror"` on BOTH compileJava
+#     and compileTestJava, with Error Prone 2.10.0 wired in via net.ltgt.errorprone.
+#     Autobuild picks its own task set and can miss compileTestJava entirely,
+#     which silently drops the test sources from the database.
+#   - Java toolchain is pinned to 17 in build.gradle. The CodeQL CLI's own JVM is
+#     independent of the toolchain Gradle provisions; both must be present.
+#   - `installGitHooks` is a dependency of compileJava and writes into .git/hooks.
+#     In a detached CI checkout that task can fail; -x it there.
 #
+# Artifactory credentials are required to resolve com.elsevier:* dependencies.
+# Extraction quality degrades badly without them: unresolved types become
+# <unknown>, and every typeIsOrExtends() predicate in the pack silently
+# under-matches. Verify resolution BEFORE trusting any count.
+#
+# Credentials are passed through the ENVIRONMENT, not through --command.
+# Interpolating a password into the traced command line puts it in `ps` output
+# and in the build log CodeQL writes inside the database directory.
+# Gradle reads ORG_GRADLE_PROJECT_<name> as project property <name>.
 set -euo pipefail
 
 REPO="${REPO:-$PWD}"
 DB="${DB:-$PWD/.codeql/ocs-api-service-db}"
 CODEQL="${CODEQL:-codeql}"
+SOURCE_DIR="${SOURCE_DIR:-src}"
+PACKS="${PACKS:-$(cd "$(dirname "$0")/../codeql/packs" && pwd)}"
+STRICT_EXTRACTION="${STRICT_EXTRACTION:-1}"
+# EXTRA_PACKS lets an offline/air-gapped checkout point at a pre-populated
+# codeql/java-all tree instead of resolving it from ghcr.io at run time.
+SEARCH_PATH="${PACKS}${EXTRA_PACKS:+:$EXTRA_PACKS}"
 
-# Default build command for ocs-api-service. Requires Artifactory credentials.
-DEFAULT_BUILD_COMMAND="./gradlew --no-daemon --no-build-cache --console=plain \
-    clean compileJava compileTestJava"
+DEFAULT_BUILD_COMMAND="./gradlew --no-daemon --no-build-cache --console=plain clean compileJava compileTestJava"
 BUILD_COMMAND="${BUILD_COMMAND:-$DEFAULT_BUILD_COMMAND}"
 
-# Artifactory credentials are only required for the default ocs-api-service build.
-# A local fixture that sets BUILD_COMMAND does not need them.
+# Credentials are a precondition only for the default (ocs) build.
 if [ "$BUILD_COMMAND" = "$DEFAULT_BUILD_COMMAND" ]; then
-  : "${artifactory_user:?set artifactory_user}"
-  : "${artifactory_password:?set artifactory_password}"
-
-  # Pass credentials via ORG_GRADLE_PROJECT_* so they are never visible in the
-  # Gradle command line or in CodeQL build logs inside the database artifact.
+  : "${artifactory_user:?set artifactory_user (or override BUILD_COMMAND for a credential-free repo)}"
+  : "${artifactory_password:?set artifactory_password (or override BUILD_COMMAND for a credential-free repo)}"
   export ORG_GRADLE_PROJECT_artifactory_user="$artifactory_user"
   export ORG_GRADLE_PROJECT_artifactory_password="$artifactory_password"
 fi
 
-mkdir -p "$(dirname "$DB")"
-rm -rf "$DB"
+echo "== building database =="
+echo "repo:    $REPO"
+echo "db:      $DB"
+echo "command: $BUILD_COMMAND"
 
-# Run the build from the repository root so relative paths in the build command
-# resolve correctly. CodeQL's --source-root controls what is indexed.
-(
-  cd "$REPO"
-  "$CODEQL" database create "$DB" \
+rm -rf "$DB"
+mkdir -p "$(dirname "$DB")"
+( cd "$REPO" && exec "$CODEQL" database create "$DB" \
     --language=java \
     --source-root="$REPO" \
     --overwrite \
-    --command="$BUILD_COMMAND"
-)
+    --command="$BUILD_COMMAND" )
 
 echo
 echo "== extraction coverage sanity check =="
-# Compare what CodeQL compiled against what is on disk. Any delta is a
-# confound for the ast-grep/semgrep comparison and must be reconciled BEFORE
-# precision/recall is computed -- CodeQL sees only what the build compiled,
-# while filesystem-walking tools see everything.
-DISK=$(find "$REPO/src" -name '*.java' 2>/dev/null | wc -l | tr -d ' ')
-echo "on disk:    $DISK .java files under src/"
-EXTRACTED=$(unzip -l "$DB/src.zip" 2>/dev/null | grep '\.java$' | wc -l | tr -d ' ')
-echo "extracted:  $EXTRACTED .java files"
+# Compare what CodeQL compiled against what is on disk. Any delta is a confound
+# for the ast-grep/semgrep comparison and must be reconciled BEFORE precision or
+# recall is computed -- CodeQL sees only what the build compiled, while
+# filesystem-walking tools see everything.
+#
+# Both sides must count the SAME population. The previous version compared
+# `find $REPO/src` against every .java file in the database, including library
+# sources with no relative path, so the delta was uninterpretable in both
+# directions. It also only echoed a WARNING, so "extraction delta 0" could never
+# fail a run that listed it as an exit criterion.
+if [ ! -d "$REPO/$SOURCE_DIR" ]; then
+  echo "no $REPO/$SOURCE_DIR; skipping coverage check"
+  exit 0
+fi
+
+DISK=$(cd "$REPO" && find "$SOURCE_DIR" -name '*.java' | sort -u | wc -l | tr -d ' ')
+"$CODEQL" query run \
+  --database="$DB" \
+  --additional-packs="$SEARCH_PATH" \
+  --output="$DB.coverage.bqrs" \
+  "$PACKS/spring-signals/Coverage.ql" >/dev/null
+EXTRACTED=$("$CODEQL" bqrs decode --format=csv --no-titles "$DB.coverage.bqrs" \
+  | sed 's/^"//; s/"$//' | sort -u | wc -l | tr -d ' ')
+
+echo "on disk:    $DISK .java files under $SOURCE_DIR/"
+echo "extracted:  $EXTRACTED .java files in a recognised source set"
 if [ "$DISK" != "$EXTRACTED" ]; then
-  echo "ERROR: extraction delta of $((DISK - EXTRACTED)) files. Reconcile before measuring." >&2
-  exit 1
+  echo "EXTRACTION DELTA: $((DISK - EXTRACTED)) file(s) on disk were not extracted."
+  echo "  Reconcile before measuring. Set STRICT_EXTRACTION=0 to downgrade to a warning."
+  if [ "$STRICT_EXTRACTION" = "1" ]; then exit 1; fi
+else
+  echo "extraction delta 0"
 fi

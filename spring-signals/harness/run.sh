@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
-# Run the wave-1 spring-signals queries and emit CSV.
+# Run the spring-signals queries against a database and emit CSV, then assert.
+#
+#   DB            database path
+#   PACKS         pack search root
+#   OUT           output directory
+#   CODEQL        codeql executable
+#   QUERIES       space-separated query basenames (default: the wave 1 set)
+#   EXPECTATIONS  JSON file of expected counts (default: none -> report only)
 #
 # Note on `@kind table`: these queries produce raw result tables, not alerts.
 # `codeql database analyze` will NOT interpret them into SARIF -- it needs
@@ -7,55 +14,52 @@
 # `bqrs decode`, which is what this script does. If a downstream consumer
 # expects SARIF, that is a schema decision to make deliberately, not a
 # side effect of query metadata.
-#
-# The pack is precompiled first. `compiled: false` in the lock file means QL
-# compilation happens inside every run, which lands directly in any wall-clock
-# comparison against ast-grep or semgrep. Precompiling removes that term.
 set -euo pipefail
 
+HERE="$(cd "$(dirname "$0")" && pwd)"
 DB="${DB:-$PWD/.codeql/ocs-api-service-db}"
-PACKS="${PACKS:-$PWD/codeql/packs}"
+PACKS="${PACKS:-$(cd "$HERE/../codeql/packs" && pwd)}"
 OUT="${OUT:-$PWD/out}"
 CODEQL="${CODEQL:-codeql}"
-EXPECTED_DIR="${EXPECTED_DIR:-$(dirname "$0")}"
+EXPECTATIONS="${EXPECTATIONS:-}"
+# See create-db.sh for EXTRA_PACKS.
+SEARCH_PATH="${PACKS}${EXTRA_PACKS:+:$EXTRA_PACKS}"
 
 # Wave 1 only. References/Security/Observability/Testing still emit the legacy
-# 3-column schema and are excluded on purpose.
-WAVE1=(
-  ApiSurface
-  Configuration
-  ErrorHandling
-  HibernateTypes
-  JakartaMigration
-  Messaging
-  NativeSql
-  OpenApiSurface
-  OutboundClients
-  Persistence
-)
+# 3-column schema and are excluded on purpose. Override QUERIES to run a subset.
+DEFAULT_QUERIES="ApiSurface Configuration ErrorHandling HibernateTypes JakartaMigration Messaging NativeSql OpenApiSurface OutboundClients Persistence"
+read -r -a WAVE1 <<< "${QUERIES:-$DEFAULT_QUERIES}"
 
 mkdir -p "$OUT"
 
-"$CODEQL" pack install "$PACKS/spring-signals"
-"$CODEQL" pack create  "$PACKS/spring-signals" --output="$OUT/.packcache"
+# Precompile into a cache the query runs actually use. `pack create` alone wrote
+# a compiled pack that the loop then ignored, recompiling from source on every
+# query -- so the wall-clock term this step exists to remove was still in every
+# CodeQL-vs-ast-grep timing.
+"$CODEQL" pack install "$PACKS/spring-signals" --additional-packs="$SEARCH_PATH" >/dev/null
+export CODEQL_COMPILATION_CACHE="${CODEQL_COMPILATION_CACHE:-$OUT/.compcache}"
+mkdir -p "$CODEQL_COMPILATION_CACHE"
+"$CODEQL" query compile --additional-packs="$SEARCH_PATH" \
+  --compilation-cache="$CODEQL_COMPILATION_CACHE" \
+  "$PACKS/spring-signals" >/dev/null
 
 for q in "${WAVE1[@]}"; do
   echo "== $q"
   "$CODEQL" query run \
     --database="$DB" \
-    --additional-packs="$PACKS" \
+    --additional-packs="$SEARCH_PATH" \
+    --compilation-cache="$CODEQL_COMPILATION_CACHE" \
     --output="$OUT/$q.bqrs" \
-    "$PACKS/spring-signals/$q.ql"
+    "$PACKS/spring-signals/$q.ql" >/dev/null
   "$CODEQL" bqrs decode --format=csv --entities=string \
     "$OUT/$q.bqrs" > "$OUT/$q.csv"
   echo "   rows: $(( $(wc -l < "$OUT/$q.csv") - 1 ))"
 done
 
-# Row-count assertions. Empty-result checks catch queries that silently stop
-# producing rows; minimum checks catch the @RestController-style regression
-# where a contribution is missing and the query returns zero.
 echo
-echo "== row-count assertions =="
-python3 "$(dirname "$0")/check-assertions.py" \
-  --expected-dir "$EXPECTED_DIR" \
-  --out-dir "$OUT"
+if [ -n "$EXPECTATIONS" ]; then
+  python3 "$HERE/check-assertions.py" --out "$OUT" --expectations "$EXPECTATIONS"
+else
+  echo "no EXPECTATIONS file supplied; row counts reported but nothing asserted."
+  echo "  pass EXPECTATIONS=harness/expectations/<repo>.json to gate on them."
+fi
