@@ -69,7 +69,7 @@ where
     signal = annotationFqn(a) and
     detail =
       concat(FieldAccess fa |
-        fa = a.getAChildExpr*() and fa.getField().getDeclaringType().hasQualifiedName("org.springframework.http", "HttpStatus")
+        fa = a.getValue("value") and fa.getField().getDeclaringType().hasQualifiedName("org.springframework.http", "HttpStatus")
       |
         fa.getField().getName(), "|" order by fa.getField().getName()
       ) and
