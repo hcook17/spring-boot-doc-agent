@@ -39,7 +39,9 @@ private string transactionalDetail(Annotation a) {
     concat(string s |
       s = "propagation=" + a.getValue("propagation").(FieldAccess).getField().getName()
       or
-      s = "readOnly=" + (if constantBoolean(a.getValue("readOnly")) then "true" else "false")
+      constantBoolean(a.getValue("readOnly")) = true and s = "readOnly=true"
+      or
+      constantBoolean(a.getValue("readOnly")) = false and s = "readOnly=false"
     |
       s, " " order by s
     )
