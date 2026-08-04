@@ -331,8 +331,65 @@ def test_healthy_dual_emit_join_and_sym() -> None:
     assert report["rates"]["R_coll"]["rate"] == 0.0
     assert report["rates"]["R_join"]["rate"] == 1.0
     assert report["uncertainty"]["U"] == 0.0
+    # Dual-emit may stamp UNPROVEN for non-callable families — claim must not
+    # look like full_support when S3 stamps exist.
+    if report["uncertainty"]["unproven"] or report["uncertainty"]["callable_absence"]:
+        assert report["uncertainty"]["claim"] == "comparison_index_with_unscored_s3"
+    else:
+        assert report["uncertainty"]["claim"] == "comparison_index_full_support"
+    assert "callable_absence" in report["uncertainty"]
+    assert "unproven" in report["uncertainty"]
     assert failures == []
     assert report["rates"]["R_sym"]["callable_denominator"] == 1
+
+
+def test_vacuous_uncertainty_is_null_not_zero() -> None:
+    """Deviation: empty dens published U=0.0 as if healthy Stage-0."""
+    from doc_engine.scanning.gap_probe import compute_uncertainty
+
+    block = compute_uncertainty(None, None, None, None, callable_absence=0, unproven=3)
+    assert block["U"] is None
+    assert block["claim"] == "vacuous_no_support_with_s3_stamps"
+    assert block["unproven"] == 3
+    assert block["support"] == []
+
+
+def test_vacuous_without_s3_stamps() -> None:
+    from doc_engine.scanning.gap_probe import compute_uncertainty
+
+    block = compute_uncertainty(None, None, None, None)
+    assert block["U"] is None
+    assert block["claim"] == "vacuous_no_support"
+
+
+def test_uncertainty_propagates_absence_unproven_counts() -> None:
+    from doc_engine.scanning.gap_probe import compute_uncertainty
+
+    block = compute_uncertainty(
+        0.0, 1.0, 1.0, 1.0, callable_absence=2, unproven=5
+    )
+    assert block["U"] == 0.0
+    assert block["callable_absence"] == 2
+    assert block["unproven"] == 5
+    assert block["claim"] == "comparison_index_with_unscored_s3"
+
+
+def test_partial_support_claim() -> None:
+    """Deviation: one measured dens + imputed rest still looked like full U."""
+    from doc_engine.scanning.gap_probe import compute_uncertainty
+
+    block = compute_uncertainty(0.0, None, None, None)
+    assert block["U"] == 0.0
+    assert block["claim"] == "comparison_index_partial_support"
+    assert block["support"] == ["coll"]
+    assert set(block["imputed_axes"]) == {"join", "lin", "code"}
+
+
+def test_unscored_s3_outranks_partial_support() -> None:
+    from doc_engine.scanning.gap_probe import compute_uncertainty
+
+    block = compute_uncertainty(0.0, None, None, None, unproven=1)
+    assert block["claim"] == "comparison_index_with_unscored_s3"
 
 
 def test_write_gap_report_roundtrip(tmp_path) -> None:

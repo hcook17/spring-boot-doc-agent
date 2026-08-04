@@ -26,6 +26,7 @@ from doc_engine.pipeline.compliance import (
 )
 from doc_engine.pipeline.stages import build_stage_specs
 from tests.conftest import FIXTURE_DIR, FIXTURE_SNAPSHOT_PATH
+from tests.doc_engine.cert_helpers import ok_stages_for
 
 
 class ResolveProfileTest(unittest.TestCase):
@@ -153,13 +154,53 @@ class CertificationReportTest(unittest.TestCase):
             ComplianceProfile.CERTIFIED,
             "/repo",
             "/out",
-            [StageRecord(name="signal_scan", status="ok")],
+            ok_stages_for(ComplianceProfile.CERTIFIED, generative_executor="mock"),
             gates,
             generative_executor="mock",
+            allow_mock=True,
         )
         self.assertTrue(report.certified)
         self.assertEqual(report.failures, [])
         self.assertEqual(report.profile_gate_ids, sorted(CERTIFIED_GATE_IDS))
+        self.assertEqual(report.completeness_claim, "fold_of_recorded_rows")
+
+    def test_certified_mock_requires_allow_mock(self):
+        """Deviation: CERTIFIED+mock folds certified without allow_mock."""
+        gates = [
+            GateRecord(id=gid, label=gid, status="ok")
+            for gid in sorted(CERTIFIED_GATE_IDS)
+        ]
+        report = build_certification_report(
+            ComplianceProfile.CERTIFIED,
+            "/repo",
+            "/out",
+            ok_stages_for(ComplianceProfile.CERTIFIED, generative_executor="mock"),
+            gates,
+            generative_executor="mock",
+        )
+        self.assertFalse(report.certified)
+        self.assertIn(
+            "generative_executor:mock:allow_mock_required",
+            report.failures,
+        )
+
+    def test_omitted_required_stage_not_certified(self):
+        """Deviation: only signal_scan recorded still certified under CERTIFIED."""
+        gates = [
+            GateRecord(id=gid, label=gid, status="ok")
+            for gid in sorted(CERTIFIED_GATE_IDS)
+        ]
+        report = build_certification_report(
+            ComplianceProfile.CERTIFIED,
+            "/repo",
+            "/out",
+            [StageRecord(name="signal_scan", status="ok")],
+            gates,
+            generative_executor="live",
+        )
+        self.assertFalse(report.certified)
+        self.assertTrue(any(f.endswith(":missing") for f in report.failures))
+        self.assertIn("stage:partition:missing", report.failures)
 
     def test_failed_gate_certified_false(self):
         report = build_certification_report(
@@ -179,7 +220,10 @@ class CertificationReportTest(unittest.TestCase):
             ComplianceProfile.SCAN_ONLY,
             "/repo",
             "/out",
-            [StageRecord(name="signal_scan", status="fail", detail="exit 1")],
+            [
+                StageRecord(name="init_manifest", status="ok"),
+                StageRecord(name="signal_scan", status="fail", detail="exit 1"),
+            ],
             [GateRecord(id=SCAN_ONLY_GATE_ID, label="signals", status="ok")],
         )
         self.assertFalse(report.certified)
@@ -191,7 +235,7 @@ class CertificationReportTest(unittest.TestCase):
             ComplianceProfile.SCAN_ONLY,
             "/repo",
             "/out",
-            [StageRecord(name="signal_scan", status="ok")],
+            ok_stages_for(ComplianceProfile.SCAN_ONLY),
             [],
         )
         self.assertFalse(report.certified)
@@ -203,16 +247,16 @@ class CertificationReportTest(unittest.TestCase):
                 ComplianceProfile.SCAN_ONLY,
                 "/repo",
                 tmp,
-                [StageRecord(name="signal_scan", status="ok")],
+                ok_stages_for(ComplianceProfile.SCAN_ONLY),
                 [GateRecord(id=SCAN_ONLY_GATE_ID, label="signals", status="ok")],
             )
             path = write_certification_json(tmp, report)
             self.assertTrue(path.is_file())
             data = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(data["schema_version"], 1)
-            self.assertEqual(data["stages"][0]["executor"], "deterministic")
             self.assertEqual(data["compliance_profile"], "scan_only")
             self.assertTrue(data["certified"])
+            self.assertEqual(data["completeness_claim"], "fold_of_recorded_rows")
             self.assertIn("executor", data["stages"][0])
 
     def test_failed_stage_with_empty_gates_not_certified(self):
@@ -254,7 +298,7 @@ class CertificationReportTest(unittest.TestCase):
             "/repo",
             "/out",
             [
-                StageRecord(name="signal_scan", status="ok"),
+                *ok_stages_for(ComplianceProfile.SCAN_ONLY),
                 StageRecord(name="doc_writer", status="skipped", executor="none"),
             ],
             [GateRecord(id=SCAN_ONLY_GATE_ID, label="signals", status="ok")],

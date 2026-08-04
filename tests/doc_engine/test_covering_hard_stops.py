@@ -48,6 +48,7 @@ from doc_engine.scanning.facts import (
 )
 from doc_engine.scanning.gap_probe import (
     CoveringPreconditionError,
+    _astgrep_receipt_complete,
     build_gap_report,
     load_and_verify_covering,
     measure_r_absence,
@@ -107,6 +108,42 @@ def _complete_receipt(scanner: str, root: str) -> dict:
     )
 
 
+def _absence_stamp_pairs(rows) -> set[tuple[str, str]]:
+    return {
+        (str(r["predicate"]), str(r["subject"]))
+        for r in rows
+        if r.get("predicate") in {"ABSENCE", "UNPROVEN"}
+    }
+
+
+def _assert_absence_stamps_match_writer(
+    test: unittest.TestCase,
+    signals: dict,
+    *,
+    covering_ok: bool,
+    covering_root: str | None,
+    scanner_version: str | None,
+    astgrep_receipt_complete: bool,
+    actual_rows,
+) -> None:
+    """Dual-emit ABSENCE/UNPROVEN must equal write_absence_facts on the same inputs.
+
+    Unlike ``any(ABSENCE|UNPROVEN)``, this passes for a fully-present corpus
+    (both sides empty) and fails if stamps are wrong, not merely missing.
+    """
+    expected = write_absence_facts(
+        signals,
+        covering_ok=covering_ok,
+        covering_root=covering_root,
+        scanner_version=scanner_version,
+        astgrep_receipt_complete=astgrep_receipt_complete,
+    )
+    test.assertEqual(
+        _absence_stamp_pairs(actual_rows),
+        _absence_stamp_pairs(expected),
+    )
+
+
 # ===========================================================================
 # Unit / white-box — callable ABSENCE discipline
 # ===========================================================================
@@ -136,6 +173,153 @@ class CallableAbsenceFalsifiersTest(unittest.TestCase):
         )
         messaging = [f for f in facts if f["subject"] == "family:messaging"]
         self.assertEqual(messaging, [])
+
+    def test_shared_bucket_rule_id_is_not_foreign_family_presence(self):
+        """Deviation: any observability rule_id counted as redis/actuator hits."""
+        from doc_engine.scanning.absence import _positive_hits
+
+        signals = {
+            "evidence": {
+                "observability": [
+                    {
+                        "file": "M.java",
+                        "line": 1,
+                        "match": "@Timed",
+                        "rule_id": "observability__timed",
+                    }
+                ],
+                "deployment": [],
+                "messaging": [],
+            },
+            "config_key_sets": {},
+        }
+        self.assertEqual(_positive_hits("redis", signals), 0)
+        self.assertEqual(_positive_hits("actuator", signals), 0)
+        facts = write_absence_facts(
+            signals,
+            covering_ok=True,
+            covering_root="root",
+            scanner_version="sv",
+            astgrep_receipt_complete=True,
+        )
+        redis = [f for f in facts if f["subject"] == "family:redis"]
+        self.assertEqual(len(redis), 1)
+        self.assertEqual(redis[0]["predicate"], "UNPROVEN")
+
+    def test_fully_present_corpus_emits_empty_absence_bag(self):
+        """Deviation: ``any(ABSENCE|UNPROVEN)`` required on a fully-present Path A.
+
+        When every absence-writer family has family-scoped hits, the correct
+        stamp set is empty. A smoke assert of the form ``any(...)`` would fail
+        that healthy case or, worse, pass a bug that invents spurious stamps.
+        """
+        signals = {
+            "evidence": {
+                "deployment": [
+                    {
+                        "file": "build.gradle",
+                        "line": 1,
+                        "match": "org.springframework.kafka:spring-kafka",
+                        "rule_id": "deployment__build_dependency",
+                    },
+                    {
+                        "file": "build.gradle",
+                        "line": 2,
+                        "match": "org.springframework.cloud:spring-cloud-starter-openfeign",
+                        "rule_id": "deployment__build_dependency",
+                    },
+                    {
+                        "file": "build.gradle",
+                        "line": 3,
+                        "match": "org.springframework.boot:spring-boot-starter-data-redis",
+                        "rule_id": "deployment__build_dependency",
+                    },
+                    {
+                        "file": "build.gradle",
+                        "line": 4,
+                        "match": "org.springframework.boot:spring-boot-starter-actuator",
+                        "rule_id": "deployment__build_dependency",
+                    },
+                    {
+                        "file": "build.gradle",
+                        "line": 5,
+                        "match": "software.amazon.awssdk:secretsmanager",
+                        "rule_id": "deployment__build_dependency",
+                    },
+                    {
+                        "file": "build.gradle",
+                        "line": 6,
+                        "match": "org.springframework.boot:spring-boot-starter-security",
+                        "rule_id": "deployment__build_dependency",
+                    },
+                ],
+                "messaging": [
+                    {
+                        "file": "M.java",
+                        "line": 1,
+                        "match": "@KafkaListener",
+                        "rule_id": "messaging__kafka_listener",
+                    }
+                ],
+                "outbound_clients": [
+                    {
+                        "file": "F.java",
+                        "line": 1,
+                        "match": "@FeignClient",
+                        "rule_id": "outbound_clients__feign",
+                    }
+                ],
+                "observability": [
+                    {
+                        "file": "A.java",
+                        "line": 1,
+                        "match": "actuator",
+                        "rule_id": "observability__actuator",
+                    }
+                ],
+                "configuration": [
+                    {
+                        "file": "R.java",
+                        "line": 1,
+                        "match": "redis",
+                        "rule_id": "configuration__redis",
+                    },
+                    {
+                        "file": "S.java",
+                        "line": 1,
+                        "match": "secretsmanager",
+                        "rule_id": "configuration__aws_secrets",
+                    },
+                ],
+                "security": [
+                    {
+                        "file": "Sec.java",
+                        "line": 1,
+                        "match": "@EnableWebSecurity",
+                        "rule_id": "security__config",
+                    }
+                ],
+            },
+            "config_key_sets": {"application.yml": ["spring.datasource.url"]},
+        }
+        facts = write_absence_facts(
+            signals,
+            covering_ok=True,
+            covering_root="root",
+            scanner_version="sv",
+            astgrep_receipt_complete=True,
+        )
+        self.assertEqual(facts, [])
+        # The invariant the smoke tests must keep: recompute ≡ actual, including ∅.
+        _assert_absence_stamps_match_writer(
+            self,
+            signals,
+            covering_ok=True,
+            covering_root="root",
+            scanner_version="sv",
+            astgrep_receipt_complete=True,
+            actual_rows=facts,
+        )
 
     def test_empty_bucket_without_witness_never_absence(self):
         """Deviation: empty messaging bucket alone treated as feature absent."""
@@ -551,7 +735,7 @@ class GapProbeS1S3Test(unittest.TestCase):
         self.assertFalse((out / "gap_report.json").is_file())
 
     def test_gap_report_omits_r_recall_without_oracle_arm(self):
-        """Deviation: R_recall present on filesystem+ast-grep-only covering."""
+        """Deviation: R_recall measured without trusted CodeQL receipt."""
         sigs = {"a.java": "1"}
         root = inventory_root(sigs)
         proof = build_covering_proof(
@@ -574,7 +758,10 @@ class GapProbeS1S3Test(unittest.TestCase):
             covering_proof=proof,
             covering_ok=True,
         )
-        self.assertNotIn("R_recall", report["rates"])
+        self.assertIn("R_recall", report["rates"])
+        self.assertTrue(report["rates"]["R_recall"]["omitted"])
+        self.assertEqual(report["rates"]["R_recall"]["claim"], "omitted_without_oracle")
+        self.assertFalse(report["rates"]["oracle"]["trusted_codeql_arm"])
 
     def test_gap_report_includes_r_recall_when_codeql_receipt(self):
         """Deviation: CodeQL arm present but R_recall section omitted."""
@@ -603,6 +790,97 @@ class GapProbeS1S3Test(unittest.TestCase):
         )
         self.assertIn("R_recall", report["rates"])
         self.assertEqual(report["rates"]["R_recall"]["denominator"], 0)
+        self.assertEqual(report["rates"]["R_recall"]["claim"], "measured")
+        self.assertTrue(report["rates"]["oracle"]["trusted_codeql_arm"])
+
+    def test_planted_recall_miss_without_oracle_is_untrusted(self):
+        """Deviation: planted RECALL_MISS alone measures R_recall."""
+        sigs = {"a.java": "1"}
+        root = inventory_root(sigs)
+        proof = build_covering_proof(
+            file_signatures=sigs,
+            scanner_version="sv",
+            receipts=[
+                _complete_receipt("filesystem", root),
+                _complete_receipt("ast-grep", root),
+            ],
+        )
+        facts = [
+            {
+                "predicate": "RECALL_MISS",
+                "subject": "entity:Hidden",
+                "qualifiers": {"verdict": "STRUCTURAL", "oracle_arm": "planted"},
+            }
+        ]
+        report, kept = build_gap_report(
+            {
+                "schema_version": 7,
+                "scanner_version": "sv",
+                "file_signatures": sigs,
+                "entity_table_map": {},
+                "evidence": {},
+            },
+            facts,
+            covering_proof=proof,
+            covering_ok=True,
+        )
+        self.assertEqual(report["rates"]["R_recall"]["claim"], "untrusted_planted")
+        self.assertTrue(report["rates"]["R_recall"]["omitted"])
+        self.assertTrue(report["design_reopen"]["untrusted_planted_recall"])
+        self.assertTrue(
+            any(f.get("reason_class") == "RECALL_MISS_WITHOUT_ORACLE" for f in kept)
+        )
+
+    def test_r_absence_failure_mass_uses_callable_trials(self):
+        """Deviation: R_absence identity |ABSENCE|/|ABSENCE| always 1.0 when defined."""
+        from doc_engine.scanning.absence import count_callable_trials, write_absence_facts
+
+        signals = _kafka_signals(messaging_hits=2)
+        sigs = {"a.java": "1", "build.gradle": "1"}
+        root = inventory_root(sigs)
+        proof = build_covering_proof(
+            file_signatures=sigs,
+            scanner_version="sv",
+            receipts=[
+                _complete_receipt("filesystem", root),
+                _complete_receipt("ast-grep", root),
+            ],
+        )
+        facts = write_absence_facts(
+            signals,
+            covering_ok=True,
+            covering_root=root,
+            scanner_version="sv",
+            astgrep_receipt_complete=True,
+        )
+        # Present messaging → no stamp; other callable empty families → ABSENCE.
+        messaging = [f for f in facts if f.get("subject") == "family:messaging"]
+        self.assertEqual(messaging, [])
+        trials = count_callable_trials(
+            signals, covering_ok=True, astgrep_receipt_complete=True
+        )
+        self.assertGreater(trials, 0)
+        report, _ = build_gap_report(
+            {
+                "schema_version": 7,
+                "scanner_version": "sv",
+                "file_signatures": sigs,
+                "entity_table_map": {},
+                "evidence": signals["evidence"],
+                "config_key_sets": {},
+            },
+            facts,
+            covering_proof=proof,
+            covering_ok=True,
+        )
+        block = report["rates"]["R_absence"]
+        self.assertEqual(block["polarity"], "failure_mass")
+        self.assertEqual(block["callable_trials"], trials)
+        self.assertEqual(block["denominator"], trials)
+        # Presence short-circuit: rate must be < 1 when some callable trials hit.
+        if block["callable_absence"] < trials:
+            self.assertIsNotNone(block["rate"])
+            self.assertLess(block["rate"], 1.0)
 
     def test_measure_r_absence_ignores_non_callable_absence_rows(self):
         """Deviation: planted non-callable ABSENCE counted in S3 denominator."""
@@ -632,6 +910,13 @@ class GapProbeS1S3Test(unittest.TestCase):
                 "measure_r_absence must use only trial=callable ABSENCE rows as "
                 f"denominator (got den={block['denominator']}, want {len(callable_only)})"
             )
+
+        # With explicit callable_trials, polarity is failure mass over trials.
+        mass = measure_r_absence(facts, callable_trials=4)
+        self.assertEqual(mass["polarity"], "failure_mass")
+        self.assertEqual(mass["numerator"], 1)
+        self.assertEqual(mass["denominator"], 4)
+        self.assertEqual(mass["rate"], 0.25)
 
 
 # ===========================================================================
@@ -688,9 +973,14 @@ class FixtureCliCoveringSmokeTest(unittest.TestCase):
                 for line in facts.read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
-            self.assertTrue(
-                any(r["predicate"] in {"ABSENCE", "UNPROVEN"} for r in fact_rows),
-                "expected ABSENCE/UNPROVEN stamps in facts.jsonl",
+            _assert_absence_stamps_match_writer(
+                self,
+                path_a,
+                covering_ok=ok,
+                covering_root=proof.get("inventory_root"),
+                scanner_version=path_a.get("scanner_version"),
+                astgrep_receipt_complete=_astgrep_receipt_complete(proof),
+                actual_rows=fact_rows,
             )
 
     def test_in_process_scan_attaches_covering_proof(self):
@@ -704,9 +994,18 @@ class FixtureCliCoveringSmokeTest(unittest.TestCase):
             scanner_version=result["scanner_version"],
         )
         self.assertTrue(ok, why)
-        # Dual-emit covering writers see the attachment.
         facts = facts_from_signals(result)
-        self.assertTrue(any(f["predicate"] in {"ABSENCE", "UNPROVEN"} for f in facts))
+        _assert_absence_stamps_match_writer(
+            self,
+            result,
+            covering_ok=ok,
+            covering_root=result["_covering_proof"].get("inventory_root"),
+            scanner_version=result.get("scanner_version"),
+            astgrep_receipt_complete=_astgrep_receipt_complete(
+                result["_covering_proof"]
+            ),
+            actual_rows=facts,
+        )
 
 
 def shutil_which(name: str):

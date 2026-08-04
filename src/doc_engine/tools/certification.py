@@ -30,6 +30,34 @@ def load_certification(path: Path) -> dict[str, Any]:
     return data
 
 
+def _refold_certification(
+    data: dict[str, Any],
+    *,
+    allow_mock: bool,
+):
+    """Recompute certified/failures from stamped stage/gate facts."""
+    from doc_engine.pipeline.compliance import (
+        ComplianceProfile,
+        GateRecord,
+        StageRecord,
+        build_certification_report,
+    )
+
+    profile = ComplianceProfile(data["compliance_profile"])
+    stages = [StageRecord.model_validate(row) for row in data.get("stages") or []]
+    gates = [GateRecord.model_validate(row) for row in data.get("gates") or []]
+    executor = data.get("generative_executor", "none")
+    return build_certification_report(
+        profile,
+        str(data.get("repo_path") or ""),
+        str(data.get("out_dir") or ""),
+        stages,
+        gates,
+        generative_executor=executor,
+        allow_mock=allow_mock,
+    )
+
+
 def verify_certification(
     path: Path,
     *,
@@ -37,14 +65,36 @@ def verify_certification(
 ) -> tuple[bool, str]:
     """Return (ok, message). ok is True only when certified is true.
 
-    By default ``generative_executor`` of ``none`` or ``mock`` is rejected so a
-    stale deterministic/mock certificate cannot pass as a live adoption gate.
+    Refolds ``build_certification_report`` from stamped stage/gate rows and
+    rejects bit≠refold or ``certified ∧ failures ≠ ∅``. By default
+    ``generative_executor`` of ``none`` or ``mock`` is rejected so a stale
+    deterministic/mock certificate cannot pass as a live adoption gate.
     Pass ``allow_mock=True`` (CLI ``--allow-mock``) for local mock-profile runs.
     """
     try:
         data = load_certification(path)
     except (ValueError, json.JSONDecodeError) as exc:
         return False, f"error: {exc}"
+
+    stamped_certified = data.get("certified")
+    stamped_failures = list(data.get("failures") or [])
+    if stamped_certified is True and stamped_failures:
+        return False, (
+            "error: certified=true with non-empty failures "
+            f"(incoherent stamp; failures={stamped_failures})"
+        )
+
+    refold = _refold_certification(data, allow_mock=allow_mock)
+    if stamped_certified != refold.certified:
+        return False, (
+            f"error: certified bit {stamped_certified!r} ≠ refold "
+            f"{refold.certified!r} (refold_failures={refold.failures})"
+        )
+    if sorted(stamped_failures) != sorted(refold.failures):
+        return False, (
+            "error: failures list ≠ refold "
+            f"(stamped={stamped_failures}, refold={refold.failures})"
+        )
 
     executor = data.get("generative_executor", "none")
     if executor in ("none", "mock") and not allow_mock:
@@ -54,13 +104,12 @@ def verify_certification(
             f"`doc-engine pipeline gates` to write generative_executor=live)"
         )
 
-    if data.get("certified") is True:
+    if stamped_certified is True:
         return True, f"OK: certified ({path})"
 
-    failures = data.get("failures") or []
     profile = data.get("compliance_profile", "unknown")
     return False, (
-        f"error: not certified (profile={profile}, failures={failures})"
+        f"error: not certified (profile={profile}, failures={stamped_failures})"
     )
 
 

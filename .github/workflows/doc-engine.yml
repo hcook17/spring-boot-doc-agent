@@ -75,6 +75,7 @@ jobs:
         run: |
           doc-engine pipeline run scripts/fixtures/spring_signals \
             --compliance-profile certified \
+            --allow-mock \
             --out-dir pipeline-artifacts \
             --skip-drift \
             --signals-file scripts/fixtures/spring_signals_fixture_expected.json

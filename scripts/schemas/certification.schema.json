@@ -114,6 +114,12 @@
       "title": "Generative Executor",
       "type": "string"
     },
+    "completeness_claim": {
+      "const": "fold_of_recorded_rows",
+      "default": "fold_of_recorded_rows",
+      "title": "Completeness Claim",
+      "type": "string"
+    },
     "profile_gate_ids": {
       "items": {
         "type": "string"

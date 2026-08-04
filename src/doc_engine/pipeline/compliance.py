@@ -1,7 +1,9 @@
 """Compliance profiles, gate checklists, and certification.json emission.
 
 ``certification.json`` is a **derived view** over stage/gate facts: only
-``build_certification_report`` computes ``certified`` / ``failures``. See
+``build_certification_report`` computes ``certified`` / ``failures``.
+``completeness_claim`` is always ``fold_of_recorded_rows`` — the bit is not
+Stage-0 covering / gap measurement / doc quality. See
 ``claude/research/certification-derived-view-2026-07-30.md``.
 """
 
@@ -79,6 +81,9 @@ class CertificationReport(BaseModel):
     out_dir: str
     timestamp: str
     generative_executor: GenerativeExecutor = "none"
+    # Bare-minimum honesty: certified is a fold over recorded stage/gate rows,
+    # not Stage-0 covering / gap_probe / doc-quality completeness.
+    completeness_claim: Literal["fold_of_recorded_rows"] = "fold_of_recorded_rows"
     profile_gate_ids: list[str] = Field(default_factory=list)
     stages: list[StageRecord] = Field(default_factory=list)
     gates: list[GateRecord] = Field(default_factory=list)
@@ -214,12 +219,17 @@ def build_certification_report(
     stages: list[StageRecord],
     gates: list[GateRecord],
     generative_executor: GenerativeExecutor = "none",
+    *,
+    allow_mock: bool = False,
 ) -> CertificationReport:
     """Assemble certification.json from stage and gate audit records.
 
-    ``certified`` is true only when the fold rules pass: stage fails, required
-    skips, gate failures/missings, and mock-under-live consistency. An empty
-    gate list cannot certify when the profile lists required gates.
+    ``certified`` is true only when the fold rules pass over **recorded**
+    stage/gate rows (fails, required skips, gate failures/missings,
+    mock-under-live, CERTIFIED+mock/none without ``allow_mock``). It is
+    **not** Stage-0 covering / gap_probe / doc-quality completeness — see
+    ``completeness_claim: fold_of_recorded_rows``.
+    An empty gate list cannot certify when the profile lists required gates.
     """
     failures: list[str] = []
     required_stages = required_stage_names_for_profile(profile)
@@ -241,6 +251,28 @@ def build_certification_report(
         if gate_id not in by_id:
             failures.append(f"gate:{gate_id}:missing")
 
+    # Omission ≠ success: required stages never recorded must fail the fold.
+    # Live rewrite may substitute generative_external for all generative stages.
+    recorded = {stage.name for stage in stages}
+    gen_names = generative_stage_names()
+    live_external_ok = generative_executor == "live" and any(
+        s.name == GENERATIVE_EXTERNAL_STAGE and s.status == "ok" for s in stages
+    )
+    for name in sorted(required_stages):
+        if name in recorded:
+            continue
+        if live_external_ok and name in gen_names:
+            continue
+        failures.append(f"stage:{name}:missing")
+
+    # CERTIFIED + mock/none is not a live adoption fold unless allow_mock.
+    if (
+        profile == ComplianceProfile.CERTIFIED
+        and generative_executor in ("none", "mock")
+        and not allow_mock
+    ):
+        failures.append(f"generative_executor:{generative_executor}:allow_mock_required")
+
     return CertificationReport(
         schema_version=CERTIFICATION_SCHEMA_VERSION,
         compliance_profile=profile.value,
@@ -249,6 +281,7 @@ def build_certification_report(
         out_dir=out_dir,
         timestamp=datetime.now(timezone.utc).isoformat(),
         generative_executor=generative_executor,
+        completeness_claim="fold_of_recorded_rows",
         profile_gate_ids=sorted(required_ids),
         stages=stages,
         gates=gates,

@@ -1274,9 +1274,19 @@ class Ch10CommandChainTest(unittest.TestCase):
             run_dir = os.path.join(d, "run")
             proc = _run([PY, "-m", "doc_engine.pipeline.local_runner",
                          os.path.join(SCRIPT_DIR, "fixtures", "spring_signals"),
-                         "--out-dir", run_dir, "--skip-drift"])
+                         "--out-dir", run_dir, "--skip-drift",
+                         "--allow-mock"])
             self.assertEqual(proc.returncode, 0, proc.stdout[-4000:] + proc.stderr[-2000:])
             self.assertIn("RESULT: every gate passed", proc.stdout)
+            cert_path = os.path.join(run_dir, "certification.json")
+            self.assertTrue(os.path.isfile(cert_path))
+            with open(cert_path, encoding="utf-8") as f:
+                cert = json.load(f)
+            self.assertTrue(
+                cert.get("certified"),
+                f"expected certified under --allow-mock; failures={cert.get('failures')}",
+            )
+            self.assertEqual(cert.get("generative_executor"), "mock")
             covering = os.path.join(run_dir, "covering_proof.json")
             signals_path = os.path.join(run_dir, "spring_signals.json")
             self.assertTrue(os.path.isfile(covering), "local_runner missing covering_proof.json")

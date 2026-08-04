@@ -212,7 +212,11 @@ class GapProbeCoveringGateTest(unittest.TestCase):
         )
         self.assertTrue(report["s1_covering"]["verified"])
         self.assertIn("R_absence", report["rates"])
-        self.assertNotIn("R_recall", report["rates"])
+        self.assertEqual(report["rates"]["R_absence"]["polarity"], "failure_mass")
+        self.assertIn("R_recall", report["rates"])
+        self.assertTrue(report["rates"]["R_recall"]["omitted"])
+        self.assertEqual(report["rates"]["R_recall"]["claim"], "omitted_without_oracle")
+        self.assertFalse(report["rates"]["oracle"]["trusted_codeql_arm"])
 
 
 class CoveringWriteRoundTripTest(unittest.TestCase):

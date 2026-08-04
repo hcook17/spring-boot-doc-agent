@@ -27,6 +27,7 @@ class CertifiedMockIntegrationTest(unittest.TestCase):
                 keep_going=False,
                 compliance_profile="certified",
                 deterministic_only=False,
+                allow_mock=True,
                 signals_file=str(FIXTURE_SNAPSHOT_PATH),
             )
             code = run_pipeline(args)
