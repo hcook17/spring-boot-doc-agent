@@ -1,0 +1,2 @@
+| org.springframework.web.bind.annotation.ResponseStatus | com.example/CustomException# | NOT_FOUND |
+| org.springframework.web.bind.annotation.ResponseStatus | com.example/GlobalErrorHandler#handle(). | BAD_REQUEST |

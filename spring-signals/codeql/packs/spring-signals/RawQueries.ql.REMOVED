@@ -1,0 +1,15 @@
+RawQueries.ql is superseded by NativeSql.ql in this wave.
+
+Rule id migration for any downstream consumer:
+  raw_queries__query  +  query_kind="native"  ->  sql__data_query_native
+  raw_queries__query  +  query_kind="jpql"    ->  sql__data_query_jpql
+
+NativeSql.ql additionally emits:
+  sql__named_native_query   (JPA @NamedNativeQuery, incl. repeatable containers)
+  sql__named_jpql_query     (JPA @NamedQuery)
+  sql__jdbc_call            (JdbcTemplate / NamedParameterJdbcTemplate / EntityManager)
+
+On ocs-api-service that is 198 -> ~250 SQL-bearing sites, plus schema_refs and
+uses_json columns that RawQueries did not produce.
+
+Delete this file once the harness config has been repointed.

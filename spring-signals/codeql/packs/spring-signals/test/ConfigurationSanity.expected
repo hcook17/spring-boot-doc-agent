@@ -1,0 +1,6 @@
+| org.springframework.beans.factory.annotation.Value | com.example/AppConfig#appName. | ${app.name:default} |  |
+| org.springframework.boot.context.properties.ConfigurationProperties | com.example/AppProperties# |  | app |
+| org.springframework.context.annotation.ComponentScan | com.example/AppConfig# |  |  |
+| org.springframework.context.annotation.Configuration | com.example/AppConfig# |  |  |
+| org.springframework.context.annotation.Configuration | org.springframework.boot.autoconfigure/SpringBootApplication# |  |  |
+| org.springframework.context.annotation.PropertySource | com.example/AppConfig# | classpath:application.properties |  |

@@ -1,0 +1,5 @@
+| io.swagger.annotations.Api | com.example/OpenApiBook# |  |  |  |
+| io.swagger.annotations.ApiOperation | com.example/OpenApiBook#createBook(). | Create a book |  |  |
+| io.swagger.v3.oas.annotations.Operation | com.example/OpenApiBook#getBook(). |  | Get a book | Fetches a book by id |
+| io.swagger.v3.oas.annotations.responses.ApiResponse | com.example/OpenApiBook#getBook(). |  |  | OK |
+| io.swagger.v3.oas.annotations.tags.Tag | com.example/OpenApiBook# |  |  |  |

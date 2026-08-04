@@ -1,0 +1,47 @@
+# Minimum row-count assertions for the local fixture runtime gate.
+# Format: query_name rule_id min_count
+
+# ApiSurface should see at least one controller, endpoint, and parameter binding.
+ApiSurface api_surface__controller 1
+ApiSurface api_surface__endpoint 1
+ApiSurface api_surface__param_binding 1
+
+# Configuration should see typed binding, value injection, and config annotations.
+Configuration configuration__typed_binding 1
+Configuration configuration__value_injection 1
+Configuration configuration__config_annotation 1
+
+# ErrorHandling should see advice, handler, and response-status annotations.
+ErrorHandling error__advice_class 1
+ErrorHandling error__handler_method 1
+ErrorHandling error__response_status 1
+
+# HibernateTypes should see custom type usage and id generators.
+HibernateTypes hibernate__custom_type 1
+HibernateTypes hibernate__id_generator 1
+
+# JakartaMigration should see both pending javax and migrated jakarta references.
+JakartaMigration jakarta__pending_import 1
+JakartaMigration jakarta__migrated_import 1
+
+# Messaging should see listeners and client types.
+Messaging messaging__listener 1
+Messaging messaging__client_type 1
+
+# NativeSql should see JDBC calls, JPQL queries, and native queries.
+NativeSql sql__jdbc_call 1
+NativeSql sql__data_query_jpql 1
+NativeSql sql__data_query_native 1
+
+# OpenApiSurface should see operation and tag annotations.
+OpenApiSurface openapi__operation 1
+OpenApiSurface openapi__tag 1
+
+# OutboundClients should see Feign clients and declared outbound type usage.
+OutboundClients outbound__feign 1
+OutboundClients outbound__type_usage 1
+
+# Persistence should see entities, repositories, and transactional annotations.
+Persistence persistence__entity 1
+Persistence persistence__repository 1
+Persistence persistence__transactional 1

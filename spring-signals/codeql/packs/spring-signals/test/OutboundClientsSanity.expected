@@ -1,0 +1,4 @@
+| org.springframework.cloud.openfeign.FeignClient | com.example/OutboundClient# |  | http://example.com |
+| org.springframework.web.service.annotation.GetExchange | com.example/OutboundClient#getBooks(). |  |  |
+| org.springframework.web.service.annotation.HttpExchange | com.example/OutboundClient# | /books |  |
+| org.springframework.web.service.annotation.PostExchange | com.example/OutboundClient#createBook(). |  |  |

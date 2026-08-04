@@ -1,0 +1,26 @@
+# Library pack: language-scoped (Java), framework-agnostic.
+#
+# This pack holds LANGUAGE-level machinery only and names no framework in code:
+#   Schema.qll       the 11-column row contract
+#   Types.qll        generic-safe, transitive type matching
+#   Annotations.qll  meta resolution + the MetaAnnotationEdges extension point
+#
+# A second framework (Micronaut, Quarkus, Jakarta EE) ships its own query pack
+# with its own Catalog and its own MetaAnnotationEdges subclass. It does not fork
+# this library and does not add anything to it. Framework facts living here is
+# the exact violation that was corrected when Catalog.qll moved out; if a change
+# needs to add one back, the change is wrong.
+#
+# A second *language* gets a sibling library pack (python-signals-lib, ...)
+# that re-implements Schema.qll/Annotations.qll against that language's
+# stdlib but emits the IDENTICAL row schema. The row schema is the
+# cross-language contract, not the QL.
+name: spring-signals/java-signals-lib
+version: 0.1.0
+library: true
+dependencies:
+  # Exact pin, not a caret range. The ^9.2.0 the bundle ships resolved to 6.1.0
+  # in local testing, so the declared pin and the resolved pin must match.
+  codeql/java-all: 9.2.2
+  # codeql.util.Unit backs the MetaAnnotationEdges extension point.
+  codeql/util: 2.0.41

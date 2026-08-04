@@ -1,0 +1,4 @@
+# Enables the ${workspace} dependency resolution used in spring-signals/qlpack.yml.
+provide:
+  - "packs/*/qlpack.yml"
+  - "packs/*/test/qlpack.yml"

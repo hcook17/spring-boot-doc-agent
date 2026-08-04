@@ -1,0 +1,6 @@
+| org.hibernate.annotations.Fetch | com.example/HibernateBook#lazy. |  |  |
+| org.hibernate.annotations.GenericGenerator | com.example/HibernateBook# | custom |  |
+| org.hibernate.annotations.GenericGenerator | com.example/HibernateBook#id. | id-gen |  |
+| org.hibernate.annotations.Type | com.example/HibernateBook#data. |  | jsonb |
+| org.hibernate.annotations.TypeDef | com.example/HibernateBook# | jsonb |  |
+| org.hibernate.annotations.Where | com.example/HibernateBook#active. |  |  |

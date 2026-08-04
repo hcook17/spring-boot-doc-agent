@@ -1,0 +1,11 @@
+| javax.persistence.Entity | com.example/Author# |  |  |
+| javax.persistence.Entity | com.example/Book# |  |  |
+| javax.persistence.Entity | com.example/Chapter# |  |  |
+| javax.persistence.Entity | com.example/HibernateBook# |  |  |
+| javax.persistence.Entity | com.example/JavaxEntity# |  |  |
+| javax.persistence.Table | com.example/Author# | authors |  |
+| javax.persistence.Table | com.example/Book# | books |  |
+| javax.persistence.Table | com.example/JavaxEntity# | javax_books |  |
+| org.springframework.transaction.annotation.Transactional | com.example/BookService#touch(). |  | propagation=REQUIRES_NEW readOnly=true |
+| org.springframework.transaction.annotation.Transactional | com.example/BookService#update(). |  | propagation=REQUIRED readOnly=false |
+| org.springframework.transaction.annotation.Transactional | com.example/PersistenceService#runSql(). |  | propagation=REQUIRED readOnly=false |

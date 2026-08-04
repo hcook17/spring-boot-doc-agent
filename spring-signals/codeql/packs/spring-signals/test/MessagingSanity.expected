@@ -1,0 +1,2 @@
+| org.springframework.kafka.annotation.KafkaListener | com.example/MessagingService#handleEvents(). | audit\|events |
+| org.springframework.kafka.annotation.KafkaListener | com.example/MessagingService#handleOrder(). | orders |
