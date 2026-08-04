@@ -1,0 +1,1 @@
+| org.springframework.kafka.annotation.KafkaListener | com.example/MessagingService#handleOrder(). | orders |
