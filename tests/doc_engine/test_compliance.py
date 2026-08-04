@@ -260,6 +260,31 @@ class CertificationReportTest(unittest.TestCase):
         for gid in sorted(CERTIFIED_GATE_IDS):
             self.assertIn(f"gate:{gid}:not_required", report.failures)
 
+    def test_live_gates_exempts_test_pipeline_stages(self):
+        """Live path does not rerun pytest; skipped test_pipeline_stages is ok."""
+        gates = [
+            GateRecord(id=gid, label=gid, status="ok")
+            for gid in sorted(CERTIFIED_GATE_IDS - {"test_pipeline_stages"})
+        ]
+        gates.append(
+            GateRecord(
+                id="test_pipeline_stages",
+                label="pytest test_pipeline_stages (not run on live gates path)",
+                status="skipped",
+                required=False,
+            )
+        )
+        report = build_certification_report(
+            ComplianceProfile.CERTIFIED,
+            "/repo",
+            "/out",
+            ok_stages_for(ComplianceProfile.CERTIFIED, generative_executor="live"),
+            gates,
+            generative_executor="live",
+        )
+        self.assertTrue(report.certified)
+        self.assertEqual(report.failures, [])
+
     def test_write_certification_json(self):
         with tempfile.TemporaryDirectory() as tmp:
             report = build_certification_report(
