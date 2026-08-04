@@ -1,0 +1,3 @@
+| javax.persistence.Entity | com.example/TestEntity# |  |  |
+| javax.persistence.Table | com.example/TestEntity# | books |  |
+| org.springframework.transaction.annotation.Transactional | com.example/TestEntity#touch(). |  | propagation=REQUIRES_NEW readOnly=true |
