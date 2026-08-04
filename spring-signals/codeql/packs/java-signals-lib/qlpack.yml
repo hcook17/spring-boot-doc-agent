@@ -21,6 +21,6 @@ library: true
 dependencies:
   # Exact pin, not a caret range. The ^9.2.0 the bundle ships resolved to 6.1.0
   # in local testing, so the declared pin and the resolved pin must match.
-  codeql/java-all: 9.2.1
+  codeql/java-all: 9.2.2
   # codeql.util.Unit backs the MetaAnnotationEdges extension point.
   codeql/util: 2.0.40
