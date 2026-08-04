@@ -4662,7 +4662,7 @@ Files touched: CONSTRAINTS.md, MATURITY_ASSESSMENT.md, STATUS.md, scripts/ratche
 
 ## 2026-08-04 — CodeQL spring-signals Wave 1 (P0 correctness)
 
-Commit: uncommitted
+Commit: 06cf1b4
 Tests: rule_coverage 33/33 non-vacuity; pytest tests/coverage/test_rule_coverage.py + test_spring_signal_scan.py 82 passed; `PYTHONPATH=src python3 scripts/ci/check_repo_claims.py` OK
 Assumptions affected:
 - CodeQL pack exact-FQN / direct-supertype / StringLiteral / collapsed rule_id / `.*\.java$` inventory — [Resolved — Wave 1 P0; shared SourceHygiene+TypeMatchers; see `claude/research/codeql-spring-signals-p0-wave1-2026-08-04.md`]
