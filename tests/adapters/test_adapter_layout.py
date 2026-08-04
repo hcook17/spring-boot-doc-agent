@@ -101,6 +101,20 @@ class ClaudeAdapterPathResolveTest(unittest.TestCase):
                     path = adapter / rel.replace("/", os.sep)
                     self.assertTrue(path.is_file(), f"missing hook script: {path}")
 
+    def test_deny_hooks_are_wired_in_hooks_json(self):
+        """deny_text_search / deny_raw_network must be listed (not only exist)."""
+        adapter = _adapter()
+        hooks = json.loads((adapter / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+        commands = []
+        for entry in hooks.get("hooks", {}).get("PreToolUse", []):
+            for hook in entry.get("hooks", []):
+                commands.append(hook.get("command", ""))
+        joined = "\n".join(commands)
+        self.assertIn("deny_text_search.py", joined)
+        self.assertIn("deny_raw_network.py", joined)
+        # pipe-exit lives in .claude/settings.json only — not plugin hooks.json
+        self.assertNotIn("check_pipe_exit_code.py", joined)
+
 
 class CliFacadeSmokeTest(unittest.TestCase):
     def _help(self, *args: str) -> subprocess.CompletedProcess:

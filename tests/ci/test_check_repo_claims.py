@@ -349,15 +349,9 @@ class TestCiSuiteCoverage(TreeCase):
             "def test_x():\n    pass\n", encoding="utf-8")
         self.assertEqual(self.run_check(), 0)
 
-    def test_exempt_suite_is_allowed(self) -> None:
-        name = next(iter(crc.CI_EXEMPT_SUITES))
-        (self.dir / "tests" / name).write_text("def test_x():\n    pass\n",
-                                               encoding="utf-8")
-        self.assertEqual(self.run_check(), 0)
-
-    def test_every_exemption_states_a_reason(self) -> None:
-        for name, reason in crc.CI_EXEMPT_SUITES.items():
-            self.assertTrue(reason.strip(), f"{name} is exempt with no reason")
+    def test_ci_exempt_suites_registry_removed(self) -> None:
+        """Dead CI_EXEMPT_SUITES must not return — opt-in uses skipUnless."""
+        self.assertFalse(hasattr(crc, "CI_EXEMPT_SUITES"))
 
 
 class TestGateHonesty(TreeCase):

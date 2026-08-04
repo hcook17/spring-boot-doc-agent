@@ -127,9 +127,13 @@ def check_non_vacuity() -> List[str]:
     if not FIXTURE_DIR.is_dir():
         return [f"fixture corpus {FIXTURE_DIR.name}/ is missing; "
                 f"the non-vacuity gate has nothing to run against"]
+    ids = rule_ids()
+    if not ids:
+        return ["semgrep rule file yielded no rule ids; empty denominator "
+                "is not coverage (vacuous pass refused)"]
     counts = hit_counts(FIXTURE_DIR)
     problems = []
-    for rule in rule_ids():
+    for rule in ids:
         if rule in FIXTURE_EXEMPT:
             continue
         if counts.get(rule, 0) == 0:
@@ -143,10 +147,32 @@ def check_non_vacuity() -> List[str]:
     return problems
 
 
-def load_baseline() -> Optional[Dict[str, object]]:
+def _load_baseline_payload() -> tuple[Optional[Dict[str, object]], Optional[str]]:
+    """Return (payload, error). Missing / corrupt recall baselines are errors."""
     if not BASELINE_FILE.is_file():
-        return None
-    return json.loads(BASELINE_FILE.read_text(encoding="utf-8"))
+        return None, (
+            f"baseline {BASELINE_FILE.name} is missing; SoR absent is not OK "
+            f"— measure a corpus with --update or restore a measured file "
+            f"(do not invent a client-named baseline from thin air)"
+        )
+    try:
+        data = json.loads(BASELINE_FILE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return None, (
+            f"baseline {BASELINE_FILE.name} is not valid JSON ({exc.msg}); "
+            f"regenerate it with --update"
+        )
+    if not isinstance(data, dict):
+        return None, (
+            f"baseline {BASELINE_FILE.name} root is not an object; "
+            f"regenerate it with --update"
+        )
+    return data, None
+
+
+def load_baseline() -> Optional[Dict[str, object]]:
+    data, _err = _load_baseline_payload()
+    return data
 
 
 def write_baseline(target: Path, counts: collections.Counter[str]) -> None:
@@ -157,7 +183,8 @@ def write_baseline(target: Path, counts: collections.Counter[str]) -> None:
             "because the corpus is too large to track. The gate is a ratchet: "
             "a rule that used to fire and now fires zero times is a "
             "regression. Rising counts are always fine and do not need a "
-            "re-measure. Regenerate with: "
+            "re-measure. Missing this file fails closed on backtest — do not "
+            "invent a client-named baseline. Regenerate with: "
             "python3 scripts/coverage/semgrep_rule_coverage.py <repo> --update"
         ),
         "corpus": target.name,
@@ -167,13 +194,16 @@ def write_baseline(target: Path, counts: collections.Counter[str]) -> None:
 
 
 def check_ratchet(counts: collections.Counter[str]) -> List[str]:
-    baseline = load_baseline()
-    if baseline is None:
-        return []
+    baseline, err = _load_baseline_payload()
+    if err is not None:
+        return [err]
+    assert baseline is not None
     if baseline.get("schema_version") != SCHEMA_VERSION:
         return [f"baseline schema_version {baseline.get('schema_version')!r} "
                 f"!= {SCHEMA_VERSION}; regenerate it with --update"]
-    recorded = baseline.get("counts", {})
+    if "counts" not in baseline:
+        return ["baseline is missing 'counts'; regenerate it with --update"]
+    recorded = baseline.get("counts")
     if not isinstance(recorded, dict):
         return ["baseline 'counts' is not an object; regenerate it with --update"]
     problems = []
@@ -226,7 +256,10 @@ def check_fp_ratchet(counts: Optional[collections.Counter[str]] = None) -> List[
     if baseline.get("schema_version") != SCHEMA_VERSION:
         return [f"FP baseline schema_version {baseline.get('schema_version')!r} "
                 f"!= {SCHEMA_VERSION}; regenerate with --update-fp-baseline"]
-    recorded = baseline.get("counts", {})
+    if "counts" not in baseline:
+        return ["FP baseline is missing 'counts'; regenerate with "
+                "--update-fp-baseline"]
+    recorded = baseline.get("counts")
     if not isinstance(recorded, dict):
         return ["FP baseline 'counts' is not an object; regenerate with "
                 "--update-fp-baseline"]

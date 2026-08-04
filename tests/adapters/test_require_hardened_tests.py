@@ -89,8 +89,7 @@ class MissingTestSuiteTest(unittest.TestCase):
         self.assertEqual(gate.missing_test_suites(["scripts/ci/prompt_contracts.py"]), [])
 
     def test_every_exemption_states_a_reason(self) -> None:
-        """An exemption without a reason is indistinguishable from an
-        oversight -- the same rule CI_EXEMPT_SUITES carries."""
+        """An exemption without a reason is indistinguishable from an oversight."""
         for name, reason in gate.TEST_EXEMPT.items():
             self.assertGreater(len(reason.strip()), 15, name)
 

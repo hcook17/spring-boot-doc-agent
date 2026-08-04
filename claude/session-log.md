@@ -4659,3 +4659,16 @@ Assumptions affected:
 - `claude/steering-prompts/03-constraints-research-prompt.md` — "a single CONSTRAINTS.md … structured like doc-taxonomy" / current-state catalog — [Resolved — file rewritten in place as status+fact+residual; diary/addenda removed; pointer-only enterprise duplicates dropped; Enterprise items renumbered 1=RBAC, 2=multi-repo, 3=branch protection]
 - `CLAUDE.md` — "CONSTRAINTS.md is a current-state doc, not an append-only log" — [Still accurate — this pass applies that rule]
 Files touched: CONSTRAINTS.md, MATURITY_ASSESSMENT.md, STATUS.md, scripts/ratchets/repo_claims_baseline.json, claude/session-log.md
+
+## 2026-08-04 — Non-biting gates (cert forge, covering subset, validate --require, Semgrep SoR)
+
+Commit: d1bec9a
+Tests: targeted compliance/covering/validate/semgrep/claims/hooks 10/10; broader related suites green; `PYTHONPATH=src python3 scripts/ci/check_repo_claims.py` OK
+Assumptions affected:
+- `claude/steering-prompts/07-ci-scaffold-task-prompt.md` — status text still says llms coverage is non-blocking via `ENFORCE = False` — [New info — `ENFORCE` was removed; advisory is always-exit-0 `exit_code()`; check_repo_claims module docstring + CONSTRAINTS item 4 already describe that shape; 07 status frontmatter still names the old flag]
+- Profile-required CERTIFIED gates forgeable via `required=False` — [Resolved — `build_certification_report` requires profile gates `required=True` and `ok`]
+- Covering receipts with matching garbage subset roots — [Resolved — `verify_covering_proof` recomputes roots from `scope`]
+- Stage 0 `validate_artifacts --all` soft-skips missing files — [Resolved — `--require` + CI Stage 0 lists Stage-0 artifacts]
+- Semgrep missing recall baseline / empty pack soft-pass — [Resolved — fail-closed; no invented recall baseline file]
+- Dead `CI_EXEMPT_SUITES` registry — [Resolved — removed; Check D is scripts/test_*.py wrapper refusal only]
+Files touched: src/doc_engine/pipeline/compliance.py, covering.py, validation.py, validate_artifacts.py, .github/workflows/ci.yml, scripts/coverage/semgrep_rule_coverage.py, scripts/ci/check_repo_claims.py, STATUS.md, related tests, comment hygiene on rule_coverage/require_hardened_tests

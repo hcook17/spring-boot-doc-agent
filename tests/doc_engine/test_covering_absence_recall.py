@@ -39,7 +39,7 @@ class CoveringProofTest(unittest.TestCase):
         good = build_receipt(
             scanner="filesystem",
             version_hash="v",
-            scope="all",
+            scope="all_signatures",
             expected_subset_root=root,
             acked_subset_root=root,
             status="complete",
@@ -189,7 +189,7 @@ class GapProbeCoveringGateTest(unittest.TestCase):
         receipt = build_receipt(
             scanner="filesystem",
             version_hash="v",
-            scope="all",
+            scope="all_signatures",
             expected_subset_root=root,
             acked_subset_root=root,
             status="complete",

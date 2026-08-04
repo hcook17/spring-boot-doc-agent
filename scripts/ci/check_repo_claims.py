@@ -85,12 +85,13 @@ mechanism in its own diff, so findings present at adoption are recorded in
 repo_claims_baseline.json and only *new* ones fail — the same ratchet
 check_code_quality.py already uses, for the same reason.
 
-That is the only softening. check_llms_coverage.py ships ENFORCE = False
-because it needs a live `gh` call and merged out of order during a fast
-burst. This script is local, deterministic, needs no network, and makes
-zero LLM calls, so it blocks from day one. A step named as a gate that
-cannot fail is worse than no gate — which is precisely what check E exists
-to keep true of everything else in ci.yml.
+That is the only softening. ``check_llms_coverage.py`` is advisory via an
+always-zero ``exit_code()`` (``ENFORCE`` was removed) — findings report but
+never fail the step. This script is local, deterministic, needs no network,
+and makes zero LLM calls, so it blocks from day one. A step named as a gate
+that cannot fail is worse than no gate — which is precisely what check E
+exists to keep true of everything else in ci.yml (it detects ``ENFORCE =
+False``; advisory-by-always-exit-0 is documented here and in STATUS).
 """
 
 import argparse
@@ -249,12 +250,10 @@ FOREIGN_SYMBOLS = frozenset({
     "write_text", "from_lines", "sub_run", "match_file",
 })
 
-# Suites CI does not run, each with the reason. An entry here is a claim in
-# its own right, so it states why rather than just naming the file.
-CI_EXEMPT_SUITES: Dict[str, str] = {
-    "test_partition_repo_real_world.py":
-        "opt-in; needs a real Spring repo via an env var, absent in CI",
-}
+# Suites CI does not run used to live in CI_EXEMPT_SUITES, but Check D no
+# longer reads that dict — pytest discovers everything under tests/, and
+# opt-in suites use @unittest.skipUnless(env) instead. Do not reintroduce a
+# dead exemption registry that tests only assert for non-empty reasons.
 
 # The predicate vocabulary is defined once, as PREDICATE_HANDLERS beside the
 # handlers themselves; PREDICATE_PREFIXES is derived from it there.

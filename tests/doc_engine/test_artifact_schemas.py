@@ -100,6 +100,24 @@ def test_validate_artifacts_in_dir_empty(tmp_path):
     assert validate_artifacts_in_dir(tmp_path) == []
 
 
+def test_validate_artifacts_require_missing_fails(tmp_path):
+    from doc_engine.tools import validate_artifacts as va
+
+    code = va.main(["--all", str(tmp_path), "--require", "spring_signals"])
+    assert code == 1
+
+
+def test_validate_artifacts_require_present_passes(tmp_path):
+    from doc_engine.tools import validate_artifacts as va
+    from tests.conftest import FIXTURE_SNAPSHOT_PATH
+    import shutil
+
+    dest = tmp_path / "spring_signals.json"
+    shutil.copy(FIXTURE_SNAPSHOT_PATH, dest)
+    code = va.main(["--all", str(tmp_path), "--require", "spring_signals"])
+    assert code == 0
+
+
 def test_artifact_filenames_cover_models():
     assert set(ARTIFACT_FILENAMES) == set(ARTIFACT_MODELS)
     assert set(ARTIFACT_FILENAMES) == {

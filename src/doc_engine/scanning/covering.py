@@ -100,13 +100,25 @@ def build_covering_proof(
     }
 
 
+def expected_subset_root_for_scope(
+    file_signatures: Mapping[str, str],
+    scope: str,
+) -> str:
+    """Recompute the subset root a receipt's ``scope`` claims to cover."""
+    if scope == "all_signatures":
+        return inventory_root(file_signatures)
+    if scope == "java":
+        return subset_root(file_signatures, java_scope_paths(file_signatures))
+    raise ValueError(f"unknown covering receipt scope: {scope!r}")
+
+
 def verify_covering_proof(
     proof: Mapping[str, Any],
     *,
     file_signatures: Mapping[str, str],
     scanner_version: str,
 ) -> Tuple[bool, str]:
-    """Recompute roots; fail closed on any mismatch or failed receipt."""
+    """Recompute inventory + per-receipt subset roots; fail closed on mismatch."""
     if int(proof.get("schema_version") or 0) != COVERING_PROOF_SCHEMA_VERSION:
         return False, f"unsupported covering_proof schema_version={proof.get('schema_version')}"
     expected_root = inventory_root(file_signatures)
@@ -129,10 +141,26 @@ def verify_covering_proof(
             )
         if status != "complete":
             return False, f"receipt status not complete: {receipt.get('scanner')}={status}"
-        if receipt.get("acked_subset_root") != receipt.get("expected_subset_root"):
+        scope = receipt.get("scope")
+        if not isinstance(scope, str) or not scope:
             return False, (
-                f"acked_subset_root != expected_subset_root for "
-                f"scanner={receipt.get('scanner')}"
+                f"receipt missing scope for scanner={receipt.get('scanner')}"
+            )
+        try:
+            recomputed = expected_subset_root_for_scope(file_signatures, scope)
+        except ValueError as exc:
+            return False, str(exc)
+        expected = receipt.get("expected_subset_root")
+        acked = receipt.get("acked_subset_root")
+        if expected != recomputed:
+            return False, (
+                f"expected_subset_root does not match recomputed scope={scope!r} "
+                f"for scanner={receipt.get('scanner')}"
+            )
+        if acked != recomputed:
+            return False, (
+                f"acked_subset_root does not match recomputed scope={scope!r} "
+                f"for scanner={receipt.get('scanner')}"
             )
     return True, ""
 

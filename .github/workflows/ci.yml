@@ -199,7 +199,8 @@ jobs:
             --out-dir "$OUT" \
             --compliance-profile deterministic_only \
             --skip-drift
-          python3 -m doc_engine.tools.validate_artifacts --all "$OUT"
+          python3 -m doc_engine.tools.validate_artifacts --all "$OUT" \
+            --require spring_signals,groups,cross_group_edges,capacity_preflight_report,facts,certification
           test -f "$OUT/certification.json"
 
       # Non-blocking on purpose: a survivor count needs to be watched before

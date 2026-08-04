@@ -97,11 +97,16 @@ def _kafka_signals(*, messaging_hits: int = 0) -> dict:
     }
 
 
-def _complete_receipt(scanner: str, root: str) -> dict:
+def _complete_receipt(scanner: str, file_signatures: dict) -> dict:
+    """Build a complete receipt whose subset roots match ``scope`` recomputation."""
+    from doc_engine.scanning.covering import expected_subset_root_for_scope
+
+    scope = "java" if scanner != "filesystem" else "all_signatures"
+    root = expected_subset_root_for_scope(file_signatures, scope)
     return build_receipt(
         scanner=scanner,
         version_hash="v",
-        scope="java" if scanner != "filesystem" else "all_signatures",
+        scope=scope,
         expected_subset_root=root,
         acked_subset_root=root,
         status="complete",
@@ -404,6 +409,41 @@ class CoveringPropertyTest(unittest.TestCase):
         r2 = subset_root(sigs, ["a.java", "b.java"])
         self.assertNotEqual(r1, r2)
 
+    def test_matching_garbage_subset_roots_are_rejected(self):
+        """Deviation: expected==acked garbage still verifies if inventory is honest."""
+        sigs = {"a.java": "1", "b.kt": "2"}
+        proof = build_covering_proof(
+            file_signatures=sigs,
+            scanner_version="sv",
+            receipts=[
+                build_receipt(
+                    scanner="ast-grep",
+                    version_hash="v",
+                    scope="java",
+                    expected_subset_root="deadbeef",
+                    acked_subset_root="deadbeef",
+                    status="complete",
+                )
+            ],
+        )
+        ok, why = verify_covering_proof(
+            proof, file_signatures=sigs, scanner_version="sv",
+        )
+        self.assertFalse(ok, why)
+        self.assertIn("recomputed", why)
+
+    def test_honest_java_scope_receipt_verifies(self):
+        sigs = {"a.java": "1", "b.kt": "2"}
+        proof = build_covering_proof(
+            file_signatures=sigs,
+            scanner_version="sv",
+            receipts=[_complete_receipt("ast-grep", sigs)],
+        )
+        ok, why = verify_covering_proof(
+            proof, file_signatures=sigs, scanner_version="sv",
+        )
+        self.assertTrue(ok, why)
+
 
 # ===========================================================================
 # Contract — schema + Fact ledger
@@ -423,7 +463,7 @@ class CoveringContractTest(unittest.TestCase):
         proof = build_covering_proof(
             file_signatures=sigs,
             scanner_version="sv",
-            receipts=[_complete_receipt("filesystem", root), _complete_receipt("ast-grep", root)],
+            receipts=[_complete_receipt("filesystem", sigs), _complete_receipt("ast-grep", sigs)],
         )
         for key in schema["required"]:
             self.assertIn(key, proof)
@@ -484,9 +524,9 @@ class CoveringWriterFactsIntegrationTest(unittest.TestCase):
             file_signatures=sigs,
             scanner_version="sv",
             receipts=[
-                _complete_receipt("filesystem", root),
-                _complete_receipt("ast-grep", root),
-                _complete_receipt("codeql", root),
+                _complete_receipt("filesystem", sigs),
+                _complete_receipt("ast-grep", sigs),
+                _complete_receipt("codeql", sigs),
             ],
         )
         signals = {
@@ -652,7 +692,7 @@ class DestructiveFailClosedTest(unittest.TestCase):
         proof = build_covering_proof(
             file_signatures=sigs,
             scanner_version="old",
-            receipts=[_complete_receipt("filesystem", root)],
+            receipts=[_complete_receipt("filesystem", sigs)],
         )
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "covering_proof.json"
@@ -742,8 +782,8 @@ class GapProbeS1S3Test(unittest.TestCase):
             file_signatures=sigs,
             scanner_version="sv",
             receipts=[
-                _complete_receipt("filesystem", root),
-                _complete_receipt("ast-grep", root),
+                _complete_receipt("filesystem", sigs),
+                _complete_receipt("ast-grep", sigs),
             ],
         )
         report, _ = build_gap_report(
@@ -771,9 +811,9 @@ class GapProbeS1S3Test(unittest.TestCase):
             file_signatures=sigs,
             scanner_version="sv",
             receipts=[
-                _complete_receipt("filesystem", root),
-                _complete_receipt("ast-grep", root),
-                _complete_receipt("codeql", root),
+                _complete_receipt("filesystem", sigs),
+                _complete_receipt("ast-grep", sigs),
+                _complete_receipt("codeql", sigs),
             ],
         )
         report, _ = build_gap_report(
@@ -801,8 +841,8 @@ class GapProbeS1S3Test(unittest.TestCase):
             file_signatures=sigs,
             scanner_version="sv",
             receipts=[
-                _complete_receipt("filesystem", root),
-                _complete_receipt("ast-grep", root),
+                _complete_receipt("filesystem", sigs),
+                _complete_receipt("ast-grep", sigs),
             ],
         )
         facts = [
@@ -842,8 +882,8 @@ class GapProbeS1S3Test(unittest.TestCase):
             file_signatures=sigs,
             scanner_version="sv",
             receipts=[
-                _complete_receipt("filesystem", root),
-                _complete_receipt("ast-grep", root),
+                _complete_receipt("filesystem", sigs),
+                _complete_receipt("ast-grep", sigs),
             ],
         )
         facts = write_absence_facts(

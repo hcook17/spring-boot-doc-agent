@@ -64,7 +64,7 @@ flowchart LR
 - Product tools: single SoT under `doc_engine.tools` (`python -m`); meta CI stays in `scripts/`
 - Tests: `pytest tests/` only (no scripts/ test forwarders)
 - Contracts: Pydantic artifacts, compliance profiles, `certification.json`
-- Gates: hard = annotations/docstrings/claims/UTF-8/ast-grep; size advisory; llms advisory
+- Gates: hard = annotations/docstrings/claims/UTF-8/ast-grep/rule_coverage/semgrep_rule_coverage/ruff; size advisory; llms advisory (always-exit-0). Main CI portable Stage 0 checks `certification.json` **exists** and schema-validates Stage-0 artifacts via `validate_artifacts --all --require …`; it does **not** run `certification verify`. The `doc-engine.yml` workflow / Action run verify with `--allow-mock`. Live verify without `--allow-mock` is adoption-only.
 - Dual skill trees: adapter SoT + root mirror with CI equality
 
 ## Cross-links
