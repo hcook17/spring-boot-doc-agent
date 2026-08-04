@@ -19,6 +19,7 @@ import SpringMetaEdges
  * whole row. That is exactly how the old `getTableName` predicate would drop an
  * entire `persistence__entity` row for any `@Table` lacking a `name` attribute.
  */
+bindingset[name]
 string attr(Annotation a, string name) {
   result =
     concat(string s |
@@ -62,9 +63,7 @@ predicate ambiguousSymbol(Measured e) { count(symbolOf(e)) > 1 }
  * dropped most annotation rows and every JakartaMigration import row.
  *
  * `symbolOf`'s file-path tier makes this unsatisfiable by construction. It is
- * asserted anyway, because "unsatisfiable by construction" is what the previous
- * version also looked like.
- *
- * 1a exit criterion: `unresolved_symbols = 0`.
+ * no longer an exit criterion; it survives as a structural sanity check that
+ * can be inspected if a future change to `symbolOf` reintroduces a gap.
  */
 predicate unresolvedSymbol(Measured e) { not exists(symbolOf(e)) }

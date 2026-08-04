@@ -1,0 +1,7 @@
+# query    rule_id                         min_count
+# Non-empty assertions. A query that should return rows and returns none is
+# the failure mode the @RestController regression demonstrated.
+ApiSurface api_surface__controller          49
+ApiSurface api_surface__endpoint             369
+ApiSurface api_surface__path_prefix         35
+Persistence persistence__repository_marker   4

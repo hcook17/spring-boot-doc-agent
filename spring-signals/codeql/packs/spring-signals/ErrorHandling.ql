@@ -21,7 +21,7 @@
  * @tags api errors
  */
 
-import _Common
+import Common
 
 /** Holds if `t` is an exception type this service maps to an HTTP status. */
 private predicate mappedExceptionType(RefType t, string fqn) {
@@ -69,7 +69,7 @@ where
     signal = annotationFqn(a) and
     detail =
       concat(FieldAccess fa |
-        fa = a.getAChildExpr*() and fa.getField().getDeclaringType().hasName("HttpStatus")
+        fa = a.getAChildExpr*() and fa.getField().getDeclaringType().hasQualifiedName("org.springframework.http", "HttpStatus")
       |
         fa.getField().getName(), "|" order by fa.getField().getName()
       ) and

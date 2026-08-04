@@ -11,7 +11,7 @@
  * @tags migration hibernate persistence
  */
 
-import _Common
+import Common
 
 from Measured e, string rule_id, string generation, string signal, string detail
 where

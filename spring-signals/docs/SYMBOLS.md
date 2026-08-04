@@ -5,7 +5,7 @@ The eleven-column join is on `(file, symbol, rule_id)`. If three emitters
 degrades to `(file, rule_id)` and the comparison it exists to support becomes
 worthless. So `symbol` is defined once, in
 `java-signals-lib/signals/Schema.qll::symbolOf`, and every query routes through
-`_Common.qll::sym`. No query may hand-roll a symbol string.
+`Common.qll::sym`. No query may hand-roll a symbol string.
 
 ## Columns: `symbol` vs `signal`
 
@@ -77,8 +77,10 @@ The first version had only tiers 1 and 2, and tier 2 handled annotations only
 when the annotated element was a `RefType`. Roughly 25 of the pack's 33 binding
 sites bind `e` to an `Annotation`, and two bind it to an `ImportType`. The
 practical effect would have been: annotations on methods, fields and parameters
-drop; all ~297 `JakartaMigration` import rows drop; the Jakarta burndown reports
+drop; all `JakartaMigration` import rows drop; the Jakarta burndown reports
 near-zero and looks like a clean migration.
 
-`unresolvedSymbol` and the probe's `unresolved_symbols` / `annotations_with_symbol`
-gates assert this. Do not add a `symbolOf` branch that can return no result.
+`annotations_with_symbol` / `annotations_total` in `Probe.ql` asserts this.
+`unresolvedSymbol` survives only as a structural sanity check: the file-path
+fallback in `symbolOf` makes it empty by construction for `Measured` elements.
+Do not add a `symbolOf` branch that can return no result.

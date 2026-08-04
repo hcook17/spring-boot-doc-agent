@@ -1,0 +1,6 @@
+name: spring-signals/spring-signals-tests
+version: 0.0.1
+extractor: java
+dependencies:
+  spring-signals/spring-signals: ${workspace}
+tests: .

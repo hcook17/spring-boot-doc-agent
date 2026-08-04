@@ -20,17 +20,19 @@
  * @tags messaging
  */
 
-import _Common
+import Common
 
 /** Holds if `t` is a messaging client type. Interfaces first, impls second. */
 private predicate messagingClientType(Type t, string fqn) {
   typeIsOrExtends(t, "org.springframework.kafka.core", "KafkaOperations") and
+  not typeIsOrExtends(t, "org.springframework.kafka.core", "KafkaTemplate") and
   fqn = "org.springframework.kafka.core.KafkaOperations"
   or
   typeIsOrExtends(t, "org.springframework.kafka.core", "KafkaTemplate") and
   fqn = "org.springframework.kafka.core.KafkaTemplate"
   or
   typeIsOrExtends(t, "org.springframework.amqp.core", "AmqpTemplate") and
+  not typeIsOrExtends(t, "org.springframework.amqp.rabbit.core", "RabbitTemplate") and
   fqn = "org.springframework.amqp.core.AmqpTemplate"
   or
   typeIsOrExtends(t, "org.springframework.amqp.rabbit.core", "RabbitTemplate") and
@@ -77,7 +79,7 @@ where
     isExactly(a, pkg, name) and
     listenerAnnotation(pkg, name) and
     signal = pkg + "." + name and
-    detail = attr(a, "topics") + attr(a, "queues") + attr(a, "destination") + attr(a, "value") and
+    detail = concat(string s | s = attr(a, "topics") and s != "" or s = attr(a, "queues") and s != "" or s = attr(a, "destination") and s != "" or s = attr(a, "value") and s != "" | s, "|" order by s) and
     rule_id = "messaging__listener"
   )
   or

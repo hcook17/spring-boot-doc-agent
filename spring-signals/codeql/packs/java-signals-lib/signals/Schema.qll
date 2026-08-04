@@ -79,7 +79,7 @@ string schemaVersion() { result = "v1" }
 string symbolOf(Element e) {
   result = declSymbol(e)
   or
-  not exists(declSymbol(e)) and result = min(string s | s = ownerSymbol(e) | s)
+  result = ownerSymbol(e)
   or
   not exists(declSymbol(e)) and
   not exists(ownerSymbol(e)) and
@@ -116,7 +116,10 @@ private string ownerSymbol(Element e) {
     result = declSymbol(owner)
   )
   or
-  exists(Callable c | c = e.(Expr).getEnclosingCallable() | result = declSymbol(c))
+  exists(Callable c | c = e.(Expr).getEnclosingCallable() |
+    not e instanceof Annotation and
+    result = declSymbol(c)
+  )
   or
   exists(Callable c | c = e.(Stmt).getEnclosingCallable() | result = declSymbol(c))
 }
@@ -148,7 +151,7 @@ predicate generatedFile(File f) {
 /**
  * Gets "main" or "test" for a first-party Java source file.
  *
- * The optional leading `(?:.*/)?` tolerates multi-module layouts; ocs-api-service
+ * The optional leading `(?:.* /)?` (space removed in the actual regex) tolerates multi-module layouts; ocs-api-service
  * is single-module but the shared harness runs against sibling services that
  * are not.
  *
@@ -200,12 +203,13 @@ boolean constantBoolean(Expr e) { result = e.(CompileTimeConstantExpr).getBoolea
  */
 string concatenatedText(Expr root) {
   result =
-    concat(StringLiteral lit, int ln, int col |
-      lit = root.getAChildExpr*() and
-      ln = lit.getLocation().getStartLine() and
-      col = lit.getLocation().getStartColumn()
+    concat(Expr e, int ln, int col |
+      e = root.getAChildExpr*() and
+      exists(constantString(e)) and
+      ln = e.getLocation().getStartLine() and
+      col = e.getLocation().getStartColumn()
     |
-      lit.getValue(), "" order by ln, col
+      constantString(e), "" order by ln, col
     )
 }
 

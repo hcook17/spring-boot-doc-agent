@@ -10,7 +10,7 @@
  * @tags migration openapi documentation
  */
 
-import _Common
+import Common
 
 from Measured e, Annotation a, string pkg, string name, string kind, string generation
 where
@@ -28,4 +28,4 @@ select
   "openapi" as framework,
   generation,
   pkg + "." + name as signal,
-  attr(a, "summary") + attr(a, "value") + attr(a, "description") as detail
+  concat(string s | s = attr(a, "summary") and s != "" or s = attr(a, "value") and s != "" or s = attr(a, "description") and s != "" | s, " " order by s) as detail

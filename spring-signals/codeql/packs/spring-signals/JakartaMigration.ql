@@ -9,7 +9,7 @@
  * @tags migration jakarta
  */
 
-import _Common
+import Common
 
 /**
  * Holds if `pkg` is a `javax.*` namespace that Jakarta EE 9 relocated.
@@ -23,7 +23,7 @@ import _Common
  */
 bindingset[pkg]
 private predicate relocatedJavaxNamespace(string pkg) {
-  pkg.regexpMatch("^javax\\.(persistence|validation|transaction|annotation|servlet|ws\\.rs|jms|mail|enterprise|inject|interceptor|json|batch|el|websocket|xml\\.bind|xml\\.soap|xml\\.ws|activation|security\\.enterprise|faces|resource)(\\..*)?$")
+  pkg.regexpMatch("^javax\\.(persistence|validation|transaction|servlet|ws\\.rs|jms|mail|enterprise|inject|interceptor|json|batch|el|websocket|xml\\.bind|xml\\.soap|xml\\.ws|activation|security\\.enterprise|faces|resource)(\\..*)?$")
 }
 
 /** Gets the jakarta equivalent of a relocated javax namespace. */
@@ -78,6 +78,24 @@ where
     e = v and
     pkg = sourceDeclOf(v.getType()).getPackage().getName() and
     signal = typeFqn(v.getType()) and
+    (
+      relocatedJavaxNamespace(pkg) and
+      generation = "javax" and
+      rule_id = "jakarta__pending_type" and
+      detail = jakartaEquivalent(signal)
+      or
+      pkg.regexpMatch("^jakarta\\..*") and
+      generation = "jakarta" and
+      rule_id = "jakarta__migrated_type" and
+      detail = ""
+    )
+  )
+  or
+  // -- Return types. Variable does not cover them, so add a Method branch.
+  exists(Method m, string pkg |
+    e = m and
+    pkg = sourceDeclOf(m.getReturnType()).getPackage().getName() and
+    signal = typeFqn(m.getReturnType()) and
     (
       relocatedJavaxNamespace(pkg) and
       generation = "javax" and

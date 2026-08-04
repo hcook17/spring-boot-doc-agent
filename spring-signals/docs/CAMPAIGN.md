@@ -119,7 +119,7 @@ framework-reference figure in this document.
 (3) cannot be checked statically. No subclass in the closure ⇒
 `declaredMetaReaches` is empty ⇒ `isOrMeta` degrades to exact-only ⇒ the
 `@RestController` regression reopens, **with no compile error**. The import
-comment in `_Common.qll` is a mitigation, not a proof; `Probe.ql`'s
+comment in `Common.qll` is a mitigation, not a proof; `Probe.ql`'s
 `closed_state_restcontroller_is_controller` > 0 is the only proof, and it is
 still unrun.
 
@@ -128,7 +128,7 @@ Final layering:
 | Pack | Contents | Framework references |
 |---|---|---|
 | `java-signals-lib` | `Schema.qll` (row shape), `Types.qll` (generic-safe matching), `Annotations.qll` (meta resolution + `MetaAnnotationEdges` extension point) | none outside doc comments |
-| `spring-signals` | `Catalog.qll`, `SpringMetaEdges.qll`, `_Common.qll`, 10 v1 queries, `Probe.ql` | all of them |
+| `spring-signals` | `Catalog.qll`, `SpringMetaEdges.qll`, `Common.qll`, 10 v1 queries, `Probe.ql` | all of them |
 
 The library declares the *shape* of a meta-annotation graph; each framework pack
 contributes its own edges by extending `MetaAnnotationEdges`. `Probe.ql` moved
@@ -156,7 +156,7 @@ assume more are not.
 ### 1a — compile the foundation
 
 Ships: `codeql-workspace.yml`, `java-signals-lib` (`Schema.qll`, `Types.qll`,
-thin `Catalog.qll`), `_Common.qll`, and `Persistence.ql` only.
+thin `Catalog.qll`), `Common.qll`, and `Persistence.ql` only.
 
 `Annotations.qll` ships in-tree but **disabled**: `metaResolutionEnabled()` is
 defined as `none()`, which disables only the *discovered* half of meta
@@ -189,15 +189,17 @@ not exact-only. See "trust gate" below.
     the recall regression without reopening the switch.
   - `ambiguous_symbols` = 0 — proves `symbolOf` is single-valued, so `sym`'s
     `min()` is picking from a set of one rather than choosing arbitrarily.
-  - `unresolved_symbols` = 0 and `annotations_with_symbol` = `annotations_total`
-    — proves `symbolOf` is **total**. This is the sharper of the two gates:
-    `sym` appears in every `select`, so a missing symbol deletes the row rather
-    than blanking a column. Found during 1a prep: the first `symbolOf` resolved
-    annotations only when the annotated element was a `RefType`, and imports not
-    at all, which would have silently dropped most annotation rows and all ~297
-    JakartaMigration import rows. Same failure mode already called out for
-    `attr()` and `tableNameOf` — reproduced in the helper that guards every
-    query. `symbolOf` now has a file-path tier that cannot fail.
+  - `annotations_with_symbol` = `annotations_total` — proves `symbolOf` resolves
+    annotations attached to methods, fields and parameters, not just those on
+    types. This was the sharper of the two gates during 1a prep: the first
+    `symbolOf` resolved annotations only when the annotated element was a
+    `RefType`, and imports not at all, which would have silently dropped most
+    annotation rows and all JakartaMigration import rows. Same failure mode
+    already called out for `attr()` and `tableNameOf` — reproduced in the
+    helper that guards every query.
+  - `unresolved_symbols` is no longer an exit criterion: `symbolOf`'s file-path
+    fallback makes it empty by construction for any `Measured` element. It is kept
+    as a structural sanity check only. `symbolOf` now has a file-path tier that cannot fail.
 
 ### 1b — P0 on the new types
 

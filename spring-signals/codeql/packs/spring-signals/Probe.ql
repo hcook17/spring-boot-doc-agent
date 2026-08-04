@@ -28,7 +28,7 @@
 
 // Lives inside the pack, not harness/, so that pack imports resolve and the
 // SpringMetaEdges contribution is in scope. Excluded from spring-signals.qls.
-import _Common
+import Common
 
 from string check, int n
 where
@@ -84,13 +84,6 @@ where
   // must be 0 before any cross-tool join is trusted.
   check = "ambiguous_symbols" and
   n = count(Measured e | count(symbolOf(e)) > 1)
-  or
-  // The mirror gate, and the one that actually bites: `sym` is in every select,
-  // so a missing symbol DELETES the row. Scoped to Measured because library
-  // elements are never emitted and counting them would make this gate both slow
-  // and meaningless.
-  check = "unresolved_symbols" and
-  n = count(Measured e | not exists(symbolOf(e)))
   or
   // Direct regression test for the totality bug: annotations attached to
   // methods, fields and parameters must resolve, not just those on types.

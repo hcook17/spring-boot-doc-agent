@@ -1,14 +1,4 @@
 # query    expected_rows
 # Asserted zero-result queries on ocs-api-service @ develop.
-# A DIFF here means either the repo changed or the query broke. Both need a look.
+# A FAIL here means either the repo changed or the query broke. Both need a look.
 Messaging 0
-
-# Non-empty assertions. Same mechanism, opposite direction: a query that
-# should return rows and returns none is the failure mode that the
-# @RestController regression demonstrated.
-#
-# checked manually until run.sh grows a min-rows mode:
-#   ApiSurface rule_id=api_surface__controller  -> 49  (48 @RestController + 1 @Controller)
-#   ApiSurface rule_id=api_surface__endpoint    -> 369
-#   ApiSurface rule_id=api_surface__path_prefix -> 35
-#   Persistence rule_id=persistence__repository_marker -> 4

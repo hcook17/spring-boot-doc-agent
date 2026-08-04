@@ -174,7 +174,7 @@ Annotation getAnEffectiveAnnotation(Annotatable a) {
 /** Gets the fully-qualified name of an annotation type, for the `detail` column. */
 string annotationFqn(Annotation a) {
   result = a.getType().getSourceDeclaration().getPackage().getName() + "." +
-      a.getType().getSourceDeclaration().getName()
+      a.getType().getSourceDeclaration().getNestedName()
 }
 
 /**

@@ -10,7 +10,7 @@
  * @tags sql persistence migration
  */
 
-import _Common
+import Common
 
 /** Gets the query text carried by a Spring Data `@Query` annotation. */
 private string springDataQueryText(Annotation a) {

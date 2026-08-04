@@ -14,7 +14,7 @@
  * @tags configuration
  */
 
-import _Common
+import Common
 
 /**
  * Gets the property key referenced by a `@Value` expression, stripped of
@@ -35,7 +35,7 @@ where
     e = a and
     a = getAnEffectiveAnnotation(owner) and
     isOrMeta(a, "org.springframework.boot.context.properties", "ConfigurationProperties") and
-    signal = attr(a, "prefix") + attr(a, "value") and
+    signal = concat(string s | s = attr(a, "prefix") and s != "" or s = attr(a, "value") and s != "" | s, "" order by s) and
     detail = annotationFqn(a) and
     rule_id = "configuration__typed_binding"
   )
@@ -55,7 +55,7 @@ where
     isExactly(a, pkg, name) and
     signature("spring", pkg, name, "config", _) and
     signal = pkg + "." + name and
-    detail = attr(a, "value") + attr(a, "basePackages") and
+    detail = concat(string s | s = attr(a, "value") and s != "" or s = attr(a, "basePackages") and s != "" | s, "|" order by s) and
     rule_id = "configuration__config_annotation"
   )
 select

@@ -245,3 +245,32 @@ jobs:
 
       - name: spring-signals static invariants
         run: python3 spring-signals/harness/check-invariants.py
+
+  # Compile the spring-signals CodeQL pack against the pinned library version.
+  # This needs no database and no Artifactory; it only needs the public CodeQL
+  # bundle. It is the first real gate that exercises the D6 construct list.
+  codeql-signals-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download CodeQL bundle
+        run: |
+          mkdir -p "$HOME/codeql"
+          curl -L -o "$HOME/codeql-bundle.tar.gz" \
+            "https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.20.3/codeql-bundle-linux64.tar.gz"
+          tar -xzf "$HOME/codeql-bundle.tar.gz" -C "$HOME/codeql" --strip-components=1
+          echo "$HOME/codeql" >> "$GITHUB_PATH"
+
+      - name: Check CodeQL version
+        run: codeql --version
+
+      - name: Install pack dependencies
+        run: |
+          codeql pack install spring-signals/codeql/packs/java-signals-lib
+          codeql pack install spring-signals/codeql/packs/spring-signals
+
+      - name: Compile spring-signals queries
+        run: |
+          codeql query compile --check-only --threads=0 \
+            spring-signals/codeql/packs/spring-signals/*.ql

@@ -19,7 +19,7 @@
  * @tags api outbound migration
  */
 
-import _Common
+import Common
 
 /** Holds if `t` is an outbound HTTP client type, generation-tagged. */
 private predicate outboundClientType(Type t, string fqn, string generation) {
@@ -59,7 +59,7 @@ where
     isExactly(a, "org.springframework.cloud.openfeign", name) and
     signature("spring", "org.springframework.cloud.openfeign", name, "feign", generation) and
     signal = "org.springframework.cloud.openfeign." + name and
-    detail = attr(a, "name") + " " + attr(a, "url") + attr(a, "basePackages") and
+    detail = concat(string s | s = attr(a, "name") and s != "" or s = attr(a, "url") and s != "" or s = attr(a, "basePackages") and s != "" | s, " " order by s) and
     rule_id = "outbound__feign"
   )
   or
@@ -70,7 +70,7 @@ where
     isExactly(a, "org.springframework.web.service.annotation", name) and
     signature("spring", "org.springframework.web.service.annotation", name, "http_exchange", generation) and
     signal = "org.springframework.web.service.annotation." + name and
-    detail = attr(a, "value") + attr(a, "url") and
+    detail = concat(string s | s = attr(a, "value") and s != "" or s = attr(a, "url") and s != "" | s, " " order by s) and
     rule_id = "outbound__http_exchange"
   )
   or

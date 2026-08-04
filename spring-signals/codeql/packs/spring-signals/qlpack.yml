@@ -1,7 +1,9 @@
 name: spring-signals/spring-signals
 version: 0.2.0
 dependencies:
-  codeql/java-all: ^9.2.0
+  # Exact pin, not a caret range. The ^9.2.0 the bundle ships resolved to 6.1.0
+  # in local testing, so the declared pin and the resolved pin must match.
+  codeql/java-all: 9.2.1
   spring-signals/java-signals-lib: ${workspace}
 # Without this, `codeql database analyze <db> spring-signals/spring-signals`
 # cannot resolve which queries to run.

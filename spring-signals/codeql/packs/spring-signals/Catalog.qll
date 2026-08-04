@@ -431,13 +431,15 @@ predicate repositoryRoot(string pkg, string name, string generation) {
  * carrying inline SQL that no `@Query`-based rule can see.
  */
 predicate sqlExecutorType(string pkg, string name, string generation) {
+  // Concrete types only. Including both JdbcTemplate and JdbcOperations would
+  // double-count every JdbcTemplate site, because typeIsOrExtends matches both.
   pkg = "org.springframework.jdbc.core" and
   generation = "" and
-  name in ["JdbcTemplate", "JdbcOperations"]
+  name = "JdbcTemplate"
   or
   pkg = "org.springframework.jdbc.core.namedparam" and
   generation = "" and
-  name in ["NamedParameterJdbcTemplate", "NamedParameterJdbcOperations"]
+  name = "NamedParameterJdbcTemplate"
   or
   pkg = "org.springframework.jdbc.core.simple" and generation = "boot3+" and name = "JdbcClient"
   or

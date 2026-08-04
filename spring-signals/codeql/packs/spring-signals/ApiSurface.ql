@@ -11,7 +11,7 @@
  * @tags api
  */
 
-import _Common
+import Common
 
 /** Holds if `a` is a Spring request-mapping annotation of the given `kind`. */
 private predicate mappingAnnotation(Annotation a, string kind) {
@@ -44,14 +44,23 @@ private string httpMethod(Annotation a, string kind) {
   result =
     concat(FieldAccess fa |
       fa = a.getValue("method").getAChildExpr*() and
-      fa.getField().getDeclaringType().hasName("RequestMethod")
+      fa.getField().getDeclaringType().hasQualifiedName("org.springframework.web.bind.annotation", "RequestMethod")
     |
       fa.getField().getName(), "|" order by fa.getField().getName()
     )
 }
 
 /** Gets the declared path of a mapping annotation, or "" if none. */
-private string mappingPath(Annotation a) { result = attr(a, "value") + attr(a, "path") }
+private string mappingPath(Annotation a) {
+  result = concat(string s | s = attr(a, "value") and s != "" or s = attr(a, "path") and s != "" | s, "" order by s)
+}
+
+/** Gets the binding name: explicit value if present, else the inferred name. */
+private string paramBindingDetail(Annotation a) {
+  attr(a, "value") != "" and result = attr(a, "value")
+  or
+  attr(a, "value") = "" and result = attr(a, "name")
+}
 
 from Measured e, string rule_id, string signal, string detail
 where
@@ -95,7 +104,7 @@ where
     a = getAnEffectiveAnnotation(p) and
     paramBindingAnnotation(a, name) and
     signal = name and
-    detail = attr(a, "value") + attr(a, "name") and
+    detail = paramBindingDetail(a) and
     rule_id = "api_surface__param_binding"
   )
 select

@@ -14,7 +14,7 @@ CodeQL library pack plus per-framework query packs. Wave 1 targets
         spring-signals/            query pack -- all framework knowledge
           Catalog.qll              (framework, pkg, name, kind, generation) facts
           SpringMetaEdges.qll      Spring's documented meta graph, contributed
-          _Common.qll
+          Common.qll
           Probe.ql                 trust gates; excluded from the suite
           *.ql
     harness/

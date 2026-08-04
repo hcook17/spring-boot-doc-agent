@@ -168,19 +168,29 @@ def ql_files(base: Path):
 
 def check_or_or() -> list[str]:
     """
-    Flag adjacent `or` tokens.
+    Flag malformed `or` separators.
+
+    Two failure modes:
+      - adjacent `or` tokens (empty disjunct)
+      - dangling `or` immediately before a closing brace, parenthesis, bracket,
+        or end of file (the branch was removed but its separator was not)
 
     Comments AND string literals must both go first. A raw `or\\s*//.*\\n\\s*or`
     regex false-positives on the ~20 legitimate `or` + explanatory-comment forms
     in this pack, and a comment-only strip still trips over `or` inside a regex
-    literal. Tokenise, then look for `or` following `or`.
+    literal. Tokenise, then inspect the token following every `or`.
     """
     bad = []
+    terminators = {"}", ")", "]"}
     for f in ql_files(ROOT / "codeql"):
-        toks = re.findall(r"[A-Za-z_][A-Za-z0-9_]*", strip_strings(strip_comments(f.read_text())))
+        toks = re.findall(r"[A-Za-z_][A-Za-z0-9_]*|[(){}\[\]]", strip_strings(strip_comments(f.read_text())))
         for i in range(1, len(toks)):
             if toks[i] == "or" and toks[i - 1] == "or":
                 bad.append(f"{f.relative_to(ROOT)}: adjacent 'or' at token {i}")
+        # dangling or before a closing delimiter or EOF
+        for i in range(len(toks)):
+            if toks[i] == "or" and (i + 1 == len(toks) or toks[i + 1] in terminators):
+                bad.append(f"{f.relative_to(ROOT)}: dangling 'or' before '{toks[i + 1] if i + 1 < len(toks) else 'EOF'}'")
     return bad
 
 
@@ -191,9 +201,9 @@ def framework_hits(path: Path, pattern: re.Pattern, code_only: bool):
     return occurrences, lines
 
 
-# A count claim is a number adjacent -- in EITHER order -- to the vocabulary this
-# script owns. Prose must cite the script instead; see the docstring for why an
-# unenforced "cite, don't hardcode" rule decayed within two edits.
+# A count claim is a number adjacent -- in EITHER order -- to count vocabulary.
+# Prose must cite the script instead; see the docstring for why an unenforced
+# "cite, don't hardcode" rule decayed within two edits.
 #
 # THREAT MODEL: this defends against DECAY, not EVASION. The failure it exists to
 # stop is someone copying a figure out of the output in good faith, or leaving one
@@ -209,7 +219,15 @@ def framework_hits(path: Path, pattern: re.Pattern, code_only: bool):
 # What is NOT accepted is a phrasing a careful writer would reach for by default.
 # "framework references: 37" was one such gap -- keyword before number -- found in
 # review. The alternation is symmetric now.
-_VOCAB = r"code-only|comment-inclusive|framework (?:references|literals)"
+# What counts as a count claim: the figure this script owns (framework /
+# namespace references and literals) plus the two ways the code-only /
+# comment-inclusive split is usually phrased. It does not claim to police every
+# prediction in the pack; those are intentionally labelled as falsifiable
+# hypotheses in CAMPAIGN.md and belong to runtime verification, not a static
+# lint. The threat-model comment below still applies.
+_VOCAB = (
+    r"code-only|comment-inclusive|framework (?:references|literals)|namespace literals"
+)
 COUNT_CLAIM = re.compile(
     rf"~?\d+\s*(?:{_VOCAB})"          # 37 code-only
     rf"|(?:{_VOCAB})[^.\n]{{0,20}}?~?\d+"  # framework references: 37
@@ -219,7 +237,7 @@ COUNT_CLAIM = re.compile(
 
 
 def check_no_count_claims() -> list[str]:
-    """Fail if any doc or QL comment hardcodes a framework-reference figure."""
+    """Fail if any doc or QL comment hardcodes a framework-/namespace-reference count."""
     targets = [
         *(ROOT / "docs").glob("*.md"),
         ROOT / "README.md",
@@ -274,11 +292,11 @@ def main() -> int:
         print("   PASS  Catalog.qll lives in spring-signals")
 
     print("4. wiring (STRUCTURAL ONLY -- not a proof, see module docstring)")
-    common = (PACK / "_Common.qll").read_text()
-    edges = (PACK / "SpringMetaEdges.qll").read_text()
-    probe = (PACK / "Probe.ql").read_text()
+    common = strip_comments((PACK / "Common.qll").read_text())
+    edges = strip_comments((PACK / "SpringMetaEdges.qll").read_text())
+    probe = strip_comments((PACK / "Probe.ql").read_text())
     for label, ok in [
-        ("_Common imports SpringMetaEdges", "import SpringMetaEdges" in common),
+        ("Common imports SpringMetaEdges", "import SpringMetaEdges" in common),
         ("SpringMetaEdges extends MetaAnnotationEdges", "extends MetaAnnotationEdges" in edges),
         ("edge RestController -> Controller present", '"RestController"' in edges),
         ("Probe defines closed-state gate", "closed_state_restcontroller_is_controller" in probe),
@@ -300,14 +318,14 @@ def main() -> int:
     print("   The comment-inclusive figure is not an invariant: it moves whenever")
     print("   anyone edits a comment. Do not quote it. Do not quote any of these.")
 
-    print("6. no hardcoded count claims in docs or QL comments")
+    print("6. no hardcoded framework-/namespace-reference count claims")
     offenders = check_no_count_claims()
     if offenders:
         failures += offenders
         for o in offenders:
             print("   FAIL", o)
     else:
-        print("   PASS  no document quotes a framework-reference figure")
+        print("   PASS  no doc or QL comment quotes a framework-/namespace-reference count")
 
     print()
     if failures:

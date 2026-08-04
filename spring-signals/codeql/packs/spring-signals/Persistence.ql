@@ -20,7 +20,7 @@
  * @tags persistence
  */
 
-import _Common
+import Common
 
 /** Gets the declared table name of `c`, or "" when unset. Total by construction. */
 private string tableNameOf(Class c) {
@@ -30,6 +30,18 @@ private string tableNameOf(Class c) {
       exists(string pkg | isExactly(a, pkg, "Table") and signature("jpa", pkg, "Table", _, _))
     |
       attr(a, "name"), "|" order by attr(a, "name")
+    )
+}
+
+/** Gets a printable detail for @Transactional: enum propagation + boolean readOnly. */
+private string transactionalDetail(Annotation a) {
+  result =
+    concat(string s |
+      s = "propagation=" + a.getValue("propagation").(FieldAccess).getField().getName()
+      or
+      s = "readOnly=" + (if constantBoolean(a.getValue("readOnly")) then "true" else "false")
+    |
+      s, " " order by s
     )
 }
 
@@ -171,7 +183,7 @@ where
       generation = ""
     ) and
     signal = pkg + ".Transactional" and
-    detail = attr(a, "propagation") + attr(a, "readOnly") and
+    detail = transactionalDetail(a) and
     rule_id = "persistence__transactional"
   )
 select

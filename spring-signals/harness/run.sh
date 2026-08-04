@@ -50,22 +50,9 @@ for q in "${WAVE1[@]}"; do
   echo "   rows: $(( $(wc -l < "$OUT/$q.csv") - 1 ))"
 done
 
-# Absence assertions. A query that returns zero because the library is not on
-# the classpath is a valid result; a query that returns zero because it is
-# broken is not. Recording the expectation makes the two distinguishable.
+# Row-count assertions. Empty-result checks catch queries that silently stop
+# producing rows; minimum checks catch the @RestController-style regression
+# where a contribution is missing and the query returns zero.
 echo
-echo "== absence assertions =="
-while read -r q expected; do
-  # Skip blanks AND comments. Without the comment guard the first `#` line makes
-  # this read `$OUT/#.csv`, wc fails, and `set -euo pipefail` aborts the script
-  # before a single assertion is reported -- a gate that dies before gating.
-  [ -z "$q" ] && continue
-  case "$q" in \#*) continue ;; esac
-  [ -f "$OUT/$q.csv" ] || { echo "  MISS $q (no $OUT/$q.csv)"; continue; }
-  actual=$(( $(wc -l < "$OUT/$q.csv") - 1 ))
-  if [ "$actual" = "$expected" ]; then
-    echo "  OK   $q = $actual (expected $expected)"
-  else
-    echo "  DIFF $q = $actual (expected $expected)  <-- investigate"
-  fi
-done < "$(dirname "$0")/expected-empty.txt"
+echo "== row-count assertions =="
+python3 "$(dirname "$0")/check-assertions.py"

@@ -112,7 +112,9 @@ def load_api_surface(path: Path):
                         prefixes[row["symbol"]].append(normalize_path(part))
             elif rule == "api_surface__endpoint":
                 verb, _, raw_path = row["detail"].partition(" ")
-                owner = row["symbol"].rsplit(".", 1)[0]
+                # Method symbols are pkg/Class#method().; the class prefix key is
+                # pkg/Class#. rsplit on '.' was wrong and always missed the prefix.
+                owner = row["symbol"].split("#", 1)[0] + "#"
                 endpoints.append(
                     {
                         "file": row["file"],
