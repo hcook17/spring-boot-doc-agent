@@ -551,7 +551,7 @@ class GapProbeS1S3Test(unittest.TestCase):
         self.assertFalse((out / "gap_report.json").is_file())
 
     def test_gap_report_omits_r_recall_without_oracle_arm(self):
-        """Deviation: R_recall present on filesystem+ast-grep-only covering."""
+        """Deviation: R_recall measured without trusted CodeQL receipt."""
         sigs = {"a.java": "1"}
         root = inventory_root(sigs)
         proof = build_covering_proof(
@@ -574,7 +574,10 @@ class GapProbeS1S3Test(unittest.TestCase):
             covering_proof=proof,
             covering_ok=True,
         )
-        self.assertNotIn("R_recall", report["rates"])
+        self.assertIn("R_recall", report["rates"])
+        self.assertTrue(report["rates"]["R_recall"]["omitted"])
+        self.assertEqual(report["rates"]["R_recall"]["claim"], "omitted_without_oracle")
+        self.assertFalse(report["rates"]["oracle"]["trusted_codeql_arm"])
 
     def test_gap_report_includes_r_recall_when_codeql_receipt(self):
         """Deviation: CodeQL arm present but R_recall section omitted."""
@@ -603,6 +606,97 @@ class GapProbeS1S3Test(unittest.TestCase):
         )
         self.assertIn("R_recall", report["rates"])
         self.assertEqual(report["rates"]["R_recall"]["denominator"], 0)
+        self.assertEqual(report["rates"]["R_recall"]["claim"], "measured")
+        self.assertTrue(report["rates"]["oracle"]["trusted_codeql_arm"])
+
+    def test_planted_recall_miss_without_oracle_is_untrusted(self):
+        """Deviation: planted RECALL_MISS alone measures R_recall."""
+        sigs = {"a.java": "1"}
+        root = inventory_root(sigs)
+        proof = build_covering_proof(
+            file_signatures=sigs,
+            scanner_version="sv",
+            receipts=[
+                _complete_receipt("filesystem", root),
+                _complete_receipt("ast-grep", root),
+            ],
+        )
+        facts = [
+            {
+                "predicate": "RECALL_MISS",
+                "subject": "entity:Hidden",
+                "qualifiers": {"verdict": "STRUCTURAL", "oracle_arm": "planted"},
+            }
+        ]
+        report, kept = build_gap_report(
+            {
+                "schema_version": 7,
+                "scanner_version": "sv",
+                "file_signatures": sigs,
+                "entity_table_map": {},
+                "evidence": {},
+            },
+            facts,
+            covering_proof=proof,
+            covering_ok=True,
+        )
+        self.assertEqual(report["rates"]["R_recall"]["claim"], "untrusted_planted")
+        self.assertTrue(report["rates"]["R_recall"]["omitted"])
+        self.assertTrue(report["design_reopen"]["untrusted_planted_recall"])
+        self.assertTrue(
+            any(f.get("reason_class") == "RECALL_MISS_WITHOUT_ORACLE" for f in kept)
+        )
+
+    def test_r_absence_failure_mass_uses_callable_trials(self):
+        """Deviation: R_absence identity |ABSENCE|/|ABSENCE| always 1.0 when defined."""
+        from doc_engine.scanning.absence import count_callable_trials, write_absence_facts
+
+        signals = _kafka_signals(messaging_hits=2)
+        sigs = {"a.java": "1", "build.gradle": "1"}
+        root = inventory_root(sigs)
+        proof = build_covering_proof(
+            file_signatures=sigs,
+            scanner_version="sv",
+            receipts=[
+                _complete_receipt("filesystem", root),
+                _complete_receipt("ast-grep", root),
+            ],
+        )
+        facts = write_absence_facts(
+            signals,
+            covering_ok=True,
+            covering_root=root,
+            scanner_version="sv",
+            astgrep_receipt_complete=True,
+        )
+        # Present messaging → no stamp; other callable empty families → ABSENCE.
+        messaging = [f for f in facts if f.get("subject") == "family:messaging"]
+        self.assertEqual(messaging, [])
+        trials = count_callable_trials(
+            signals, covering_ok=True, astgrep_receipt_complete=True
+        )
+        self.assertGreater(trials, 0)
+        report, _ = build_gap_report(
+            {
+                "schema_version": 7,
+                "scanner_version": "sv",
+                "file_signatures": sigs,
+                "entity_table_map": {},
+                "evidence": signals["evidence"],
+                "config_key_sets": {},
+            },
+            facts,
+            covering_proof=proof,
+            covering_ok=True,
+        )
+        block = report["rates"]["R_absence"]
+        self.assertEqual(block["polarity"], "failure_mass")
+        self.assertEqual(block["callable_trials"], trials)
+        self.assertEqual(block["denominator"], trials)
+        # Presence short-circuit: rate must be < 1 when some callable trials hit.
+        if block["callable_absence"] < trials:
+            self.assertIsNotNone(block["rate"])
+            self.assertLess(block["rate"], 1.0)
 
     def test_measure_r_absence_ignores_non_callable_absence_rows(self):
         """Deviation: planted non-callable ABSENCE counted in S3 denominator."""
@@ -632,6 +726,13 @@ class GapProbeS1S3Test(unittest.TestCase):
                 "measure_r_absence must use only trial=callable ABSENCE rows as "
                 f"denominator (got den={block['denominator']}, want {len(callable_only)})"
             )
+
+        # With explicit callable_trials, polarity is failure mass over trials.
+        mass = measure_r_absence(facts, callable_trials=4)
+        self.assertEqual(mass["polarity"], "failure_mass")
+        self.assertEqual(mass["numerator"], 1)
+        self.assertEqual(mass["denominator"], 4)
+        self.assertEqual(mass["rate"], 0.25)
 
 
 # ===========================================================================

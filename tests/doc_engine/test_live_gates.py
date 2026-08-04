@@ -18,6 +18,7 @@ from doc_engine.pipeline.compliance import (
 from doc_engine.pipeline import live_gates
 from doc_engine.tools.certification import main as cert_main
 from doc_engine.tools.certification import verify_certification
+from tests.doc_engine.cert_helpers import ok_det_stages_for, ok_stages_for
 
 
 def _live_ok_gates() -> list[GateRecord]:
@@ -29,13 +30,27 @@ def _live_ok_gates() -> list[GateRecord]:
 
 def test_verify_rejects_mock_without_allow_mock():
     with tempfile.TemporaryDirectory() as tmp:
+        # Builder itself refuses CERTIFIED+mock without allow_mock.
+        denied = build_certification_report(
+            ComplianceProfile.CERTIFIED,
+            "/repo",
+            tmp,
+            stages=ok_stages_for(ComplianceProfile.CERTIFIED, generative_executor="mock"),
+            gates=_live_ok_gates(),
+            generative_executor="mock",
+        )
+        assert denied.certified is False
+        assert "generative_executor:mock:allow_mock_required" in denied.failures
+
+        # Issued under allow_mock — verify still requires the flag (refold + gate).
         report = build_certification_report(
             ComplianceProfile.CERTIFIED,
             "/repo",
             tmp,
-            stages=[StageRecord(name="signal_scan", status="ok")],
+            stages=ok_stages_for(ComplianceProfile.CERTIFIED, generative_executor="mock"),
             gates=_live_ok_gates(),
             generative_executor="mock",
+            allow_mock=True,
         )
         assert report.certified is True
         path = write_certification_json(tmp, report)
@@ -56,7 +71,7 @@ def test_verify_rejects_none_without_allow_mock():
             ComplianceProfile.SCAN_ONLY,
             "/repo",
             tmp,
-            stages=[StageRecord(name="signal_scan", status="ok")],
+            stages=ok_stages_for(ComplianceProfile.SCAN_ONLY),
             gates=[
                 GateRecord(
                     id="validate_artifacts_spring_signals",
@@ -78,7 +93,7 @@ def test_verify_accepts_live_certified():
             ComplianceProfile.CERTIFIED,
             "/repo",
             tmp,
-            stages=[StageRecord(name="signal_scan", status="ok")],
+            stages=ok_stages_for(ComplianceProfile.CERTIFIED, generative_executor="live"),
             gates=_live_ok_gates(),
             generative_executor="live",
         )
@@ -100,9 +115,10 @@ def test_live_gates_rewrites_cert_with_executor_live():
             ComplianceProfile.CERTIFIED,
             str(out / "repo"),
             str(out),
-            stages=[StageRecord(name="signal_scan", status="ok")],
+            stages=ok_stages_for(ComplianceProfile.CERTIFIED, generative_executor="mock"),
             gates=_live_ok_gates(),
             generative_executor="mock",
+            allow_mock=True,
         )
         write_certification_json(out, prior)
         assert prior.certified is True
@@ -146,6 +162,17 @@ def test_live_gates_passing_writes_live_certified(monkeypatch):
         docs = out / "docs"
         docs.mkdir()
         (out / "summaries.json").write_text("[]\n", encoding="utf-8")
+        # Live rewrite keeps det priors; plant a complete det prior so omission
+        # cannot vacuous-certify from generative_external alone.
+        prior = build_certification_report(
+            ComplianceProfile.DETERMINISTIC_ONLY,
+            str(out / "repo"),
+            str(out),
+            stages=ok_det_stages_for(ComplianceProfile.CERTIFIED),
+            gates=[GateRecord(id="validate_artifacts_all", label="all", status="ok")],
+            generative_executor="none",
+        )
+        write_certification_json(out, prior)
 
         monkeypatch.setattr(
             live_gates.gates, "run_validate_all_artifacts", lambda _o: 0
@@ -192,7 +219,7 @@ def test_live_gates_strips_mock_generative_and_survives_skipped_poison(monkeypat
             str(out / "repo"),
             str(out),
             stages=[
-                StageRecord(name="signal_scan", status="ok"),
+                *ok_det_stages_for(ComplianceProfile.CERTIFIED),
                 StageRecord(name="doc_writer", status="ok", executor="mock"),
                 StageRecord(name="architect", status="skipped", executor="none"),
             ],
@@ -309,6 +336,15 @@ def test_non_certified_profile_allows_weak_citations_as_worklist(monkeypatch):
         (out / "summaries.json").write_text("[]\n", encoding="utf-8")
         _plant_weak_docs(docs)
         _mock_non_citation_gates(monkeypatch)
+        prior = build_certification_report(
+            ComplianceProfile.DETERMINISTIC_ONLY,
+            str(repo),
+            str(out),
+            stages=ok_det_stages_for(ComplianceProfile.CERTIFIED),
+            gates=[GateRecord(id="validate_artifacts_all", label="all", status="ok")],
+            generative_executor="none",
+        )
+        write_certification_json(out, prior)
 
         code = live_gates.run_live_gates(
             out_dir=str(out),

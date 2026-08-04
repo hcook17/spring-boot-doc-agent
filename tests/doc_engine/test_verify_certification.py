@@ -25,6 +25,7 @@ from doc_engine.pipeline.compliance import (
     write_certification_json,
 )
 from doc_engine.tools.certification import load_certification, verify_certification
+from tests.doc_engine.cert_helpers import ok_stages_for
 
 
 def _ok_gates_for(profile: ComplianceProfile) -> list[GateRecord]:
@@ -47,7 +48,7 @@ def test_verify_certified_true():
             ComplianceProfile.CERTIFIED,
             "/repo",
             tmp,
-            stages=[StageRecord(name="signal_scan", status="ok")],
+            stages=ok_stages_for(ComplianceProfile.CERTIFIED, generative_executor="live"),
             gates=_ok_gates_for(ComplianceProfile.CERTIFIED),
             generative_executor="live",
         )
@@ -149,7 +150,7 @@ def test_builder_round_trip_load_accepts_full_report():
             ComplianceProfile.SCAN_ONLY,
             "/repo",
             tmp,
-            stages=[StageRecord(name="signal_scan", status="ok")],
+            stages=ok_stages_for(ComplianceProfile.SCAN_ONLY),
             gates=[
                 GateRecord(id=SCAN_ONLY_GATE_ID, label="signals", status="ok"),
             ],
@@ -170,18 +171,24 @@ def test_verify_certification_script_main():
             ComplianceProfile.CERTIFIED,
             "/repo",
             tmp,
-            stages=[StageRecord(name="signal_scan", status="ok")],
+            stages=ok_stages_for(ComplianceProfile.CERTIFIED, generative_executor="live"),
             gates=_ok_gates_for(ComplianceProfile.CERTIFIED),
             generative_executor="live",
         )
         path = write_certification_json(tmp, ok_report)
         assert main([str(path)]) == 0
 
+        stages = [
+            StageRecord(name=s.name, status="fail", detail="exit 1", executor=s.executor)
+            if s.name == "signal_scan"
+            else s
+            for s in ok_stages_for(ComplianceProfile.CERTIFIED, generative_executor="live")
+        ]
         bad_report = build_certification_report(
             ComplianceProfile.CERTIFIED,
             "/repo",
             tmp,
-            stages=[StageRecord(name="signal_scan", status="fail", detail="exit 1")],
+            stages=stages,
             gates=_ok_gates_for(ComplianceProfile.CERTIFIED),
             generative_executor="live",
         )
@@ -197,3 +204,64 @@ def test_main_rejects_incomplete_certified_true_dict():
         path = Path(tmp) / "certification.json"
         _write_incomplete(path, {"certified": True})
         assert main([str(path)]) == 1
+
+
+def test_verify_rejects_forged_certified_bit():
+    """Deviation: stamped certified=true survives when refold fails."""
+    with tempfile.TemporaryDirectory() as tmp:
+        report = build_certification_report(
+            ComplianceProfile.CERTIFIED,
+            "/repo",
+            tmp,
+            stages=ok_stages_for(ComplianceProfile.CERTIFIED, generative_executor="live"),
+            gates=_ok_gates_for(ComplianceProfile.CERTIFIED),
+            generative_executor="live",
+        )
+        assert report.certified is True
+        path = write_certification_json(tmp, report)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        # Drop a required stage row but keep certified=true / empty failures.
+        data["stages"] = [s for s in data["stages"] if s["name"] != "signal_scan"]
+        data["certified"] = True
+        data["failures"] = []
+        path.write_text(json.dumps(data), encoding="utf-8")
+        ok, msg = verify_certification(path)
+        assert not ok
+        assert "refold" in msg.lower() or "≠" in msg
+
+
+def test_verify_rejects_certified_with_nonempty_failures():
+    """Deviation: certified∧failures≠∅ accepted as coherent."""
+    with tempfile.TemporaryDirectory() as tmp:
+        report = build_certification_report(
+            ComplianceProfile.CERTIFIED,
+            "/repo",
+            tmp,
+            stages=ok_stages_for(ComplianceProfile.CERTIFIED, generative_executor="live"),
+            gates=_ok_gates_for(ComplianceProfile.CERTIFIED),
+            generative_executor="live",
+        )
+        path = write_certification_json(tmp, report)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["certified"] = True
+        data["failures"] = ["stage:forged:fail"]
+        path.write_text(json.dumps(data), encoding="utf-8")
+        ok, msg = verify_certification(path)
+        assert not ok
+        assert "non-empty failures" in msg
+
+
+def test_verify_refold_matches_honest_report():
+    with tempfile.TemporaryDirectory() as tmp:
+        report = build_certification_report(
+            ComplianceProfile.CERTIFIED,
+            "/repo",
+            tmp,
+            stages=ok_stages_for(ComplianceProfile.CERTIFIED, generative_executor="live"),
+            gates=_ok_gates_for(ComplianceProfile.CERTIFIED),
+            generative_executor="live",
+        )
+        path = write_certification_json(tmp, report)
+        ok, msg = verify_certification(path)
+        assert ok
+        assert "OK" in msg

@@ -24,6 +24,7 @@ from doc_engine.pipeline.validation import (
 )
 
 from tests.conftest import FIXTURE_SNAPSHOT_PATH, REPO_ROOT
+from tests.doc_engine.cert_helpers import ok_stages_for
 
 
 @pytest.fixture
@@ -191,12 +192,13 @@ def test_certification_schema_file_and_round_trip(tmp_path):
         ComplianceProfile.DETERMINISTIC_ONLY,
         repo_path="/repo",
         out_dir=str(tmp_path),
-        stages=[StageRecord(name="signal_scan", status="ok")],
+        stages=ok_stages_for(ComplianceProfile.DETERMINISTIC_ONLY),
         gates=[GateRecord(id="validate_artifacts_all", label="all", status="ok")],
     )
     path = write_certification_json(tmp_path, report)
     model = validate_artifact_file("certification", path)
     assert model.certified is True
+    assert model.completeness_claim == "fold_of_recorded_rows"
     assert (REPO_ROOT / "scripts" / "schemas" / "certification.schema.json").is_file()
 
 

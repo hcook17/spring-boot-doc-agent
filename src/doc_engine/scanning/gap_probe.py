@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from doc_engine.pipeline.artifacts import FACTS_LEDGER_SCHEMA_VERSION
+from doc_engine.scanning.absence import count_callable_trials
 from doc_engine.scanning.covering import (
     COVERING_PROOF_SCHEMA_VERSION,
     covering_proof_path_for_signals_out,
@@ -323,8 +324,17 @@ def measure_r_lin(
     }
 
 
-def measure_r_absence(facts: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
-    """Score ABSENCE stamps only on callable trials; UNPROVEN is out-of-stratum."""
+def measure_r_absence(
+    facts: Sequence[Mapping[str, Any]],
+    *,
+    callable_trials: Optional[int] = None,
+) -> Dict[str, Any]:
+    """ABSENCE failure mass over callable trials; UNPROVEN is out-of-stratum.
+
+    ``rate`` = |ABSENCE| / callable_trials when ``callable_trials`` is supplied
+    (failure mass; ideal 0). Without ``callable_trials``, dens fall back to
+    |ABSENCE| only for back-compat unit calls — prefer always passing trials.
+    """
     absence = 0
     unproven = 0
     failures: List[Dict[str, Any]] = []
@@ -333,7 +343,6 @@ def measure_r_absence(facts: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
         quals = f.get("qualifiers") if isinstance(f.get("qualifiers"), Mapping) else {}
         trial = quals.get("trial")
         if pred == "ABSENCE":
-            # Only callable trials belong in the ABSENCE rate (writer invariant + scorer).
             if trial != "callable":
                 continue
             absence += 1
@@ -349,13 +358,19 @@ def measure_r_absence(facts: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
             )
         elif pred == "UNPROVEN":
             unproven += 1
-    den = absence
-    out = _rate_block(absence, den) if den else _rate_block(0, 0)
+    if callable_trials is not None:
+        den = int(callable_trials)
+        out = _rate_block(absence, den) if den > 0 else _rate_block(0, 0)
+    else:
+        den = absence
+        out = _rate_block(absence, den) if den else _rate_block(0, 0)
     out["callable_absence"] = absence
+    out["callable_trials"] = callable_trials
     out["unproven"] = unproven
+    out["polarity"] = "failure_mass"
     out["note"] = (
-        "ABSENCE scored only for callable trials; UNPROVEN is reported but "
-        "excluded from the ABSENCE denominator (non-callable)."
+        "R_absence is failure mass |ABSENCE|/callable_trials (ideal 0). "
+        "UNPROVEN is reported but excluded from the denominator."
     )
     out["failures"] = failures
     return out
@@ -366,10 +381,14 @@ def measure_r_recall(
     *,
     oracle_arm_present: bool = False,
 ) -> Optional[Dict[str, Any]]:
-    """RECALL_MISS rates when oracle arm present; else None (omit S3 recall)."""
-    misses = [f for f in facts if f.get("predicate") == "RECALL_MISS"]
-    if not oracle_arm_present and not misses:
+    """RECALL_MISS rates when trusted oracle arm present; else None.
+
+    Planted RECALL_MISS without an oracle arm must not invent measured recall —
+    callers stamp ``untrusted_planted``.
+    """
+    if not oracle_arm_present:
         return None
+    misses = [f for f in facts if f.get("predicate") == "RECALL_MISS"]
     structural = 0
     evidentiary = 0
     failures: List[Dict[str, Any]] = []
@@ -397,6 +416,37 @@ def measure_r_recall(
     out["oracle_arm_present"] = True
     out["failures"] = failures
     return out
+
+
+def _trusted_codeql_oracle_arm(covering_proof: Optional[Mapping[str, Any]]) -> bool:
+    """True only for a complete CodeQL receipt with matching subset roots."""
+    for receipt in (covering_proof or {}).get("receipts") or []:
+        if not isinstance(receipt, Mapping):
+            continue
+        if receipt.get("scanner") != "codeql":
+            continue
+        if receipt.get("status") != "complete":
+            continue
+        expected = receipt.get("expected_subset_root")
+        acked = receipt.get("acked_subset_root")
+        if expected and acked and expected == acked:
+            return True
+    return False
+
+
+def _astgrep_receipt_complete(covering_proof: Optional[Mapping[str, Any]]) -> bool:
+    for receipt in (covering_proof or {}).get("receipts") or []:
+        if not isinstance(receipt, Mapping):
+            continue
+        if receipt.get("scanner") != "ast-grep":
+            continue
+        if receipt.get("status") != "complete":
+            continue
+        expected = receipt.get("expected_subset_root")
+        acked = receipt.get("acked_subset_root")
+        if expected and acked and expected == acked:
+            return True
+    return False
 
 
 def load_and_verify_covering(
@@ -494,8 +544,63 @@ def compute_uncertainty(
     r_join: Optional[float],
     r_lin_mean: Optional[float],
     r_code_dep: Optional[float],
+    *,
+    callable_absence: int = 0,
+    unproven: int = 0,
 ) -> Dict[str, Any]:
-    """U_w policy comparison index; missing rates treated as perfect on that axis."""
+    """U_w comparison index — not Stage-0 completeness.
+
+    Claim ladder (worst wins):
+    - ``vacuous_no_support`` — every dens undefined → U null (never 0.0)
+    - ``comparison_index_with_unscored_s3`` — ABSENCE/UNPROVEN present; not in U
+    - ``comparison_index_partial_support`` — some dens measured, others imputed
+    - ``comparison_index_imputed_missing_as_perfect`` — all four dens measured
+      (historical formula; name kept for full-support path)
+    """
+    axis_values = {
+        "coll": r_coll,
+        "join": r_join,
+        "lin": r_lin_mean,
+        "code": r_code_dep,
+    }
+    measured_axes = [name for name, val in axis_values.items() if val is not None]
+    imputed_axes = [name for name, val in axis_values.items() if val is None]
+    abs_n = int(callable_absence)
+    unp_n = int(unproven)
+    unscored_s3 = abs_n > 0 or unp_n > 0
+
+    if not measured_axes:
+        claim = "vacuous_no_support"
+        if unscored_s3:
+            # Vacuous Path A dens but S3 stamps exist — still not a U value.
+            claim = "vacuous_no_support_with_s3_stamps"
+        return {
+            "U": None,
+            "claim": claim,
+            "slot": "comparison_index",
+            "support": [],
+            "imputed_axes": list(axis_values),
+            "callable_absence": abs_n,
+            "unproven": unp_n,
+            "note": (
+                "U is null: no Path A rate dens were measured. "
+                "Not Stage-0 completeness; not 'healthy'."
+            ),
+            "weights": {
+                "w_c": WEIGHT_COLLISION,
+                "w_j": WEIGHT_JOIN,
+                "w_l": WEIGHT_LINEAGE,
+                "w_d": WEIGHT_CODE_DEP,
+            },
+            "terms": {},
+            "residuals": {
+                "R_coll": None,
+                "join_gap": None,
+                "lineage_gap": None,
+                "code_dep_gap": None,
+            },
+        }
+
     coll = r_coll if r_coll is not None else 0.0
     join = r_join if r_join is not None else 1.0
     lin = r_lin_mean if r_lin_mean is not None else 1.0
@@ -512,9 +617,26 @@ def compute_uncertainty(
         + WEIGHT_LINEAGE * (1.0 - lin)
         + WEIGHT_CODE_DEP * (1.0 - code)
     )
+    if unscored_s3:
+        claim = "comparison_index_with_unscored_s3"
+    elif imputed_axes:
+        claim = "comparison_index_partial_support"
+    else:
+        claim = "comparison_index_full_support"
+
     return {
         "U": u,
+        "claim": claim,
         "slot": "comparison_index",
+        "support": measured_axes,
+        "imputed_axes": imputed_axes,
+        "callable_absence": abs_n,
+        "unproven": unp_n,
+        "note": (
+            "U_w compares Path A residuals only. Imputed axes treat missing dens "
+            "as perfect. ABSENCE/UNPROVEN are not folded into U — when present, "
+            "claim is comparison_index_with_unscored_s3. Not Stage-0 completeness."
+        ),
         "weights": {
             "w_c": WEIGHT_COLLISION,
             "w_j": WEIGHT_JOIN,
@@ -634,17 +756,29 @@ def build_gap_report(
     lin = measure_r_lin(signals, scoring_env=SCORING_ENV_CALLABLE)
     lin_pooled = measure_r_lin(signals, scoring_env=SCORING_ENV_POOLED)
     code_dep = measure_r_code_dep(signals)
-    absence = measure_r_absence(facts)
-    oracle_present = any(
-        isinstance(r, Mapping) and r.get("scanner") == "codeql"
-        for r in (covering_proof or {}).get("receipts") or []
-    ) or any(f.get("predicate") == "RECALL_MISS" for f in facts)
-    recall = measure_r_recall(facts, oracle_arm_present=oracle_present)
+
+    # R_absence: failure mass over callable Stage-0 trials (not identity |A|/|A|).
+    astgrep_ok = _astgrep_receipt_complete(covering_proof)
+    callable_trials = count_callable_trials(
+        signals,
+        covering_ok=covering_ok,
+        astgrep_receipt_complete=astgrep_ok,
+    )
+    absence = measure_r_absence(facts, callable_trials=callable_trials)
+
+    # Trusted oracle = complete CodeQL receipt with matching subset roots.
+    # Planted RECALL_MISS alone is never a substitute arm.
+    oracle_arm = _trusted_codeql_oracle_arm(covering_proof)
+    planted_misses = sum(1 for f in facts if f.get("predicate") == "RECALL_MISS")
+    recall = measure_r_recall(facts, oracle_arm_present=oracle_arm)
+
     uncertainty = compute_uncertainty(
         coll["rate"],
         join["rate"],
         lin["mean_rate"],
         code_dep["rate"],
+        callable_absence=int(absence["callable_absence"]),
+        unproven=int(absence["unproven"]),
     )
 
     failures: List[Dict[str, Any]] = []
@@ -652,6 +786,21 @@ def build_gap_report(
         failures.extend(block.get("failures") or [])
     if recall is not None:
         failures.extend(recall.get("failures") or [])
+    elif planted_misses > 0:
+        for f in facts:
+            if f.get("predicate") != "RECALL_MISS":
+                continue
+            quals = f.get("qualifiers") if isinstance(f.get("qualifiers"), Mapping) else {}
+            failures.append(
+                {
+                    "layer": "recall",
+                    "stratum": "untrusted_planted",
+                    "reason_class": "RECALL_MISS_WITHOUT_ORACLE",
+                    "subject": f.get("subject"),
+                    "file": f.get("file"),
+                    "oracle_arm": quals.get("oracle_arm"),
+                }
+            )
     failures = sort_failures(failures)
     kept, truncation = apply_failure_budget(failures, failure_budget, must_keep)
 
@@ -717,8 +866,16 @@ def build_gap_report(
             "callable_denominator": absence["callable_denominator"],
             "rate": absence["rate"],
             "callable_absence": absence["callable_absence"],
+            "callable_trials": callable_trials,
             "unproven": absence["unproven"],
+            "polarity": "failure_mass",
+            "omitted": absence["rate"] is None,
             "note": absence["note"],
+        },
+        "oracle": {
+            "trusted_codeql_arm": oracle_arm,
+            "planted_recall_miss_count": planted_misses,
+            "astgrep_receipt_complete": astgrep_ok,
         },
     }
     if recall is not None:
@@ -729,6 +886,31 @@ def build_gap_report(
             "rate": recall["rate"],
             "structural": recall["structural"],
             "evidentiary": recall["evidentiary"],
+            "omitted": False,
+            "claim": "measured",
+        }
+    elif planted_misses > 0:
+        rates["R_recall"] = {
+            "numerator": 0,
+            "denominator": 0,
+            "callable_denominator": 0,
+            "rate": None,
+            "omitted": True,
+            "claim": "untrusted_planted",
+            "note": (
+                "Planted RECALL_MISS stamps are not an oracle. "
+                "R_recall stays omitted until a trusted CodeQL receipt is present."
+            ),
+        }
+    else:
+        rates["R_recall"] = {
+            "numerator": 0,
+            "denominator": 0,
+            "callable_denominator": 0,
+            "rate": None,
+            "omitted": True,
+            "claim": "omitted_without_oracle",
+            "note": "R_recall requires a trusted CodeQL covering receipt",
         }
 
     report = {
@@ -760,12 +942,18 @@ def build_gap_report(
         "uncertainty": uncertainty,
         "measurement": {
             "residuals": uncertainty["residuals"],
-            "comparison_index": {"U": uncertainty["U"], "slot": "comparison_index"},
+            "comparison_index": {
+                "U": uncertainty["U"],
+                "claim": uncertainty.get("claim"),
+                "slot": "comparison_index",
+            },
             "delta_r_scoring_env": delta_r,
             "truncation": truncation,
             "note_U": (
                 "U_w is a comparison index over Path A residuals — not Stage-0 "
-                "completeness / covering proof."
+                "completeness / covering proof. Vacuous dens ⇒ U null "
+                "(claim=vacuous_no_support). Read uncertainty.callable_absence "
+                "and uncertainty.unproven; they are not folded into U."
             ),
         },
         "design_reopen": {
@@ -774,6 +962,11 @@ def build_gap_report(
             "lineage_dominant_stratum": _dominant_failure_stratum(lin),
             "truncation_alarm": truncation["truncation_alarm"],
             "structural_recall_misses": bool(recall and recall.get("structural")),
+            "unproven_present": bool(absence["unproven"]),
+            "absence_present": bool(absence["callable_absence"]),
+            "vacuous_uncertainty": uncertainty.get("claim") == "vacuous_no_support",
+            "untrusted_planted_recall": bool(planted_misses and not oracle_arm),
+            "r_absence_failure_mass": absence.get("rate"),
         },
         "memo": "claude/research/aet-measurement-2026-07-30.md",
         "memo_rates": "claude/research/gap-probe-measurement-design-2026-07-30.md",

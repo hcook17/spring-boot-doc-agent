@@ -303,6 +303,7 @@ def _write_certification_and_finish(
     out_dir,
     generative_executor,
     *,
+    allow_mock=False,
     show_table=True,
     success_lines=None,
     notice_lines=None,
@@ -317,6 +318,7 @@ def _write_certification_and_finish(
         stage_records_from_runner_results(runner.results),
         runner.gate_records,
         generative_executor=generative_executor,
+        allow_mock=allow_mock,
     )
     cert_path = write_certification_json(out_dir, report)
 
@@ -416,6 +418,15 @@ def add_run_arguments(ap: argparse.ArgumentParser) -> None:
     )
     ap.add_argument("--deterministic-only", action="store_true",
                     help="shorthand for --compliance-profile deterministic_only")
+    ap.add_argument(
+        "--allow-mock",
+        action="store_true",
+        help=(
+            "allow CERTIFIED profile to fold certified=true when "
+            "generative_executor is none/mock (local wiring runs). "
+            "Live adoption gates still require verify --allow-mock or live."
+        ),
+    )
     ap.add_argument("--signals-file", default=None,
                     help="reuse an existing spring_signals.json; copies into "
                          "--out-dir and skips the signal_scan stage")
@@ -437,6 +448,7 @@ def run_pipeline(args) -> int:
 
     repo_config = load_repo_config(repo_path)
     profile = resolve_compliance_profile(repo_config, args)
+    allow_mock = bool(getattr(args, "allow_mock", False))
     skip_signal_scan = bool(args.signals_file)
     strict_citations_effective = (
         citations_are_strict(profile, force_strict=args.strict_citations)
@@ -562,6 +574,15 @@ def run_pipeline(args) -> int:
     deterministic_specs = [s for s in selected_specs if s.kind == StageKind.DETERMINISTIC]
     generative_specs = [s for s in selected_specs if s.kind == StageKind.GENERATIVE]
 
+    # Reused Path A is not an omitted required stage — record it as ok for the fold.
+    if skip_signal_scan:
+        runner.record(
+            "pipeline:signal_scan",
+            "OK",
+            0.0,
+            f"reused --signals-file {os.path.abspath(args.signals_file)}",
+        )
+
     log.rule("STAGE 0 — deterministic (PipelineRunner, real scripts)")
     det_runner = PipelineRunner(
         generative_executor=MockStageExecutor({}),
@@ -582,6 +603,7 @@ def run_pipeline(args) -> int:
     if runner.aborted:
         return _write_certification_and_finish(
             log, runner, profile, repo_path, out_dir, "none",
+            allow_mock=allow_mock,
             notice_lines=["Run aborted before later stages — see above."],
         )
 
@@ -611,6 +633,7 @@ def run_pipeline(args) -> int:
         _artifact_inventory(log, out_dir)
         return _write_certification_and_finish(
             log, runner, profile, repo_path, out_dir, "none",
+            allow_mock=allow_mock,
             success_lines=["RESULT: scan-only profile complete."],
         )
 
@@ -651,6 +674,7 @@ def run_pipeline(args) -> int:
         )
         return _write_certification_and_finish(
             log, runner, profile, repo_path, out_dir, "none",
+            allow_mock=allow_mock,
             success_lines=[
                 "RESULT: deterministic stages complete. Run generative stages via "
                 "Claude Code + document-spring-repo skill for real docs."
@@ -675,6 +699,7 @@ def run_pipeline(args) -> int:
     if runner.aborted:
         return _write_certification_and_finish(
             log, runner, profile, repo_path, out_dir, "mock",
+            allow_mock=allow_mock,
             notice_lines=["Run aborted after generative stage failure — see above."],
         )
 
@@ -794,6 +819,7 @@ def run_pipeline(args) -> int:
 
     return _write_certification_and_finish(
         log, runner, profile, repo_path, out_dir, "mock",
+        allow_mock=allow_mock,
         success_lines=[
             "RESULT: every gate passed. Remember Stages 1-4 were mocked: this says the "
             "wiring and the checks work, not that any document is correct.",

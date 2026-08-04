@@ -57,6 +57,23 @@ U = w_c R_{\text{coll}} + w_j (1-R_{\text{join}}) + w_\ell (1-\bar R_{\text{lin}
 
 \(U \in [0,1]\). Use to **compare** runs/repos. Not a maturity score.
 
+**Bare-minimum honesty (artifact stamps):** when every Path A rate dens is
+undefined, publish \`U: null\` with \`claim: vacuous_no_support\` (or
+\`vacuous_no_support_with_s3_stamps\` if ABSENCE/UNPROVEN counts are nonzero) —
+never \`0.0\` as healthy-empty. Claim ladder when dens exist:
+\`comparison_index_with_unscored_s3\` (ABSENCE/UNPROVEN present) >
+\`comparison_index_partial_support\` (some dens imputed) >
+\`comparison_index_full_support\`. \`callable_absence\` / \`unproven\` /
+\`imputed_axes\` always ride on the uncertainty block; they are **not** folded
+into \(U\).
+
+**S3 deeper close:** \(R_{\text{absence}}\) is **failure mass**
+\(|\mathrm{ABSENCE}| / |\text{callable trials}|\) (ideal 0) — not identity
+\(|A|/|A|\). Hits>0 families emit no ABSENCE/UNPROVEN stamp but still count in
+the callable-trial denominator. \(R_{\text{recall}}\) requires a **trusted**
+CodeQL covering receipt (`claim: measured`); planted `RECALL_MISS` without that
+arm stamps `untrusted_planted` and stays omitted.
+
 ---
 
 ## 4. Design reopen thresholds (predeclared)

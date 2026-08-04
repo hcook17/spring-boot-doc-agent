@@ -106,7 +106,13 @@ def write_absence_facts(
     scanner_version: Optional[str],
     astgrep_receipt_complete: bool,
 ) -> List[Dict[str, Any]]:
-    """Emit ABSENCE or UNPROVEN facts for each known family."""
+    """Emit ABSENCE or UNPROVEN facts for each known family.
+
+    Transform order (absence claims only — presence lives on Path A SoR):
+      hits > 0     → no stamp
+      callable     → ABSENCE
+      else         → UNPROVEN
+    """
     facts: List[Dict[str, Any]] = []
     for family in sorted(_FAMILY_SPEC):
         witness = _family_witness(family, signals)
@@ -114,11 +120,12 @@ def write_absence_facts(
         callable_trial = bool(
             covering_ok and astgrep_receipt_complete and witness is not None
         )
-        if callable_trial and hits == 0:
+        # Presence short-circuits — never UNPROVEN a family Path A already hit.
+        if hits > 0:
+            continue
+        if callable_trial:
             predicate = "ABSENCE"
             trial = "callable"
-        elif callable_trial:
-            continue  # present — no absence stamp
         else:
             predicate = "UNPROVEN"
             trial = "non_callable"
@@ -142,3 +149,18 @@ def write_absence_facts(
             }
         )
     return facts
+
+
+def count_callable_trials(
+    signals: Mapping[str, Any],
+    *,
+    covering_ok: bool,
+    astgrep_receipt_complete: bool,
+) -> int:
+    """Number of families for which callable(F) holds (ABSENCE denom support)."""
+    n = 0
+    for family in _FAMILY_SPEC:
+        witness = _family_witness(family, signals)
+        if covering_ok and astgrep_receipt_complete and witness is not None:
+            n += 1
+    return n
