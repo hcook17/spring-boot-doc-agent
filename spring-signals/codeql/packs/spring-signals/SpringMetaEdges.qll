@@ -32,6 +32,7 @@ import java
 import signals.Annotations
 
 class SpringMetaEdges extends MetaAnnotationEdges {
+  SpringMetaEdges() { this = this }
   override predicate edge(string pkg, string name, string superPkg, string superName) {
     // Stereotypes. Everything composes onto @Component.
     pkg = "org.springframework.stereotype" and

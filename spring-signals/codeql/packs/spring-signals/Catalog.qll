@@ -462,7 +462,7 @@ predicate sqlExecutorType(string pkg, string name, string generation) {
  * entirely. See docs/CAMPAIGN.md.
  */
 
-/**
+/*
  * WAVE 3 DESIGN NOTE -- JACKSON GENERATION TAGGING IS NOT A PACKAGE PREFIX.
  *
  * The obvious rule -- `com.fasterxml.jackson.*` => generation "jackson2",
