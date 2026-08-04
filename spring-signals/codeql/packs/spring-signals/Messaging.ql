@@ -25,7 +25,6 @@ import Common
 /** Holds if `t` is a messaging client type. Interfaces first, impls second. */
 private predicate messagingClientType(Type t, string fqn) {
   typeIsOrExtends(t, "org.springframework.kafka.core", "KafkaOperations") and
-  not typeIsOrExtends(t, "org.springframework.kafka.core", "KafkaTemplate") and
   fqn = "org.springframework.kafka.core.KafkaOperations"
   or
   typeIsOrExtends(t, "org.springframework.kafka.core", "KafkaTemplate") and
@@ -79,13 +78,21 @@ where
     isExactly(a, pkg, name) and
     listenerAnnotation(pkg, name) and
     signal = pkg + "." + name and
-    detail = concat(string s | s = attr(a, "topics") and s != "" or s = attr(a, "queues") and s != "" or s = attr(a, "destination") and s != "" or s = attr(a, "value") and s != "" | s, "|" order by s) and
+    detail = attrs(a, "topics,queues,destination,value") and
     rule_id = "messaging__listener"
   )
   or
   exists(Variable v, string fqn |
     e = v and
     messagingClientType(v.getType(), fqn) and
+    // Most specific catalogued client type only. The hand-written
+    // `not typeIsOrExtends(...)` exclusions this replaces had to be repeated for
+    // every interface/impl pair; a forgotten one emits a duplicate silently.
+    not exists(string other |
+      messagingClientType(v.getType(), other) and
+      other != fqn and
+      typeStrictlyExtendsFqn(other, fqn)
+    ) and
     signal = fqn and
     detail = v.getName() and
     rule_id = "messaging__client_type"

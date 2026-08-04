@@ -241,6 +241,14 @@ predicate signature(string framework, string pkg, string name, string kind, stri
     name = "RequestPart" and kind = "param_binding"
     or
     name = "CookieValue" and kind = "param_binding"
+    or
+    // NOT "param_binding". api_surface__param_binding treats an empty `detail`
+    // as the Spring 6.1 -parameters finding, and @RequestBody carries no name
+    // attribute in any Spring version, so every one was a false positive. It was
+    // then dropped from the catalogue entirely, which removed the false positive
+    // by removing the signal -- request bodies are part of the API surface and
+    // should still be inventoried. Own kind, own rule_id.
+    name = "RequestBody" and kind = "body_binding"
   )
   or
   // Spring 6.1 / Boot 3.2 HTTP interface clients. Absent from ocs-api-service

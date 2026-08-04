@@ -28,4 +28,6 @@ select
   "openapi" as framework,
   generation,
   pkg + "." + name as signal,
-  concat(string s | s = attr(a, "summary") and s != "" or s = attr(a, "value") and s != "" or s = attr(a, "description") and s != "" | s, " " order by s) as detail
+  // `name` added: @Tag and @ApiResponse carry no summary/value/description, so
+  // every openapi__tag row emitted an empty detail.
+  attrs(a, "summary,value,description,name") as detail

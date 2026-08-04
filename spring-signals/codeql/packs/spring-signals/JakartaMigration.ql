@@ -21,6 +21,36 @@ import Common
  * and `javax.swing` are JDK-retained and MUST NOT be flagged. A naive
  * `^javax\.` rule produces a migration backlog full of false work.
  */
+/**
+ * Holds if `fqn` is a JSR-305 symbol, which Jakarta EE 9 did NOT relocate.
+ *
+ * `javax.annotation` is a SPLIT namespace. The JSR-250 lifecycle annotations
+ * (`@PostConstruct`, `@PreDestroy`, `@Resource`) moved to `jakarta.annotation`;
+ * the JSR-305 nullness and concurrency annotations, which arrive transitively
+ * via com.google.code.findbugs:jsr305, did not and have no jakarta equivalent.
+ * Flagging them manufactures migration work that does not exist -- the failure
+ * the namespace enumeration above exists to prevent, reintroduced one level
+ * down because the split is inside a package, not between packages.
+ */
+bindingset[fqn]
+private predicate jsr305Symbol(string fqn) {
+  fqn.regexpMatch("^javax\\.annotation\\.concurrent\\..*")
+  or
+  fqn in [
+      "javax.annotation.Nullable", "javax.annotation.Nonnull",
+      "javax.annotation.CheckReturnValue", "javax.annotation.CheckForNull",
+      "javax.annotation.ParametersAreNonnullByDefault",
+      "javax.annotation.ParametersAreNullableByDefault",
+      "javax.annotation.OverridingMethodsMustInvokeSuper",
+      "javax.annotation.WillClose", "javax.annotation.WillNotClose",
+      "javax.annotation.Untainted", "javax.annotation.Tainted",
+      "javax.annotation.MatchesPattern", "javax.annotation.Signed",
+      "javax.annotation.Unsigned", "javax.annotation.Nonnegative",
+      "javax.annotation.RegEx", "javax.annotation.Syntax",
+      "javax.annotation.PropertyKey", "javax.annotation.meta.When"
+    ]
+}
+
 bindingset[pkg]
 private predicate relocatedJavaxNamespace(string pkg) {
   pkg.regexpMatch("^javax\\.(persistence|validation|transaction|servlet|ws\\.rs|jms|mail|enterprise|inject|interceptor|json|batch|el|websocket|xml\\.bind|xml\\.soap|xml\\.ws|activation|security\\.enterprise|faces|resource)(\\..*)?$")
@@ -41,6 +71,7 @@ where
     signal = pkg + "." + imp.getImportedType().getSourceDeclaration().getName() and
     (
       relocatedJavaxNamespace(pkg) and
+      not jsr305Symbol(signal) and
       generation = "javax" and
       rule_id = "jakarta__pending_import" and
       detail = jakartaEquivalent(signal)
@@ -61,6 +92,7 @@ where
     signal = annotationFqn(a) and
     (
       relocatedJavaxNamespace(pkg) and
+      not jsr305Symbol(signal) and
       generation = "javax" and
       rule_id = "jakarta__pending_annotation" and
       detail = jakartaEquivalent(signal)
@@ -80,6 +112,7 @@ where
     signal = typeFqn(v.getType()) and
     (
       relocatedJavaxNamespace(pkg) and
+      not jsr305Symbol(signal) and
       generation = "javax" and
       rule_id = "jakarta__pending_type" and
       detail = jakartaEquivalent(signal)
@@ -98,6 +131,7 @@ where
     signal = typeFqn(m.getReturnType()) and
     (
       relocatedJavaxNamespace(pkg) and
+      not jsr305Symbol(signal) and
       generation = "javax" and
       rule_id = "jakarta__pending_type" and
       detail = jakartaEquivalent(signal)

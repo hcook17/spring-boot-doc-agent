@@ -78,6 +78,11 @@ where
   exists(Variable v, string fqn |
     e = v and
     outboundClientType(v.getType(), fqn, generation) and
+    not exists(string other |
+      outboundClientType(v.getType(), other, _) and
+      other != fqn and
+      typeStrictlyExtendsFqn(other, fqn)
+    ) and
     signal = fqn and
     detail = v.getName() and
     rule_id = "outbound__type_usage"

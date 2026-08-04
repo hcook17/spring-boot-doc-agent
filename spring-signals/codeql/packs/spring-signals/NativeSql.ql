@@ -105,6 +105,15 @@ where
     e = call and
     sqlExecutorType(pkg, name, generation) and
     typeIsOrExtends(call.getReceiverType(), pkg, name) and
+    // Most specific catalogued executor only. JdbcTemplate implements
+    // JdbcOperations and both are catalogued, so the unguarded form emitted two
+    // rows per call with an identical (file, symbol, rule_id).
+    not exists(string p2, string n2 |
+      sqlExecutorType(p2, n2, _) and
+      typeIsOrExtends(call.getReceiverType(), p2, n2) and
+      not (p2 = pkg and n2 = name) and
+      typeStrictlyExtends(p2, n2, pkg, name)
+    ) and
     signal = name + "." + call.getMethod().getName() and
     // `Argument` is not a class in the Java library and `Expr` has no
     // getPosition(); index through getArgument(i) instead. The index also gives
