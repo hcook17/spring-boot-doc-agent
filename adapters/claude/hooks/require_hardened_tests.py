@@ -61,8 +61,7 @@ import suite_layout  # noqa: E402
 SKILL = "directional-tests"
 
 # Modules that are libraries or entry points for which a dedicated suite is not
-# the convention here. Each needs a reason, the same shape as
-# check_repo_claims.CI_EXEMPT_SUITES.
+# the convention here. Each needs a reason (exemption without reason ≡ oversight).
 TEST_EXEMPT = {
     "drift_match_normalizers.py": "re-derived by tests/ratchets/test_drift_normalization.py",
     "java_perturbations.py": "test infrastructure itself",

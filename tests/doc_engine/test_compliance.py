@@ -241,6 +241,25 @@ class CertificationReportTest(unittest.TestCase):
         self.assertFalse(report.certified)
         self.assertIn(f"gate:{SCAN_ONLY_GATE_ID}:missing", report.failures)
 
+    def test_profile_required_gate_with_required_false_is_not_certified(self):
+        """Deviation: stamping required=False + status=fail forges CERTIFIED."""
+        gates = [
+            GateRecord(id=gid, label=gid, status="fail", required=False)
+            for gid in sorted(CERTIFIED_GATE_IDS)
+        ]
+        report = build_certification_report(
+            ComplianceProfile.CERTIFIED,
+            "/repo",
+            "/out",
+            ok_stages_for(ComplianceProfile.CERTIFIED, generative_executor="mock"),
+            gates,
+            generative_executor="mock",
+            allow_mock=True,
+        )
+        self.assertFalse(report.certified)
+        for gid in sorted(CERTIFIED_GATE_IDS):
+            self.assertIn(f"gate:{gid}:not_required", report.failures)
+
     def test_write_certification_json(self):
         with tempfile.TemporaryDirectory() as tmp:
             report = build_certification_report(

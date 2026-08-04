@@ -248,8 +248,18 @@ def build_certification_report(
             failures.append(f"gate:{gate.id}:{gate.status}")
     required_ids = gates_required_for_profile(profile)
     for gate_id in sorted(required_ids):
-        if gate_id not in by_id:
+        gate = by_id.get(gate_id)
+        if gate is None:
             failures.append(f"gate:{gate_id}:missing")
+        elif not gate.required:
+            # Presence alone is not enough — required=False forges the fold.
+            failures.append(f"gate:{gate_id}:not_required")
+        elif gate.status != "ok":
+            # Already recorded above when required=True; keep explicit for
+            # profile-required ids so the failure list is complete if the
+            # earlier loop is ever narrowed.
+            if f"gate:{gate_id}:{gate.status}" not in failures:
+                failures.append(f"gate:{gate_id}:{gate.status}")
 
     # Omission ≠ success: required stages never recorded must fail the fold.
     # Live rewrite may substitute generative_external for all generative stages.

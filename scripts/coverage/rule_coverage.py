@@ -65,8 +65,7 @@ def _extract_rule_ids(text: str) -> List[str]:
 
 
 # Rules that legitimately cannot be exercised by the fixture, each with the
-# reason. Same shape as check_repo_claims.py's CI_EXEMPT_SUITES: an exemption
-# must say why, or it is indistinguishable from an oversight.
+# reason. An exemption must say why, or it is indistinguishable from an oversight.
 FIXTURE_EXEMPT: Dict[str, str] = {}
 
 

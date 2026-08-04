@@ -84,3 +84,21 @@ def validate_artifacts_in_dir(directory: Path) -> list[tuple[str, Path]]:
             validate_artifact_file(artifact, path)
             validated.append((artifact, path))
     return validated
+
+
+def missing_required_artifacts(
+    directory: Path,
+    required: list[str],
+) -> list[str]:
+    """Return required artifact names whose files are absent under directory."""
+    directory = directory.resolve()
+    missing: list[str] = []
+    for name in required:
+        if name not in ARTIFACT_FILENAMES:
+            raise KeyError(
+                f"unknown artifact {name!r}; expected one of {sorted(ARTIFACT_FILENAMES)}"
+            )
+        path = directory / ARTIFACT_FILENAMES[name]
+        if not path.is_file():
+            missing.append(name)
+    return missing

@@ -82,6 +82,15 @@ class TestNonVacuity(unittest.TestCase):
             self.skipTest("semgrep not on PATH")
         self.assertEqual(sc.check_non_vacuity(), [])
 
+    def test_an_empty_pack_fails_rather_than_passing_vacuously(self) -> None:
+        original = sc.rule_ids
+        try:
+            sc.rule_ids = lambda *a, **k: []  # type: ignore[assignment]
+            problems = sc.check_non_vacuity()
+            self.assertTrue(any("empty" in p.lower() for p in problems), problems)
+        finally:
+            sc.rule_ids = original  # type: ignore[assignment]
+
     def test_a_rule_with_no_fixture_is_caught(self) -> None:
         """Proves the gate is not passing because it looked at nothing: a
         rule that exists but nothing triggers must be reported."""
@@ -149,13 +158,25 @@ class TestRatchet(unittest.TestCase):
         self.baseline({"a__b": 0})
         self.assertEqual(sc.check_ratchet(collections.Counter()), [])
 
-    def test_a_missing_baseline_is_not_a_failure(self) -> None:
-        self.assertEqual(sc.check_ratchet(collections.Counter()), [])
+    def test_a_missing_baseline_is_a_failure(self) -> None:
+        """Recall SoR absent ≠ OK (fail-closed; do not invent a baseline)."""
+        self.assertFalse(sc.BASELINE_FILE.is_file())
+        problems = sc.check_ratchet(collections.Counter())
+        self.assertTrue(problems)
+        self.assertTrue(any("missing" in p.lower() for p in problems), problems)
 
     def test_a_stale_schema_version_is_rejected(self) -> None:
         sc.BASELINE_FILE.write_text(
             json.dumps({"schema_version": 999, "counts": {}}), encoding="utf-8")
         self.assertTrue(sc.check_ratchet(collections.Counter()))
+
+    def test_missing_counts_key_is_rejected(self) -> None:
+        sc.BASELINE_FILE.write_text(json.dumps({
+            "schema_version": sc.SCHEMA_VERSION,
+            "corpus": "fake",
+        }), encoding="utf-8")
+        problems = sc.check_ratchet(collections.Counter())
+        self.assertTrue(any("counts" in p for p in problems), problems)
 
 
 class TestFpRatchet(unittest.TestCase):
@@ -218,6 +239,36 @@ class TestExitCodes(unittest.TestCase):
 
     def test_a_missing_target_directory_exits_two(self) -> None:
         self.assertEqual(sc.main(["no-such-directory-here"]), 2)
+
+    def test_fp_ratchet_failure_exits_one(self) -> None:
+        try:
+            sc.find_semgrep()
+        except sc.SemgrepNotFoundError:
+            self.skipTest("semgrep not on PATH")
+        with tempfile.TemporaryDirectory() as tmp:
+            real_fp = sc.FP_BASELINE_FILE
+            real_neg = sc.NEGATIVE_FIXTURE_DIR
+            neg = Path(tmp) / "neg"
+            neg.mkdir()
+            # empty negatives → all zeros; baseline with zeros for known rules
+            # then inject a rise via stubbed hit_counts
+            fp = Path(tmp) / "fp.json"
+            fp.write_text(json.dumps({
+                "schema_version": sc.SCHEMA_VERSION,
+                "counts": {rid: 0 for rid in sc.rule_ids()},
+            }), encoding="utf-8")
+            original_hits = sc.hit_counts
+            try:
+                sc.FP_BASELINE_FILE = fp
+                sc.NEGATIVE_FIXTURE_DIR = neg
+                sc.hit_counts = lambda *a, **k: collections.Counter(  # type: ignore[assignment]
+                    {sc.rule_ids()[0]: 3}
+                )
+                self.assertEqual(sc.main([]), 1)
+            finally:
+                sc.FP_BASELINE_FILE = real_fp
+                sc.NEGATIVE_FIXTURE_DIR = real_neg
+                sc.hit_counts = original_hits  # type: ignore[assignment]
 
     def test_update_fp_baseline_writes_file(self) -> None:
         try:
