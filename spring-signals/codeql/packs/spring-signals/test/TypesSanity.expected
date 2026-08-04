@@ -1,0 +1,4 @@
+| BaseClass | InterfaceA |
+| DerivedClass | BaseClass |
+| DerivedClass | InterfaceB |
+| InterfaceB | InterfaceA |
