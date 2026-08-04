@@ -1,0 +1,19 @@
+# Wave 1 (v1 schema) only. Enumerated deliberately.
+#
+# `- queries: .` would sweep in References/Security/Observability/Testing, which
+# still emit the legacy v0 3-column shape and which harness/run.sh excludes by
+# name. Two disagreeing definitions of "the wave 1 set" is how a consumer ends up
+# parsing a v0 row with a v1 decoder.
+#
+# Wave 2 adds the remaining four here in the same PR that migrates their schema.
+- description: spring-signals wave 1 (v1 schema)
+- query: ApiSurface.ql
+- query: Configuration.ql
+- query: ErrorHandling.ql
+- query: HibernateTypes.ql
+- query: JakartaMigration.ql
+- query: Messaging.ql
+- query: NativeSql.ql
+- query: OpenApiSurface.ql
+- query: OutboundClients.ql
+- query: Persistence.ql
