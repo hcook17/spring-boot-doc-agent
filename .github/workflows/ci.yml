@@ -266,16 +266,20 @@ jobs:
         run: codeql --version
 
       - name: Install pack dependencies
+        working-directory: spring-signals/codeql
         run: |
-          codeql pack install spring-signals/codeql/packs/java-signals-lib
-          codeql pack install spring-signals/codeql/packs/spring-signals
+          codeql pack install packs/java-signals-lib
+          codeql pack install packs/spring-signals
+          codeql pack install packs/spring-signals/test
 
       - name: Compile spring-signals queries
+        working-directory: spring-signals/codeql
         run: |
           codeql query compile --check-only --threads=0 \
-            spring-signals/codeql/packs/spring-signals/*.ql
+            packs/spring-signals/*.ql
 
       - name: Run spring-signals QL tests
+        working-directory: spring-signals/codeql
         run: |
           codeql test run --threads=0 \
-            spring-signals/codeql/packs/spring-signals/test
+            packs/spring-signals/test
