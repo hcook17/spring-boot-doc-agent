@@ -76,7 +76,7 @@ class SpringSignalScanTest(unittest.TestCase):
 
     def test_file_counts(self):
         fs = self.result["files_scanned"]
-        self.assertEqual(fs["java"], 17, "target/generated-sources/ShouldBeExcluded.java must not be counted")
+        self.assertEqual(fs["java"], 19, "target/generated-sources/ShouldBeExcluded.java must not be counted")
         self.assertEqual(fs["config"], 3)
         self.assertEqual(fs["deployment"], 3)
         self.assertEqual(fs["other_relevant"], 2)  # logback-spring.xml + db/migration/V1__init.sql
@@ -140,8 +140,12 @@ class SpringSignalScanTest(unittest.TestCase):
         # hibernate_default above and would make this assertion's name a lie.
         # It's still covered by test_excluded_dirs_are_not_scanned's file
         # sweep and by its own dedicated test.
+        # SchemaOnlyTableEntity is the P0.2 @Table(schema=...) totality guard.
         entities = set(self.result["entity_table_map"].keys()) - {"SLARule"}
-        self.assertEqual(entities, {"Invoice", "LegacyAudit", "PaymentLedger"})
+        self.assertEqual(
+            entities,
+            {"Invoice", "LegacyAudit", "PaymentLedger", "SchemaOnlyTableEntity"},
+        )
 
     # ---- repository detection ----
 
@@ -171,8 +175,11 @@ class SpringSignalScanTest(unittest.TestCase):
     def test_jpql_query_extracted(self):
         entries = self._entries_for("raw_queries", "InvoiceRepository.java")
         jpql = [e for e in entries if e["query_kind"] == "jpql"]
-        self.assertEqual(len(jpql), 1)
-        self.assertEqual(jpql[0]["query"], "SELECT i FROM Invoice i WHERE i.status = :status")
+        # One true JPQL + QueryConstants.NATIVE (ast-grep/Python sees no
+        # BooleanLiteral true — CodeQL CompileTimeConstant path is Wave-1 P0.4).
+        self.assertEqual(len(jpql), 2)
+        texts = {e["query"] for e in jpql}
+        self.assertIn("SELECT i FROM Invoice i WHERE i.status = :status", texts)
 
     def test_native_query_extracted_regardless_of_argument_order(self):
         # nativeQuery=true appears AFTER the query string here — a fixed
@@ -180,8 +187,12 @@ class SpringSignalScanTest(unittest.TestCase):
         # pattern both got this right only by accident.
         entries = self._entries_for("raw_queries", "InvoiceRepository.java")
         native = [e for e in entries if e["query_kind"] == "native"]
-        self.assertEqual(len(native), 1)
-        self.assertEqual(native[0]["query"], "SELECT * FROM billing_invoice WHERE status = :status")
+        # findByStatusNative + same-line concat native (P0.5).
+        self.assertEqual(len(native), 2)
+        texts = {e["query"] for e in native}
+        self.assertIn(
+            "SELECT * FROM billing_invoice WHERE status = :status", texts
+        )
 
     # ---- native-query SQL lineage (sqllineage integration) ----
 
@@ -226,9 +237,10 @@ class SpringSignalScanTest(unittest.TestCase):
         # two real, distinct type_identifier matches on one line. The old
         # regex scanner reported at most one hit per line; this scanner
         # dedupes by (file, line, ruleId) to match that, rather than
-        # reporting every AST node individually.
+        # reporting every AST node individually. RedisTemplate field is a
+        # separate line (P0.1 erasure guard).
         entries = self._entries_for("outbound_clients", "Misc.java")
-        self.assertEqual(len(entries), 2)  # one import entry + one deduped usage entry
+        self.assertEqual(len(entries), 3)  # import + RestTemplate + RedisTemplate
 
     def test_evidence_is_sorted_for_determinism(self):
         for bucket, entries in self.evidence.items():

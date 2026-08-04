@@ -6,22 +6,22 @@
  */
 
 import java
-
-bindingset[e]
-predicate isJavaSource(Element e) {
-  e.getFile().getRelativePath().regexpMatch(".*\\.java$")
-}
+import SpringSignals
 
 predicate isOutboundClientType(RefType t) {
-  t.hasQualifiedName("org.springframework.web.client", "RestTemplate") or
-  t.hasQualifiedName("org.springframework.web.reactive.function.client", "WebClient") or
-  t.hasQualifiedName("org.springframework.web.client", "RestClient")
+  erasureOrSourceSupertypeHasName(t, "org.springframework.web.client", "RestTemplate") or
+  erasureOrSourceSupertypeHasName(t, "org.springframework.web.reactive.function.client", "WebClient") or
+  erasureOrSourceSupertypeHasName(t, "org.springframework.web.client", "RestClient") or
+  erasureOrSourceSupertypeHasName(t, "org.springframework.data.redis.core", "RedisTemplate") or
+  erasureOrSourceSupertypeHasName(t, "org.springframework.data.redis.core", "ReactiveRedisTemplate") or
+  erasureOrSourceSupertypeHasName(t, "org.springframework.data.redis.core", "StringRedisTemplate")
 }
 
 bindingset[pkg]
 predicate isOutboundClientImportPackage(string pkg) {
   pkg.regexpMatch("org\\.springframework\\.web\\.client.*") or
-  pkg.regexpMatch("org\\.springframework\\.web\\.reactive\\.function\\.client.*")
+  pkg.regexpMatch("org\\.springframework\\.web\\.reactive\\.function\\.client.*") or
+  pkg.regexpMatch("org\\.springframework\\.data\\.redis\\.core.*")
 }
 
 predicate isFeignAnnotation(Annotation ann) {

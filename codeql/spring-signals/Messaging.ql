@@ -6,23 +6,23 @@
  */
 
 import java
-
-bindingset[e]
-predicate isJavaSource(Element e) {
-  e.getFile().getRelativePath().regexpMatch(".*\\.java$")
-}
+import SpringSignals
 
 predicate isMessagingTemplateType(RefType t) {
-  t.hasQualifiedName("org.springframework.kafka.core", "KafkaTemplate") or
-  t.hasQualifiedName("org.springframework.amqp.rabbit.core", "RabbitTemplate") or
-  t.hasQualifiedName("org.springframework.jms.core", "JmsTemplate") or
-  t.hasQualifiedName("io.awspring.cloud.sqs.operations", "SqsTemplate")
+  erasureOrSourceSupertypeHasName(t, "org.springframework.kafka.core", "KafkaOperations") or
+  erasureOrSourceSupertypeHasName(t, "org.springframework.kafka.core", "KafkaTemplate") or
+  erasureOrSourceSupertypeHasName(t, "org.springframework.amqp.core", "AmqpTemplate") or
+  erasureOrSourceSupertypeHasName(t, "org.springframework.amqp.rabbit.core", "RabbitTemplate") or
+  erasureOrSourceSupertypeHasName(t, "org.springframework.jms.core", "JmsOperations") or
+  erasureOrSourceSupertypeHasName(t, "org.springframework.jms.core", "JmsTemplate") or
+  erasureOrSourceSupertypeHasName(t, "io.awspring.cloud.sqs.operations", "SqsTemplate")
 }
 
 bindingset[pkg]
 predicate isMessagingTemplateImportPackage(string pkg) {
   pkg.regexpMatch("org\\.springframework\\.kafka\\.core.*") or
   pkg.regexpMatch("org\\.springframework\\.amqp\\.rabbit\\.core.*") or
+  pkg.regexpMatch("org\\.springframework\\.amqp\\.core.*") or
   pkg.regexpMatch("org\\.springframework\\.jms\\.core.*") or
   pkg.regexpMatch("io\\.awspring\\.cloud\\.sqs.*")
 }

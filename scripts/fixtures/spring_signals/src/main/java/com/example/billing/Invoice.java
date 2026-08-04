@@ -19,6 +19,14 @@ public class Invoice {
     private java.util.List<LineItem> lines;
 }
 
+/** Schema-only @Table — getTableName must still emit the entity row (P0.2). */
+@Entity
+@Table(schema = "ehe")
+class SchemaOnlyTableEntity {
+    @Id
+    private Long id;
+}
+
 class Customer {
 }
 

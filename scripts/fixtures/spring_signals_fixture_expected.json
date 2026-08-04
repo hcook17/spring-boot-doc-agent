@@ -1,9 +1,9 @@
 {
   "schema_version": 7,
-  "scanner_version": "2e57afc8bb0aa3c6",
-  "repo_path": "C:\\Users\\16145\\Downloads\\spring-boot-doc-agent_1\\spring-boot-doc-agent\\scripts\\test_fixtures\\spring_signals",
+  "scanner_version": "9fbcf60d61901fd2",
+  "repo_path": "/workspace/scripts/fixtures/spring_signals",
   "files_scanned": {
-    "java": 17,
+    "java": 19,
     "config": 3,
     "deployment": 3,
     "other_relevant": 2
@@ -13,6 +13,8 @@
       "file": "src/main/java/com/example/billing/Invoice.java",
       "table": "billing_invoice",
       "table_name_source": "explicit",
+      "fqcn": "com.example.billing.Invoice",
+      "package": "com.example.billing",
       "rule_id": "persistence__entity",
       "match": "@Entity"
     },
@@ -20,6 +22,8 @@
       "file": "src/main/java/com/example/billing/LegacyAudit.java",
       "table": "legacy_audit",
       "table_name_source": "inferred-default-naming",
+      "fqcn": "com.example.billing.LegacyAudit",
+      "package": "com.example.billing",
       "rule_id": "persistence__entity",
       "match": "@Entity"
     },
@@ -27,6 +31,8 @@
       "file": "src/main/java/com/example/billing/PaymentLedger.java",
       "table": "payment_ledger",
       "table_name_source": "explicit",
+      "fqcn": "com.example.billing.PaymentLedger",
+      "package": "com.example.billing",
       "rule_id": "persistence__entity",
       "match": "@Entity"
     },
@@ -34,6 +40,17 @@
       "file": "src/main/java/com/example/billing/SLARule.java",
       "table": "slarule",
       "table_name_source": "inferred-default-naming",
+      "fqcn": "com.example.billing.SLARule",
+      "package": "com.example.billing",
+      "rule_id": "persistence__entity",
+      "match": "@Entity"
+    },
+    "SchemaOnlyTableEntity": {
+      "file": "src/main/java/com/example/billing/Invoice.java",
+      "table": "schema_only_table_entity",
+      "table_name_source": "inferred-default-naming",
+      "fqcn": "com.example.billing.SchemaOnlyTableEntity",
+      "package": "com.example.billing",
       "rule_id": "persistence__entity",
       "match": "@Entity"
     }
@@ -50,19 +67,19 @@
         "file": "src/main/java/com/example/billing/InvoiceController.java",
         "line": 7,
         "match": "@RequestMapping(\"/api/invoices\")",
-        "rule_id": "api_surface__mapping"
+        "rule_id": "api_surface__class_mapping"
       },
       {
         "file": "src/main/java/com/example/billing/InvoiceController.java",
         "line": 10,
         "match": "@GetMapping(\"/{id}\")",
-        "rule_id": "api_surface__mapping"
+        "rule_id": "api_surface__method_mapping"
       },
       {
         "file": "src/main/java/com/example/billing/InvoiceController.java",
         "line": 18,
         "match": "@PostMapping",
-        "rule_id": "api_surface__mapping"
+        "rule_id": "api_surface__method_mapping"
       }
     ],
     "configuration": [
@@ -88,7 +105,7 @@
         "file": "src/main/java/com/example/billing/Config.java",
         "line": 13,
         "match": "@Value(\"${billing.timeout}\")",
-        "rule_id": "configuration__properties"
+        "rule_id": "configuration__value"
       }
     ],
     "deployment": [
@@ -288,51 +305,75 @@
     "error_handling": [
       {
         "file": "src/main/java/com/example/billing/ErrorHandling.java",
-        "line": 6,
-        "match": "@RestControllerAdvice",
+        "line": 7,
+        "match": "@ControllerAdvice",
         "rule_id": "error_handling__advice"
       },
       {
         "file": "src/main/java/com/example/billing/ErrorHandling.java",
-        "line": 8,
+        "line": 9,
+        "match": "@ExceptionHandler(IllegalArgumentException.class)",
+        "rule_id": "error_handling__exception_handler"
+      },
+      {
+        "file": "src/main/java/com/example/billing/ErrorHandling.java",
+        "line": 13,
+        "match": "@RestControllerAdvice",
+        "rule_id": "error_handling__rest_advice"
+      },
+      {
+        "file": "src/main/java/com/example/billing/ErrorHandling.java",
+        "line": 15,
         "match": "@ExceptionHandler(IllegalStateException.class)",
-        "rule_id": "error_handling__advice"
+        "rule_id": "error_handling__exception_handler"
       }
     ],
     "messaging": [
       {
         "file": "src/main/java/com/example/billing/Messaging.java",
-        "line": 4,
-        "match": "import org.springframework.jms.core.JmsTemplate;",
+        "line": 3,
+        "match": "import org.springframework.kafka.core.KafkaOperations;",
         "rule_id": "messaging__import"
       },
       {
         "file": "src/main/java/com/example/billing/Messaging.java",
-        "line": 6,
+        "line": 4,
         "match": "import org.springframework.kafka.core.KafkaTemplate;",
         "rule_id": "messaging__import"
       },
       {
         "file": "src/main/java/com/example/billing/Messaging.java",
-        "line": 9,
+        "line": 6,
+        "match": "import org.springframework.jms.core.JmsTemplate;",
+        "rule_id": "messaging__import"
+      },
+      {
+        "file": "src/main/java/com/example/billing/Messaging.java",
+        "line": 11,
         "match": "KafkaTemplate",
         "rule_id": "messaging__type_usage"
       },
       {
         "file": "src/main/java/com/example/billing/Messaging.java",
-        "line": 10,
+        "line": 13,
+        "match": "KafkaOperations",
+        "rule_id": "messaging__type_usage"
+      },
+      {
+        "file": "src/main/java/com/example/billing/Messaging.java",
+        "line": 14,
         "match": "JmsTemplate",
         "rule_id": "messaging__type_usage"
       },
       {
         "file": "src/main/java/com/example/billing/Messaging.java",
-        "line": 12,
+        "line": 16,
         "match": "@KafkaListener(topics = \"orders\")",
         "rule_id": "messaging__listener"
       },
       {
         "file": "src/main/java/com/example/billing/Messaging.java",
-        "line": 15,
+        "line": 19,
         "match": "@JmsListener(destination = \"orders\")",
         "rule_id": "messaging__listener"
       }
@@ -350,7 +391,7 @@
       },
       {
         "file": "src/main/java/com/example/billing/Misc.java",
-        "line": 25,
+        "line": 27,
         "match": "MeterRegistry",
         "rule_id": "observability__meterregistry_type"
       },
@@ -385,6 +426,12 @@
         "line": 24,
         "match": "RestTemplate",
         "rule_id": "outbound_clients__type_usage"
+      },
+      {
+        "file": "src/main/java/com/example/billing/Misc.java",
+        "line": 26,
+        "match": "RedisTemplate",
+        "rule_id": "outbound_clients__type_usage"
       }
     ],
     "persistence": [
@@ -398,6 +445,15 @@
         "match": "@Repository",
         "rule_id": "persistence__repository",
         "repository": "AnnotatedRepository",
+        "entity": "Invoice",
+        "id_type": "Long"
+      },
+      {
+        "file": "src/main/java/com/example/billing/BaseBillingRepository.java",
+        "line": 6,
+        "match": "public interface BaseBillingRepository extends JpaRepository<Invoice, Long> {",
+        "rule_id": "persistence__repository",
+        "repository": "BaseBillingRepository",
         "entity": "Invoice",
         "id_type": "Long"
       },
@@ -439,8 +495,21 @@
         "rule_id": "persistence__relation"
       },
       {
+        "file": "src/main/java/com/example/billing/Invoice.java",
+        "line": 23,
+        "match": "@Entity",
+        "rule_id": "persistence__entity",
+        "class_name": "SchemaOnlyTableEntity"
+      },
+      {
+        "file": "src/main/java/com/example/billing/Invoice.java",
+        "line": 26,
+        "match": "@Id",
+        "rule_id": "persistence__id"
+      },
+      {
         "file": "src/main/java/com/example/billing/InvoiceRepository.java",
-        "line": 6,
+        "line": 10,
         "match": "public interface InvoiceRepository extends JpaRepository<Invoice, Long> {",
         "rule_id": "persistence__repository",
         "repository": "InvoiceRepository",
@@ -490,7 +559,7 @@
     "raw_queries": [
       {
         "file": "src/main/java/com/example/billing/InvoiceRepository.java",
-        "line": 9,
+        "line": 13,
         "match": "@Query(\"SELECT i FROM Invoice i WHERE i.status = :status\")",
         "rule_id": "raw_queries__query",
         "query_kind": "jpql",
@@ -506,7 +575,7 @@
       },
       {
         "file": "src/main/java/com/example/billing/InvoiceRepository.java",
-        "line": 16,
+        "line": 20,
         "match": "@Query(",
         "rule_id": "raw_queries__query",
         "query_kind": "native",
@@ -517,6 +586,31 @@
             "billing_invoice"
           ],
           "target_tables": []
+        }
+      },
+      {
+        "file": "src/main/java/com/example/billing/InvoiceRepository.java",
+        "line": 27,
+        "match": "@Query(value = \"SELECT a \" + \"FROM billing_invoice a\", nativeQuery = true)",
+        "rule_id": "raw_queries__query",
+        "query_kind": "native",
+        "query": "SELECT a ",
+        "lineage": {
+          "available": true,
+          "source_tables": [],
+          "target_tables": []
+        }
+      },
+      {
+        "file": "src/main/java/com/example/billing/InvoiceRepository.java",
+        "line": 31,
+        "match": "@Query(value = \"SELECT 1\", nativeQuery = QueryConstants.NATIVE)",
+        "rule_id": "raw_queries__query",
+        "query_kind": "jpql",
+        "query": "SELECT 1",
+        "lineage": {
+          "available": false,
+          "reason": "multi-entity or unparseable FROM clause, out of scope for the bounded JPQL resolver"
         }
       }
     ],
@@ -544,6 +638,18 @@
         "line": 12,
         "match": "@Repository",
         "rule_id": "references__stereotype"
+      },
+      {
+        "file": "src/main/java/com/example/billing/BaseBillingRepository.java",
+        "line": 1,
+        "match": "package com.example.billing;",
+        "rule_id": "references__package"
+      },
+      {
+        "file": "src/main/java/com/example/billing/BaseBillingRepository.java",
+        "line": 3,
+        "match": "import org.springframework.data.jpa.repository.JpaRepository;",
+        "rule_id": "references__import"
       },
       {
         "file": "src/main/java/com/example/billing/BillingClient.java",
@@ -596,12 +702,18 @@
       {
         "file": "src/main/java/com/example/billing/ErrorHandling.java",
         "line": 3,
-        "match": "import org.springframework.web.bind.annotation.ExceptionHandler;",
+        "match": "import org.springframework.web.bind.annotation.ControllerAdvice;",
         "rule_id": "references__import"
       },
       {
         "file": "src/main/java/com/example/billing/ErrorHandling.java",
         "line": 4,
+        "match": "import org.springframework.web.bind.annotation.ExceptionHandler;",
+        "rule_id": "references__import"
+      },
+      {
+        "file": "src/main/java/com/example/billing/ErrorHandling.java",
+        "line": 5,
         "match": "import org.springframework.web.bind.annotation.RestControllerAdvice;",
         "rule_id": "references__import"
       },
@@ -686,25 +798,31 @@
       {
         "file": "src/main/java/com/example/billing/Messaging.java",
         "line": 3,
-        "match": "import org.springframework.jms.annotation.JmsListener;",
+        "match": "import org.springframework.kafka.core.KafkaOperations;",
         "rule_id": "references__import"
       },
       {
         "file": "src/main/java/com/example/billing/Messaging.java",
         "line": 4,
-        "match": "import org.springframework.jms.core.JmsTemplate;",
+        "match": "import org.springframework.kafka.core.KafkaTemplate;",
         "rule_id": "references__import"
       },
       {
         "file": "src/main/java/com/example/billing/Messaging.java",
         "line": 5,
-        "match": "import org.springframework.kafka.annotation.KafkaListener;",
+        "match": "import org.springframework.jms.annotation.JmsListener;",
         "rule_id": "references__import"
       },
       {
         "file": "src/main/java/com/example/billing/Messaging.java",
         "line": 6,
-        "match": "import org.springframework.kafka.core.KafkaTemplate;",
+        "match": "import org.springframework.jms.core.JmsTemplate;",
+        "rule_id": "references__import"
+      },
+      {
+        "file": "src/main/java/com/example/billing/Messaging.java",
+        "line": 7,
+        "match": "import org.springframework.kafka.annotation.KafkaListener;",
         "rule_id": "references__import"
       },
       {
@@ -772,6 +890,12 @@
         "line": 3,
         "match": "import jakarta.persistence.Entity;",
         "rule_id": "references__import"
+      },
+      {
+        "file": "src/main/java/com/example/billing/TaggedBillingRepository.java",
+        "line": 1,
+        "match": "package com.example.billing;",
+        "rule_id": "references__package"
       },
       {
         "file": "src/main/java/com/example/billing/TimedComponent.java",
@@ -868,31 +992,33 @@
     "Dockerfile": "81226b6d5b0014edef41ab5c395c92064133a39d64b9756f29057c7e1b4d7f60",
     "application-local.yml": "a7c65ac4504f4b15c695cc9cad633374cf845136cbfab17af03eac1a48e37bbe",
     "bootstrap.yml": "755a45841870f1446045a8ee697fd2acd01893be25d9e66ebff8fb8e89b04ba9",
-    "build.gradle": "6ff60d7e72950f4287cd67304bb090cd15a690381fc031ade00ed1cd0e08a765",
+    "build.gradle": "a0ac463ec788296d1396e20bd8670fba1baa445f83d347805175f92312998609",
     "gradlew": "a3648413b47ef77af21d5ebc36c687c7d103aaef3e17f33de7d4f080a6f300a3",
-    "gradlew.bat": "57931b17dd228e5c24dac90e815d0bf82477e831a4618dfab4136f5446b42a9f",
+    "gradlew.bat": "2209f919a22528af59a2af2ad97e8d056cca18e39f7d87aa3fd549a73b180150",
     "logback-spring.xml": "08c59f434441b036774a9d639bc0938d61ae3390d387dfa2f8f784be5b614807",
-    "settings.gradle": "c4ab3d5d3199b35304112d75dfa2fd3282020386514c74d73e7ba22bc83aec0c",
+    "settings.gradle": "caa3066201aa769625cfe407eec58540ab710c22c66d688212a0ec91b8bafaeb",
     "db/migration/V1__init.sql": "aa3376980dd1193296dd826c027cf8e77f93ef0fed61f9fdc349cc075c5d2ae2",
     "gradle/wrapper/gradle-wrapper.jar": "2db75c40782f5e8ba1fc278a5574bab070adccb2d21ca5a6e5ed840888448046",
     "gradle/wrapper/gradle-wrapper.properties": "2caec011a749b18ab9a7dea68bf7639a179a3b8316b0e35655d0a62a1d7390fd",
     "src/main/java/com/example/billing/AnnotatedRepository.java": "241e629d596990d895df4183e8c03dbbcfaa4542f023eceef14b146e5dcb92ae",
-    "src/main/java/com/example/billing/BillingClient.java": "fb4cf73e479a0ab03749a604273df314f9f9da127f339f0f496db3ebeb19b016",
-    "src/main/java/com/example/billing/Config.java": "d05ef69a108786d9d32dd4cdd5b1c3ffca6e7b753d9d3b6751b4cecd5af134a8",
-    "src/main/java/com/example/billing/ErrorHandling.java": "9b4fdb04413d03c9fdf5838c0a809ef043d2d471b6c8edb69156b63ca93da585",
-    "src/main/java/com/example/billing/Invoice.java": "7be3fd1a36ba1dbbe505ca086189b8383cf6cc46393a88571308038dc63c54ab",
+    "src/main/java/com/example/billing/BaseBillingRepository.java": "e5e16c4993e44a37a6cd7e0e1eb4b6e8a132e2832cfddced337e2f71f67fb98c",
+    "src/main/java/com/example/billing/BillingClient.java": "5f47319d3ce1430152e8291fabb3ed05a196a768f9a43211d587ef4c7d313d26",
+    "src/main/java/com/example/billing/Config.java": "8dc1858b369bdc6daad49c592534bc63a8d130393050056f385982f64ef15b9b",
+    "src/main/java/com/example/billing/ErrorHandling.java": "a88acbc2da6a42ede9cd85fdc787ac2ba0e11889382a6c68af50f7a628733586",
+    "src/main/java/com/example/billing/Invoice.java": "ae2c29c80e7e6883dbf196caf6c2022eea032ecb3c405a4f4dd86c539b097297",
     "src/main/java/com/example/billing/InvoiceController.java": "95caf713f74f746934dacad9eea04aa742909a69bb7fe09c6eb3bdc40b6d0135",
-    "src/main/java/com/example/billing/InvoiceRepository.java": "e42525050d346c716e928a30b660a245bba2a80d23d1799763deb65daf01f7ad",
-    "src/main/java/com/example/billing/InvoiceService.java": "4657bd534719eb9a67a6648cab55b7de1d65e1241b64e9f0279fd86f0d2bb83e",
+    "src/main/java/com/example/billing/InvoiceRepository.java": "9e4ef14f9a2a40709ade854866945067648237fafa738b3d4bdf0927f3c0e0e2",
+    "src/main/java/com/example/billing/InvoiceService.java": "6a431f384208a2914417b292116914a89dce7f7a63044d4d4eba84cd9d8ba76d",
     "src/main/java/com/example/billing/LegacyAudit.java": "c53e5b4606e711a3d057ae14aba766cc1fb111a01545c3d5c838ece5a9b148ad",
-    "src/main/java/com/example/billing/Messaging.java": "bf42c33761ce40f0f37f05f72c6efc608acef7b58a175329ef863b25014692f3",
-    "src/main/java/com/example/billing/Misc.java": "788d17fb5ccc08484918b13411daf7ff28f823a367421b4682659bc819d02421",
+    "src/main/java/com/example/billing/Messaging.java": "5412d9aa152f643f29446a955a0e694b88fa02a1d816ff07eac74b923fa95d19",
+    "src/main/java/com/example/billing/Misc.java": "32ef68731e92057e2bb2038703074e41a98914b075199361ea1e371d24838964",
     "src/main/java/com/example/billing/NotARepository.java": "d4ceecbbf73200b168571a795d1b6b30790ed733aaa8d5680e87a91652fb961d",
     "src/main/java/com/example/billing/PaymentLedger.java": "ebd7f6cd18486520c0a5420acdb28ef53bc7efe19befe938b9b0557e3d876af8",
     "src/main/java/com/example/billing/SLARule.java": "faa8f567355365873acc3df7f91f9f5c081091d3e3760b44d997047c07d8d352",
-    "src/main/java/com/example/billing/TimedComponent.java": "2961e5afe3f9208222b46f66f33f779cfc7f2280ff531cbd8605004fb7274d07",
-    "src/main/java/com/example/billing/WebSecurity.java": "36982258766fcd29b54b2fbe4f0ba8bff989ac0ddac2171f3a1177edbac724e0",
-    "src/test/java/com/example/billing/SomeTest.java": "bffe76d83eebf09d6d6958b2717a1285c9a9bc915b4b63bf4fe08a1a63c74149"
+    "src/main/java/com/example/billing/TaggedBillingRepository.java": "3124780c165b8325689dd5d7ea896bc345763695ea9b32116276ccc72e74a7f5",
+    "src/main/java/com/example/billing/TimedComponent.java": "453fb55005ed4cc7a2a52e6981175d6b3d8f3dab074f08d19ed0aec17d79d3f8",
+    "src/main/java/com/example/billing/WebSecurity.java": "309db7f5b1e17060f0b08db2790ede6a77095eb59ea66177b63e729914b1d7ea",
+    "src/test/java/com/example/billing/SomeTest.java": "1eb1a733fcfef5f810547d0051a4555f2503b4590501c5510a315c38e5122806"
   },
   "redaction_zones": {},
   "config_key_sets": {
@@ -915,5 +1041,60 @@
   "scanners": [
     "filesystem",
     "ast-grep"
-  ]
+  ],
+  "_covering_proof": {
+    "schema_version": 1,
+    "inventory_root": "0a6a204c483fb308e6ccc1bd9e4dbe78b966e90dc3f75c67a83f55c96ec43a9d",
+    "file_signature_algorithm": "sha256",
+    "scanner_version": "9fbcf60d61901fd2",
+    "walk": {
+      "respect_gitignore": false
+    },
+    "barrier": {
+      "kind": "batch_inventory_closed",
+      "inventory_root": "0a6a204c483fb308e6ccc1bd9e4dbe78b966e90dc3f75c67a83f55c96ec43a9d"
+    },
+    "receipts": [
+      {
+        "scanner": "filesystem",
+        "version_hash": "3b2a1a0d73634aa1",
+        "scope": "all_signatures",
+        "expected_subset_root": "0a6a204c483fb308e6ccc1bd9e4dbe78b966e90dc3f75c67a83f55c96ec43a9d",
+        "acked_subset_root": "0a6a204c483fb308e6ccc1bd9e4dbe78b966e90dc3f75c67a83f55c96ec43a9d",
+        "status": "complete",
+        "covered_count": 30,
+        "winerror_206_bisects": 0,
+        "error": null,
+        "batches": 1
+      },
+      {
+        "scanner": "ast-grep",
+        "version_hash": "7be9e2c438608076",
+        "scope": "java",
+        "expected_subset_root": "96481231d58c467383d7b4dde3d6a81f3a241fa683aec2a2e3b7c3558a5cbc4a",
+        "acked_subset_root": "96481231d58c467383d7b4dde3d6a81f3a241fa683aec2a2e3b7c3558a5cbc4a",
+        "status": "complete",
+        "covered_count": 19,
+        "winerror_206_bisects": 0,
+        "error": null,
+        "batches": 1
+      }
+    ]
+  },
+  "_scan_partials_meta": {
+    "scanner_names": [
+      "filesystem",
+      "ast-grep"
+    ],
+    "entity_keys_by_scanner": {
+      "filesystem": [],
+      "ast-grep": [
+        "Invoice",
+        "LegacyAudit",
+        "PaymentLedger",
+        "SLARule",
+        "SchemaOnlyTableEntity"
+      ]
+    }
+  }
 }

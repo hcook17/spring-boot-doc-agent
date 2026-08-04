@@ -6,11 +6,7 @@
  */
 
 import java
-
-bindingset[e]
-predicate isJavaSource(Element e) {
-  e.getFile().getRelativePath().regexpMatch(".*\\.java$")
-}
+import SpringSignals
 
 from Element e, string rule_id
 where

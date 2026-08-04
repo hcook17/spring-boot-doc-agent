@@ -43,7 +43,25 @@ rule:
     - pattern: "@RestController"
     - pattern: "@Controller"
 ---
-id: api_surface__mapping
+id: api_surface__class_mapping
+language: java
+rule:
+  # Annotation must sit on the class modifiers list — not a method body
+  # descendant — so class-level @RequestMapping("/v1") is distinct from
+  # method-level @RequestMapping.
+  any:
+    - pattern: "@RequestMapping"
+      inside:
+        kind: modifiers
+        inside:
+          kind: class_declaration
+    - pattern: "@RequestMapping($$$ARGS)"
+      inside:
+        kind: modifiers
+        inside:
+          kind: class_declaration
+---
+id: api_surface__method_mapping
 language: java
 rule:
   any:
@@ -58,7 +76,15 @@ rule:
     - pattern: "@DeleteMapping"
     - pattern: "@DeleteMapping($$$ARGS)"
     - pattern: "@RequestMapping"
+      inside:
+        kind: modifiers
+        inside:
+          kind: method_declaration
     - pattern: "@RequestMapping($$$ARGS)"
+      inside:
+        kind: modifiers
+        inside:
+          kind: method_declaration
 
   # ---- outbound_clients ----
 ---
@@ -71,13 +97,13 @@ id: outbound_clients__import
 language: java
 rule:
   kind: import_declaration
-  regex: "\\.(RestTemplate|WebClient|RestClient)(;|\\.)"
+  regex: "\\.(RestTemplate|WebClient|RestClient|RedisTemplate|ReactiveRedisTemplate|StringRedisTemplate)(;|\\.)"
 ---
 id: outbound_clients__type_usage
 language: java
 rule:
   kind: type_identifier
-  regex: "^(RestTemplate|WebClient|RestClient)$"
+  regex: "^(RestTemplate|WebClient|RestClient|RedisTemplate|ReactiveRedisTemplate|StringRedisTemplate)$"
 
   # ---- messaging ----
 ---
@@ -98,13 +124,13 @@ id: messaging__import
 language: java
 rule:
   kind: import_declaration
-  regex: "\\.(KafkaTemplate|RabbitTemplate|JmsTemplate|SqsTemplate)(;|\\.)"
+  regex: "\\.(KafkaTemplate|KafkaOperations|RabbitTemplate|AmqpTemplate|JmsTemplate|JmsOperations|SqsTemplate)(;|\\.)"
 ---
 id: messaging__type_usage
 language: java
 rule:
   kind: type_identifier
-  regex: "^(KafkaTemplate|RabbitTemplate|JmsTemplate|SqsTemplate)$"
+  regex: "^(KafkaTemplate|KafkaOperations|RabbitTemplate|AmqpTemplate|JmsTemplate|JmsOperations|SqsTemplate)$"
 
   # ---- persistence: entities (feed entity_table_map, not a bucket) ----
   # Relational, not literal: matches any class carrying @Entity anywhere
@@ -185,7 +211,11 @@ rule:
   any:
     - pattern: "@ConfigurationProperties"
     - pattern: "@ConfigurationProperties($$$ARGS)"
-    - pattern: "@Value($$$ARGS)"
+---
+id: configuration__value
+language: java
+rule:
+  pattern: "@Value($$$ARGS)"
 
   # ---- error_handling ----
 ---
@@ -195,8 +225,18 @@ rule:
   any:
     - pattern: "@ControllerAdvice"
     - pattern: "@ControllerAdvice($$$ARGS)"
+---
+id: error_handling__rest_advice
+language: java
+rule:
+  any:
     - pattern: "@RestControllerAdvice"
     - pattern: "@RestControllerAdvice($$$ARGS)"
+---
+id: error_handling__exception_handler
+language: java
+rule:
+  any:
     - pattern: "@ExceptionHandler"
     - pattern: "@ExceptionHandler($$$ARGS)"
 

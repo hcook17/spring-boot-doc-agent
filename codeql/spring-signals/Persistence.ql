@@ -6,11 +6,7 @@
  */
 
 import java
-
-bindingset[e]
-predicate isJavaSource(Element e) {
-  e.getFile().getRelativePath().regexpMatch(".*\\.java$")
-}
+import SpringSignals
 
 predicate isEntityAnnotation(Annotation ann) {
   ann.getType().(RefType).hasQualifiedName("jakarta.persistence", "Entity") or
@@ -68,19 +64,52 @@ predicate isTransactionalAnnotation(Annotation ann) {
   ann.getType().(RefType).hasQualifiedName("jakarta.transaction", "Transactional")
 }
 
+/**
+ * Table name for an entity class. Total for every class: when `@Table` is
+ * present without a compile-time `name`, result is "" (unnamed), not "no row".
+ */
 string getTableName(Class c) {
-  result = any(string s |
-    exists(Annotation ann |
+  exists(Annotation ann |
+    ann = c.getAnAnnotation() and
+    isTableAnnotation(ann) and
+    annotationStringValue(ann, "name", result)
+  )
+  or
+  (
+    exists(Annotation ann | ann = c.getAnAnnotation() and isTableAnnotation(ann)) and
+    not exists(Annotation ann, string ignored |
       ann = c.getAnAnnotation() and
       isTableAnnotation(ann) and
-      s = ann.getValue("name").(StringLiteral).getValue()
+      annotationStringValue(ann, "name", ignored)
+    ) and
+    result = ""
+  )
+  or
+  (
+    not exists(Annotation ann | ann = c.getAnAnnotation() and isTableAnnotation(ann)) and
+    result = ""
+  )
+}
+
+/** Entity type argument from a parameterized Spring Data repository ancestor. */
+string repositoryEntityName(Interface i) {
+  result =
+    min(string n |
+      exists(ParameterizedType pt |
+        pt = i.getASourceSupertype+() and
+        isRepositorySupertype(pt) and
+        n = pt.getTypeArgument(0).getName()
+      )
+    |
+      n
     )
-    or
-    (
-      not exists(Annotation ann | ann = c.getAnAnnotation() | isTableAnnotation(ann)) and
-      s = ""
-    )
-  | s)
+  or
+  (
+    not exists(ParameterizedType pt |
+      pt = i.getASourceSupertype+() and isRepositorySupertype(pt)
+    ) and
+    result = ""
+  )
 }
 
 from Element e, string rule_id, string class_name, string table_name, string repository_name, string entity_name
@@ -99,20 +128,18 @@ where
   )
   or
   (
-    exists(Interface i, RefType supertype |
+    exists(Interface i |
       i = e and
       isJavaSource(i) and
-      supertype = i.getASupertype() and
-      isRepositorySupertype(supertype) and
+      exists(RefType ancestor |
+        ancestor = i.getASourceSupertype+() and
+        isRepositorySupertype(ancestor)
+      ) and
       rule_id = "persistence__repository" and
       class_name = "" and
       table_name = "" and
       repository_name = i.getName() and
-      (
-        if supertype instanceof ParameterizedType
-        then entity_name = supertype.(ParameterizedType).getTypeArgument(0).getName()
-        else entity_name = ""
-      )
+      entity_name = repositoryEntityName(i)
     )
   )
   or

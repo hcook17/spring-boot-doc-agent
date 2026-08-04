@@ -6,11 +6,7 @@
  */
 
 import java
-
-bindingset[e]
-predicate isJavaSource(Element e) {
-  e.getFile().getRelativePath().regexpMatch(".*\\.java$")
-}
+import SpringSignals
 
 bindingset[pkg]
 predicate isObservabilityImportPackage(string pkg) {

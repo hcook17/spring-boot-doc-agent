@@ -22,5 +22,7 @@ class SecurityConfig {
     // ast-grep correctly reports these as two distinct type_identifier
     // matches (RestTemplate declared, RestTemplate constructed).
     private final RestTemplate restTemplate = new RestTemplate();
+    // Generic Redis client — same erasure bug as KafkaTemplate (P0.1 latent).
+    private org.springframework.data.redis.core.RedisTemplate<String, String> redisTemplate;
     private MeterRegistry meterRegistry;
 }

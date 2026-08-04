@@ -6,11 +6,7 @@
  */
 
 import java
-
-bindingset[e]
-predicate isJavaSource(Element e) {
-  e.getFile().getRelativePath().regexpMatch(".*\\.java$")
-}
+import SpringSignals
 
 predicate isStereotype(Annotation ann) {
   ann.getType().(RefType).hasQualifiedName("org.springframework.stereotype", "Service") or

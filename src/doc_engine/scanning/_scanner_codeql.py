@@ -38,6 +38,10 @@ class CodeQLBackend(ScannerBackend):
         if pack_dir.is_dir():
             for ql in sorted(glob.glob(str(pack_dir / "*.ql"))):
                 paths.append(ql)
+            for qll in sorted(glob.glob(str(pack_dir / "*.qll"))):
+                paths.append(qll)
+            for qll in sorted(glob.glob(str(pack_dir / "lib" / "*.qll"))):
+                paths.append(qll)
         for p in sorted(paths):
             try:
                 with open(p, "rb") as f:

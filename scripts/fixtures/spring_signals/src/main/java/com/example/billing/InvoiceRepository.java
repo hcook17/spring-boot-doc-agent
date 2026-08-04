@@ -3,6 +3,10 @@ package com.example.billing;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+class QueryConstants {
+    static final boolean NATIVE = true;
+}
+
 public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
     // Positional argument, no nativeQuery flag -> jpql.
@@ -18,4 +22,12 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
         nativeQuery = true
     )
     Invoice findByStatusNative(String status);
+
+    // Same-line string concat — order by (line, column) (P0.5).
+    @Query(value = "SELECT a " + "FROM billing_invoice a", nativeQuery = true)
+    java.util.List<Object> findSameLineNative();
+
+    // Compile-time constant nativeQuery (P0.4) — must stay native, not JPQL.
+    @Query(value = "SELECT 1", nativeQuery = QueryConstants.NATIVE)
+    int nativeConst();
 }

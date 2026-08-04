@@ -4659,3 +4659,13 @@ Assumptions affected:
 - `claude/steering-prompts/03-constraints-research-prompt.md` — "a single CONSTRAINTS.md … structured like doc-taxonomy" / current-state catalog — [Resolved — file rewritten in place as status+fact+residual; diary/addenda removed; pointer-only enterprise duplicates dropped; Enterprise items renumbered 1=RBAC, 2=multi-repo, 3=branch protection]
 - `CLAUDE.md` — "CONSTRAINTS.md is a current-state doc, not an append-only log" — [Still accurate — this pass applies that rule]
 Files touched: CONSTRAINTS.md, MATURITY_ASSESSMENT.md, STATUS.md, scripts/ratchets/repo_claims_baseline.json, claude/session-log.md
+
+## 2026-08-04 — CodeQL spring-signals Wave 1 (P0 correctness)
+
+Commit: uncommitted
+Tests: rule_coverage 33/33 non-vacuity; pytest tests/coverage/test_rule_coverage.py + test_spring_signal_scan.py 82 passed; `PYTHONPATH=src python3 scripts/ci/check_repo_claims.py` OK
+Assumptions affected:
+- CodeQL pack exact-FQN / direct-supertype / StringLiteral / collapsed rule_id / `.*\.java$` inventory — [Resolved — Wave 1 P0; shared SourceHygiene+TypeMatchers; see `claude/research/codeql-spring-signals-p0-wave1-2026-08-04.md`]
+- Coverage denominator 29 pack ids — [Resolved — derived `codeql_rule_count`/`ast_grep_rule_count` now 33 after rule_id splits]
+- L6 “do not invent Semgrep recall baseline” — [Still accurate]
+Files touched: codeql/spring-signals/**, spring_ast_grep_rules.yml, fixtures, rule_coverage_baseline.json, _scanner_codeql.py, CLAUDE.md derived counts, STATUS.md, research note, tests
