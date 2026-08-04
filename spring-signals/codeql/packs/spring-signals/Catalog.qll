@@ -236,8 +236,6 @@ predicate signature(string framework, string pkg, string name, string kind, stri
     or
     name = "PathVariable" and kind = "param_binding"
     or
-    name = "RequestBody" and kind = "param_binding"
-    or
     name = "RequestHeader" and kind = "param_binding"
     or
     name = "RequestPart" and kind = "param_binding"

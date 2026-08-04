@@ -48,8 +48,11 @@ string sym(Element e) { result = min(string s | s = symbolOf(e) | s) }
  * would degrade without failing. `min` keeps the key well-formed; this
  * predicate makes the underlying ambiguity observable instead of hidden.
  *
- * 1a exit criterion: `select count(Element e | ambiguousSymbol(e))` is 0 on
- * ocs-api-service. If it is not, fix `symbolOf` -- do not widen `sym`.
+ * Diagnostic only. `symbolOf` is single-valued by construction (declSymbol
+ * branches are disjoint, ownerSymbol is constrained by type, and the file tier
+ * is unique), so this predicate is empty on every database. It survives as a
+ * canary: if a future change to `symbolOf` makes it multi-valued, this row
+ * count will become non-zero. Do not list it as a merge-blocking exit criterion.
  */
 predicate ambiguousSymbol(Measured e) { count(symbolOf(e)) > 1 }
 

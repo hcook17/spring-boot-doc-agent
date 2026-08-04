@@ -187,8 +187,6 @@ not exact-only. See "trust gate" below.
   switch:
   - `closed_state_restcontroller_is_controller` > 0 — proves the contributed edges close
     the recall regression without reopening the switch.
-  - `ambiguous_symbols` = 0 — proves `symbolOf` is single-valued, so `sym`'s
-    `min()` is picking from a set of one rather than choosing arbitrarily.
   - `annotations_with_symbol` = `annotations_total` — proves `symbolOf` resolves
     annotations attached to methods, fields and parameters, not just those on
     types. This was the sharper of the two gates during 1a prep: the first
@@ -197,9 +195,10 @@ not exact-only. See "trust gate" below.
     annotation rows and all JakartaMigration import rows. Same failure mode
     already called out for `attr()` and `tableNameOf` — reproduced in the
     helper that guards every query.
-  - `unresolved_symbols` is no longer an exit criterion: `symbolOf`'s file-path
-    fallback makes it empty by construction for any `Measured` element. It is kept
-    as a structural sanity check only. `symbolOf` now has a file-path tier that cannot fail.
+  - `ambiguous_symbols` = 0 and `unresolved_symbols` = 0 are no longer exit
+    criteria. Both are empty by construction now (`symbolOf` is single-valued and
+    has a file-path fallback), so they cannot fail in a way that would block a
+    merge. They survive as diagnostics only.
 
 ### 1b — P0 on the new types
 

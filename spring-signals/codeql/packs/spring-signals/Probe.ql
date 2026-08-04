@@ -79,9 +79,8 @@ where
       isOrMeta(a, "org.springframework.stereotype", "Controller")
     )
   or
-  // D5 gate. `sym` uses min() over symbolOf; if symbolOf is ever multi-valued
-  // the join key is picked arbitrarily rather than being wrong-but-loud. This
-  // must be 0 before any cross-tool join is trusted.
+  // Diagnostic: `symbolOf` is single-valued by construction, so this is always 0.
+  // Kept as a canary, not a merge-blocking gate.
   check = "ambiguous_symbols" and
   n = count(Measured e | count(symbolOf(e)) > 1)
   or

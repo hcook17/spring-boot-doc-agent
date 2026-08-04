@@ -134,7 +134,7 @@ def expand(prefixes, endpoints) -> dict[tuple[str, str], list[dict]]:
     out: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for ep in endpoints:
         bases = prefixes.get(ep["owner"]) or [""]
-        verbs = [v for v in ep["verb"].split("|") if v] or ["ANY"]
+        verbs = [v for v in ep["verb"].split("|") if v] or list(HTTP_METHODS)
         for base in bases:
             for suffix in ep["suffixes"]:
                 full = normalize_path(base + suffix) if (base or suffix) else "/"

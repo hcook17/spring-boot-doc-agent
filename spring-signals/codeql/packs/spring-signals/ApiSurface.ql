@@ -81,7 +81,7 @@ where
     a = getAnEffectiveAnnotation(c) and
     mappingAnnotation(a, kind) and
     signal = annotationFqn(a) and
-    detail = httpMethod(a, kind) + " " + mappingPath(a) and
+    detail = concat(string s, int order | (s = httpMethod(a, kind) and order = 1 and s != "") or (s = mappingPath(a) and order = 2 and s != "") | s, " " order by order) and
     rule_id = "api_surface__path_prefix"
   )
   or
@@ -91,7 +91,7 @@ where
     a = getAnEffectiveAnnotation(m) and
     mappingAnnotation(a, kind) and
     signal = annotationFqn(a) and
-    detail = httpMethod(a, kind) + " " + mappingPath(a) and
+    detail = concat(string s, int order | (s = httpMethod(a, kind) and order = 1 and s != "") or (s = mappingPath(a) and order = 2 and s != "") | s, " " order by order) and
     rule_id = "api_surface__endpoint"
   )
   or
@@ -103,7 +103,7 @@ where
     e = a and
     a = getAnEffectiveAnnotation(p) and
     paramBindingAnnotation(a, name) and
-    signal = name and
+    signal = annotationFqn(a) and
     detail = paramBindingDetail(a) and
     rule_id = "api_surface__param_binding"
   )
