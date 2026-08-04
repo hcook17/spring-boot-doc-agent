@@ -118,6 +118,12 @@ STAGE3_ARCH_TEST_REVIEW_FANOUT = 1  # software-architect-and-testing, always one
 # SoR: taxonomy file set — not a magic literal that can drift from doc-writer.
 STAGE4_FIXED_FANOUT = len(VALID_DOC_FILES)
 
+# Wire version for capacity_preflight_report.json (slice-5 thin operator schema).
+# Bump only on breaking changes; additive fields keep the same version per
+# rel-schema-outlives-writers. Stamped on both Stage-0 compute_preflight and
+# L2b compute_stage4_calibration return paths.
+CAPACITY_PREFLIGHT_REPORT_SCHEMA_VERSION = 1
+
 # Pipeline SoR: doc_writer input_artifacts in doc_engine.pipeline.stages —
 # what Stage-4 actually receives once those artifacts exist. Stage-0 proxy
 # can only include a subset.
@@ -499,6 +505,7 @@ def compute_preflight(repo_path, max_tokens=120000, overlap=0.10,
         warnings.append(stage4_warn)
 
     report = {
+        "schema_version": CAPACITY_PREFLIGHT_REPORT_SCHEMA_VERSION,
         "repo_path": groups_data.get("repo_path", repo_path),
         "num_groups": num_groups,
         "max_tokens_per_group": groups_data.get("max_tokens_per_group", max_tokens),
@@ -595,6 +602,7 @@ def compute_stage4_calibration(
         proxy_comparison["proxy_source"] = proxy_source
 
     return {
+        "schema_version": CAPACITY_PREFLIGHT_REPORT_SCHEMA_VERSION,
         "repo_path": (
             (groups_data or {}).get("repo_path")
             or (stage0_preflight_report or {}).get("repo_path")

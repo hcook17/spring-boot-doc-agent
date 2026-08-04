@@ -74,7 +74,7 @@ Legend — **Contract:** Pydantic model / exported JSON Schema / imperative vali
 
 | `run_manifest.json` | JSON object | Derived (telemetry) | hand schema [`scripts/schemas/run_manifest.schema.json`](../../scripts/schemas/run_manifest.schema.json) + shape tests | `schema_version`: 1 | documented required keys | `run_manifest` tool | drift optional baseline, finalize/summary |
 | `drift_report.json` | JSON object | Derived | free dict from `check_drift` | **none** | open | `spring_drift_check` | operators / local_runner optional |
-| `capacity_preflight_report.json` | JSON object | Derived | free dict from `compute_preflight` | **none** | open | `capacity_preflight` | `run_manifest finalize` tie-in |
+| `capacity_preflight_report.json` | JSON object | Derived | Pydantic `CapacityPreflightReportArtifact` + schema | `schema_version`: 1 | `extra=allow` | `capacity_preflight` | `run_manifest finalize` tie-in / `validate_artifacts` |
 
 **Count check vs external review §7:** At research start, “4 of ~10” with Pydantic + exported JSON Schema = `spring_signals`, `groups`, `summaries`, `interview_answers`. **Slice 1 adds `facts`** → 5 exported schemas. Remaining gaps: edges, review, gap_questions, capacity, drift; cert typed but export is slice 2.
 
@@ -111,7 +111,7 @@ Status codes: **pass** = exercised in CI or dedicated tests; **partial** = model
 | certification | `model_dump` → `json.dumps` | verify CLI / load | **partial** | **partial** | default ignore | **partial** | n/a |
 | run_manifest | tool updates | hand shape tests | **partial** | **pass** (shape tests) | **partial** | **partial** | n/a |
 | drift_report | `json.dump` | operators | **untested** | **untested** | allow | **untested** | n/a |
-| capacity_preflight_report | `json.dump` | manifest finalize | **untested** | **untested** | allow | **untested** | n/a |
+| capacity_preflight_report | `json.dump` + `schema_version` | `model_validate` / `--all` | **pass** (contract tests) | **pass** (`schema_version`) | **pass** (allow) | **pass** (metric_kind) | n/a |
 
 ### Mutation algebra (decidable cases to implement later)
 
@@ -143,7 +143,7 @@ No Pydantic model; no exported schema.
 
 **drift_report:** `repo_path`, `prior_scan_repo_path`, `file_signatures_baseline`, `file_summary`, `citations_checked`, `status_counts`, `results[]`.
 
-**capacity_preflight_report:** `repo_path`, `num_groups`, `max_tokens_per_group`, `stage_fanout`, `total_fanout`, slice token stats, `edge_join_stats`, `warnings[]`.
+**capacity_preflight_report:** `schema_version`, shared stage4 pool + `warnings[]` (required); Stage-0 also emits `num_groups` / fan-out / slice / `edge_join_stats`; L2b calibration adds `mode` / proxy comparison.
 
 ---
 

@@ -112,16 +112,18 @@ Tool: `python -m doc_engine.tools.gap_probe` (`GAP_PROBE_SCHEMA_VERSION = 2`). R
 | Item | Decision |
 |------|----------|
 | Path A simple-name rekey | **Do not reopen** — \(R_{\text{coll}}=0\) and \(R_{\text{join}}=1\) on ocs |
-| L5 / L6 | **L5 drift done; L6 next** — capacity schema still slice-5 residual; AET does not displace product engineering |
+| L5 / L6 | **L5 + slice-5 capacity schema done; L6 next** — AET does not displace product engineering |
 | Lineage dialect investment | **Measured residual** after L5/L6 — dominant stratum fired |
 | Capacity 80k | **Unchanged** — separate Stage-4 `measured_stage4_inputs` family |
 
-### L5 — Thin drift schema — **done (drift_report; capacity residual)**
+### L5 — Thin drift / capacity schemas — **done (slice 5 closed)**
 
 **DDIA card:** domain `02-encoding-and-evolution`; open `encoding-and-compatibility`, schema memo slice 5. Scope: primarily **`drift_report`** (residual capacity fields only if L2 did not touch them). Additive + `schema_version` per `rel-schema-outlives-writers`; do not invent fields without writers.
 
-**Landed:** `DRIFT_REPORT_SCHEMA_VERSION = 1` on both `check_drift` return paths; `DriftReportArtifact` (+ nested thin models) registered in `ARTIFACT_MODELS` / `ARTIFACT_FILENAMES`; `scripts/schemas/drift_report.schema.json`; contract tests in `tests/doc_engine/test_drift_report_schema.py`; opt-in ocs witness in `tests/doc_engine/test_drift_report_ocs_real_world.py` (`DRIFT_OCS_ARTIFACTS_DIR` + `DRIFT_OCS_REPO`). **Still open within slice 5:** thin `capacity_preflight_report` schema (fields already written by L2; no formal model yet).
+**Landed:** `DRIFT_REPORT_SCHEMA_VERSION = 1` on both `check_drift` return paths; `DriftReportArtifact` (+ nested thin models) registered in `ARTIFACT_MODELS` / `ARTIFACT_FILENAMES`; `scripts/schemas/drift_report.schema.json`; contract tests in `tests/doc_engine/test_drift_report_schema.py`; opt-in ocs witness in `tests/doc_engine/test_drift_report_ocs_real_world.py` (`DRIFT_OCS_ARTIFACTS_DIR` + `DRIFT_OCS_REPO`).
 
-### L6 — Coverage SoR hygiene follow-ons — **next (after L5)**
+**Slice-5 residual (capacity) landed:** `CAPACITY_PREFLIGHT_REPORT_SCHEMA_VERSION = 1` on both `compute_preflight` and `compute_stage4_calibration`; `CapacityPreflightReportArtifact` (+ `CapacityWarningRow`, closed `Stage4MetricKind`) registered in `ARTIFACT_MODELS` / `ARTIFACT_FILENAMES`; `scripts/schemas/capacity_preflight_report.schema.json`; contract tests in `tests/doc_engine/test_capacity_preflight_schema.py`. Required keys = writer intersection (stage4 pool + warnings); mode-specific fan-out / calibration keys ride `extra="allow"`. Slice 5 closed.
+
+### L6 — Coverage SoR hygiene follow-ons — **next (after L5 / slice 5)**
 
 **DDIA card:** domains `01` + `04`; cite `dev-coverage-denominator-codeql`, `coverage-gates`, `rel-gate-needs-witness`. Work: `rule_coverage_baseline.json` schema_version regenerate if needed; optional `codeql_rule_count` derivation; residual doc debt. **Do not** invent client-named semgrep recall baseline (`dev-fp-ratchet-separate-from-recall`).

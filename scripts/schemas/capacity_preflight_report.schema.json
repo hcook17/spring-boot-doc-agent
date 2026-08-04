@@ -1,0 +1,124 @@
+{
+  "$defs": {
+    "CapacityWarningRow": {
+      "additionalProperties": true,
+      "description": "One threshold warning in capacity_preflight_report.warnings.",
+      "properties": {
+        "dimension": {
+          "title": "Dimension",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value"
+        },
+        "threshold": {
+          "title": "Threshold"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "dimension",
+        "value",
+        "threshold",
+        "message"
+      ],
+      "title": "CapacityWarningRow",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "capacity_preflight_report.json \u2014 thin operator report (slice-5 residual).\n\nRequired keys are the intersection of Stage-0 ``compute_preflight`` and\nL2b ``compute_stage4_calibration`` writers (plus ``schema_version``).\nMode-specific keys (fan-out / slice stats / ``mode`` / proxy comparison)\nride ``extra=\"allow\"`` \u2014 do not invent fields without writers.",
+  "properties": {
+    "schema_version": {
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "repo_path": {
+      "title": "Repo Path",
+      "type": "string"
+    },
+    "stage4_metric_kind": {
+      "enum": [
+        "partial_proxy_pre_stage4",
+        "measured_stage4_inputs"
+      ],
+      "title": "Stage4 Metric Kind",
+      "type": "string"
+    },
+    "stage4_included_now": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Stage4 Included Now",
+      "type": "array"
+    },
+    "stage4_omitted_not_estimated": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Stage4 Omitted Not Estimated",
+      "type": "array"
+    },
+    "stage4_shared_pool_upper_bound_est_tokens": {
+      "title": "Stage4 Shared Pool Upper Bound Est Tokens",
+      "type": "integer"
+    },
+    "stage4_summaries_est_tokens": {
+      "title": "Stage4 Summaries Est Tokens",
+      "type": "integer"
+    },
+    "stage4_interview_answers_est_tokens": {
+      "default": 0,
+      "title": "Stage4 Interview Answers Est Tokens",
+      "type": "integer"
+    },
+    "stage4_interview_answers_omitted": {
+      "default": true,
+      "title": "Stage4 Interview Answers Omitted",
+      "type": "boolean"
+    },
+    "stage4_signals_est_tokens": {
+      "title": "Stage4 Signals Est Tokens",
+      "type": "integer"
+    },
+    "stage4_signals_omitted": {
+      "title": "Stage4 Signals Omitted",
+      "type": "boolean"
+    },
+    "stage4_aggregate_input_upper_bound_est_tokens": {
+      "title": "Stage4 Aggregate Input Upper Bound Est Tokens",
+      "type": "integer"
+    },
+    "stage4_return_payloads_estimated": {
+      "title": "Stage4 Return Payloads Estimated",
+      "type": "boolean"
+    },
+    "warnings": {
+      "items": {
+        "$ref": "#/$defs/CapacityWarningRow"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "repo_path",
+    "stage4_metric_kind",
+    "stage4_included_now",
+    "stage4_omitted_not_estimated",
+    "stage4_shared_pool_upper_bound_est_tokens",
+    "stage4_summaries_est_tokens",
+    "stage4_signals_est_tokens",
+    "stage4_signals_omitted",
+    "stage4_aggregate_input_upper_bound_est_tokens",
+    "stage4_return_payloads_estimated",
+    "warnings"
+  ],
+  "title": "CapacityPreflightReportArtifact",
+  "type": "object"
+}

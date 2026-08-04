@@ -2,7 +2,8 @@
 
 Characterization fixture freezes the existing check_drift key set; contract
 tests require schema_version, closed status vocabulary, registry, and
-validate_artifact_file bite. Capacity preflight remains unschematized.
+validate_artifact_file bite. Capacity preflight schema is covered separately
+in ``test_capacity_preflight_schema.py``.
 """
 
 from __future__ import annotations
