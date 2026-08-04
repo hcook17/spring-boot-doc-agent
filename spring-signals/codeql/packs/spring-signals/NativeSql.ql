@@ -41,8 +41,8 @@ private string schemaRefs(string sql) {
 
 /** Holds if `sql` uses a Postgres JSON/JSONB operator or function. */
 bindingset[sql]
-private predicate usesJson(string sql) {
-  sql.regexpMatch("(?is).*(->>|->|#>>|jsonb_|json_build_object|jsonb_array_elements).*")
+private boolean usesJson(string sql) {
+  result = sql.regexpMatch("(?is).*(->>|->|#>>|jsonb_|json_build_object|jsonb_array_elements).*")
 }
 
 from

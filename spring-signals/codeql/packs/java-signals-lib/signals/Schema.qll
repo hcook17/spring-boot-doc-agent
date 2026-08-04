@@ -79,7 +79,7 @@ string schemaVersion() { result = "v1" }
 string symbolOf(Element e) {
   result = declSymbol(e)
   or
-  result = ownerSymbol(e)
+  result = min(string s | s = ownerSymbol(e) and not exists(declSymbol(e)) | s)
   or
   not exists(declSymbol(e)) and
   not exists(ownerSymbol(e)) and

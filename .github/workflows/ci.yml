@@ -258,7 +258,7 @@ jobs:
         run: |
           mkdir -p "$HOME/codeql"
           curl -L -o "$HOME/codeql-bundle.tar.gz" \
-            "https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.20.3/codeql-bundle-linux64.tar.gz"
+            "https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.26.2/codeql-bundle-linux64.tar.gz"
           tar -xzf "$HOME/codeql-bundle.tar.gz" -C "$HOME/codeql" --strip-components=1
           echo "$HOME/codeql" >> "$GITHUB_PATH"
 
@@ -274,3 +274,8 @@ jobs:
         run: |
           codeql query compile --check-only --threads=0 \
             spring-signals/codeql/packs/spring-signals/*.ql
+
+      - name: Run spring-signals QL tests
+        run: |
+          codeql test run --threads=0 \
+            spring-signals/codeql/packs/spring-signals/test
