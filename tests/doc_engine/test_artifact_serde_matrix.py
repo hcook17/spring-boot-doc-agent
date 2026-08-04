@@ -15,9 +15,9 @@ from doc_engine.pipeline.artifacts import ARTIFACT_MODELS, Fact, JSONL_ARTIFACTS
 from doc_engine.pipeline.validation import validate_artifact_file
 from doc_engine.scanning.facts import facts_from_signals, write_facts_jsonl
 
-# Remaining operator / parallel-track artifacts (slices 5+ / hand schema).
+# Remaining operator / parallel-track artifacts (hand schema).
+# capacity_preflight_report left the unschematized set when slice-5 residual landed.
 _UNSCHEMATIZED = {
-    "capacity_preflight_report": "slice 5 — operator report (residual after L5 drift)",
     "run_manifest": "parallel hand-schema track",
 }
 
