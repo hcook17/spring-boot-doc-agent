@@ -23,4 +23,4 @@ dependencies:
   # in local testing, so the declared pin and the resolved pin must match.
   codeql/java-all: 9.2.2
   # codeql.util.Unit backs the MetaAnnotationEdges extension point.
-  codeql/util: 2.0.40
+  codeql/util: 2.0.41
