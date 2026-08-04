@@ -297,13 +297,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Print Java toolchain
+        run: |
+          echo "javac: $(which javac)"
+          javac -version
+          echo "JAVA_HOME: $JAVA_HOME"
+
       - name: Download CodeQL bundle
         run: |
-          mkdir -p "$HOME/codeql"
-          curl -L -o "$HOME/codeql-bundle.tar.gz" \
+          sudo mkdir -p /opt/codeql
+          curl -L -o /tmp/codeql-bundle.tar.gz \
             "https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.26.2/codeql-bundle-linux64.tar.gz"
-          tar -xzf "$HOME/codeql-bundle.tar.gz" -C "$HOME/codeql" --strip-components=1
-          echo "$HOME/codeql" >> "$GITHUB_PATH"
+          sudo tar -xzf /tmp/codeql-bundle.tar.gz -C /opt/codeql --strip-components=1
+          sudo chmod -R a+rX /opt/codeql
+          echo /opt/codeql >> "$GITHUB_PATH"
 
       - name: Check CodeQL version
         run: codeql --version

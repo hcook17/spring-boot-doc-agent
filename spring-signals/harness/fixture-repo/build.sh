@@ -14,7 +14,16 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 [ -d "$HERE/lib" ] || "$HERE/fetch-deps.sh"
-CP="$(find "$HERE/lib" -name '*.jar' | tr '\n' ':')"
+
+# Debug: print the toolchain and classpath size. This is useful when the build
+# compiles locally but fails in CI because the runner resolves a different
+# javac or classpath.
+echo "javac: $(which javac)"
+javac -version
+echo "JAVA_HOME: ${JAVA_HOME:-}"
+echo "classpath jars: $(find "$HERE/lib" -name '*.jar' | wc -l)"
+
+CP="$(find "$HERE/lib" -name '*.jar' | sort | tr '\n' ':')"
 rm -rf "$HERE/build"
 mkdir -p "$HERE/build/classes/main" "$HERE/build/classes/test"
 find "$HERE/src/main/java" -name '*.java' > "$HERE/build/main.args"
