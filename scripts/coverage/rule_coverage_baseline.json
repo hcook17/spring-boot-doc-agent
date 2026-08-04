@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "$comment": "Per-rule hit counts from a real corpus, measured on a dev machine because the corpus is too large to track. The gate is a ratchet: a rule that used to fire and now fires zero times is a regression. Rising counts are always fine and do not need a re-measure. Regenerate with: python3 scripts/coverage/rule_coverage.py <repo> --update",
+  "schema_version": 2,
+  "$comment": "Per-rule-id hit counts from a real corpus, measured on a dev machine because the corpus is too large to track. schema_version 2: CI witnesses this stamp + pack-owned keys (hermetic); it does not run the external corpus. The gate is a ratchet: a rule that used to fire and now fires zero times is a regression. Rising counts are always fine. Absence of a pack id from counts means not yet measured, not proven zero. Regenerate with: python3 scripts/coverage/rule_coverage.py <repo> --update",
   "corpus": "external-dev-corpus",
   "counts": {
     "api_surface__controller": 49,

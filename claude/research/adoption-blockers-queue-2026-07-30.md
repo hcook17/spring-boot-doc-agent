@@ -112,7 +112,7 @@ Tool: `python -m doc_engine.tools.gap_probe` (`GAP_PROBE_SCHEMA_VERSION = 2`). R
 | Item | Decision |
 |------|----------|
 | Path A simple-name rekey | **Do not reopen** — \(R_{\text{coll}}=0\) and \(R_{\text{join}}=1\) on ocs |
-| L5 / L6 | **L5 + slice-5 capacity schema done; L6 next** — AET does not displace product engineering |
+| L5 / L6 | **L5 + slice-5 + L6 done** — AET does not displace product engineering; lineage residual after L6 |
 | Lineage dialect investment | **Measured residual** after L5/L6 — dominant stratum fired |
 | Capacity 80k | **Unchanged** — separate Stage-4 `measured_stage4_inputs` family |
 
@@ -124,6 +124,8 @@ Tool: `python -m doc_engine.tools.gap_probe` (`GAP_PROBE_SCHEMA_VERSION = 2`). R
 
 **Slice-5 residual (capacity) landed:** `CAPACITY_PREFLIGHT_REPORT_SCHEMA_VERSION = 1` on both `compute_preflight` and `compute_stage4_calibration`; `CapacityPreflightReportArtifact` (+ `CapacityWarningRow`, closed `Stage4MetricKind`) registered in `ARTIFACT_MODELS` / `ARTIFACT_FILENAMES`; `scripts/schemas/capacity_preflight_report.schema.json`; contract tests in `tests/doc_engine/test_capacity_preflight_schema.py`. Required keys = writer intersection (stage4 pool + warnings); mode-specific fan-out / calibration keys ride `extra="allow"`. Slice 5 closed.
 
-### L6 — Coverage SoR hygiene follow-ons — **next (after L5 / slice 5)**
+### L6 — Coverage SoR hygiene follow-ons — **done**
 
-**DDIA card:** domains `01` + `04`; cite `dev-coverage-denominator-codeql`, `coverage-gates`, `rel-gate-needs-witness`. Work: `rule_coverage_baseline.json` schema_version regenerate if needed; optional `codeql_rule_count` derivation; residual doc debt. **Do not** invent client-named semgrep recall baseline (`dev-fp-ratchet-separate-from-recall`).
+**DDIA card:** domains `01` + `04`; cite `dev-coverage-denominator-codeql`, `coverage-gates`, `rel-gate-needs-witness`.
+
+**Landed:** `rule_coverage_baseline.json` → `schema_version` 2; `check_ratchet` / `check_non_vacuity` fail-closed (missing baseline, corrupt JSON, missing/non-object `counts`, empty pack); hermetic committed-schema witness in `tests/coverage/test_rule_coverage.py`; `codeql_rule_count` derivation enumerates both `rule_id = "…"` and `"…" as rule_id` (so `raw_queries__query` stays pack-owned and measured); `write_baseline` filters to pack-owned keys. **Standing ban:** do **not** invent client-named semgrep recall baseline (`dev-fp-ratchet-separate-from-recall`).

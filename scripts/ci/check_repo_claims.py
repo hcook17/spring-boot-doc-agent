@@ -408,6 +408,30 @@ def derive_semgrep_rule_count(root: Path) -> str:
                               rules.read_text(encoding="utf-8"), re.MULTILINE)))
 
 
+def derive_codeql_rule_count(root: Path) -> str:
+    """Coverage denominator: unique rule_id strings in the CodeQL pack.
+
+    Mirrors ``scripts/coverage/rule_coverage.rule_ids()`` — both
+    ``rule_id = "…"`` and ``"…" as rule_id`` spellings. Not the ast-grep
+    YAML inventory (``ast_grep_rule_count``) and not the metamorphic
+    ``rule_fixtures/`` tree. Cite ``dev-coverage-denominator-codeql``.
+    """
+    pack = root / "codeql" / "spring-signals"
+    if not pack.is_dir():
+        return "0"
+    eq_pat = re.compile(r'rule_id\s*=\s*"([a-z0-9_]+__[a-z0-9_]+)"')
+    as_pat = re.compile(r'"([a-z0-9_]+__[a-z0-9_]+)"\s+as\s+rule_id')
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for ql in sorted(pack.glob("*.ql")):
+        text = ql.read_text(encoding="utf-8")
+        for rid in eq_pat.findall(text) + as_pat.findall(text):
+            if rid not in seen:
+                seen.add(rid)
+                ordered.append(rid)
+    return str(len(ordered))
+
+
 DERIVATIONS: Dict[str, Callable[[Path], str]] = {
     "test_suite_count": derive_test_suite_count,
     "test_method_count": derive_test_method_count,
@@ -417,6 +441,7 @@ DERIVATIONS: Dict[str, Callable[[Path], str]] = {
     "predicate_count": derive_predicate_count,
     "ast_grep_rule_count": derive_ast_grep_rule_count,
     "semgrep_rule_count": derive_semgrep_rule_count,
+    "codeql_rule_count": derive_codeql_rule_count,
 }
 
 
