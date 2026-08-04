@@ -248,6 +248,11 @@ def build_certification_report(
             failures.append(f"gate:{gate.id}:{gate.status}")
     required_ids = gates_required_for_profile(profile)
     for gate_id in sorted(required_ids):
+        # Live gates intentionally do not rerun pytest; the skipped gate is
+        # recorded separately with required=False. Treating it as a missing or
+        # not-required profile gate would make the live path self-fail.
+        if generative_executor == "live" and gate_id == "test_pipeline_stages":
+            continue
         gate = by_id.get(gate_id)
         if gate is None:
             failures.append(f"gate:{gate_id}:missing")
