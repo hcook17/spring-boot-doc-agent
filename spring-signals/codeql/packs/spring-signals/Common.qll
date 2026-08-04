@@ -76,6 +76,34 @@ string attrFallback(Annotation a, string names) {
 }
 
 /**
+ * Holds if `fqn` is a JSR-305 symbol, which Jakarta EE 9 did NOT relocate.
+ *
+ * `javax.annotation` is a SPLIT namespace. The JSR-250 lifecycle annotations
+ * (`@PostConstruct`, `@PreDestroy`, `@Resource`) moved to `jakarta.annotation`;
+ * the JSR-305 nullness and concurrency annotations, which arrive transitively
+ * via com.google.code.findbugs:jsr305, did not and have no jakarta equivalent.
+ * Flagging them manufactures migration work that does not exist.
+ */
+bindingset[fqn]
+predicate jsr305Symbol(string fqn) {
+  fqn.regexpMatch("^javax\\.annotation\\.concurrent\\..*")
+  or
+  fqn in [
+      "javax.annotation.Nullable", "javax.annotation.Nonnull",
+      "javax.annotation.CheckReturnValue", "javax.annotation.CheckForNull",
+      "javax.annotation.ParametersAreNonnullByDefault",
+      "javax.annotation.ParametersAreNullableByDefault",
+      "javax.annotation.OverridingMethodsMustInvokeSuper",
+      "javax.annotation.WillClose", "javax.annotation.WillNotClose",
+      "javax.annotation.Untainted", "javax.annotation.Tainted",
+      "javax.annotation.MatchesPattern", "javax.annotation.Signed",
+      "javax.annotation.Unsigned", "javax.annotation.Nonnegative",
+      "javax.annotation.RegEx", "javax.annotation.Syntax",
+      "javax.annotation.PropertyKey", "javax.annotation.meta.When"
+    ]
+}
+
+/**
  * Gets the stable symbol for `e`.
  *
  * Thin alias for `Schema::symbolOf` so that no query ever hand-rolls a symbol
