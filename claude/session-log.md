@@ -4662,7 +4662,7 @@ Files touched: CONSTRAINTS.md, MATURITY_ASSESSMENT.md, STATUS.md, scripts/ratche
 
 ## 2026-08-04 — Non-biting gates (cert forge, covering subset, validate --require, Semgrep SoR)
 
-Commit: uncommitted
+Commit: d1bec9a
 Tests: targeted compliance/covering/validate/semgrep/claims/hooks 10/10; broader related suites green; `PYTHONPATH=src python3 scripts/ci/check_repo_claims.py` OK
 Assumptions affected:
 - `claude/steering-prompts/07-ci-scaffold-task-prompt.md` — status text still says llms coverage is non-blocking via `ENFORCE = False` — [New info — `ENFORCE` was removed; advisory is always-exit-0 `exit_code()`; check_repo_claims module docstring + CONSTRAINTS item 4 already describe that shape; 07 status frontmatter still names the old flag]
