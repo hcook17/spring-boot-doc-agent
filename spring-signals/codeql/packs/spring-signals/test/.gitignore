@@ -1,0 +1,3 @@
+# CodeQL test runner artifacts
+*.testproj/
+results/
