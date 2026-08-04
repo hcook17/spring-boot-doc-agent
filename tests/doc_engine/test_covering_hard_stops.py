@@ -48,6 +48,7 @@ from doc_engine.scanning.facts import (
 )
 from doc_engine.scanning.gap_probe import (
     CoveringPreconditionError,
+    _astgrep_receipt_complete,
     build_gap_report,
     load_and_verify_covering,
     measure_r_absence,
@@ -104,6 +105,42 @@ def _complete_receipt(scanner: str, root: str) -> dict:
         expected_subset_root=root,
         acked_subset_root=root,
         status="complete",
+    )
+
+
+def _absence_stamp_pairs(rows) -> set[tuple[str, str]]:
+    return {
+        (str(r["predicate"]), str(r["subject"]))
+        for r in rows
+        if r.get("predicate") in {"ABSENCE", "UNPROVEN"}
+    }
+
+
+def _assert_absence_stamps_match_writer(
+    test: unittest.TestCase,
+    signals: dict,
+    *,
+    covering_ok: bool,
+    covering_root: str | None,
+    scanner_version: str | None,
+    astgrep_receipt_complete: bool,
+    actual_rows,
+) -> None:
+    """Dual-emit ABSENCE/UNPROVEN must equal write_absence_facts on the same inputs.
+
+    Unlike ``any(ABSENCE|UNPROVEN)``, this passes for a fully-present corpus
+    (both sides empty) and fails if stamps are wrong, not merely missing.
+    """
+    expected = write_absence_facts(
+        signals,
+        covering_ok=covering_ok,
+        covering_root=covering_root,
+        scanner_version=scanner_version,
+        astgrep_receipt_complete=astgrep_receipt_complete,
+    )
+    test.assertEqual(
+        _absence_stamp_pairs(actual_rows),
+        _absence_stamp_pairs(expected),
     )
 
 
@@ -168,6 +205,121 @@ class CallableAbsenceFalsifiersTest(unittest.TestCase):
         redis = [f for f in facts if f["subject"] == "family:redis"]
         self.assertEqual(len(redis), 1)
         self.assertEqual(redis[0]["predicate"], "UNPROVEN")
+
+    def test_fully_present_corpus_emits_empty_absence_bag(self):
+        """Deviation: ``any(ABSENCE|UNPROVEN)`` required on a fully-present Path A.
+
+        When every absence-writer family has family-scoped hits, the correct
+        stamp set is empty. A smoke assert of the form ``any(...)`` would fail
+        that healthy case or, worse, pass a bug that invents spurious stamps.
+        """
+        signals = {
+            "evidence": {
+                "deployment": [
+                    {
+                        "file": "build.gradle",
+                        "line": 1,
+                        "match": "org.springframework.kafka:spring-kafka",
+                        "rule_id": "deployment__build_dependency",
+                    },
+                    {
+                        "file": "build.gradle",
+                        "line": 2,
+                        "match": "org.springframework.cloud:spring-cloud-starter-openfeign",
+                        "rule_id": "deployment__build_dependency",
+                    },
+                    {
+                        "file": "build.gradle",
+                        "line": 3,
+                        "match": "org.springframework.boot:spring-boot-starter-data-redis",
+                        "rule_id": "deployment__build_dependency",
+                    },
+                    {
+                        "file": "build.gradle",
+                        "line": 4,
+                        "match": "org.springframework.boot:spring-boot-starter-actuator",
+                        "rule_id": "deployment__build_dependency",
+                    },
+                    {
+                        "file": "build.gradle",
+                        "line": 5,
+                        "match": "software.amazon.awssdk:secretsmanager",
+                        "rule_id": "deployment__build_dependency",
+                    },
+                    {
+                        "file": "build.gradle",
+                        "line": 6,
+                        "match": "org.springframework.boot:spring-boot-starter-security",
+                        "rule_id": "deployment__build_dependency",
+                    },
+                ],
+                "messaging": [
+                    {
+                        "file": "M.java",
+                        "line": 1,
+                        "match": "@KafkaListener",
+                        "rule_id": "messaging__kafka_listener",
+                    }
+                ],
+                "outbound_clients": [
+                    {
+                        "file": "F.java",
+                        "line": 1,
+                        "match": "@FeignClient",
+                        "rule_id": "outbound_clients__feign",
+                    }
+                ],
+                "observability": [
+                    {
+                        "file": "A.java",
+                        "line": 1,
+                        "match": "actuator",
+                        "rule_id": "observability__actuator",
+                    }
+                ],
+                "configuration": [
+                    {
+                        "file": "R.java",
+                        "line": 1,
+                        "match": "redis",
+                        "rule_id": "configuration__redis",
+                    },
+                    {
+                        "file": "S.java",
+                        "line": 1,
+                        "match": "secretsmanager",
+                        "rule_id": "configuration__aws_secrets",
+                    },
+                ],
+                "security": [
+                    {
+                        "file": "Sec.java",
+                        "line": 1,
+                        "match": "@EnableWebSecurity",
+                        "rule_id": "security__config",
+                    }
+                ],
+            },
+            "config_key_sets": {"application.yml": ["spring.datasource.url"]},
+        }
+        facts = write_absence_facts(
+            signals,
+            covering_ok=True,
+            covering_root="root",
+            scanner_version="sv",
+            astgrep_receipt_complete=True,
+        )
+        self.assertEqual(facts, [])
+        # The invariant the smoke tests must keep: recompute ≡ actual, including ∅.
+        _assert_absence_stamps_match_writer(
+            self,
+            signals,
+            covering_ok=True,
+            covering_root="root",
+            scanner_version="sv",
+            astgrep_receipt_complete=True,
+            actual_rows=facts,
+        )
 
     def test_empty_bucket_without_witness_never_absence(self):
         """Deviation: empty messaging bucket alone treated as feature absent."""
@@ -821,30 +973,14 @@ class FixtureCliCoveringSmokeTest(unittest.TestCase):
                 for line in facts.read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
-            # Stamps must match the writer recomputed from Path A + covering —
-            # do not require ABSENCE on a healthy fixture that truly has hits.
-            from doc_engine.scanning.absence import write_absence_facts
-            from doc_engine.scanning.gap_probe import _astgrep_receipt_complete
-
-            expected = write_absence_facts(
+            _assert_absence_stamps_match_writer(
+                self,
                 path_a,
                 covering_ok=ok,
                 covering_root=proof.get("inventory_root"),
                 scanner_version=path_a.get("scanner_version"),
                 astgrep_receipt_complete=_astgrep_receipt_complete(proof),
-            )
-            actual = [
-                r for r in fact_rows if r.get("predicate") in {"ABSENCE", "UNPROVEN"}
-            ]
-            self.assertEqual(
-                {(r["predicate"], r["subject"]) for r in actual},
-                {(r["predicate"], r["subject"]) for r in expected},
-            )
-            # Fixture still has non-callable families → at least one UNPROVEN.
-            self.assertTrue(
-                any(r["predicate"] == "UNPROVEN" for r in actual),
-                "healthy fixture must still stamp UNPROVEN for unwitnessed families "
-                f"(got {actual!r})",
+                actual_rows=fact_rows,
             )
 
     def test_in_process_scan_attaches_covering_proof(self):
@@ -858,24 +994,18 @@ class FixtureCliCoveringSmokeTest(unittest.TestCase):
             scanner_version=result["scanner_version"],
         )
         self.assertTrue(ok, why)
-        # Dual-emit covering writers see the attachment.
         facts = facts_from_signals(result)
-        from doc_engine.scanning.absence import write_absence_facts
-        from doc_engine.scanning.gap_probe import _astgrep_receipt_complete
-
-        expected = write_absence_facts(
+        _assert_absence_stamps_match_writer(
+            self,
             result,
             covering_ok=ok,
             covering_root=result["_covering_proof"].get("inventory_root"),
             scanner_version=result.get("scanner_version"),
-            astgrep_receipt_complete=_astgrep_receipt_complete(result["_covering_proof"]),
+            astgrep_receipt_complete=_astgrep_receipt_complete(
+                result["_covering_proof"]
+            ),
+            actual_rows=facts,
         )
-        actual = [f for f in facts if f.get("predicate") in {"ABSENCE", "UNPROVEN"}]
-        self.assertEqual(
-            {(f["predicate"], f["subject"]) for f in actual},
-            {(f["predicate"], f["subject"]) for f in expected},
-        )
-        self.assertTrue(any(f["predicate"] == "UNPROVEN" for f in actual))
 
 
 def shutil_which(name: str):
