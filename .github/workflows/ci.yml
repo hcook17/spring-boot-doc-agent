@@ -283,3 +283,35 @@ jobs:
         run: |
           codeql test run --threads=0 \
             packs/spring-signals/test
+
+  # Run the Wave 1 spring-signals queries against a local, self-contained
+  # Spring Boot fixture. This gate needs no Artifactory credentials and catches
+  # runtime regressions that `query compile` cannot (e.g. missing rows, wrong
+  # attribute extraction, double-counting). It reuses the same public CodeQL
+  # bundle pinned above.
+  codeql-signals-runtime:
+    runs-on: ubuntu-latest
+    needs: codeql-signals-compile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download CodeQL bundle
+        run: |
+          mkdir -p "$HOME/codeql"
+          curl -L -o "$HOME/codeql-bundle.tar.gz" \
+            "https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.26.2/codeql-bundle-linux64.tar.gz"
+          tar -xzf "$HOME/codeql-bundle.tar.gz" -C "$HOME/codeql" --strip-components=1
+          echo "$HOME/codeql" >> "$GITHUB_PATH"
+
+      - name: Check CodeQL version
+        run: codeql --version
+
+      - name: Install pack dependencies
+        working-directory: spring-signals/codeql
+        run: |
+          codeql pack install packs/java-signals-lib
+          codeql pack install packs/spring-signals
+
+      - name: Run spring-signals fixture runtime gate
+        working-directory: spring-signals/harness
+        run: ./create-test-db.sh
