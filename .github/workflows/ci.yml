@@ -286,10 +286,11 @@ jobs:
             packs/spring-signals/test
 
   # Run the Wave 1 spring-signals queries against a local, self-contained
-  # Spring Boot fixture. This gate needs no Artifactory credentials and catches
-  # runtime regressions that `query compile` cannot (e.g. missing rows, wrong
-  # attribute extraction, double-counting). It reuses the same public CodeQL
-  # bundle pinned above.
+  # jar-based fixture with pinned Maven Central dependencies. This gate needs no
+  # Artifactory credentials and catches runtime regressions that `query compile`
+  # cannot (e.g. missing rows, wrong attribute extraction, double-counting). It
+  # reuses the same public CodeQL bundle pinned above and asserts against the
+  # hand-derived expectations in harness/expectations/fixture-repo.json.
   codeql-signals-runtime:
     runs-on: ubuntu-latest
     needs: codeql-signals-compile
