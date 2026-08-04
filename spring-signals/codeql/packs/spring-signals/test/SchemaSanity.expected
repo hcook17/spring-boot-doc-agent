@@ -1,5 +1,6 @@
-org.springframework.web.bind.annotation.RestController,com.example/TestController#,
-org.springframework.web.bind.annotation.RequestMapping,com.example/TestController#,/api/v1/books
-org.springframework.web.bind.annotation.GetMapping,com.example/TestController#getBook().,/{id}
-org.springframework.web.bind.annotation.PathVariable,com.example/TestController#getBook().(id),id
-org.springframework.web.bind.annotation.RequestParam,com.example/TestController#getBook().(q),q
+| org.springframework.web.bind.annotation.GetMapping | com.example/TestController#getBook(). | /{id} |
+| org.springframework.web.bind.annotation.PathVariable | com.example/TestController#getBook().(id) | id |
+| org.springframework.web.bind.annotation.RequestMapping | com.example/TestController# | /api/v1/books |
+| org.springframework.web.bind.annotation.RequestMapping | org.springframework.web.bind.annotation/GetMapping# |  |
+| org.springframework.web.bind.annotation.RequestParam | com.example/TestController#getBook().(q) | q |
+| org.springframework.web.bind.annotation.RestController | com.example/TestController# |  |
