@@ -1174,6 +1174,24 @@ class TestRealRepo(unittest.TestCase):
                 self.assertTrue(value.isdigit() and int(value) > 0,
                                 f"{key} produced {value!r}")
 
+    def test_codeql_rule_count_matches_rule_coverage_denominator(self) -> None:
+        """Denominator SoR is the CodeQL pack — not ast_grep_rule_count."""
+        import sys
+        coverage_dir = str(REPO_ROOT / "scripts" / "coverage")
+        if coverage_dir not in sys.path:
+            sys.path.insert(0, coverage_dir)
+        import rule_coverage as rc  # noqa: E402
+
+        derived = crc.DERIVATIONS["codeql_rule_count"](REPO_ROOT)
+        self.assertEqual(derived, str(len(rc.rule_ids())))
+        # Explicitly distinct from YAML inventory when both exist.
+        ast_n = crc.DERIVATIONS["ast_grep_rule_count"](REPO_ROOT)
+        self.assertNotEqual(
+            derived, ast_n,
+            "codeql_rule_count must not silently equal ast_grep_rule_count "
+            "(different SoRs; conflating them is the L6 blindspot)",
+        )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -26,11 +26,11 @@ Aligns with: [`docs/design/ddia-north-star/`](../../docs/design/ddia-north-star/
 2. Correct CLAUDE / CONSTRAINTS / tool-quirks / STATUS / CI comments; keep `rule_fixtures` as metamorphic-owned.
 3. L1: `semgrep_rule_fixtures_negative/` + `check_fp_ratchet` + `semgrep_rule_fp_baseline.json` (hermetic; all-zero preferred).
 
-## 4. Explicitly deferred (L6+)
+## 4. Explicitly deferred (L6+) — discharged 2026-08-04 except standing ban
 
-- Regenerate `rule_coverage_baseline.json` to schema_version 2.
-- Optional `codeql_rule_count` derivation key.
-- Do not invent semgrep **recall** baseline from a client checkout.
+- ~~Regenerate `rule_coverage_baseline.json` to schema_version 2.~~ **Done** (L6).
+- ~~Optional `codeql_rule_count` derivation key.~~ **Done** (L6).
+- Do not invent semgrep **recall** baseline from a client checkout. **Standing ban** (unchanged).
 
 ## 5. Confirm / Refine / Pivot
 

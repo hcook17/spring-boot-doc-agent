@@ -7,7 +7,7 @@ Usage:
     python3 scripts/coverage/rule_coverage.py <repo> --update  # rewrite the baseline
 
 Two modes, because they answer two different questions and only one of them
-can run in CI.
+can run hermetically in CI.
 
 **Non-vacuity** (no argument) runs the query pack against
 scripts/fixtures/spring_signals/, a committed corpus small enough to live
@@ -21,11 +21,14 @@ and that is decidable here with no external corpus.
 **Backtest** (with a path) reports per-rule-id hit counts against a real
 repository and compares them to scripts/coverage/rule_coverage_baseline.json. It exists
 because the fixture corpus proves a rule *can* fire, never that it fires on
-code anyone actually wrote. The baseline is committed and the comparison is a
-ratchet: a rule that used to find things and now finds none is a regression,
-which is the shape check_code_quality.py already uses. Real corpora are large
-and usually gitignored, so this mode is run on a dev machine and its result --
-not the corpus -- is what CI sees.
+code anyone actually wrote. The baseline is committed; CI witnesses its
+``schema_version`` stamp and pack-owned keys (tests/coverage/test_rule_coverage.py)
+but does **not** run the external corpus. The comparison is a ratchet: a rule
+that used to find things and now finds none is a regression, which is the
+shape check_code_quality.py already uses. Real corpora are large and usually
+gitignored, so this mode is run on a dev machine and only the baseline file
+is committed — absence of a baseline key means not yet measured, not proven
+zero. Missing / corrupt / schema-stale baselines fail closed.
 """
 from __future__ import annotations
 
@@ -35,7 +38,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from doc_engine.paths import codeql_pack_dir, scripts_dir
 from doc_engine.tools import spring_signal_scan
@@ -104,9 +107,13 @@ def check_non_vacuity() -> List[str]:
     if not FIXTURE_DIR.is_dir():
         return [f"fixture corpus {FIXTURE_DIR.name}/ is missing; "
                 f"the non-vacuity gate has nothing to run against"]
+    ids = rule_ids()
+    if not ids:
+        return ["CodeQL pack yielded no rule_id values; empty denominator "
+                "is not coverage (vacuous pass refused)"]
     counts = hit_counts(FIXTURE_DIR)
     problems = []
-    for rule in rule_ids():
+    for rule in ids:
         if rule in FIXTURE_EXEMPT:
             continue
         if counts.get(rule, 0) == 0:
@@ -120,10 +127,36 @@ def check_non_vacuity() -> List[str]:
     return problems
 
 
-def load_baseline() -> Optional[Dict[str, object]]:
+def _load_baseline_payload() -> Tuple[Optional[Dict[str, object]], Optional[str]]:
+    """Return (payload, error). Missing / corrupt baselines are errors."""
     if not BASELINE_FILE.is_file():
-        return None
-    return json.loads(BASELINE_FILE.read_text(encoding="utf-8"))
+        return None, (
+            f"baseline {BASELINE_FILE.name} is missing; SoR absent is not OK "
+            f"— measure a corpus with --update or restore the committed file"
+        )
+    try:
+        data = json.loads(BASELINE_FILE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return None, (
+            f"baseline {BASELINE_FILE.name} is not valid JSON ({exc.msg}); "
+            f"regenerate it with --update"
+        )
+    if not isinstance(data, dict):
+        return None, (
+            f"baseline {BASELINE_FILE.name} root is not an object; "
+            f"regenerate it with --update"
+        )
+    return data, None
+
+
+def load_baseline() -> Optional[Dict[str, object]]:
+    """Load the committed baseline object, or None if missing/corrupt.
+
+    Prefer ``check_ratchet`` for fail-closed messages; this helper remains for
+    callers that only need the payload when present.
+    """
+    data, _err = _load_baseline_payload()
+    return data
 
 
 def write_baseline(target: Path, counts: collections.Counter[str]) -> None:
@@ -131,11 +164,13 @@ def write_baseline(target: Path, counts: collections.Counter[str]) -> None:
         "schema_version": SCHEMA_VERSION,
         "$comment": (
             "Per-rule-id hit counts from a real corpus, measured on a dev "
-            "machine because the corpus is too large to track. The gate is a "
+            "machine because the corpus is too large to track. schema_version "
+            f"{SCHEMA_VERSION}: CI witnesses this stamp + pack-owned keys "
+            "(hermetic); it does not run the external corpus. The gate is a "
             "ratchet: a rule that used to fire and now fires zero times is a "
-            "regression. Rising counts are always fine and do not need a "
-            "re-measure. Regenerate with: "
-            "python3 scripts/coverage/rule_coverage.py <repo> --update"
+            "regression. Rising counts are always fine. Absence of a pack id "
+            "from counts means not yet measured, not proven zero. Regenerate "
+            "with: python3 scripts/coverage/rule_coverage.py <repo> --update"
         ),
         "corpus": target.name,
         "counts": dict(sorted(counts.items())),
@@ -144,13 +179,16 @@ def write_baseline(target: Path, counts: collections.Counter[str]) -> None:
 
 
 def check_ratchet(counts: collections.Counter[str]) -> List[str]:
-    baseline = load_baseline()
-    if baseline is None:
-        return []
+    baseline, err = _load_baseline_payload()
+    if err is not None:
+        return [err]
+    assert baseline is not None
     if baseline.get("schema_version") != SCHEMA_VERSION:
         return [f"baseline schema_version {baseline.get('schema_version')!r} "
                 f"!= {SCHEMA_VERSION}; regenerate it with --update"]
-    recorded = baseline.get("counts", {})
+    if "counts" not in baseline:
+        return ["baseline is missing 'counts'; regenerate it with --update"]
+    recorded = baseline.get("counts")
     if not isinstance(recorded, dict):
         return ["baseline 'counts' is not an object; regenerate it with --update"]
     problems = []

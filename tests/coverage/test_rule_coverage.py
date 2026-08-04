@@ -14,6 +14,10 @@ rule_coverage.py could report "all rules fired" because it silently found no
 rules to check, which is the vacuous-pass shape this repo keeps writing
 directional tests against.
 
+L6: also pins committed baseline schema SoR, fail-closed missing/forged
+baseline, empty pack / empty fixtures, main exit 1, and drop-to-zero-only
+ratchet polarity (partial drops stay green).
+
 Run with: pytest tests/coverage/test_rule_coverage.py -v
 """
 from __future__ import annotations
@@ -73,6 +77,29 @@ class TestNonVacuity(unittest.TestCase):
         finally:
             rc.FIXTURE_DIR = real_dir
 
+    def test_an_empty_fixture_directory_fails(self) -> None:
+        """Present-but-empty corpus is not a vacuous pass."""
+        real_dir = rc.FIXTURE_DIR
+        with tempfile.TemporaryDirectory() as tmp:
+            empty = Path(tmp) / "spring_signals"
+            empty.mkdir()
+            try:
+                rc.FIXTURE_DIR = empty
+                problems = rc.check_non_vacuity()
+                self.assertTrue(problems, "empty fixture dir must fail non-vacuity")
+            finally:
+                rc.FIXTURE_DIR = real_dir
+
+    def test_an_empty_pack_fails_rather_than_passing_vacuously(self) -> None:
+        original = rc.rule_ids
+        try:
+            rc.rule_ids = lambda *a, **k: []  # type: ignore[assignment]
+            problems = rc.check_non_vacuity()
+            self.assertTrue(any("empty" in p.lower() or "no rule" in p.lower()
+                                for p in problems), problems)
+        finally:
+            rc.rule_ids = original  # type: ignore[assignment]
+
     def test_an_exemption_must_state_a_reason(self) -> None:
         real = dict(rc.FIXTURE_EXEMPT)
         try:
@@ -82,6 +109,33 @@ class TestNonVacuity(unittest.TestCase):
         finally:
             rc.FIXTURE_EXEMPT.clear()
             rc.FIXTURE_EXEMPT.update(real)
+
+    def test_fixture_dir_is_spring_signals_not_metamorphic_rule_fixtures(self) -> None:
+        """Corpus ownership: coverage SoR ≠ metamorphic rule_fixtures/."""
+        resolved = rc.FIXTURE_DIR.resolve()
+        self.assertEqual(resolved.name, "spring_signals")
+        self.assertEqual(
+            resolved,
+            (SCRIPTS_DIR / "fixtures" / "spring_signals").resolve(),
+        )
+        metamorphic = (SCRIPTS_DIR / "coverage" / "rule_fixtures").resolve()
+        self.assertNotEqual(resolved, metamorphic)
+
+
+class TestCommittedBaselineSoR(unittest.TestCase):
+    """Hermetic CI witness: committed baseline stamp matches SCHEMA_VERSION
+    and count keys are pack-owned. Does not require an external corpus."""
+
+    def test_committed_baseline_schema_matches_code(self) -> None:
+        path = Path(REPO_ROOT) / "scripts" / "coverage" / "rule_coverage_baseline.json"
+        self.assertTrue(path.is_file(), path)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(data.get("schema_version"), rc.SCHEMA_VERSION)
+        counts = data.get("counts")
+        self.assertIsInstance(counts, dict)
+        pack = set(rc.rule_ids())
+        orphans = sorted(set(counts) - pack)
+        self.assertEqual(orphans, [], f"baseline keys not in pack: {orphans}")
 
 
 class TestRatchet(unittest.TestCase):
@@ -94,9 +148,9 @@ class TestRatchet(unittest.TestCase):
         rc.BASELINE_FILE = self.real_baseline
         self.tmp.cleanup()
 
-    def baseline(self, counts: dict) -> None:
+    def baseline(self, counts: dict, *, schema_version: int | None = None) -> None:
         rc.BASELINE_FILE.write_text(json.dumps({
-            "schema_version": rc.SCHEMA_VERSION,
+            "schema_version": rc.SCHEMA_VERSION if schema_version is None else schema_version,
             "corpus": "fake",
             "counts": counts,
         }), encoding="utf-8")
@@ -115,13 +169,46 @@ class TestRatchet(unittest.TestCase):
         self.baseline({"a__b": 0})
         self.assertEqual(rc.check_ratchet(collections.Counter()), [])
 
-    def test_a_missing_baseline_is_not_a_failure(self) -> None:
-        self.assertEqual(rc.check_ratchet(collections.Counter()), [])
+    def test_partial_count_drop_is_not_a_regression(self) -> None:
+        """Polarity pin: drop-to-zero only; 5→3 stays green (coverage-gates)."""
+        self.baseline({"a__b": 5})
+        self.assertEqual(rc.check_ratchet(collections.Counter({"a__b": 3})), [])
+
+    def test_a_missing_baseline_is_a_failure(self) -> None:
+        """SoR absent ≠ OK (L6 fail-closed)."""
+        self.assertFalse(rc.BASELINE_FILE.is_file())
+        problems = rc.check_ratchet(collections.Counter())
+        self.assertTrue(problems)
+        self.assertTrue(any("missing" in p.lower() or "absent" in p.lower()
+                            for p in problems), problems)
 
     def test_a_stale_schema_version_is_rejected(self) -> None:
         rc.BASELINE_FILE.write_text(
             json.dumps({"schema_version": 999, "counts": {}}), encoding="utf-8")
         self.assertTrue(rc.check_ratchet(collections.Counter()))
+
+    def test_counts_not_an_object_is_rejected(self) -> None:
+        rc.BASELINE_FILE.write_text(json.dumps({
+            "schema_version": rc.SCHEMA_VERSION,
+            "counts": ["not", "an", "object"],
+        }), encoding="utf-8")
+        problems = rc.check_ratchet(collections.Counter())
+        self.assertTrue(any("counts" in p for p in problems), problems)
+
+    def test_missing_counts_key_is_rejected(self) -> None:
+        rc.BASELINE_FILE.write_text(json.dumps({
+            "schema_version": rc.SCHEMA_VERSION,
+            "corpus": "fake",
+        }), encoding="utf-8")
+        problems = rc.check_ratchet(collections.Counter())
+        self.assertTrue(any("counts" in p for p in problems), problems)
+
+    def test_corrupt_json_baseline_is_rejected(self) -> None:
+        rc.BASELINE_FILE.write_text("{not-json", encoding="utf-8")
+        problems = rc.check_ratchet(collections.Counter())
+        self.assertTrue(problems)
+        self.assertTrue(any("json" in p.lower() or "parse" in p.lower()
+                            for p in problems), problems)
 
 
 class TestExitCodes(unittest.TestCase):
@@ -133,6 +220,32 @@ class TestExitCodes(unittest.TestCase):
 
     def test_a_missing_target_directory_exits_two(self) -> None:
         self.assertEqual(rc.main(["no-such-directory-here"]), 2)
+
+    def test_non_vacuity_failure_exits_one(self) -> None:
+        original = rc.rule_ids
+        try:
+            rc.rule_ids = lambda *a, **k: original() + ["invented__exit1"]  # type: ignore[assignment]
+            self.assertEqual(rc.main([]), 1)
+        finally:
+            rc.rule_ids = original  # type: ignore[assignment]
+
+    def test_ratchet_failure_exits_one(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "corpus"
+            repo.mkdir()
+            (repo / "Empty.java").write_text("// empty\n", encoding="utf-8")
+            real_baseline = rc.BASELINE_FILE
+            baseline = Path(tmp) / "baseline.json"
+            baseline.write_text(json.dumps({
+                "schema_version": rc.SCHEMA_VERSION,
+                "corpus": "fake",
+                "counts": {"persistence__entity": 5},
+            }), encoding="utf-8")
+            try:
+                rc.BASELINE_FILE = baseline
+                self.assertEqual(rc.main([str(repo)]), 1)
+            finally:
+                rc.BASELINE_FILE = real_baseline
 
 
 if __name__ == "__main__":
