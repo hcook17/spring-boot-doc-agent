@@ -12,16 +12,6 @@
 import Common
 
 /**
- * Holds if `pkg` is a `javax.*` namespace that Jakarta EE 9 relocated.
- *
- * The complement matters as much as the list: `javax.crypto`, `javax.net`,
- * `javax.sql`, `javax.naming`, `javax.management`, `javax.xml`,
- * `javax.security.auth`, `javax.imageio`, `javax.sound`, `javax.tools`,
- * `javax.script`, `javax.lang.model`, `javax.print`, `javax.accessibility`
- * and `javax.swing` are JDK-retained and MUST NOT be flagged. A naive
- * `^javax\.` rule produces a migration backlog full of false work.
- */
-/**
  * Holds if `fqn` is a JSR-305 symbol, which Jakarta EE 9 did NOT relocate.
  *
  * `javax.annotation` is a SPLIT namespace. The JSR-250 lifecycle annotations
@@ -51,6 +41,16 @@ private predicate jsr305Symbol(string fqn) {
     ]
 }
 
+/**
+ * Holds if `pkg` is a `javax.*` namespace that Jakarta EE 9 relocated.
+ *
+ * The complement matters as much as the list: `javax.crypto`, `javax.net`,
+ * `javax.sql`, `javax.naming`, `javax.management`, `javax.xml`,
+ * `javax.security.auth`, `javax.imageio`, `javax.sound`, `javax.tools`,
+ * `javax.script`, `javax.lang.model`, `javax.print`, `javax.accessibility`
+ * and `javax.swing` are JDK-retained and MUST NOT be flagged. A naive
+ * `^javax\.` rule produces a migration backlog full of false work.
+ */
 bindingset[pkg]
 private predicate relocatedJavaxNamespace(string pkg) {
   pkg.regexpMatch("^javax\\.(persistence|validation|transaction|servlet|ws\\.rs|jms|mail|enterprise|inject|interceptor|json|batch|el|websocket|xml\\.bind|xml\\.soap|xml\\.ws|activation|security\\.enterprise|faces|resource)(\\..*)?$")
