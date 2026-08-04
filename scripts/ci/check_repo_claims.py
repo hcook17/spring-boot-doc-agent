@@ -164,6 +164,7 @@ REFERENCE_RE = re.compile(
 )
 OWN_ROOT_FILES = frozenset({
     "CLAUDE.md", "CONSTRAINTS.md", "CONTRIBUTING.md", "README.md", "STATUS.md",
+    "AGENTS.md",
     "MATURITY_ASSESSMENT.md", "IMPLEMENTATION_HANDOFF.md", "LICENSE",
     "requirements.txt", "requirements-dev.txt", ".ruff.toml", ".gitignore",
 })
@@ -184,7 +185,7 @@ OWN_ROOT_FILES = frozenset({
 # squeamishness, it is that the two kinds of text make different claims.
 CURRENT_STATE_ROOT_DOCS = frozenset({
     "CLAUDE.md", "CONSTRAINTS.md", "CONTRIBUTING.md", "README.md",
-    "STATUS.md", "MATURITY_ASSESSMENT.md",
+    "STATUS.md", "MATURITY_ASSESSMENT.md", "AGENTS.md",
 })
 CURRENT_STATE_PREFIXES = ("skills/", "agents/", "adapters/", ".claude/")
 
