@@ -1,0 +1,22 @@
+{
+  "repo": "ocs-api-service",
+  "asserted": {
+    "Messaging": {
+      "_rows": 0,
+      "_note": "No messaging library is on the ocs-api-service classpath, so Messaging MUST return exactly zero rows. A non-zero result means either the repo gained a messaging dependency (update this file deliberately) or the query broke. This is the assertion that replaced harness/expected-empty.txt."
+    }
+  },
+  "minimums": {
+    "ApiSurface": {
+      "api_surface__controller": 49,
+      "api_surface__endpoint": 369,
+      "api_surface__path_prefix": 35,
+      "_note": "Floors measured on ocs-api-service @ develop. Rows only grow as the service grows; a drop below the floor is the @RestController recall regression class. Replaced harness/expected-min.txt."
+    },
+    "Persistence": {
+      "persistence__repository_marker": 4
+    }
+  },
+  "snapshot": {},
+  "known_defects": {}
+}

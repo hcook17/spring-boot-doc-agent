@@ -61,5 +61,6 @@ if [ -n "$EXPECTATIONS" ]; then
   python3 "$HERE/check-assertions.py" --out "$OUT" --expectations "$EXPECTATIONS"
 else
   echo "no EXPECTATIONS file supplied; row counts reported but nothing asserted."
-  echo "  pass EXPECTATIONS=harness/expectations/<repo>.json to gate on them."
+  echo "  for ocs-api-service: EXPECTATIONS=$HERE/expectations/ocs-api-service.json"
+  echo "  for the fixture:     run harness/create-test-db.sh instead (it sets this)."
 fi

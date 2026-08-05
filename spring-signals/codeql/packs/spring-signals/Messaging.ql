@@ -11,10 +11,11 @@
  * and project-local subclasses.
  *
  * STATUS ON ocs-api-service: zero rows expected. No messaging library is on
- * the classpath; the expectation is recorded in harness/expected-empty.txt.
- * The non-zero direction is gated on the fixture: MessagingFixture exercises
- * Kafka/Rabbit/JMS client types, and harness/expectations/fixture-repo.json
- * pins both the row count and the surviving signal per client type.
+ * the classpath; the expectation is asserted (exact zero) by
+ * harness/expectations/ocs-api-service.json. The non-zero direction is gated
+ * on the fixture: MessagingFixture exercises Kafka/Rabbit/JMS client types,
+ * and harness/expectations/fixture-repo.json pins both the row count and the
+ * surviving signal per client type.
  *
  * @kind table
  * @id spring-signals/messaging

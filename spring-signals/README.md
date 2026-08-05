@@ -26,8 +26,8 @@ CodeQL library pack plus per-framework query packs. Wave 1 targets
       run.sh                       precompile, run wave 1, decode CSV, assert
       check-assertions.py          JSON expectations: asserted vs snapshot counts
       expectations/fixture-repo.json  hand-derived fixture counts + signals
+      expectations/ocs-api-service.json  ocs zero-row assertion + floor counts
       fixture-repo/                16-source javac fixture, jars pinned by sha256
-      expected-empty.txt           documented zero-result expectations (ocs)
       join_openapi.py              join against the generated OpenAPI contract
     docs/
       CAMPAIGN.md                  architectural decision + waves 1-5
@@ -71,11 +71,15 @@ An earlier version computed its root as `__file__/../..`, which meant a copy
 mirrored to the top of a review archive died with a bare `FileNotFoundError`
 from inside check 2 — an error describing neither the real problem nor the fix.
 
-Then the parts that need a toolchain:
+Then the parts that need a toolchain. The credential-free fixture gate:
+
+    ./harness/create-test-db.sh
+
+The ocs-api-service run (needs Artifactory credentials):
 
     export artifactory_user=... artifactory_password=...
     ./harness/create-db.sh
-    ./harness/run.sh
+    EXPECTATIONS=harness/expectations/ocs-api-service.json ./harness/run.sh
     python3 harness/join_openapi.py \
       --api-surface out/ApiSurface.csv \
       --openapi src/docs/api/OASv3/ocs-api-service.yaml

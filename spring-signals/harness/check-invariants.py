@@ -57,6 +57,36 @@ from pathlib import Path
 MARKER = Path("codeql") / "packs" / "java-signals-lib"
 
 
+def _downward(start: Path, depth: int) -> list[Path]:
+    """Candidate pack roots at or below `start`, bounded by `depth`.
+
+    Deterministic (sorted). Searched a few levels deep to tolerate nested
+    archives (e.g. extracted overlay/v1/spring-signals/...).
+    """
+    if depth <= 0:
+        return []
+    found: list[Path] = []
+    for cand in sorted(start.glob("*/")):
+        if (cand / MARKER).is_dir():
+            found.append(cand.resolve())
+        else:
+            found.extend(_downward(cand, depth - 1))
+    return found
+
+
+def _first_unambiguous(found: list[Path]) -> Path | None:
+    """Ambiguity is REPORTED rather than silently resolved: two extracted packs
+    side by side would otherwise make a green run attributable to the
+    alphabetically first one by accident."""
+    if len(found) > 1:
+        print(
+            "WARNING: multiple pack roots found; using the first. Pass --root to "
+            "disambiguate.\n  " + "\n  ".join(str(f) for f in found),
+            file=sys.stderr,
+        )
+    return found[0] if found else None
+
+
 def find_root(explicit: str | None = None) -> Path:
     """
     Locate the pack root by SEARCHING for it, not by relative arithmetic.
@@ -74,9 +104,10 @@ def find_root(explicit: str | None = None) -> Path:
     and reporting nothing is indistinguishable from passing if the exit code is
     not read carefully.
 
-    Resolution order: explicit --root, then upward from the script, then downward
-    one level (the overlay-mirror case, where an extracted `spring-signals/` sits
-    beside the script), then the current working directory.
+    Resolution order: explicit --root, then upward from the script, then a
+    bounded downward search (the overlay-mirror case, where an extracted
+    `spring-signals/` sits beside the script), then the current working
+    directory.
     """
     if explicit:
         root = Path(explicit).resolve()
@@ -88,33 +119,12 @@ def find_root(explicit: str | None = None) -> Path:
     for cand in [here.parent, *here.parents]:
         if (cand / MARKER).is_dir():
             return cand
-    # Downward search. Deterministic (sorted), but ambiguity is REPORTED rather
-    # than silently resolved: two extracted packs side by side would otherwise
-    # make a green run attributable to the alphabetically first one by accident.
-    # Search a few levels deep to tolerate nested archives (e.g. extracted
-    # overlay/v1/spring-signals/...).
-    def _downward(start: Path, depth: int) -> list[Path]:
-        if depth <= 0:
-            return []
-        found: list[Path] = []
-        for cand in sorted(start.glob("*/")):
-            if (cand / MARKER).is_dir():
-                found.append(cand.resolve())
-            else:
-                found.extend(_downward(cand, depth - 1))
-        return found
 
-    found = sorted(
-        set(_downward(here.parent, 4) + _downward(Path.cwd(), 4))
+    found = _first_unambiguous(
+        sorted(set(_downward(here.parent, 4) + _downward(Path.cwd(), 4)))
     )
-    if len(found) > 1:
-        print(
-            "WARNING: multiple pack roots found; using the first. Pass --root to "
-            "disambiguate.\n  " + "\n  ".join(str(f) for f in found),
-            file=sys.stderr,
-        )
-    if found:
-        return found[0]
+    if found is not None:
+        return found
     if (Path.cwd() / MARKER).is_dir():
         return Path.cwd()
 
@@ -122,7 +132,7 @@ def find_root(explicit: str | None = None) -> Path:
         "Could not locate the pack root.\n"
         f"Looked for a directory containing {MARKER}, searching upward from\n"
         f"  {here}\n"
-        "and one level down from there and from the current directory.\n\n"
+        "and a few levels down from there and from the current directory.\n\n"
         "If you extracted an overlay archive, the pack is inside the nested\n"
         "spring-signals.zip -- extract it first, or pass --root explicitly:\n"
         "  python3 check-invariants.py --root path/to/spring-signals"

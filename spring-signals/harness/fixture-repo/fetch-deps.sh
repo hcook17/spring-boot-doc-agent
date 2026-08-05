@@ -34,6 +34,7 @@ while read -r line; do
       echo "ERROR: unsafe coordinate in deps.txt: $coord" >&2
       exit 1
       ;;
+    *) ;;
   esac
   jar="$HERE/lib/$a-$v.jar"
   count=$((count + 1))
