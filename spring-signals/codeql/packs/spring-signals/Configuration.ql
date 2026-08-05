@@ -57,7 +57,9 @@ where
     isExactly(a, pkg, name) and
     signature("spring", pkg, name, "config", _) and
     signal = pkg + "." + name and
-    detail = attrs(a, "value,basePackages") and
+    // value/basePackages are @AliasFor on @ComponentScan (and value alone is
+    // the payload on @PropertySource): fallback, not join.
+    detail = attrFallback(a, "value,basePackages") and
     rule_id = "configuration__config_annotation"
   )
 select

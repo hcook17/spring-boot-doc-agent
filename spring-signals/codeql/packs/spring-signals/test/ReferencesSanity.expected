@@ -1,3 +1,4 @@
+| stubs/com/example/AnnotatedSanity.java | 0 | 0 |
 | stubs/com/example/AppConfig.java | 0 | 0 |
 | stubs/com/example/AppConfig.java | 3 | 3 |
 | stubs/com/example/AppConfig.java | 4 | 4 |
@@ -102,6 +103,9 @@
 | stubs/com/example/PersistenceService.java | 6 | 6 |
 | stubs/com/example/PersistenceService.java | 7 | 7 |
 | stubs/com/example/PersistenceService.java | 8 | 8 |
+| stubs/com/example/SanityAnnotation.java | 0 | 0 |
+| stubs/com/example/SanityAnnotation.java | 3 | 3 |
+| stubs/com/example/SanityAnnotation.java | 4 | 4 |
 | stubs/com/example/SecurityConfig.java | 0 | 0 |
 | stubs/com/example/SecurityConfig.java | 3 | 3 |
 | stubs/com/example/SecurityConfig.java | 4 | 4 |
@@ -116,6 +120,7 @@
 | stubs/com/example/TestController.java | 10 | 10 |
 | stubs/com/example/TestController.java | 11 | 11 |
 | stubs/com/example/TestController.java | 12 | 12 |
+| stubs/com/example/TypeSanity.java | 0 | 0 |
 | stubs/com/vladmihalcea/hibernate/type/json/JsonBinaryType.java | 0 | 0 |
 | stubs/io/awspring/cloud/sqs/annotation/SqsListener.java | 0 | 0 |
 | stubs/io/awspring/cloud/sqs/annotation/SqsListener.java | 3 | 3 |

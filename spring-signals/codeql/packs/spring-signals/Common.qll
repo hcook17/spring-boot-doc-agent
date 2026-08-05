@@ -43,7 +43,9 @@ string attr(Annotation a, string name) {
  * output order does not follow the attribute order the reader sees. A consumer
  * cannot split a "" join at all, and cannot rely on position in the others.
  *
- * One helper, one separator, declaration order.
+ * One separator, call-site order. AliasFor pairs (`value`/`path`,
+ * `prefix`/`value`, `value`/`url`, `value`/`basePackages`) are NOT joins --
+ * use `attrFallback` for those.
  */
 bindingset[names]
 string attrs(Annotation a, string names) {

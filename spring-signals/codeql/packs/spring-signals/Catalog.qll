@@ -437,8 +437,10 @@ predicate repositoryRoot(string pkg, string name, string generation) {
  * carrying inline SQL that no `@Query`-based rule can see.
  */
 predicate sqlExecutorType(string pkg, string name, string generation) {
-  // Concrete types only. Including both JdbcTemplate and JdbcOperations would
-  // double-count every JdbcTemplate site, because typeIsOrExtends matches both.
+  // Concrete types only today. If JdbcOperations is ever catalogued for
+  // injection-site recall, the most-specific guard in NativeSql.ql (via
+  // typeStrictlyExtends) is what prevents two rows per call site -- do not
+  // remove the guard when adding the interface.
   pkg = "org.springframework.jdbc.core" and
   generation = "" and
   name = "JdbcTemplate"
