@@ -75,6 +75,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import re
 import sys
 from collections import Counter
@@ -238,14 +239,14 @@ def record(out_dir: Path, spec_path: Path) -> int:
     # same function as the write sink, not only interprocedurally in main().
     spec_path = checked_path(spec_path, "--expectations", "file")
     # --record is a maintainer action on committed expectations files, so the
-    # target must live under THIS harness directory. The containment check is
-    # against a clean, non-CLI-derived base (the script's own location), which
-    # is the validated-canonical-path pattern: a CLI-supplied path can read
-    # from anywhere, but it can only make this script WRITE in-tree.
-    harness_dir = Path(__file__).resolve().parent
-    if not spec_path.is_relative_to(harness_dir):
+    # target must live under THIS harness directory. Canonicalize with
+    # os.path.realpath and prefix-compare against the constant harness base --
+    # the documented compliant pattern for path-injection checks.
+    allowed = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))
+    target = os.path.realpath(str(spec_path))
+    if not target.startswith(allowed + os.sep):
         sys.exit(f"ERROR: --record only writes expectations files under "
-                 f"{harness_dir}; got {spec_path}")
+                 f"{allowed}; got {target}")
     spec = load_spec(spec_path)
     asserted = spec.get("asserted", {})
     # Replace wholesale, not update(): a query that vanished from --out must
@@ -253,13 +254,14 @@ def record(out_dir: Path, spec_path: Path) -> int:
     spec["snapshot"] = build_recorded_block(out_dir, asserted)
     snapshot = spec["snapshot"]
     payload = json.dumps(spec, indent=2) + "\n"
-    # Write directly to the validated path. An earlier version wrote
+    # Write directly to the validated canonical path. An earlier version wrote
     # name.json.tmp + replace for atomicity, but that constructs a SECOND path
     # from the CLI argument -- a new unvalidated filesystem target by taint
     # rules, and the real safety it bought is small here: a torn write is a
     # maintainer-visible JSON parse error on the next load, in a file that is
     # committed and diff-reviewed anyway.
-    spec_path.write_text(payload, encoding="utf-8")
+    with open(target, "w", encoding="utf-8") as fh:
+        fh.write(payload)
     print(f"recorded snapshot block for {len(snapshot)} queries -> {spec_path}")
     print("ASSERTED values were left untouched. Review the diff before committing.")
     return 0
