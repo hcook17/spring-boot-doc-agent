@@ -2,7 +2,6 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
   push:
     branches: [main]
 
@@ -297,7 +296,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
@@ -310,12 +309,12 @@ jobs:
 
       - name: Download CodeQL bundle
         run: |
-          sudo mkdir -p /opt/codeql
-          curl -L -o /tmp/codeql-bundle.tar.gz \
+          CODEQL_DIR="${RUNNER_TEMP}/codeql"
+          mkdir -p "$CODEQL_DIR"
+          curl -L -o "$CODEQL_DIR/codeql-bundle.tar.gz" \
             "https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.26.2/codeql-bundle-linux64.tar.gz"
-          sudo tar -xzf /tmp/codeql-bundle.tar.gz -C /opt/codeql --strip-components=1
-          sudo chmod -R a+rX /opt/codeql
-          echo /opt/codeql >> "$GITHUB_PATH"
+          tar -xzf "$CODEQL_DIR/codeql-bundle.tar.gz" -C "$CODEQL_DIR" --strip-components=1
+          echo "$CODEQL_DIR" >> "$GITHUB_PATH"
 
       - name: Check CodeQL version
         run: codeql --version
