@@ -56,13 +56,6 @@ private string mappingPath(Annotation a) {
   result = attrFallback(a, "value,path")
 }
 
-/** Gets the binding name: explicit value if present, else the inferred name. */
-private string paramBindingDetail(Annotation a) {
-  attr(a, "value") != "" and result = attr(a, "value")
-  or
-  attr(a, "value") = "" and result = attr(a, "name")
-}
-
 from Measured e, string rule_id, string signal, string detail
 where
   // Controller classes, resolved through meta-annotations so @RestController
@@ -105,7 +98,9 @@ where
     a = getAnEffectiveAnnotation(p) and
     paramBindingAnnotation(a, name, "param_binding") and
     signal = annotationFqn(a) and
-    detail = paramBindingDetail(a) and
+    // value wins over name when both are present; identical to the old
+    // hand-rolled paramBindingDetail.
+    detail = attrFallback(a, "value,name") and
     rule_id = "api_surface__param_binding"
   )
   or
@@ -115,7 +110,7 @@ where
     e = a and
     a = getAnEffectiveAnnotation(p) and
     paramBindingAnnotation(a, name, "body_binding") and
-    signal = "org.springframework.web.bind.annotation." + name and
+    signal = annotationFqn(a) and
     detail = "" and
     rule_id = "api_surface__body_binding"
   )

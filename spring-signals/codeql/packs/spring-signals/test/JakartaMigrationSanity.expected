@@ -1,1 +1,12 @@
 | com.example/BookRepository#getEntityManager(). | javax.persistence.EntityManager | pending |
+| javax.annotation | namespace | relocated |
+| javax.annotation.Nullable | com.example/NullableUsage#maybeNull(). | jsr305_excluded |
+| javax.annotation.Nullable | jsr305 | excluded |
+| javax.annotation.PostConstruct | jsr250 | pending |
+| javax.annotation.Resource | jsr250 | pending |
+| javax.annotation.concurrent | namespace | retained |
+| javax.annotation.meta | namespace | retained |
+| javax.annotation.processing | namespace | retained |
+| javax.annotation.security | namespace | relocated |
+| javax.annotation.sql | namespace | relocated |
+| javax.sql | namespace | retained |

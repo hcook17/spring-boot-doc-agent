@@ -31,7 +31,6 @@ private predicate messagingClientType(Type t, string fqn) {
   fqn = "org.springframework.kafka.core.KafkaTemplate"
   or
   typeIsOrExtends(t, "org.springframework.amqp.core", "AmqpTemplate") and
-  not typeIsOrExtends(t, "org.springframework.amqp.rabbit.core", "RabbitTemplate") and
   fqn = "org.springframework.amqp.core.AmqpTemplate"
   or
   typeIsOrExtends(t, "org.springframework.amqp.rabbit.core", "RabbitTemplate") and
@@ -85,9 +84,12 @@ where
   exists(Variable v, string fqn |
     e = v and
     messagingClientType(v.getType(), fqn) and
-    // Most specific catalogued client type only. The hand-written
-    // `not typeIsOrExtends(...)` exclusions this replaces had to be repeated for
-    // every interface/impl pair; a forgotten one emits a duplicate silently.
+    // Most specific catalogued client type only, derived from the hierarchy
+    // (KafkaTemplate strictly extends KafkaOperations, RabbitTemplate strictly
+    // extends AmqpTemplate). The previous hand-written per-pair exclusions had
+    // to be repeated for every interface/impl pair; a forgotten one emits a
+    // duplicate silently. One asymmetric survivor (RabbitTemplate) is worse
+    // than none: it reads as intentional while protecting only half the pairs.
     not exists(string other |
       messagingClientType(v.getType(), other) and
       other != fqn and

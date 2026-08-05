@@ -59,7 +59,7 @@ where
     isExactly(a, "org.springframework.cloud.openfeign", name) and
     signature("spring", "org.springframework.cloud.openfeign", name, "feign", generation) and
     signal = "org.springframework.cloud.openfeign." + name and
-    detail = concat(string s | s = attr(a, "name") and s != "" or s = attr(a, "url") and s != "" or s = attr(a, "basePackages") and s != "" | s, " " order by s) and
+    detail = attrs(a, "name,url,basePackages") and
     rule_id = "outbound__feign"
   )
   or
@@ -70,7 +70,8 @@ where
     isExactly(a, "org.springframework.web.service.annotation", name) and
     signature("spring", "org.springframework.web.service.annotation", name, "http_exchange", generation) and
     signal = "org.springframework.web.service.annotation." + name and
-    detail = concat(string s | s = attr(a, "value") and s != "" or s = attr(a, "url") and s != "" | s, " " order by s) and
+    // value/url are @AliasFor on @HttpExchange: fallback, not join.
+    detail = attrFallback(a, "value,url") and
     rule_id = "outbound__http_exchange"
   )
   or
@@ -91,6 +92,13 @@ where
   exists(Method m, string fqn |
     e = m and
     outboundClientType(m.getReturnType(), fqn, generation) and
+    // Same most-specific guard as the Variable arm above: a return type whose
+    // catalogue entries include an interface/impl pair fans out identically.
+    not exists(string other |
+      outboundClientType(m.getReturnType(), other, _) and
+      other != fqn and
+      typeStrictlyExtendsFqn(other, fqn)
+    ) and
     signal = fqn and
     detail = m.getName() and
     rule_id = "outbound__type_usage"

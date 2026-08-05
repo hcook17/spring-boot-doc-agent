@@ -26,13 +26,15 @@ predicate reflexivePair(string sub, string supName) {
 }
 
 predicate row(string sub, string supName, string tag) {
+  // Each helper gets its own tag so a broken FQN split cannot hide behind a
+  // working (pkg, name) form: an `or` here would pass with either half dead.
   expectedPair(sub, supName) and
-  (
-    typeStrictlyExtends("com.example", sub, "com.example", supName)
-    or
-    typeStrictlyExtendsFqn("com.example." + sub, "com.example." + supName)
-  ) and
+  typeStrictlyExtends("com.example", sub, "com.example", supName) and
   tag = "expected"
+  or
+  expectedPair(sub, supName) and
+  typeStrictlyExtendsFqn("com.example." + sub, "com.example." + supName) and
+  tag = "expected_fqn"
   or
   reflexivePair(sub, supName) and
   not typeStrictlyExtends("com.example", sub, "com.example", supName) and

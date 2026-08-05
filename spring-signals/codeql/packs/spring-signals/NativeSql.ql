@@ -105,9 +105,11 @@ where
     e = call and
     sqlExecutorType(pkg, name, generation) and
     typeIsOrExtends(call.getReceiverType(), pkg, name) and
-    // Most specific catalogued executor only. JdbcTemplate implements
-    // JdbcOperations and both are catalogued, so the unguarded form emitted two
-    // rows per call with an identical (file, symbol, rule_id).
+    // Most specific catalogued executor only. The current executor catalogue
+    // is concrete-only (no comparable pairs), so this guard is PREVENTIVE: it
+    // is what makes cataloguing JdbcOperations alongside JdbcTemplate safe for
+    // injection-site recall later, instead of a silent two-rows-per-call
+    // regression.
     not exists(string p2, string n2 |
       sqlExecutorType(p2, n2, _) and
       typeIsOrExtends(call.getReceiverType(), p2, n2) and

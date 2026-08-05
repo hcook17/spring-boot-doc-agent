@@ -77,19 +77,22 @@ Type boundTypeArgument(RefType t, string pkg, string name, int i) {
 /**
  * Holds if `subPkg`.`subName` is a STRICT subtype of `superPkg`.`superName`.
  *
- * Catalogues list both an interface and its implementation on purpose, because
- * enterprise code injects either. `typeIsOrExtends` then matches BOTH for one
- * site, and since `signal` is the only column that differs the result is two
- * rows sharing a `(file, symbol, rule_id)` join key -- a collision on the trio
- * Schema.qll declares as the contract. Measured on the jar fixture before the
- * guard: 4 `sql__jdbc_call` rows for 2 call sites.
+ * Catalogues may list both an interface and its implementation on purpose,
+ * because enterprise code injects either. `typeIsOrExtends` then matches BOTH
+ * for one site, and since `signal` is the only column that differs the result
+ * is two rows sharing a `(file, symbol, rule_id)` join key -- a collision on
+ * the trio Schema.qll declares as the contract.
  *
- * `Messaging.ql` solved this by hand, writing `not typeIsOrExtends(t, ..., "KafkaTemplate")`
- * into the `KafkaOperations` branch. That is correct but quadratic in
- * maintenance: every type added to a catalogue must be excluded from each of its
- * supertypes' branches, and a forgotten exclusion fails silently by emitting a
- * duplicate rather than an error. This derives the same thing from the type
- * hierarchy.
+ * Today's catalogues contain exactly one comparable pair
+ * (KafkaTemplate/KafkaOperations, RabbitTemplate/AmqpTemplate in
+ * Messaging.ql's local catalogue); the SQL executor catalogue is deliberately
+ * concrete-only, so the guard is preventive there rather than load-bearing.
+ * `Messaging.ql` originally solved this by hand, writing
+ * `not typeIsOrExtends(t, ..., "KafkaTemplate")` into the `KafkaOperations`
+ * branch. That is correct but quadratic in maintenance: every type added to a
+ * catalogue must be excluded from each of its supertypes' branches, and a
+ * forgotten exclusion fails silently by emitting a duplicate rather than an
+ * error. This derives the same thing from the type hierarchy.
  *
  * Uses `getNestedName()`, not `getName()`. A nested catalogued type would
  * otherwise fail to match here while matching everywhere else -- and the failure

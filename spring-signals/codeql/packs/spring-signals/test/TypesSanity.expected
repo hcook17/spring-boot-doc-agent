@@ -1,9 +1,14 @@
 | BaseClass | BaseClass | not_reflexive |
 | BaseClass | InterfaceA | expected |
+| BaseClass | InterfaceA | expected_fqn |
 | DerivedClass | BaseClass | expected |
+| DerivedClass | BaseClass | expected_fqn |
 | DerivedClass | DerivedClass | not_reflexive |
 | DerivedClass | InterfaceA | expected |
+| DerivedClass | InterfaceA | expected_fqn |
 | DerivedClass | InterfaceB | expected |
+| DerivedClass | InterfaceB | expected_fqn |
 | InterfaceA | InterfaceA | not_reflexive |
 | InterfaceB | InterfaceA | expected |
+| InterfaceB | InterfaceA | expected_fqn |
 | InterfaceB | InterfaceB | not_reflexive |

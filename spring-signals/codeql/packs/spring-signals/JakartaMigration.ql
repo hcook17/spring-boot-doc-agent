@@ -10,27 +10,7 @@
  */
 
 import Common
-
-/**
- * Holds if `pkg` is a `javax.*` namespace that Jakarta EE 9 relocated.
- *
- * The complement matters as much as the list: `javax.crypto`, `javax.net`,
- * `javax.sql`, `javax.naming`, `javax.management`, `javax.xml`,
- * `javax.security.auth`, `javax.imageio`, `javax.sound`, `javax.tools`,
- * `javax.script`, `javax.lang.model`, `javax.print`, `javax.accessibility`
- * and `javax.swing` are JDK-retained and MUST NOT be flagged. A naive
- * `^javax\.` rule produces a migration backlog full of false work.
- */
-bindingset[pkg]
-private predicate relocatedJavaxNamespace(string pkg) {
-  pkg.regexpMatch("^javax\\.(persistence|validation|transaction|servlet|ws\\.rs|jms|mail|enterprise|inject|interceptor|json|batch|el|websocket|xml\\.bind|xml\\.soap|xml\\.ws|activation|security\\.enterprise|faces|resource)(\\..*)?$")
-}
-
-/** Gets the jakarta equivalent of a relocated javax namespace. */
-bindingset[pkg]
-private string jakartaEquivalent(string pkg) {
-  result = pkg.regexpReplaceAll("^javax\\.", "jakarta.")
-}
+import Jakarta
 
 from Measured e, string rule_id, string generation, string signal, string detail
 where

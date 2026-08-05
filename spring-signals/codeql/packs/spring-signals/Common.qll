@@ -43,7 +43,9 @@ string attr(Annotation a, string name) {
  * output order does not follow the attribute order the reader sees. A consumer
  * cannot split a "" join at all, and cannot rely on position in the others.
  *
- * One helper, one separator, declaration order.
+ * One separator, call-site order. AliasFor pairs (`value`/`path`,
+ * `prefix`/`value`, `value`/`url`, `value`/`basePackages`) are NOT joins --
+ * use `attrFallback` for those.
  */
 bindingset[names]
 string attrs(Annotation a, string names) {
@@ -73,34 +75,6 @@ string attrFallback(Annotation a, string names) {
     )
   or
   not exists(string v | v = attr(a, names.splitAt(",", _)) and v != "") and result = ""
-}
-
-/**
- * Holds if `fqn` is a JSR-305 symbol, which Jakarta EE 9 did NOT relocate.
- *
- * `javax.annotation` is a SPLIT namespace. The JSR-250 lifecycle annotations
- * (`@PostConstruct`, `@PreDestroy`, `@Resource`) moved to `jakarta.annotation`;
- * the JSR-305 nullness and concurrency annotations, which arrive transitively
- * via com.google.code.findbugs:jsr305, did not and have no jakarta equivalent.
- * Flagging them manufactures migration work that does not exist.
- */
-bindingset[fqn]
-predicate jsr305Symbol(string fqn) {
-  fqn.regexpMatch("^javax\\.annotation\\.concurrent\\..*")
-  or
-  fqn in [
-      "javax.annotation.Nullable", "javax.annotation.Nonnull",
-      "javax.annotation.CheckReturnValue", "javax.annotation.CheckForNull",
-      "javax.annotation.ParametersAreNonnullByDefault",
-      "javax.annotation.ParametersAreNullableByDefault",
-      "javax.annotation.OverridingMethodsMustInvokeSuper",
-      "javax.annotation.WillClose", "javax.annotation.WillNotClose",
-      "javax.annotation.Untainted", "javax.annotation.Tainted",
-      "javax.annotation.MatchesPattern", "javax.annotation.Signed",
-      "javax.annotation.Unsigned", "javax.annotation.Nonnegative",
-      "javax.annotation.RegEx", "javax.annotation.Syntax",
-      "javax.annotation.PropertyKey", "javax.annotation.meta.When"
-    ]
 }
 
 /**
