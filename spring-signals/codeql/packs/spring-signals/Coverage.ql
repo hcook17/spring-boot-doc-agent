@@ -9,8 +9,7 @@
  */
 
 import java
-import signals.Schema
 
 from File f
 where exists(sourceSetOf(f))
-select f.getRelativePath() as file
+select f.getRelativePath().replaceAll("\\\\", "/") as file

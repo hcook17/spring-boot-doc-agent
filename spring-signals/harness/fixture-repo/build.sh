@@ -30,18 +30,34 @@ CP="$(find "$HERE/lib" -name '*.jar' | sort | tr '\n' ':')"
 # "cannot find symbol" errors for methods that do exist in the pinned jars.
 # All fixture sources must live under com/example/fixture/ so the jar types
 # win on the classpath.
-STRAY_FILES=$(find "$HERE/src" -type f -name '*.java' ! -path '*/src/main/java/com/example/fixture/*' ! -path '*/src/test/java/com/example/fixture/*' || true)
+STRAY_FILES=$(find "$HERE/src" -type f -name '*.java' ! -path '*/src/main/java/com/example/fixture/*' ! -path '*/src/test/java/com/example/fixture/*' 2>/dev/null || true)
 if [ -n "$STRAY_FILES" ]; then
-  echo "ERROR: stray .java files found outside com/example/fixture/; these will shadow the downloaded jars:" >&2
-  echo "$STRAY_FILES" >&2
+  {
+    echo "ERROR: stray .java files found outside com/example/fixture/; these will shadow the downloaded jars."
+    echo "Move them to com/example/fixture/ or delete them. If they are leftover stubs, remove them:"
+    n=0
+    while IFS= read -r f; do
+      echo "  $f"
+      n=$((n + 1))
+      [ "$n" -ge 10 ] && { echo "  ... (list truncated)"; break; }
+    done <<< "$STRAY_FILES"
+  } >&2
   exit 1
 fi
 
 # Also reject any explicit stubs/ directory that contains source files.
 STUB_JAVA=$(find "$HERE/src" -type d -name stubs -exec find {} -type f -name '*.java' \; 2>/dev/null || true)
 if [ -n "$STUB_JAVA" ]; then
-  echo "ERROR: a stubs/ directory contains .java files; these will shadow the downloaded jars:" >&2
-  echo "$STUB_JAVA" >&2
+  {
+    echo "ERROR: a stubs/ directory contains .java files; these will shadow the downloaded jars."
+    echo "Remove the stubs/ directory or move its contents out of the measured source set:"
+    n=0
+    while IFS= read -r f; do
+      echo "  $f"
+      n=$((n + 1))
+      [ "$n" -ge 10 ] && { echo "  ... (list truncated)"; break; }
+    done <<< "$STUB_JAVA"
+  } >&2
   exit 1
 fi
 

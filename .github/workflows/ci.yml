@@ -5,6 +5,14 @@ on:
   push:
     branches: [main]
 
+env:
+  # Pinned CodeQL CLI bundle. The SHA256 must be updated whenever the bundle
+  # URL is changed. The value is published alongside each GitHub release of the
+  # codeql-action bundle.
+  CODEQL_VERSION: v2.26.2
+  CODEQL_SHA256: cb361567fa1bdb9d322da4240f621b36f245e4d7bb97db3c3a2ad7f743c8e8e7
+  CODEQL_BUNDLE_URL: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.26.2/codeql-bundle-linux64.tar.gz
+
 permissions:
   contents: read
   pull-requests: read

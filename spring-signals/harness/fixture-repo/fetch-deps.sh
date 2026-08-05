@@ -36,7 +36,10 @@ while read -r line; do
     fi
     url="$REPO_URL/$(echo "$g" | tr '.' '/')/$a/$v/$a-$v.jar"
     echo "  fetch $a-$v.jar"
-    curl -fsSL "$url" -o "$jar"
+    tmp="$jar.tmp"
+    curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused \
+      "$url" -o "$tmp" || { rm -f "$tmp"; exit 1; }
+    mv "$tmp" "$jar"
   fi
 
   if [ -n "$want" ]; then

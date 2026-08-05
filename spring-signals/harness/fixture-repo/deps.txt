@@ -1,7 +1,10 @@
 # Pinned compile-time dependencies for the spring-signals fixture repo.
 # Boot 2.7.18 / Spring 5.3.31 / javax namespace -- deliberately the SAME
 # generation as ocs-api-service, so generation-tagged rows are exercised.
-# group:artifact:version  (one per line, '#' comments ignored)
+#
+# Format: <group>:<artifact>:<version>  <sha256>
+# To add a jar: download it from Maven Central and paste its sha256 here, e.g.
+#   curl -fsSL https://repo.maven.apache.org/maven2/<group>/<artifact>/<version>/<artifact>-<version>.jar | sha256sum
 org.springframework:spring-core:5.3.31  7013ed3da15a8d4be797f5c310f9aa1b196b97f2313bc41e60ef3f5627224fe9
 org.springframework:spring-beans:5.3.31  a8d6d99003d0a28049cba4273afbcfc64e1107ee3c33f67935853e9711544aa7
 org.springframework:spring-context:5.3.31  38def055d1e22b5514b1cb19cef4474e5c1b0d2127c483e7d014bde87c4a4cf3

@@ -91,13 +91,22 @@ def find_root(explicit: str | None = None) -> Path:
     # Downward search. Deterministic (sorted), but ambiguity is REPORTED rather
     # than silently resolved: two extracted packs side by side would otherwise
     # make a green run attributable to the alphabetically first one by accident.
-    found = []
-    for cand in sorted(here.parent.glob("*/")) + sorted(Path.cwd().glob("*/")):
-        if (cand / MARKER).is_dir():
-            found.append(cand.resolve())
-        elif (cand / "spring-signals" / MARKER).is_dir():
-            found.append((cand / "spring-signals").resolve())
-    found = sorted(set(found))
+    # Search a few levels deep to tolerate nested archives (e.g. extracted
+    # overlay/v1/spring-signals/...).
+    def _downward(start: Path, depth: int) -> list[Path]:
+        if depth <= 0:
+            return []
+        found: list[Path] = []
+        for cand in sorted(start.glob("*/")):
+            if (cand / MARKER).is_dir():
+                found.append(cand.resolve())
+            else:
+                found.extend(_downward(cand, depth - 1))
+        return found
+
+    found = sorted(
+        set(_downward(here.parent, 4) + _downward(Path.cwd(), 4))
+    )
     if len(found) > 1:
         print(
             "WARNING: multiple pack roots found; using the first. Pass --root to "
@@ -162,6 +171,14 @@ def strip_strings(text: str) -> str:
     return re.sub(r'"(?:\\.|[^"\\])*"', '""', text)
 
 
+def extract_comments(text: str) -> str:
+    """Return all QL block and line comments, with strings stripped first."""
+    text = strip_strings(text)
+    parts = re.findall(r"//[^\n]*", text)
+    parts += re.findall(r"/\*.*?\*/", text, flags=re.S)
+    return "\n".join(parts)
+
+
 def ql_files(base: Path):
     return sorted(p for p in base.rglob("*.q*") if p.suffix in {".ql", ".qll"})
 
@@ -183,7 +200,13 @@ def check_or_or() -> list[str]:
     bad = []
     terminators = {"}", ")", "]"}
     for f in ql_files(ROOT / "codeql"):
-        toks = re.findall(r"[A-Za-z_][A-Za-z0-9_]*|[(){}\[\]]", strip_strings(strip_comments(f.read_text())))
+        # Strip strings BEFORE comments so a string containing "//" is not
+        # mangled by the comment stripper. Tokenise numbers and punctuation so
+        # tokens like "1 or 2 or y" are not collapsed into adjacent "or" tokens.
+        text = strip_comments(strip_strings(f.read_text()))
+        toks = re.findall(
+            r"[A-Za-z_][A-Za-z0-9_]*|[0-9]+|[(){}\[\]]|[^\sA-Za-z0-9_(){}\[\]]+", text
+        )
         for i in range(1, len(toks)):
             if toks[i] == "or" and toks[i - 1] == "or":
                 bad.append(f"{f.relative_to(ROOT)}: adjacent 'or' at token {i}")
@@ -248,10 +271,9 @@ def check_no_count_claims() -> list[str]:
         if not f.exists():
             continue
         text = f.read_text()
-        # QL: only comments are prose. Markdown: all of it is.
-        prose = text if f.suffix == ".md" else "\n".join(
-            ln for ln in text.splitlines() if ln.lstrip().startswith(("*", "//", "/*"))
-        )
+        # QL: only comments are prose (including trailing comments after code).
+        # Markdown: all of it is.
+        prose = text if f.suffix == ".md" else extract_comments(text)
         for m in COUNT_CLAIM.finditer(prose):
             line = prose[: m.start()].count("\n") + 1
             offenders.append(

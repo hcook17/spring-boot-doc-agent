@@ -40,6 +40,11 @@ CODEQL="${CODEQL:-codeql}"
 SOURCE_DIR="${SOURCE_DIR:-src}"
 PACKS="${PACKS:-$(cd "$(dirname "$0")/../codeql/packs" && pwd)}"
 STRICT_EXTRACTION="${STRICT_EXTRACTION:-1}"
+
+if ! command -v "$CODEQL" >/dev/null 2>&1; then
+  echo "ERROR: codeql not found on PATH: $CODEQL" >&2
+  exit 1
+fi
 # EXTRA_PACKS lets an offline/air-gapped checkout point at a pre-populated
 # codeql/java-all tree instead of resolving it from ghcr.io at run time.
 SEARCH_PATH="${PACKS}${EXTRA_PACKS:+:$EXTRA_PACKS}"
@@ -85,14 +90,14 @@ if [ ! -d "$REPO/$SOURCE_DIR" ]; then
   exit 0
 fi
 
-DISK=$(cd "$REPO" && find "$SOURCE_DIR" -name '*.java' | sort -u | wc -l | tr -d ' ')
+DISK=$(cd "$REPO" && find "$SOURCE_DIR" -name '*.java' | sed 's#^\./##' | sort -u | wc -l | tr -d ' ')
 "$CODEQL" query run \
   --database="$DB" \
   --additional-packs="$SEARCH_PATH" \
   --output="$DB.coverage.bqrs" \
   "$PACKS/spring-signals/Coverage.ql" >/dev/null
 EXTRACTED=$("$CODEQL" bqrs decode --format=csv --no-titles "$DB.coverage.bqrs" \
-  | sed 's/^"//; s/"$//' | sort -u | wc -l | tr -d ' ')
+  | sed 's/^"//; s/"$//; s#^\./##' | sort -u | wc -l | tr -d ' ')
 
 echo "on disk:    $DISK .java files under $SOURCE_DIR/"
 echo "extracted:  $EXTRACTED .java files in a recognised source set"

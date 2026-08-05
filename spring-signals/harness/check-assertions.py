@@ -95,10 +95,17 @@ def compare(out_dir: Path, block: dict, label: str) -> tuple[list[str], list[str
     return failures, lines
 
 
-def record(out_dir: Path, spec_path: Path) -> int:
-    spec = json.loads(spec_path.read_text(encoding="utf-8"))
-    snapshot = spec.setdefault("snapshot", {})
-    asserted = spec.get("asserted", {})
+def load_spec(spec_path: Path) -> dict:
+    try:
+        return json.loads(spec_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        sys.exit(f"ERROR: malformed JSON in {spec_path}: {e}")
+    except FileNotFoundError:
+        return {"repo": spec_path.stem, "asserted": {}, "snapshot": {}}
+
+
+def build_recorded_block(out_dir: Path, asserted: dict) -> dict:
+    snapshot: dict = {}
     for path in sorted(out_dir.glob("*.csv")):
         query = path.stem
         rows, by_rule = load_counts(out_dir, query)
@@ -110,10 +117,33 @@ def record(out_dir: Path, spec_path: Path) -> int:
                 del entry[key]
         if entry:
             snapshot[query] = entry
-    spec_path.write_text(json.dumps(spec, indent=2) + "\n", encoding="utf-8")
+    return snapshot
+
+
+def record(out_dir: Path, spec_path: Path) -> int:
+    spec = load_spec(spec_path)
+    snapshot = spec.setdefault("snapshot", {})
+    asserted = spec.get("asserted", {})
+    snapshot.update(build_recorded_block(out_dir, asserted))
+    payload = json.dumps(spec, indent=2) + "\n"
+    # Atomic write: do not leave a partially-written expectations file on failure.
+    tmp = spec_path.with_suffix(spec_path.suffix + ".tmp")
+    tmp.write_text(payload, encoding="utf-8")
+    tmp.replace(spec_path)
     print(f"recorded snapshot block for {len(snapshot)} queries -> {spec_path}")
     print("ASSERTED values were left untouched. Review the diff before committing.")
     return 0
+
+
+def actual_counts(out_dir: Path) -> dict:
+    counts: dict = {}
+    for path in sorted(out_dir.glob("*.csv")):
+        query = path.stem
+        rows, by_rule = load_counts(out_dir, query)
+        entry = {"_rows": rows}
+        entry.update({rule: n for rule, n in sorted(by_rule.items())})
+        counts[query] = entry
+    return counts
 
 
 def main() -> int:
@@ -127,7 +157,7 @@ def main() -> int:
     if args.record:
         return record(args.out, args.expectations)
 
-    spec = json.loads(args.expectations.read_text(encoding="utf-8"))
+    spec = load_spec(args.expectations)
     print(f"== assertions ({spec.get('repo', args.expectations.stem)}) ==")
 
     failures: list[str] = []
@@ -151,6 +181,9 @@ def main() -> int:
         print(f"FAILED: {len(failures)} assertion(s)")
         for f in failures:
             print(f"  {f}")
+        print()
+        print("-- copy-pasteable actual counts (review before using) --")
+        print(json.dumps({"snapshot": actual_counts(args.out)}, indent=2))
         return 1
     print("All assertions hold.")
     return 0
