@@ -75,7 +75,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import os
 import re
 import sys
 from collections import Counter
@@ -235,18 +234,14 @@ def build_recorded_block(out_dir: Path, asserted: dict) -> dict:
 
 
 def record(out_dir: Path, spec_path: Path) -> int:
-    # Re-validate at the point of use: the sanitizer must be visible in the
-    # same function as the write sink, not only interprocedurally in main().
+    # Maintainer-only, local command (never run by CI): validate honestly,
+    # then say so. checked_path rejects '..' and resolves; the containment
+    # check keeps writes in-tree.
     spec_path = checked_path(spec_path, "--expectations", "file")
-    # --record is a maintainer action on committed expectations files, so the
-    # target must live under THIS harness directory. Canonicalize with
-    # os.path.realpath and prefix-compare against the constant harness base --
-    # the documented compliant pattern for path-injection checks.
-    allowed = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))
-    target = os.path.realpath(str(spec_path))
-    if not target.startswith(allowed + os.sep):
+    harness_dir = Path(__file__).resolve().parent
+    if not spec_path.is_relative_to(harness_dir):
         sys.exit(f"ERROR: --record only writes expectations files under "
-                 f"{allowed}; got {target}")
+                 f"{harness_dir}; got {spec_path}")
     spec = load_spec(spec_path)
     asserted = spec.get("asserted", {})
     # Replace wholesale, not update(): a query that vanished from --out must
@@ -254,14 +249,13 @@ def record(out_dir: Path, spec_path: Path) -> int:
     spec["snapshot"] = build_recorded_block(out_dir, asserted)
     snapshot = spec["snapshot"]
     payload = json.dumps(spec, indent=2) + "\n"
-    # Write directly to the validated canonical path. An earlier version wrote
-    # name.json.tmp + replace for atomicity, but that constructs a SECOND path
-    # from the CLI argument -- a new unvalidated filesystem target by taint
-    # rules, and the real safety it bought is small here: a torn write is a
-    # maintainer-visible JSON parse error on the next load, in a file that is
-    # committed and diff-reviewed anyway.
-    with open(target, "w", encoding="utf-8") as fh:
-        fh.write(payload)
+    # Atomic write: no torn expectations file on a crash. The tmp path is a
+    # same-directory sibling of an already-validated file, so the taint
+    # finding here is a false positive -- suppressed by name rather than by
+    # reshaping the code to match the analyzer's recognized patterns.
+    tmp = spec_path.with_suffix(spec_path.suffix + ".tmp")
+    tmp.write_text(payload, encoding="utf-8")  # NOSONAR python:S2083 -- validated above
+    tmp.replace(spec_path)
     print(f"recorded snapshot block for {len(snapshot)} queries -> {spec_path}")
     print("ASSERTED values were left untouched. Review the diff before committing.")
     return 0
