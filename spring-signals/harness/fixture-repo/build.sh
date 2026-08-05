@@ -24,10 +24,31 @@ echo "JAVA_HOME: ${JAVA_HOME:-}"
 echo "classpath jars: $(find "$HERE/lib" -name '*.jar' | wc -l)"
 
 CP="$(find "$HERE/lib" -name '*.jar' | sort | tr '\n' ':')"
+
+# Guard against stub shadowing. Hand-written framework stubs placed under src/
+# are compiled ahead of the real jars on the classpath, producing confusing
+# "cannot find symbol" errors for methods that do exist in the pinned jars.
+# All fixture sources must live under com/example/fixture/ so the jar types
+# win on the classpath.
+STRAY_FILES=$(find "$HERE/src" -type f -name '*.java' ! -path '*/src/main/java/com/example/fixture/*' ! -path '*/src/test/java/com/example/fixture/*' || true)
+if [ -n "$STRAY_FILES" ]; then
+  echo "ERROR: stray .java files found outside com/example/fixture/; these will shadow the downloaded jars:" >&2
+  echo "$STRAY_FILES" >&2
+  exit 1
+fi
+
+# Also reject any explicit stubs/ directory that contains source files.
+STUB_JAVA=$(find "$HERE/src" -type d -name stubs -exec find {} -type f -name '*.java' \; 2>/dev/null || true)
+if [ -n "$STUB_JAVA" ]; then
+  echo "ERROR: a stubs/ directory contains .java files; these will shadow the downloaded jars:" >&2
+  echo "$STUB_JAVA" >&2
+  exit 1
+fi
+
 rm -rf "$HERE/build"
 mkdir -p "$HERE/build/classes/main" "$HERE/build/classes/test"
 find "$HERE/src/main/java" -name '*.java' > "$HERE/build/main.args"
-javac --release 17 -nowarn -cp "$CP" -d "$HERE/build/classes/main" @"$HERE/build/main.args"
+javac --release 17 -nowarn -implicit:none -cp "$CP" -d "$HERE/build/classes/main" @"$HERE/build/main.args"
 find "$HERE/src/test/java" -name '*.java' > "$HERE/build/test.args"
-javac --release 17 -nowarn -cp "$CP:$HERE/build/classes/main" -d "$HERE/build/classes/test" @"$HERE/build/test.args"
+javac --release 17 -nowarn -implicit:none -cp "$CP:$HERE/build/classes/main" -d "$HERE/build/classes/test" @"$HERE/build/test.args"
 echo "fixture compiled: $(find "$HERE/build/classes" -name '*.class' | wc -l) class files"
