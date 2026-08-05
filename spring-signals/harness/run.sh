@@ -45,8 +45,8 @@ mkdir -p "$CODEQL_COMPILATION_CACHE"
 
 for q in "${WAVE1[@]}"; do
   echo "== $q"
-"$CODEQL" query run --ram=8192 \
-      --database="$DB" \
+  "$CODEQL" query run --ram=8192 \
+    --database="$DB" \
     --additional-packs="$SEARCH_PATH" \
     --compilation-cache="$CODEQL_COMPILATION_CACHE" \
     --output="$OUT/$q.bqrs" \
