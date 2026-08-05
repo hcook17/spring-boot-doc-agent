@@ -90,21 +90,44 @@ if [ ! -d "$REPO/$SOURCE_DIR" ]; then
   exit 0
 fi
 
-DISK=$(cd "$REPO" && find "$SOURCE_DIR" -name '*.java' | sed 's#^\./##' | sort -u | wc -l | tr -d ' ')
+# Both sides must be the SAME POPULATION and the SAME SET. The previous
+# version compared `find $REPO/src` against every .java file in the database
+# (library sources included) and only echoed a WARNING. The count-only
+# successor fixed the population but could still pass with the WRONG SETS:
+# disk {A,B} vs extracted {A,C} both count to 2. Diff the sorted path lists.
+DISK_LIST="$DB.coverage.disk.txt"
+EXTRACTED_LIST="$DB.coverage.extracted.txt"
+( cd "$REPO" && find "$SOURCE_DIR" -name '*.java' \
+    | sed 's#^\./##' \
+    | grep -E "^${SOURCE_DIR}/(main|test)/java/.*\.java$" \
+    | sort -u || true ) > "$DISK_LIST"
 "$CODEQL" query run \
   --database="$DB" \
   --additional-packs="$SEARCH_PATH" \
   --output="$DB.coverage.bqrs" \
   "$PACKS/spring-signals/Coverage.ql" >/dev/null
-EXTRACTED=$("$CODEQL" bqrs decode --format=csv --no-titles "$DB.coverage.bqrs" \
-  | sed 's/^"//; s/"$//; s#^\./##' | sort -u | wc -l | tr -d ' ')
+"$CODEQL" bqrs decode --format=csv --no-titles "$DB.coverage.bqrs" \
+  | sed 's/^"//; s/"$//; s#^\./##' | sort -u > "$EXTRACTED_LIST"
 
-echo "on disk:    $DISK .java files under $SOURCE_DIR/"
+DISK=$(wc -l < "$DISK_LIST" | tr -d ' ')
+EXTRACTED=$(wc -l < "$EXTRACTED_LIST" | tr -d ' ')
+echo "on disk:    $DISK .java files in recognised source sets under $SOURCE_DIR/"
 echo "extracted:  $EXTRACTED .java files in a recognised source set"
-if [ "$DISK" != "$EXTRACTED" ]; then
-  echo "EXTRACTION DELTA: $((DISK - EXTRACTED)) file(s) on disk were not extracted."
+MISSING=$(comm -23 "$DISK_LIST" "$EXTRACTED_LIST")
+EXTRA=$(comm -13 "$DISK_LIST" "$EXTRACTED_LIST")
+if [ -n "$MISSING" ] || [ -n "$EXTRA" ]; then
+  echo "EXTRACTION DELTA: the on-disk and extracted file SETS differ."
+  if [ -n "$MISSING" ]; then
+    echo "  on disk but not extracted:"
+    echo "$MISSING" | sed 's/^/    /'
+  fi
+  if [ -n "$EXTRA" ]; then
+    echo "  extracted but not on disk:"
+    echo "$EXTRA" | sed 's/^/    /'
+  fi
   echo "  Reconcile before measuring. Set STRICT_EXTRACTION=0 to downgrade to a warning."
   if [ "$STRICT_EXTRACTION" = "1" ]; then exit 1; fi
+  echo "  WARNING: STRICT_EXTRACTION=0 -- continuing with a known extraction delta."
 else
-  echo "extraction delta 0"
+  echo "extraction delta 0 (set equality)"
 fi

@@ -10,10 +10,11 @@
  * interface-typed injection (`KafkaOperations`, `AmqpTemplate`, `JmsOperations`)
  * and project-local subclasses.
  *
- * STATUS ON ocs-api-service: zero rows. No messaging library is on the
- * classpath. This query is retained rather than deleted so that "no messaging"
- * is an asserted result rather than an untested one; see the coverage assertion
- * in harness/expected-empty.txt.
+ * STATUS ON ocs-api-service: zero rows expected. No messaging library is on
+ * the classpath; the expectation is recorded in harness/expected-empty.txt.
+ * The non-zero direction is gated on the fixture: MessagingFixture exercises
+ * Kafka/Rabbit/JMS client types, and harness/expectations/fixture-repo.json
+ * pins both the row count and the surviving signal per client type.
  *
  * @kind table
  * @id spring-signals/messaging
@@ -38,6 +39,9 @@ private predicate messagingClientType(Type t, string fqn) {
   or
   typeIsOrExtends(t, "org.springframework.jms.core", "JmsOperations") and
   fqn = "org.springframework.jms.core.JmsOperations"
+  or
+  typeIsOrExtends(t, "org.springframework.jms.core", "JmsTemplate") and
+  fqn = "org.springframework.jms.core.JmsTemplate"
   or
   typeIsOrExtends(t, "io.awspring.cloud.sqs.operations", "SqsTemplate") and
   fqn = "io.awspring.cloud.sqs.operations.SqsTemplate"

@@ -43,8 +43,17 @@ Expectations schema:
     }
 
 `_rows` is the total row count for the query. Any other key is a rule_id.
+`_signals` maps a rule_id to the exact sorted list of `signal` values its rows
+must carry. Counts alone cannot catch a most-specific guard that keeps the
+RIGHT NUMBER of rows with the WRONG survivor (KafkaOperations where
+KafkaTemplate belongs); the signal list can.
 `known_defects` is documentation only; it is printed, never asserted, so a
 defect cannot be quietly normalised into an expectation.
+
+FAIL CLOSED. A missing expectations file is an error, and a file whose
+asserted and snapshot blocks are both empty asserts nothing -- also an error.
+`--allow-empty` exists for the deliberate report-only case. A typo'd
+EXPECTATIONS path must never read as a green run.
 """
 
 from __future__ import annotations
@@ -63,7 +72,10 @@ def load_counts(out_dir: Path, query: str) -> tuple[int, Counter]:
         return -1, Counter()
     rows = 0
     by_rule: Counter = Counter()
-    with path.open(newline="", encoding="utf-8") as fh:
+    # utf-8-sig: bqrs decode writes plain UTF-8 under bash redirection, but a
+    # PowerShell `>` re-decode produces a UTF-16/UTF-8-BOM file; that should
+    # read as an empty/missing result, not an uncaught UnicodeDecodeError.
+    with path.open(newline="", encoding="utf-8-sig") as fh:
         for row in csv.DictReader(fh):
             rows += 1
             # v0 queries have a rule_id column too; v1 adds the rest.
@@ -71,6 +83,21 @@ def load_counts(out_dir: Path, query: str) -> tuple[int, Counter]:
             if rule:
                 by_rule[rule] += 1
     return rows, by_rule
+
+
+def load_signals(out_dir: Path, query: str) -> dict[str, list[str]]:
+    """Signal values per rule_id, sorted, duplicates kept: a fan-out duplicate
+    and a wrong-survivor dedupe both change the list, which is the point."""
+    path = out_dir / f"{query}.csv"
+    signals: dict[str, list[str]] = {}
+    if not path.exists():
+        return signals
+    with path.open(newline="", encoding="utf-8-sig") as fh:
+        for row in csv.DictReader(fh):
+            rule = row.get("rule_id")
+            if rule:
+                signals.setdefault(rule, []).append(row.get("signal", ""))
+    return {rule: sorted(values) for rule, values in signals.items()}
 
 
 def compare(out_dir: Path, block: dict, label: str) -> tuple[list[str], list[str]]:
@@ -82,8 +109,23 @@ def compare(out_dir: Path, block: dict, label: str) -> tuple[list[str], list[str
             failures.append(f"{label}: {query}: no {query}.csv in {out_dir}")
             lines.append(f"  MISS {query} (no csv)")
             continue
+        signals: dict[str, list[str]] | None = None
         for key, want in expected.items():
             if key.startswith("_note"):
+                continue
+            if key == "_signals":
+                if signals is None:
+                    signals = load_signals(out_dir, query)
+                for rule, want_signals in sorted(want.items()):
+                    got_signals = signals.get(rule, [])
+                    name = f"{query}.{rule} signals"
+                    if got_signals == sorted(want_signals):
+                        lines.append(f"  OK   {name} = {got_signals}")
+                    else:
+                        lines.append(f"  FAIL {name} = {got_signals} (expected {sorted(want_signals)})")
+                        failures.append(
+                            f"{label}: {name} = {got_signals}, expected {sorted(want_signals)}"
+                        )
                 continue
             got = rows if key == "_rows" else by_rule.get(key, 0)
             name = f"{query}" if key == "_rows" else f"{query}.{key}"
@@ -101,7 +143,8 @@ def load_spec(spec_path: Path) -> dict:
     except json.JSONDecodeError as e:
         sys.exit(f"ERROR: malformed JSON in {spec_path}: {e}")
     except FileNotFoundError:
-        return {"repo": spec_path.stem, "asserted": {}, "snapshot": {}}
+        # Fail closed: a typo'd EXPECTATIONS path must not read as a green run.
+        sys.exit(f"ERROR: expectations file not found: {spec_path}")
 
 
 def build_recorded_block(out_dir: Path, asserted: dict) -> dict:
@@ -122,9 +165,11 @@ def build_recorded_block(out_dir: Path, asserted: dict) -> dict:
 
 def record(out_dir: Path, spec_path: Path) -> int:
     spec = load_spec(spec_path)
-    snapshot = spec.setdefault("snapshot", {})
     asserted = spec.get("asserted", {})
-    snapshot.update(build_recorded_block(out_dir, asserted))
+    # Replace wholesale, not update(): a query that vanished from --out must
+    # not leave a stale snapshot entry behind asserting nothing about reality.
+    spec["snapshot"] = build_recorded_block(out_dir, asserted)
+    snapshot = spec["snapshot"]
     payload = json.dumps(spec, indent=2) + "\n"
     # Atomic write: do not leave a partially-written expectations file on failure.
     tmp = spec_path.with_suffix(spec_path.suffix + ".tmp")
@@ -152,12 +197,19 @@ def main() -> int:
     ap.add_argument("--expectations", required=True, type=Path)
     ap.add_argument("--record", action="store_true",
                     help="regenerate the snapshot block from --out; never edits asserted")
+    ap.add_argument("--allow-empty", action="store_true",
+                    help="permit an expectations file with no asserted or snapshot block")
     args = ap.parse_args()
 
     if args.record:
         return record(args.out, args.expectations)
 
     spec = load_spec(args.expectations)
+    if not args.allow_empty and not (spec.get("asserted") or spec.get("snapshot")):
+        print(f"ERROR: {args.expectations} has empty asserted AND snapshot blocks; "
+              "nothing would be asserted. Pass --allow-empty for a deliberate "
+              "report-only run.", file=sys.stderr)
+        return 2
     print(f"== assertions ({spec.get('repo', args.expectations.stem)}) ==")
 
     failures: list[str] = []

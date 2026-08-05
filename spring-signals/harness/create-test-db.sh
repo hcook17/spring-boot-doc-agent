@@ -20,10 +20,17 @@ DB="${DB:-$HERE/.codeql/fixture-db}"
 OUT="${OUT:-$HERE/out-fixture}"
 EXTRA_PACKS="${EXTRA_PACKS:-}"
 
-# Pre-flight: fail fast if the CodeQL CLI is missing, before spending time on
-# dependency downloads.
-if ! command -v "$CODEQL" >/dev/null 2>&1; then
-  echo "ERROR: codeql not found on PATH: $CODEQL" >&2
+# Pre-flight: fail fast on missing tools, before spending time on dependency
+# downloads. codeql builds the database, javac compiles the fixture,
+# sha256sum verifies it, python3 evaluates the assertions.
+for tool in "$CODEQL" javac sha256sum python3; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "ERROR: required tool not found on PATH: $tool" >&2
+    exit 1
+  fi
+done
+if [ ! -f "${EXPECTATIONS:-$HERE/expectations/fixture-repo.json}" ]; then
+  echo "ERROR: expectations file not found: ${EXPECTATIONS:-$HERE/expectations/fixture-repo.json}" >&2
   exit 1
 fi
 

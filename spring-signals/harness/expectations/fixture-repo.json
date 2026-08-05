@@ -34,20 +34,28 @@
       "_note": "HibernateFixture: one JsonBinaryType import, one legacy library usage, three custom type annotations (@TypeDefs, @TypeDef, @Type), one @Where filter."
     },
     "JakartaMigration": {
-      "_rows": 46,
-      "jakarta__pending_import": 18,
-      "jakarta__pending_annotation": 18,
+      "_rows": 50,
+      "jakarta__pending_import": 20,
+      "jakarta__pending_annotation": 20,
       "jakarta__migrated_import": 3,
       "jakarta__migrated_annotation": 3,
       "jakarta__pending_type": 3,
       "jakarta__migrated_type": 1,
-      "_note": "Pending javax.* imports and annotations from Book, Chapter, BookDao, HibernateFixture and JakartaFixture (JSR-250). Migrated jakarta.* imports and annotations from MigratedEntity. Pending type from BookDao.entityManager() return type and two variable/field types. Migrated type from MigratedEntity."
+      "_note": "Pending javax.* imports and annotations from Book, Chapter, BookDao, HibernateFixture and JakartaFixture. JakartaFixture contributes JSR-250 (@PostConstruct, @Resource -- javax.annotation IS relocated); its @Nullable import and use are JSR-305 and must NOT appear (jsr305Symbol). Migrated jakarta.* imports and annotations from MigratedEntity. Pending type from BookDao.entityManager() return type and two variable/field types. Migrated type from JakartaFixture.migrated() return type."
     },
     "Messaging": {
       "_rows": 6,
       "messaging__client_type": 4,
       "messaging__listener": 2,
-      "_note": "Client types: KafkaTemplate (impl wins), KafkaOperations (interface-only survives), RabbitTemplate, JmsTemplate. Listeners: KafkaListener and RabbitListener."
+      "_signals": {
+        "messaging__client_type": [
+          "org.springframework.amqp.rabbit.core.RabbitTemplate",
+          "org.springframework.jms.core.JmsTemplate",
+          "org.springframework.kafka.core.KafkaOperations",
+          "org.springframework.kafka.core.KafkaTemplate"
+        ]
+      },
+      "_note": "Client types: KafkaTemplate (impl wins over KafkaOperations for the kafka field), KafkaOperations (interface-only survives for kafkaOps), RabbitTemplate (impl wins over AmqpTemplate), JmsTemplate (impl wins over JmsOperations). The _signals list pins WHICH catalogue entry survives, not just how many rows -- a wrong-survivor dedupe keeps the count at 4. Listeners: KafkaListener and RabbitListener."
     },
     "NativeSql": {
       "_rows": 8,

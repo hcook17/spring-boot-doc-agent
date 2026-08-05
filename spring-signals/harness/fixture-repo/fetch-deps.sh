@@ -27,6 +27,14 @@ while read -r line; do
   coord="$(echo "$line" | awk '{print $1}')"
   want="$(echo "$line" | awk '{print $2}')"
   g="${coord%%:*}"; rest="${coord#*:}"; a="${rest%%:*}"; v="${rest##*:}"
+  # The coordinate becomes a filename and a URL path segment; reject anything
+  # that could escape lib/ or smuggle a path.
+  case "$g$a$v" in
+    *[!A-Za-z0-9._-]*|*..*)
+      echo "ERROR: unsafe coordinate in deps.txt: $coord" >&2
+      exit 1
+      ;;
+  esac
   jar="$HERE/lib/$a-$v.jar"
   count=$((count + 1))
 
@@ -48,6 +56,10 @@ while read -r line; do
       echo "  DIGEST MISMATCH $a-$v.jar"
       echo "    expected $want"
       echo "    got      $got"
+      # Remove the bad jar: leaving it would make every later run fail the
+      # same digest check without re-fetching, which reads as a permanent
+      # mismatch rather than a one-off bad download.
+      if [ "$VERIFY_ONLY" != "1" ]; then rm -f "$jar"; fi
       fail=1
     fi
   else

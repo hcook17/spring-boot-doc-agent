@@ -13,7 +13,10 @@
 # unnamed-parameter case.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-[ -d "$HERE/lib" ] || "$HERE/fetch-deps.sh"
+# Always verify, not just when lib/ is missing: fetch-deps.sh is idempotent
+# (a present, digest-matching jar is not re-fetched), and skipping it would let
+# a stale or hand-edited lib/ through unverified.
+"$HERE/fetch-deps.sh"
 
 # Debug: print the toolchain and classpath size. This is useful when the build
 # compiles locally but fails in CI because the runner resolves a different
