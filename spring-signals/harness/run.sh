@@ -39,13 +39,13 @@ mkdir -p "$OUT"
 "$CODEQL" pack install "$PACKS/spring-signals" --additional-packs="$SEARCH_PATH" >/dev/null
 export CODEQL_COMPILATION_CACHE="${CODEQL_COMPILATION_CACHE:-$OUT/.compcache}"
 mkdir -p "$CODEQL_COMPILATION_CACHE"
-"$CODEQL" query compile --additional-packs="$SEARCH_PATH" \
+"$CODEQL" query compile --ram=4096 --additional-packs="$SEARCH_PATH" \
   --compilation-cache="$CODEQL_COMPILATION_CACHE" \
   "$PACKS/spring-signals" >/dev/null
 
 for q in "${WAVE1[@]}"; do
   echo "== $q"
-  "$CODEQL" query run \
+  "$CODEQL" query run --ram=4096 \
     --database="$DB" \
     --additional-packs="$SEARCH_PATH" \
     --compilation-cache="$CODEQL_COMPILATION_CACHE" \
