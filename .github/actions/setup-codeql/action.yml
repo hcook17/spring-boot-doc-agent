@@ -1,0 +1,51 @@
+name: Setup CodeQL
+description: Download or reuse a pinned CodeQL bundle and add it to PATH.
+
+inputs:
+  bundle-path:
+    description: >
+      Path to an existing codeql-bundle.tar.gz archive to use instead of
+      downloading. If empty, the bundle is downloaded from bundle-url.
+    required: false
+    default: ""
+  bundle-url:
+    description: URL of the CodeQL bundle to download.
+    required: false
+    default: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.26.2/codeql-bundle-linux64.tar.gz
+  bundle-sha256:
+    description: SHA256 checksum of the CodeQL bundle.
+    required: false
+    default: cb361567fa1bdb9d322da4240f621b36f245e4d7bb97db3c3a2ad7f743c8e8e7
+  codeql-dir:
+    description: Directory where CodeQL should be extracted.
+    required: false
+    default: ${{ runner.temp }}/codeql
+
+outputs:
+  codeql-dir:
+    description: Directory where CodeQL was extracted.
+    value: ${{ inputs.codeql-dir }}
+
+runs:
+  using: composite
+  steps:
+    - name: Download or reuse CodeQL bundle
+      shell: bash
+      env:
+        BUNDLE_PATH: ${{ inputs.bundle-path }}
+        BUNDLE_URL: ${{ inputs.bundle-url }}
+        BUNDLE_SHA256: ${{ inputs.bundle-sha256 }}
+        CODEQL_DIR: ${{ inputs.codeql-dir }}
+      run: |
+        set -euo pipefail
+        mkdir -p "$CODEQL_DIR"
+        BUNDLE="$CODEQL_DIR/codeql-bundle.tar.gz"
+        if [ -n "$BUNDLE_PATH" ]; then
+          cp "$BUNDLE_PATH" "$BUNDLE"
+        else
+          curl -fsSL -o "$BUNDLE" "$BUNDLE_URL"
+        fi
+        echo "$BUNDLE_SHA256  $BUNDLE" | sha256sum -c -
+        tar -xzf "$BUNDLE" -C "$CODEQL_DIR" --strip-components=1
+        echo "$CODEQL_DIR" >> "$GITHUB_PATH"
+        echo "Extracted CodeQL to $CODEQL_DIR"
