@@ -234,6 +234,9 @@ def build_recorded_block(out_dir: Path, asserted: dict) -> dict:
 
 
 def record(out_dir: Path, spec_path: Path) -> int:
+    # Re-validate at the point of use: the sanitizer must be visible in the
+    # same function as the write sink, not only interprocedurally in main().
+    spec_path = checked_path(spec_path, "--expectations", "file")
     spec = load_spec(spec_path)
     asserted = spec.get("asserted", {})
     # Replace wholesale, not update(): a query that vanished from --out must
@@ -242,9 +245,16 @@ def record(out_dir: Path, spec_path: Path) -> int:
     snapshot = spec["snapshot"]
     payload = json.dumps(spec, indent=2) + "\n"
     # Atomic write: do not leave a partially-written expectations file on failure.
+    # The containment check is true by construction (with_suffix cannot escape
+    # the parent); it exists so the invariant holds at the sink itself, under
+    # any future caller, not just under today's call chain.
     tmp = spec_path.with_suffix(spec_path.suffix + ".tmp")
-    tmp.write_text(payload, encoding="utf-8")
-    tmp.replace(spec_path)
+    resolved_tmp = tmp.resolve()
+    if resolved_tmp.parent != spec_path.parent or resolved_tmp.name != spec_path.name + ".tmp":
+        sys.exit(f"ERROR: refusing to write outside the expectations directory: "
+                 f"{resolved_tmp}")
+    resolved_tmp.write_text(payload, encoding="utf-8")
+    resolved_tmp.replace(spec_path)
     print(f"recorded snapshot block for {len(snapshot)} queries -> {spec_path}")
     print("ASSERTED values were left untouched. Review the diff before committing.")
     return 0
