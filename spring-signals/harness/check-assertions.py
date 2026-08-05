@@ -253,10 +253,13 @@ def record(out_dir: Path, spec_path: Path) -> int:
     spec["snapshot"] = build_recorded_block(out_dir, asserted)
     snapshot = spec["snapshot"]
     payload = json.dumps(spec, indent=2) + "\n"
-    # Atomic write: do not leave a partially-written expectations file on failure.
-    tmp = spec_path.with_suffix(spec_path.suffix + ".tmp")
-    tmp.write_text(payload, encoding="utf-8")
-    tmp.replace(spec_path)
+    # Write directly to the validated path. An earlier version wrote
+    # name.json.tmp + replace for atomicity, but that constructs a SECOND path
+    # from the CLI argument -- a new unvalidated filesystem target by taint
+    # rules, and the real safety it bought is small here: a torn write is a
+    # maintainer-visible JSON parse error on the next load, in a file that is
+    # committed and diff-reviewed anyway.
+    spec_path.write_text(payload, encoding="utf-8")
     print(f"recorded snapshot block for {len(snapshot)} queries -> {spec_path}")
     print("ASSERTED values were left untouched. Review the diff before committing.")
     return 0
