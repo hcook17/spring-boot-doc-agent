@@ -9,6 +9,7 @@
  */
 
 import java
+import signals.Schema
 
 from File f
 where exists(sourceSetOf(f))
