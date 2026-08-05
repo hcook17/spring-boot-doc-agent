@@ -1,2 +1,1 @@
 | com.example/BookRepository#getEntityManager(). | javax.persistence.EntityManager | pending |
-| javax.annotation.Nullable | javax.annotation.Nullable | jsr305-excluded |

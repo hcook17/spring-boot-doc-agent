@@ -11,13 +11,16 @@ predicate sanityRow(string c1, string c2, string c3) {
     c3 = "pending"
   )
   or
-  // A JSR-305 annotation must be excluded from the burndown.
-  exists(string fqn |
-    fqn = "javax.annotation.Nullable" and
-    jsr305Symbol(fqn) and
-    c1 = fqn and
-    c2 = fqn and
-    c3 = "jsr305-excluded"
+  // A JSR-305 annotation must be excluded from the burndown. This row is
+  // produced only if the exclusion is removed, so the test fails if
+  // jsr305Symbol stops covering javax.annotation.Nullable.
+  exists(Annotation a |
+    a.getType().getSourceDeclaration().hasQualifiedName("javax.annotation", "Nullable") and
+    exists(Annotatable owner | a = getAnEffectiveAnnotation(owner)) and
+    not jsr305Symbol(annotationFqn(a)) and
+    c1 = annotationFqn(a) and
+    c2 = sym(a) and
+    c3 = "jakarta_migration_would_flag"
   )
 }
 

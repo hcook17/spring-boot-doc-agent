@@ -1,4 +1,9 @@
-| BaseClass | InterfaceA |
-| DerivedClass | BaseClass |
-| DerivedClass | InterfaceB |
-| InterfaceB | InterfaceA |
+| BaseClass | BaseClass | not_reflexive |
+| BaseClass | InterfaceA | expected |
+| DerivedClass | BaseClass | expected |
+| DerivedClass | DerivedClass | not_reflexive |
+| DerivedClass | InterfaceA | expected |
+| DerivedClass | InterfaceB | expected |
+| InterfaceA | InterfaceA | not_reflexive |
+| InterfaceB | InterfaceA | expected |
+| InterfaceB | InterfaceB | not_reflexive |
