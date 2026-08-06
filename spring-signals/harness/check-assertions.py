@@ -60,7 +60,12 @@ defect cannot be quietly normalised into an expectation.
 FAIL CLOSED. A missing expectations file is an error, and a file with no
 asserted, minimums, or snapshot content asserts nothing -- also an error.
 `--allow-empty` exists for the deliberate report-only case. A typo'd
-EXPECTATIONS path must never read as a green run.
+EXPECTATIONS path must never read as a green run. A CSV in --out that no
+expectation names is stale output from a previous run -- an error (exit 2),
+never silently ignored, because re-asserting yesterday's rows as today's is
+the exact failure this tool exists to catch. Exit codes: 0 = all hold,
+1 = an assertion failed or input rejected, 2 = the gate cannot vouch for the
+result (empty spec, stale output).
 
 INPUT VALIDATION IS THE BOUNDARY. The expectations file chooses which CSV
 paths this script opens, so query names must be identifiers
@@ -172,7 +177,9 @@ def compare_signals(out_dir: Path, query: str, want_map: dict, rep: Reporter) ->
 
 
 def compare_count(got: int, want: object, name: str, mode: str, rep: Reporter) -> None:
-    if not isinstance(want, int):
+    # bool IS int in Python: without the guard, `true` in JSON quietly becomes
+    # a floor of 1, which is never what the spec author meant.
+    if isinstance(want, bool) or not isinstance(want, int):
         sys.exit(f"ERROR: expected count for {name} must be an integer, got {want!r}")
     if mode == "min":
         rep.verdict(got >= want, name, got, f">= {want}")
@@ -203,6 +210,25 @@ def compare(out_dir: Path, block: dict, label: str, mode: str = "exact") -> Repo
     for query, expected in sorted(block.items()):
         compare_query(out_dir, query, expected, mode, rep)
     return rep
+
+
+def spec_queries(spec: dict) -> set[str]:
+    """Every query any expectation section names, across all three blocks."""
+    return {q for key in ("asserted", "minimums", "snapshot") for q in spec.get(key) or {}}
+
+
+def check_no_stale_csvs(out_dir: Path, spec: dict) -> None:
+    """Fail (exit 2) on any CSV in --out that the spec does not name.
+
+    Without this, a query removed from the wave list leaves its old CSV behind
+    and the run re-asserts stale rows as if they were fresh -- the same class
+    of silent-skew bug as a missing expectations file, so it shares exit 2.
+    """
+    stale = sorted(p.stem for p in out_dir.glob("*.csv") if p.stem not in spec_queries(spec))
+    if stale:
+        print(f"ERROR: unexpected CSVs in {out_dir} (stale output from a "
+              f"previous run?): {stale}", file=sys.stderr)
+        sys.exit(2)
 
 
 def load_spec(spec_path: Path) -> dict:
@@ -274,7 +300,7 @@ def actual_counts(out_dir: Path) -> dict:
     return counts
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True, type=Path,
                     help="directory of <Query>.csv files produced by run.sh")
@@ -285,7 +311,7 @@ def main() -> int:
     ap.add_argument("--allow-empty", action="store_true",
                     help="permit an expectations file with no asserted, minimums, "
                          "or snapshot content")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     out_dir = checked_path(args.out, "--out", "dir")
     spec_path = checked_path(args.expectations, "--expectations", "file")
@@ -301,6 +327,7 @@ def main() -> int:
               "content; nothing would be asserted. Pass --allow-empty for a "
               "deliberate report-only run.", file=sys.stderr)
         return 2
+    check_no_stale_csvs(out_dir, spec)
     print(f"== assertions ({spec.get('repo', spec_path.stem)}) ==")
 
     failures: list[str] = []

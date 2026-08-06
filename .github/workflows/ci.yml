@@ -7,8 +7,11 @@ on:
 
 env:
   # Pinned CodeQL CLI bundle. The SHA256 must be updated whenever the bundle
-  # URL is changed. The value is published alongside each GitHub release of the
-  # codeql-action bundle.
+  # URL is changed. Digest provenance: the `digest` field of the
+  # codeql-bundle-linux64.tar.gz asset in
+  #   https://api.github.com/repos/github/codeql-action/releases/tags/codeql-bundle-v2.26.2
+  # (verified 2026-08-05; the release also ships a .checksum.txt sidecar for
+  # independent re-verification).
   CODEQL_VERSION: v2.26.2
   CODEQL_SHA256: cb361567fa1bdb9d322da4240f621b36f245e4d7bb97db3c3a2ad7f743c8e8e7
   CODEQL_BUNDLE_URL: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.26.2/codeql-bundle-linux64.tar.gz
@@ -268,6 +271,9 @@ jobs:
 
       - name: Set up CodeQL
         uses: ./.github/actions/setup-codeql
+        with:
+          bundle-url: ${{ env.CODEQL_BUNDLE_URL }}
+          bundle-sha256: ${{ env.CODEQL_SHA256 }}
 
       - name: Check CodeQL version
         run: codeql --version
@@ -331,6 +337,7 @@ jobs:
         uses: ./.github/actions/setup-codeql
         with:
           bundle-path: ${{ runner.temp }}/codeql-artifact/codeql-bundle.tar.gz
+          bundle-sha256: ${{ env.CODEQL_SHA256 }}
 
       - name: Check CodeQL version
         run: codeql --version

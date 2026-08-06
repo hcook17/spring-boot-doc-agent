@@ -30,6 +30,11 @@ SEARCH_PATH="${PACKS}${EXTRA_PACKS:+:$EXTRA_PACKS}"
 DEFAULT_QUERIES="ApiSurface Configuration ErrorHandling HibernateTypes JakartaMigration Messaging NativeSql OpenApiSurface OutboundClients Persistence"
 read -r -a WAVE1 <<< "${QUERIES:-$DEFAULT_QUERIES}"
 
+# Clean, then recreate. A CSV whose query was dropped from the wave list would
+# otherwise survive into the assertion step as stale data; derived output is
+# rebuilt from scratch every run. The engine's unexpected-CSV check is the
+# backstop; this is the hygiene.
+rm -rf "$OUT"
 mkdir -p "$OUT"
 
 # Precompile into a cache the query runs actually use. `pack create` alone wrote
