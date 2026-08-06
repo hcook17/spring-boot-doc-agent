@@ -87,7 +87,10 @@ from pathlib import Path
 
 # Query names become CSV filenames. Whitelisting the identifier shape makes
 # traversal via a crafted expectations file impossible by construction.
-IDENT_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+# re.ASCII pins \w to [A-Za-z0-9_]: without it, \w admits Unicode word
+# characters, which would widen the path-construction whitelist this exists
+# to keep narrow.
+IDENT_RE = re.compile(r"^[A-Za-z]\w*$", re.ASCII)
 
 
 def csv_path(out_dir: Path, query: str) -> Path:

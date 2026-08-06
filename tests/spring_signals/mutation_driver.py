@@ -38,7 +38,7 @@ MUTANTS = [
     ),
     (
         "M5 IDENT_RE weakened",
-        'IDENT_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")',
+        'IDENT_RE = re.compile(r"^[A-Za-z]\\w*$", re.ASCII)',
         'IDENT_RE = re.compile(r".*")',
     ),
     (

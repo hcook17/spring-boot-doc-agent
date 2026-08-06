@@ -108,7 +108,10 @@ class TestSpecLoading:
 
 class TestQueryNameHygiene:
     @pytest.mark.parametrize(
-        "bad", ["../etc", "x;rm -rf", "has space", "", "x/y", "..", ".hidden", "9leading"]
+        "bad",
+        ["../etc", "x;rm -rf", "has space", "", "x/y", "..", ".hidden", "9leading",
+         # \w without re.ASCII would admit these into path construction.
+         "Ångström", "日本語"],
     )
     def test_rejected_names(self, tmp_path, bad):
         (tmp_path / "out").mkdir()

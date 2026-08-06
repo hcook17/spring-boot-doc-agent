@@ -6,7 +6,10 @@
 #   OUT           output directory
 #   CODEQL        codeql executable
 #   QUERIES       space-separated query basenames (default: the wave 1 set)
-#   EXPECTATIONS  JSON file of expected counts (default: none -> report only)
+#   EXPECTATIONS  JSON file of expected counts. Default: the ocs-api-service
+#                 spec, so the Messaging=0 gate is ON by default -- a gate
+#                 that is opt-in is a gate that is silently off. Set to "off"
+#                 for a deliberate report-only run.
 #
 # Note on `@kind table`: these queries produce raw result tables, not alerts.
 # `codeql database analyze` will NOT interpret them into SARIF -- it needs
@@ -21,7 +24,7 @@ DB="${DB:-$PWD/.codeql/ocs-api-service-db}"
 PACKS="${PACKS:-$(cd "$HERE/../codeql/packs" && pwd)}"
 OUT="${OUT:-$PWD/out}"
 CODEQL="${CODEQL:-codeql}"
-EXPECTATIONS="${EXPECTATIONS:-}"
+EXPECTATIONS="${EXPECTATIONS:-$HERE/expectations/ocs-api-service.json}"
 # See create-db.sh for EXTRA_PACKS.
 SEARCH_PATH="${PACKS}${EXTRA_PACKS:+:$EXTRA_PACKS}"
 
@@ -62,10 +65,8 @@ for q in "${WAVE1[@]}"; do
 done
 
 echo
-if [ -n "$EXPECTATIONS" ]; then
+if [[ "$EXPECTATIONS" != "off" ]]; then
   python3 "$HERE/check-assertions.py" --out "$OUT" --expectations "$EXPECTATIONS"
 else
-  echo "no EXPECTATIONS file supplied; row counts reported but nothing asserted."
-  echo "  for ocs-api-service: EXPECTATIONS=$HERE/expectations/ocs-api-service.json"
-  echo "  for the fixture:     run harness/create-test-db.sh instead (it sets this)."
+  echo "EXPECTATIONS=off: row counts reported but nothing asserted (deliberate)."
 fi
