@@ -6,13 +6,20 @@ Usage:
     python3 scripts/ci/pre_pr.py --auto
     python3 scripts/ci/pre_pr.py --fast
     python3 scripts/ci/pre_pr.py --full
+    python3 scripts/ci/pre_pr.py --actions-outage [--status-url URL]
 
 Cannot intercept `gh pr create`. Wire via `.githooks/pre-push` so push
 (the usual step before opening a PR) fails closed. CI remains the
 merge-time second line.
 
+`--actions-outage` is CI parity when GitHub Actions is unavailable: full
+suites plus CodeQL invariants/compile/runtime and doc-engine certification
+verify (--allow-mock). Requires codeql + java + bash on PATH; see
+scripts/ci/setup_codeql.sh and scripts/README.md ("Actions outage").
+
 Escape hatch (logged): PRE_PR_SKIP=1 and PRE_PR_SKIP_REASON='…'
-(min 8 chars). Skip without a reason exits non-zero.
+(min 8 chars). Skip without a reason exits non-zero. Skip is refused
+under --actions-outage (outage mode replaces Actions, not local gates).
 """
 from __future__ import annotations
 
@@ -23,6 +30,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -33,7 +41,8 @@ from doc_engine.paths import repo_root
 REPO_ROOT = repo_root()
 RECEIPT_PATH = REPO_ROOT / ".git" / "pre-pr-receipt.json"
 BYPASS_LOG = REPO_ROOT / ".git" / "pre-pr-bypass.log"
-RECEIPT_SCHEMA_VERSION = 1
+# schema 2 adds attestation + github_status_note for actions-outage receipts.
+RECEIPT_SCHEMA_VERSION = 2
 
 CODE_PATH_PREFIXES = (
     "scripts/",
@@ -50,6 +59,12 @@ CODE_PATH_PREFIXES = (
 )
 
 SuiteFn = Callable[[], int]
+
+SETUP_CODEQL_HINT = (
+    "Install the pinned CodeQL CLI (bash scripts/ci/setup_codeql.sh) and "
+    "ensure java (17+) and bash are on PATH. See scripts/README.md "
+    "('Actions outage')."
+)
 
 
 @dataclass
@@ -70,6 +85,8 @@ class Receipt:
     tool_versions: dict = field(default_factory=dict)
     overall: str = "fail"
     bypass: Optional[dict] = None
+    attestation: Optional[str] = None
+    github_status_note: Optional[str] = None
 
 
 def _run(cmd: Sequence[str], *, cwd: Path = REPO_ROOT) -> subprocess.CompletedProcess[str]:
@@ -89,15 +106,19 @@ def _git_sha() -> str:
 
 def _tool_versions() -> dict:
     versions: dict = {"python": sys.version.split()[0]}
-    for tool in ("ruff", "ast-grep", "semgrep"):
-        binary = shutil.which(tool) if tool != "ruff" else None
+    for tool in ("ruff", "ast-grep", "semgrep", "codeql", "java"):
         if tool == "ruff":
             proc = _run([sys.executable, "-m", "ruff", "--version"])
-        elif binary:
-            proc = _run([binary, "--version"])
-        else:
+            versions[tool] = (proc.stdout or proc.stderr or "").strip() or f"exit={proc.returncode}"
+            continue
+        binary = shutil.which(tool)
+        if not binary:
             versions[tool] = "missing"
             continue
+        if tool == "java":
+            proc = _run([binary, "-version"])
+        else:
+            proc = _run([binary, "--version"])
         versions[tool] = (proc.stdout or proc.stderr or "").strip() or f"exit={proc.returncode}"
     return versions
 
@@ -217,6 +238,25 @@ def tool_doctor() -> int:
     return 0
 
 
+def require_outage_toolchain() -> int:
+    """Fail closed if CodeQL / Java / bash are missing (actions-outage mode)."""
+    missing: List[str] = []
+    if not shutil.which("codeql"):
+        missing.append("codeql")
+    if not (shutil.which("java") or shutil.which("javac")):
+        missing.append("java")
+    if not (shutil.which("bash") or shutil.which("bash.exe")):
+        missing.append("bash")
+    if missing:
+        print(
+            f"error: --actions-outage requires toolchain on PATH; missing: "
+            f"{', '.join(missing)}. {SETUP_CODEQL_HINT}",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
 def _suite(name: str, kind: str, fn: SuiteFn) -> SuiteResult:
     started = time.perf_counter()
     code = fn()
@@ -258,13 +298,16 @@ def _pytest() -> int:
     return proc.returncode
 
 
+def _doc_engine_cmd(*args: str) -> List[str]:
+    if shutil.which("doc-engine") is not None:
+        return ["doc-engine", *args]
+    return [sys.executable, "-m", "doc_engine.cli", *args]
+
+
 def _stage0_full() -> int:
     """Portable Stage-0 + artifact validate (CI mirror; --full only)."""
-    import tempfile
-
     with tempfile.TemporaryDirectory() as tmp:
-        cmd = [
-            "doc-engine",
+        cmd = _doc_engine_cmd(
             "pipeline",
             "run",
             "scripts/fixtures/spring_signals",
@@ -273,9 +316,7 @@ def _stage0_full() -> int:
             "--compliance-profile",
             "deterministic_only",
             "--skip-drift",
-        ]
-        if shutil.which("doc-engine") is None:
-            cmd = [sys.executable, "-m", "doc_engine.cli", *cmd[1:]]
+        )
         proc = _run(cmd)
         sys.stdout.write(proc.stdout)
         sys.stderr.write(proc.stderr)
@@ -292,6 +333,152 @@ def _stage0_full() -> int:
             print("error: certification.json missing after Stage 0", file=sys.stderr)
             return 1
     return 0
+
+
+def _codeql_invariants() -> int:
+    return _py_script("spring-signals", "harness", "check-invariants.py")()
+
+
+def _codeql_compile_and_ql_tests() -> int:
+    codeql = shutil.which("codeql")
+    if not codeql:
+        print(f"error: codeql not on PATH. {SETUP_CODEQL_HINT}", file=sys.stderr)
+        return 1
+    codeql_root = REPO_ROOT / "spring-signals" / "codeql"
+    steps = [
+        [codeql, "pack", "install", "packs/java-signals-lib"],
+        [codeql, "pack", "install", "packs/spring-signals"],
+        [codeql, "pack", "install", "packs/spring-signals/test"],
+        [
+            codeql,
+            "query",
+            "compile",
+            "--check-only",
+            "--threads=0",
+            "packs/spring-signals",
+        ],
+        [
+            codeql,
+            "test",
+            "run",
+            "--threads=0",
+            "packs/spring-signals/test",
+        ],
+    ]
+    # compile glob: CI uses packs/spring-signals/*.ql — pass the directory;
+    # CodeQL accepts a directory of queries. Prefer explicit *.ql via shell-free
+    # expansion:
+    ql_files = sorted((codeql_root / "packs" / "spring-signals").glob("*.ql"))
+    if not ql_files:
+        print("error: no packs/spring-signals/*.ql found", file=sys.stderr)
+        return 1
+    steps[3] = [
+        codeql,
+        "query",
+        "compile",
+        "--check-only",
+        "--threads=0",
+        *[str(p.relative_to(codeql_root)) for p in ql_files],
+    ]
+    for cmd in steps:
+        proc = _run(cmd, cwd=codeql_root)
+        sys.stdout.write(proc.stdout)
+        sys.stderr.write(proc.stderr)
+        if proc.returncode != 0:
+            return proc.returncode
+    return 0
+
+
+def _find_bash() -> Optional[str]:
+    return shutil.which("bash") or shutil.which("bash.exe")
+
+
+def _codeql_fixture_runtime() -> int:
+    bash = _find_bash()
+    if not bash:
+        print(f"error: bash not on PATH. {SETUP_CODEQL_HINT}", file=sys.stderr)
+        return 1
+    script = REPO_ROOT / "spring-signals" / "harness" / "create-test-db.sh"
+    proc = _run([bash, str(script)], cwd=script.parent)
+    sys.stdout.write(proc.stdout)
+    sys.stderr.write(proc.stderr)
+    return proc.returncode
+
+
+def _certify_profile(profile: str, *, allow_mock_run: bool) -> SuiteFn:
+    def run() -> int:
+        with tempfile.TemporaryDirectory() as tmp:
+            cmd = _doc_engine_cmd(
+                "pipeline",
+                "run",
+                "scripts/fixtures/spring_signals",
+                "--out-dir",
+                tmp,
+                "--compliance-profile",
+                profile,
+            )
+            if allow_mock_run:
+                cmd.append("--allow-mock")
+            proc = _run(cmd)
+            sys.stdout.write(proc.stdout)
+            sys.stderr.write(proc.stderr)
+            if proc.returncode != 0:
+                return proc.returncode
+            cert = str(Path(tmp) / "certification.json")
+            verify = _run(
+                _doc_engine_cmd("certification", "verify", "--allow-mock", cert)
+            )
+            sys.stdout.write(verify.stdout)
+            sys.stderr.write(verify.stderr)
+            return verify.returncode
+
+    return run
+
+
+def _append_full_extras(hard: List[Tuple[str, str, SuiteFn]]) -> None:
+    hard.append(("stage0_portable", "hard", _stage0_full))
+    hard.append(
+        (
+            "mutate_advisory",
+            "advisory",
+            _py_script("scripts", "ratchets", "mutate.py"),
+        )
+    )
+    mutation_driver = REPO_ROOT / "tests" / "spring_signals" / "mutation_driver.py"
+    if mutation_driver.is_file():
+        hard.append(
+            (
+                "mutation_driver_advisory",
+                "advisory",
+                _py_script("tests", "spring_signals", "mutation_driver.py"),
+            )
+        )
+
+    def claims_metrics() -> int:
+        proc = _run(
+            [
+                sys.executable,
+                str(REPO_ROOT / "scripts" / "ci" / "check_repo_claims.py"),
+                "--metrics",
+            ]
+        )
+        sys.stdout.write(proc.stdout)
+        sys.stderr.write(proc.stderr)
+        return 0  # metrics never fail
+
+    hard.append(("claims_metrics", "advisory", claims_metrics))
+
+
+def _append_outage_lanes(hard: List[Tuple[str, str, SuiteFn]]) -> None:
+    hard.append(("codeql_invariants", "hard", _codeql_invariants))
+    hard.append(("codeql_compile_and_ql_tests", "hard", _codeql_compile_and_ql_tests))
+    hard.append(("codeql_fixture_runtime", "hard", _codeql_fixture_runtime))
+    hard.append(
+        ("certify_scan_only", "hard", _certify_profile("scan_only", allow_mock_run=False))
+    )
+    hard.append(
+        ("certify_certified", "hard", _certify_profile("certified", allow_mock_run=True))
+    )
 
 
 def build_suites(mode: str) -> List[Tuple[str, str, SuiteFn]]:
@@ -318,7 +505,7 @@ def build_suites(mode: str) -> List[Tuple[str, str, SuiteFn]]:
         )
         return hard
 
-    # standard (path-risk default) and full share CI hard suites
+    # standard (path-risk default), full, and actions_outage share CI hard suites
     hard.extend(
         [
             (
@@ -354,26 +541,10 @@ def build_suites(mode: str) -> List[Tuple[str, str, SuiteFn]]:
             ("pytest", "hard", _pytest),
         ]
     )
-    if mode == "full":
-        hard.append(("stage0_portable", "hard", _stage0_full))
-        hard.append(
-            (
-                "mutate_advisory",
-                "advisory",
-                _py_script("scripts", "ratchets", "mutate.py"),
-            )
-        )
-
-        def claims_metrics() -> int:
-            proc = _run(
-                [sys.executable, str(REPO_ROOT / "scripts" / "ci" / "check_repo_claims.py"),
-                 "--metrics"]
-            )
-            sys.stdout.write(proc.stdout)
-            sys.stderr.write(proc.stderr)
-            return 0  # metrics never fail
-
-        hard.append(("claims_metrics", "advisory", claims_metrics))
+    if mode in ("full", "actions_outage"):
+        _append_full_extras(hard)
+    if mode == "actions_outage":
+        _append_outage_lanes(hard)
     return hard
 
 
@@ -386,6 +557,8 @@ def write_receipt(receipt: Receipt) -> None:
         "tool_versions": receipt.tool_versions,
         "overall": receipt.overall,
         "bypass": receipt.bypass,
+        "attestation": receipt.attestation,
+        "github_status_note": receipt.github_status_note,
     }
     try:
         RECEIPT_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -401,6 +574,8 @@ def print_summary(results: Sequence[SuiteResult]) -> None:
 
 
 def resolve_mode(args: argparse.Namespace) -> str:
+    if getattr(args, "actions_outage", False):
+        return "actions_outage"
     if args.fast:
         return "fast"
     if args.full:
@@ -426,16 +601,44 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         action="store_true",
         help="all hard suites + Stage-0 + advisory mutate/metrics",
     )
+    mode_g.add_argument(
+        "--actions-outage",
+        action="store_true",
+        help=(
+            "CI parity while GitHub Actions is down: --full plus CodeQL "
+            "invariants/compile/runtime and certification verify (--allow-mock)"
+        ),
+    )
+    parser.add_argument(
+        "--status-url",
+        default="",
+        help="optional GitHub Status / incident URL recorded on the receipt",
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
-    bypass = check_bypass()
     mode = resolve_mode(args)
+    status_note = (args.status_url or "").strip() or None
+
+    if mode == "actions_outage":
+        if os.environ.get("PRE_PR_SKIP", "").strip() in ("1", "true", "TRUE", "yes"):
+            print(
+                "error: PRE_PR_SKIP is refused under --actions-outage "
+                "(outage mode replaces Actions, not local gates).",
+                file=sys.stderr,
+            )
+            return 2
+        if require_outage_toolchain() != 0:
+            return 1
+
+    bypass = check_bypass()
     receipt = Receipt(
         schema_version=RECEIPT_SCHEMA_VERSION,
         git_sha=_git_sha(),
         mode=mode,
         tool_versions=_tool_versions(),
         bypass=bypass,
+        attestation="actions_outage" if mode == "actions_outage" else None,
+        github_status_note=status_note if mode == "actions_outage" else None,
     )
     if bypass is not None:
         receipt.overall = "bypassed"

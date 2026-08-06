@@ -13,6 +13,12 @@ git config core.hooksPath .githooks
 routing over the same hard suites CI runs). Details and tiers:
 [`scripts/README.md`](scripts/README.md).
 
+When GitHub Actions is unavailable, use
+`python3 scripts/ci/pre_pr.py --actions-outage` for hermetic CI parity (CodeQL +
+certification verify); procedure under **Actions outage** in
+[`scripts/README.md`](scripts/README.md). That receipt is interim — re-run CI on
+the same SHA when Actions recovers.
+
 Emergency bypass (always logged under `.git/pre-pr-bypass.log`):
 
 ```bash

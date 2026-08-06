@@ -31,6 +31,8 @@ install/lint/test/run commands live in `README.md` and
   (do not hardcode suite counts here).
 - Before a final commit that touches `scripts/`, `agents/`, or `skills/`, run
   `python3 scripts/ci/check_repo_claims.py` (see `CLAUDE.md`).
+- If GitHub Actions is down: `python3 scripts/ci/pre_pr.py --actions-outage`
+  (runbook in `scripts/README.md` — do not invent a second local-CI SoT).
 
 ### Non-obvious gotchas
 

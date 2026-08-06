@@ -38,3 +38,6 @@ Thumbs.db
 # Fixture Gradle caches (created when CodeQL/snapshot builds run locally)
 scripts/fixtures/**/.gradle/
 
+# Local CodeQL CLI bootstrap from scripts/ci/setup_codeql.sh
+.codeql-cli/
+
