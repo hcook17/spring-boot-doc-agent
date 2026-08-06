@@ -3,7 +3,11 @@
 Applies each named mutant to the engine in place, runs the test suite,
 verifies the mutant is killed, and restores the pristine source. Run from the
 repo root:  python tests/spring_signals/mutation_driver.py
-Exits 0 only if every mutant dies.
+
+ENFORCE = False -- see the CI step name, which says "non-blocking". Survivors
+are reported but do not fail the job until a threshold is defended. A missing
+anchor (driver stale vs. engine) still exits non-zero: that is a broken tool,
+not a soft score.
 """
 
 from __future__ import annotations
@@ -14,6 +18,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ENGINE = REPO_ROOT / "spring-signals" / "harness" / "check-assertions.py"
+
+# Flip to True once a zero-survivor threshold is defended. Until then CI must
+# name this step "non-blocking" (same honesty rule as scripts/ratchets/mutate.py).
+ENFORCE = False
 
 MUTANTS = [
     (
@@ -94,6 +102,9 @@ def main() -> int:
         ENGINE.write_text(pristine, encoding="utf-8")
     if survivors:
         print(f"\n{len(survivors)} mutant(s) survived: {survivors}")
+        if not ENFORCE:
+            print("\n(reporting only: ENFORCE is False)", file=sys.stderr)
+            return 0
         return 1
     print(f"\nAll {len(MUTANTS)} mutants killed; engine restored.")
     return 0

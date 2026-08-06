@@ -53,6 +53,20 @@ while read -r line; do
     tmp="$jar.tmp"
     curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused \
       "$url" -o "$tmp" || { rm -f "$tmp"; exit 1; }
+    # Verify the temp file before promoting it. Renaming first leaves a
+    # window where a concurrent reader (or a later VERIFY_ONLY pass) could
+    # see an unverified jar; verify-then-rename closes that for free.
+    if [ -n "$want" ]; then
+      got_tmp="$(sha256sum "$tmp" | awk '{print $1}')"
+      if [ "$got_tmp" != "$want" ]; then
+        echo "  DIGEST MISMATCH $a-$v.jar (pre-rename)"
+        echo "    expected $want"
+        echo "    got      $got_tmp"
+        rm -f "$tmp"
+        fail=1
+        continue
+      fi
+    fi
     mv "$tmp" "$jar"
   fi
 

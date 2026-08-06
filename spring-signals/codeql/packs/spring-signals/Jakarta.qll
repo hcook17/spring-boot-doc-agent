@@ -17,8 +17,9 @@
  * The complement matters as much as the list: `javax.crypto`, `javax.net`,
  * `javax.sql`, `javax.naming`, `javax.management`, `javax.xml`,
  * `javax.imageio`, `javax.sound`, `javax.tools`,
- * `javax.script`, `javax.lang.model`, `javax.print`, `javax.accessibility`
- * and `javax.swing` are JDK-retained and MUST NOT be flagged. A naive
+ * `javax.script`, `javax.lang.model`, `javax.print`, `javax.accessibility`,
+ * `javax.swing`, and `javax.transaction.xa` (JDK-retained JTA; see the
+ * transaction split below) are JDK-retained and MUST NOT be flagged. A naive
  * `^javax\.` rule produces a migration backlog full of false work.
  *
  * `javax.security.auth` is itself a SPLIT namespace: the core is JDK-retained
@@ -28,9 +29,19 @@
  * (JACC / Jakarta Authorization). They get explicit alternatives below, ahead
  * of any reading of "javax.security.auth is JDK-retained" as covering them.
  *
+ * `javax.transaction` is the same shape in reverse: the EE JTA API relocated
+ * to `jakarta.transaction`, but `javax.transaction.xa` (XAResource, Xid,
+ * XAException) ships in the JDK's `java.transaction.xa` module and must NOT
+ * be flagged. A bare `transaction` slot in the main alternation would swallow
+ * `.xa` via `(\..*)?` -- the exact false-positive this PR's earlier boundary
+ * work was meant to prevent. It has its own alternative below, matching the
+ * security.auth pattern.
+ *
  * Source of truth for the boundary: jakartaee/jakartaee-platform,
- * namespace/mappings.adoc. The list is deliberately exhaustive rather than a
- * prefix heuristic -- see the Jackson note in Catalog.qll for why.
+ * namespace/mappings.adoc AND namespace/unaffected-packages.adoc (cross-check
+ * both -- mappings.adoc alone is explicitly "tentative" on some rows). The
+ * list is deliberately exhaustive rather than a prefix heuristic -- see the
+ * Jackson note in Catalog.qll for why.
  *
  * `javax.annotation` is a SPLIT namespace and gets its own alternative rather
  * than a slot in the main list, because the main list's `(\..*)?` continuation
@@ -43,7 +54,17 @@
  */
 bindingset[pkg]
 predicate relocatedJavaxNamespace(string pkg) {
-  pkg.regexpMatch("^javax\\.(persistence|validation|transaction|servlet|ws\\.rs|jms|mail|enterprise|inject|interceptor|json|batch|el|websocket|xml\\.bind|xml\\.soap|xml\\.ws|activation|security\\.enterprise|faces|resource|ejb|decorator|jws|jsp)(\\..*)?$")
+  // cache: javax.cache -> jakarta.cache (JSR-107 / JCache), fully listed in
+  // mappings.adoc. Absent from both this list and the retained docstring it
+  // fell through both buckets -- a silent false negative.
+  pkg.regexpMatch("^javax\\.(persistence|validation|servlet|ws\\.rs|jms|mail|enterprise|inject|interceptor|json|batch|el|websocket|xml\\.bind|xml\\.soap|xml\\.ws|activation|security\\.enterprise|faces|resource|ejb|decorator|jws|jsp|cache)(\\..*)?$")
+  or
+  // javax.transaction relocated EXCEPT javax.transaction.xa, which is
+  // JDK-retained JTA (java.transaction.xa module). Source: mappings.adoc
+  // ("excluding javax.transaction.xa which is still part of JavaSE") and
+  // unaffected-packages.adoc.
+  pkg.regexpMatch("^javax\\.transaction(\\..*)?$") and
+  not pkg.regexpMatch("^javax\\.transaction\\.xa(\\..*)?$")
   or
   pkg.regexpMatch("^javax\\.annotation(\\.(security|sql)(\\..*)?)?$")
   or

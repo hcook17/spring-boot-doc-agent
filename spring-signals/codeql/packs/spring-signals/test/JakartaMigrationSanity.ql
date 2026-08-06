@@ -45,6 +45,21 @@ predicate sanityRow(string c1, string c2, string c3) {
   or
   c1 = "javax.crypto" and c2 = "namespace" and c3 = relocationStatus(c1)
   or
+  // javax.transaction is a split namespace: the EE JTA API relocated, the
+  // JDK-retained .xa subtree did not. Both directions are pinned.
+  c1 = "javax.transaction" and c2 = "namespace" and c3 = relocationStatus(c1)
+  or
+  c1 = "javax.transaction.UserTransaction" and c2 = "namespace" and c3 = relocationStatus(c1)
+  or
+  c1 = "javax.transaction.xa" and c2 = "namespace" and c3 = relocationStatus(c1)
+  or
+  c1 = "javax.transaction.xa.XAResource" and c2 = "namespace" and c3 = relocationStatus(c1)
+  or
+  // javax.cache -> jakarta.cache (JSR-107). Was falling through both buckets.
+  c1 = "javax.cache" and c2 = "namespace" and c3 = relocationStatus(c1)
+  or
+  c1 = "javax.cache.CacheManager" and c2 = "namespace" and c3 = relocationStatus(c1)
+  or
   // JSR-250 symbols are pending migration work; JSR-305 symbols are not.
   not jsr305Symbol("javax.annotation.PostConstruct") and
   c1 = "javax.annotation.PostConstruct" and c2 = "jsr250" and c3 = "pending"
