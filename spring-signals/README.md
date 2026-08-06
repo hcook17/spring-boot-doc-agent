@@ -15,13 +15,19 @@ CodeQL library pack plus per-framework query packs. Wave 1 targets
           Catalog.qll              (framework, pkg, name, kind, generation) facts
           SpringMetaEdges.qll      Spring's documented meta graph, contributed
           Common.qll
+          Jakarta.qll              javax->jakarta relocation boundary + JSR-305 list
+          Coverage.ql              extraction coverage set (disk vs database)
           Probe.ql                 trust gates; excluded from the suite
           *.ql
     harness/
       check-invariants.py          static gates; runs without a CodeQL CLI
       create-db.sh                 matches the -Werror / Error Prone toolchain
+      create-test-db.sh            credential-free fixture gate (local + CI)
       run.sh                       precompile, run wave 1, decode CSV, assert
-      expected-empty.txt           asserted zero-result queries
+      check-assertions.py          JSON expectations: asserted vs snapshot counts
+      expectations/fixture-repo.json  hand-derived fixture counts + signals
+      expectations/ocs-api-service.json  ocs zero-row assertion + floor counts
+      fixture-repo/                16-source javac fixture, jars pinned by sha256
       join_openapi.py              join against the generated OpenAPI contract
     docs/
       CAMPAIGN.md                  architectural decision + waves 1-5
@@ -65,33 +71,35 @@ An earlier version computed its root as `__file__/../..`, which meant a copy
 mirrored to the top of a review archive died with a bare `FileNotFoundError`
 from inside check 2 — an error describing neither the real problem nor the fix.
 
-Then the parts that need a toolchain:
+Then the parts that need a toolchain. The credential-free fixture gate:
+
+    ./harness/create-test-db.sh
+
+The ocs-api-service run (needs Artifactory credentials):
 
     export artifactory_user=... artifactory_password=...
     ./harness/create-db.sh
-    ./harness/run.sh
+    EXPECTATIONS=harness/expectations/ocs-api-service.json ./harness/run.sh
     python3 harness/join_openapi.py \
       --api-surface out/ApiSurface.csv \
       --openapi src/docs/api/OASv3/ocs-api-service.yaml
 
-## Status: NOT YET COMPILED — this is a merge blocker
+## Status
 
-`codeql query compile` green and `create-db.sh` green on ocs @ develop are exit
-criteria for wave 1a, not follow-ups. Until both pass this is a design drop.
+`codeql query compile` is green against `codeql/java-all` 9.2.x, and the
+credential-free fixture gate (`harness/create-test-db.sh` — pinned jars, javac,
+fixture database, wave-1 queries, JSON assertions) runs locally and in CI.
 
-None of this QL has been run through `codeql query compile`. It was written
-against the CodeQL Java standard library without a CLI available, so treat the
-first compile as part of the review, not as a formality. The constructs most
-likely to need adjustment, in rough order of risk:
+Still open from the wave-1a exit criteria: `create-db.sh` on ocs @ develop,
+which needs Artifactory credentials and cannot run in this repo's CI. The
+constructs that were flagged as compile risks at design time are now pinned by
+the QL unit tests under `packs/spring-signals/test/`:
 
-- `getASourceSupertype*()` and `getSourceDeclaration()` arities in
-  `Types.qll` — these are the load-bearing replacements for the P0 defects.
+- `getASourceSupertype*()` and `getSourceDeclaration()` in `Types.qll`.
 - `regexpCapture` group semantics in `Schema.qll::sourceSetOf`.
-- `getReceiverType()` on `MethodCall` in `NativeSql.ql` (older library versions
-  name this class `MethodAccess`).
+- `getReceiverType()` on `MethodCall` in `NativeSql.ql`.
 - `TypeLiteral.getTypeName()` in `ErrorHandling.ql`.
-- The `concat`-over-empty-set-returns-`""` idiom used throughout `attr()`, which
-  is what makes the optional-attribute helpers total.
+- The `concat`-over-empty-set-returns-`""` idiom used throughout `attr()`.
 
 Meta-annotation resolution ships in two halves.
 

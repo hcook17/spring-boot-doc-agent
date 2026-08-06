@@ -35,7 +35,9 @@ where
     e = a and
     a = getAnEffectiveAnnotation(owner) and
     isOrMeta(a, "org.springframework.boot.context.properties", "ConfigurationProperties") and
-    signal = concat(string s | s = attr(a, "prefix") and s != "" or s = attr(a, "value") and s != "" | s, "" order by s) and
+    // prefix/value are @AliasFor. signal is an identity column, so this must
+    // be a fallback rather than a join -- a "|" here is not a property key.
+    signal = attrFallback(a, "prefix,value") and
     detail = annotationFqn(a) and
     rule_id = "configuration__typed_binding"
   )
@@ -55,7 +57,9 @@ where
     isExactly(a, pkg, name) and
     signature("spring", pkg, name, "config", _) and
     signal = pkg + "." + name and
-    detail = concat(string s | s = attr(a, "value") and s != "" or s = attr(a, "basePackages") and s != "" | s, "|" order by s) and
+    // value/basePackages are @AliasFor on @ComponentScan (and value alone is
+    // the payload on @PropertySource): fallback, not join.
+    detail = attrFallback(a, "value,basePackages") and
     rule_id = "configuration__config_annotation"
   )
 select

@@ -23,9 +23,9 @@ private predicate mappingAnnotation(Annotation a, string kind) {
 }
 
 /** Holds if `a` is a parameter-binding annotation with simple name `name`. */
-private predicate paramBindingAnnotation(Annotation a, string name) {
+private predicate paramBindingAnnotation(Annotation a, string name, string kind) {
   isExactly(a, "org.springframework.web.bind.annotation", name) and
-  signature("spring", "org.springframework.web.bind.annotation", name, "param_binding", _)
+  signature("spring", "org.springframework.web.bind.annotation", name, kind, _)
 }
 
 /** Gets the HTTP method implied by a mapping annotation. */
@@ -52,14 +52,8 @@ private string httpMethod(Annotation a, string kind) {
 
 /** Gets the declared path of a mapping annotation, or "" if none. */
 private string mappingPath(Annotation a) {
-  result = concat(string s | s = attr(a, "value") and s != "" or s = attr(a, "path") and s != "" | s, "" order by s)
-}
-
-/** Gets the binding name: explicit value if present, else the inferred name. */
-private string paramBindingDetail(Annotation a) {
-  attr(a, "value") != "" and result = attr(a, "value")
-  or
-  attr(a, "value") = "" and result = attr(a, "name")
+  // value/path are @AliasFor: at most one is ever set.
+  result = attrFallback(a, "value,path")
 }
 
 from Measured e, string rule_id, string signal, string detail
@@ -102,10 +96,23 @@ where
   exists(Parameter p, Annotation a, string name |
     e = a and
     a = getAnEffectiveAnnotation(p) and
-    paramBindingAnnotation(a, name) and
+    paramBindingAnnotation(a, name, "param_binding") and
     signal = annotationFqn(a) and
-    detail = paramBindingDetail(a) and
+    // value wins over name when both are present; identical to the old
+    // hand-rolled paramBindingDetail.
+    detail = attrFallback(a, "value,name") and
     rule_id = "api_surface__param_binding"
+  )
+  or
+  // Request bodies. Separate rule_id because an empty `detail` here is
+  // structural, not the -parameters finding.
+  exists(Parameter p, Annotation a, string name |
+    e = a and
+    a = getAnEffectiveAnnotation(p) and
+    paramBindingAnnotation(a, name, "body_binding") and
+    signal = annotationFqn(a) and
+    detail = "" and
+    rule_id = "api_surface__body_binding"
   )
 select
   e.getPath() as file,

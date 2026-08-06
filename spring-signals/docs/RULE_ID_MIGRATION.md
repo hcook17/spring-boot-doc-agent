@@ -28,6 +28,7 @@ conflict is the reason wave 1c specifies a landing mode; see CAMPAIGN.md.
 | `openapi__operation` / `__parameter` / `__tag` / `__schema` / `__content` / `__response` | OpenApiSurface |
 | `persistence__repository_marker` | Persistence |
 | `api_surface__path_prefix` / `__endpoint` / `__param_binding` | ApiSurface |
+| `api_surface__body_binding` | ApiSurface |
 | `configuration__typed_binding` / `__value_injection` / `__config_annotation` | Configuration |
 | `error__advice_class` / `__handler_method` / `__response_status` / `__throw_site` | ErrorHandling |
 | `messaging__client_type` | Messaging |
@@ -44,6 +45,12 @@ conflict is the reason wave 1c specifies a landing mode; see CAMPAIGN.md.
 | `messaging__type_usage` | `messaging__client_type` |
 | `outbound_clients__feign` | `outbound__feign` |
 | `outbound_clients__type_usage` | `outbound__type_usage` |
+
+## Redefined
+
+| rule_id | What changed |
+|---|---|
+| `api_surface__param_binding` | `signal` is now the annotation FQN (`org.springframework.web.bind.annotation.*`) instead of the bare simple name. `@RequestBody` rows moved to the new `api_surface__body_binding`; an empty `detail` on `api_surface__param_binding` now means the Spring 6.1 `-parameters` finding and nothing else. |
 
 ## Unchanged (wave 2 queries, still legacy `v0` schema)
 

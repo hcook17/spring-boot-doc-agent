@@ -2,9 +2,19 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
   push:
     branches: [main]
+
+env:
+  # Pinned CodeQL CLI bundle. The SHA256 must be updated whenever the bundle
+  # URL is changed; the version lives in the URL (single source), and the
+  # digest is what the setup-codeql action verifies. Digest provenance: the
+  # `digest` field of the codeql-bundle-linux64.tar.gz asset in
+  #   https://api.github.com/repos/github/codeql-action/releases/tags/codeql-bundle-v2.26.2
+  # (verified 2026-08-05; the release also ships a .checksum.txt sidecar for
+  # independent re-verification).
+  CODEQL_SHA256: cb361567fa1bdb9d322da4240f621b36f245e4d7bb97db3c3a2ad7f743c8e8e7
+  CODEQL_BUNDLE_URL: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.26.2/codeql-bundle-linux64.tar.gz
 
 permissions:
   contents: read
@@ -18,7 +28,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Full history rather than the default shallow clone. The original
           # reason (verify_llms_docs.py resolving old SHAs) went away with
@@ -36,6 +46,10 @@ jobs:
           # item 4); the Python interpreter version itself isn't pinned via
           # that file, so this stays a hardcoded default.
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
       - name: Install Python dependencies
         run: |
@@ -210,6 +224,13 @@ jobs:
       - name: mutate.py (mutation score; reports, non-blocking)
         run: python3 scripts/ratchets/mutate.py
 
+      # Hand-targeted mutants for check-assertions.py (ten load-bearing
+      # invariants). ENFORCE = False in the driver; check_gate_honesty only
+      # scans scripts/, but the same honesty rule applies -- name must say
+      # non-blocking until a zero-survivor threshold is defended.
+      - name: spring-signals mutation_driver.py (assertion mutants; non-blocking)
+        run: python3 tests/spring_signals/mutation_driver.py
+
       # REMOVED: the verify_llms_docs.py step. It extracted backtick-fenced
       # spans from LLM-authored markdown and ran them through `bash -c`, with
       # GH_TOKEN in scope, on every pull_request and push to main. The match
@@ -231,14 +252,14 @@ jobs:
         run: python3 scripts/ci/check_llms_coverage.py
 
   # Wave 0 static invariants for the spring-signals CodeQL pack. Runs without a
-  # CodeQL CLI, so it is the only automatable gate for the pack while Wave 0
-  # items 2-4 (compile, create-db.sh, Probe.ql) are blocked on the CLI and
-  # Artifactory. Exits non-zero if the count-claim enforcer, layering checks,
-  # or or-or lint find a violation.
+  # CodeQL CLI; the compile and runtime jobs below cover the CLI side (the ocs
+  # database build remains the only piece that needs Artifactory). Exits
+  # non-zero if the count-claim enforcer, layering checks, or or-or lint find
+  # a violation.
   codeql-signals-invariants:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -253,18 +274,23 @@ jobs:
   codeql-signals-compile:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Download CodeQL bundle
-        run: |
-          mkdir -p "$HOME/codeql"
-          curl -L -o "$HOME/codeql-bundle.tar.gz" \
-            "https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.26.2/codeql-bundle-linux64.tar.gz"
-          tar -xzf "$HOME/codeql-bundle.tar.gz" -C "$HOME/codeql" --strip-components=1
-          echo "$HOME/codeql" >> "$GITHUB_PATH"
+      - name: Set up CodeQL
+        uses: ./.github/actions/setup-codeql
+        with:
+          bundle-url: ${{ env.CODEQL_BUNDLE_URL }}
+          bundle-sha256: ${{ env.CODEQL_SHA256 }}
 
       - name: Check CodeQL version
         run: codeql --version
+
+      - name: Upload CodeQL bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-bundle
+          path: ${{ runner.temp }}/codeql/codeql-bundle.tar.gz
+          retention-days: 1
 
       - name: Install pack dependencies
         working-directory: spring-signals/codeql
@@ -286,23 +312,39 @@ jobs:
             packs/spring-signals/test
 
   # Run the Wave 1 spring-signals queries against a local, self-contained
-  # Spring Boot fixture. This gate needs no Artifactory credentials and catches
-  # runtime regressions that `query compile` cannot (e.g. missing rows, wrong
-  # attribute extraction, double-counting). It reuses the same public CodeQL
-  # bundle pinned above.
+  # jar-based fixture with pinned Maven Central dependencies. This gate needs no
+  # Artifactory credentials and catches runtime regressions that `query compile`
+  # cannot (e.g. missing rows, wrong attribute extraction, double-counting). It
+  # reuses the same public CodeQL bundle pinned above and asserts against the
+  # hand-derived expectations in harness/expectations/fixture-repo.json.
   codeql-signals-runtime:
     runs-on: ubuntu-latest
     needs: codeql-signals-compile
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Download CodeQL bundle
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Print Java toolchain
         run: |
-          mkdir -p "$HOME/codeql"
-          curl -L -o "$HOME/codeql-bundle.tar.gz" \
-            "https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.26.2/codeql-bundle-linux64.tar.gz"
-          tar -xzf "$HOME/codeql-bundle.tar.gz" -C "$HOME/codeql" --strip-components=1
-          echo "$HOME/codeql" >> "$GITHUB_PATH"
+          echo "javac: $(which javac)"
+          javac -version
+          echo "JAVA_HOME: $JAVA_HOME"
+
+      - name: Download CodeQL bundle artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: codeql-bundle
+          path: ${{ runner.temp }}/codeql-artifact/
+
+      - name: Set up CodeQL
+        uses: ./.github/actions/setup-codeql
+        with:
+          bundle-path: ${{ runner.temp }}/codeql-artifact/codeql-bundle.tar.gz
+          bundle-sha256: ${{ env.CODEQL_SHA256 }}
 
       - name: Check CodeQL version
         run: codeql --version

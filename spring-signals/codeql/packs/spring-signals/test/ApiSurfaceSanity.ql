@@ -1,14 +1,7 @@
 import Common
 
-from Annotation a
+from Annotation a, string kind
 where
-  isOrMeta(a, "org.springframework.stereotype", "Controller")
-  or
-  isExactly(a, "org.springframework.web.bind.annotation", "RequestMapping")
-  or
-  isExactly(a, "org.springframework.web.bind.annotation", "GetMapping")
-  or
-  isExactly(a, "org.springframework.web.bind.annotation", "PathVariable")
-  or
-  isExactly(a, "org.springframework.web.bind.annotation", "RequestParam")
-select annotationFqn(a), sym(a), attr(a, "value")
+  isExactly(a, "org.springframework.web.bind.annotation", "RequestBody") and
+  signature("spring", "org.springframework.web.bind.annotation", "RequestBody", kind, _)
+select annotationFqn(a), sym(a), kind

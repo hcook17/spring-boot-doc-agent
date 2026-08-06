@@ -1,0 +1,44 @@
+{
+  "repo": "ocs-api-service",
+  "asserted": {
+    "Messaging": {
+      "_rows": 0,
+      "_note": "No messaging library is on the ocs-api-service classpath, so Messaging MUST return exactly zero rows. A non-zero result means either the repo gained a messaging dependency (update this file deliberately) or the query broke. This is the assertion that replaced harness/expected-empty.txt."
+    }
+  },
+  "minimums": {
+    "ApiSurface": {
+      "api_surface__controller": 49,
+      "api_surface__endpoint": 369,
+      "api_surface__path_prefix": 35,
+      "_note": "Floors measured on ocs-api-service @ develop. Rows only grow as the service grows; a drop below the floor is the @RestController recall regression class. Replaced harness/expected-min.txt. Verified structurally against the checkout 2026-08-05 (ast-grep 0.45.0): 596 .java files (420 main / 176 test); exactly 48 @RestController + 1 @Controller = 49; exactly 369 method-level shortcut mappings (216+3 Get, 39+72 Post, 36 Put, 1+2 Delete); 45 @RequestMapping total, 35 class-level. Messaging=0 holds: no kafka/rabbit/sqs/pulsar/jms dependency in build.gradle."
+    },
+    "Persistence": {
+      "persistence__repository_marker": 4,
+      "_note": "Verified 2026-08-05: exactly four interfaces extend the BookBasedRepository marker (Topic, Module, Lesson, Concept); BookBasedRepository itself is an empty marker, not a Spring Data root."
+    },
+    "Configuration": {
+      "_note": "No ocs expectation yet. Named so the stale-CSV check recognises this run's output as fresh: run.sh's default wave emits ten CSVs, and a CSV the spec does not name is exit 2. Without these entries the default ocs invocation could not complete."
+    },
+    "ErrorHandling": {
+      "_note": "No ocs expectation yet; named for the stale-CSV check (see Configuration)."
+    },
+    "HibernateTypes": {
+      "_note": "No ocs expectation yet; named for the stale-CSV check (see Configuration)."
+    },
+    "JakartaMigration": {
+      "_note": "No ocs expectation yet; named for the stale-CSV check (see Configuration)."
+    },
+    "NativeSql": {
+      "_note": "No ocs expectation yet; named for the stale-CSV check (see Configuration)."
+    },
+    "OpenApiSurface": {
+      "_note": "No ocs expectation yet; named for the stale-CSV check (see Configuration)."
+    },
+    "OutboundClients": {
+      "_note": "No ocs expectation yet; named for the stale-CSV check (see Configuration)."
+    }
+  },
+  "snapshot": {},
+  "known_defects": {}
+}

@@ -1,1 +1,5 @@
+# Fetched from Maven Central by fetch-deps.sh and verified against deps.txt.
+# Not committed: 22MB of third-party jars, fully reconstructible from the
+# pinned coordinates + digests.
+lib/
 build/

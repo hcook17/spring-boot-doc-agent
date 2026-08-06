@@ -32,6 +32,52 @@ string attr(Annotation a, string name) {
 }
 
 /**
+ * Gets the values of the attributes named in `names` (comma-separated), joined
+ * with "|" in the order given, skipping absent ones.
+ *
+ * Five call sites had grown their own inline
+ * `concat(string s | s = attr(a, "x") and s != "" or ... | s, SEP order by s)`,
+ * with THREE different separators -- "" in ApiSurface.mappingPath and
+ * Configuration's prefix/value, " " in OpenApiSurface, "|" in Messaging and
+ * Configuration's basePackages -- and lexicographic ordering everywhere, so the
+ * output order does not follow the attribute order the reader sees. A consumer
+ * cannot split a "" join at all, and cannot rely on position in the others.
+ *
+ * One separator, call-site order. AliasFor pairs (`value`/`path`,
+ * `prefix`/`value`, `value`/`url`, `value`/`basePackages`) are NOT joins --
+ * use `attrFallback` for those.
+ */
+bindingset[names]
+string attrs(Annotation a, string names) {
+  result =
+    concat(int i, string v |
+      v = attr(a, names.splitAt(",", i)) and v != ""
+    |
+      v, "|" order by i
+    )
+}
+
+/**
+ * Gets the first non-empty value among the attributes named in `names`.
+ *
+ * For `@AliasFor` pairs -- `@ConfigurationProperties(prefix=)` / `(value=)`,
+ * `@RequestMapping(value=)` / `(path=)` -- Spring guarantees at most one is set,
+ * so the correct operation is a fallback, not a join. Joining them would put a
+ * "|" into `signal`, which Schema.qll documents as a single identity value.
+ */
+bindingset[names]
+string attrFallback(Annotation a, string names) {
+  result =
+    min(int i, string v |
+      v = attr(a, names.splitAt(",", i)) and v != ""
+    |
+      v order by i
+    )
+  or
+  not exists(string v | v = attr(a, names.splitAt(",", _)) and v != "") and result = ""
+}
+
+/**
  * Gets the stable symbol for `e`.
  *
  * Thin alias for `Schema::symbolOf` so that no query ever hand-rolls a symbol

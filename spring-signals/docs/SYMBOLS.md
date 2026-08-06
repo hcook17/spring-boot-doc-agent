@@ -31,10 +31,15 @@ method     com.elsevier.eols.ocsapi.repository/TopicRepository#findByVtwId().
 ctor       com.elsevier.eols.ocsapi.repository/TopicRepository#<init>().
 field      com.elsevier.eols.ocsapi/CachingConfig#redisTemplate.
 parameter  com.elsevier.eols.ocsapi/TopicController#get().(vtwId)
+import     src/main/java/com/example/Foo.java#javax.persistence.Entity.
+import     src/main/java/com/example/Foo.java#javax.persistence.*  (on-demand)
 ```
 
 Annotations, statements and expressions resolve to the symbol of their nearest
-named enclosing declaration.
+named enclosing declaration. Imports carry their own tier: without it, every
+import in a file shared the single file-level symbol, and N pending imports
+in one file were N rows colliding on `(file, symbol, rule_id)`. Static imports
+keep the file tier; the pack binds no rule to them.
 
 ## Known divergence from the L3 SCIP-inspired claim symbols
 
@@ -62,15 +67,16 @@ the ast-grep emitter cannot produce this grammar, change this document and
 
 ## Totality
 
-`symbolOf` is total for any `Element` with a file, via three tiers:
+`symbolOf` is total for any `Element` with a file, via four tiers:
 
 1. **Declaration** — type, method, constructor, field, parameter, local.
-2. **Owning declaration** — annotations resolve through
+2. **Import** — `<file>#<imported-fqn>`, or `<file>#<pkg>.*` on-demand.
+3. **Owning declaration** — annotations resolve through
    `getAnnotatedElement()`; expressions and statements through
    `getEnclosingCallable()`.
-3. **File** — `src/main/java/com/example/Foo.java#`. Cannot fail.
+4. **File** — `src/main/java/com/example/Foo.java#`. Cannot fail.
 
-Tier 3 exists because `sym(e)` appears in every `select`, so a missing symbol
+Tier 4 exists because `sym(e)` appears in every `select`, so a missing symbol
 **deletes the row**, silently, with no error and no blank column.
 
 The first version had only tiers 1 and 2, and tier 2 handled annotations only

@@ -9,10 +9,9 @@
  * accident for RestTemplate/WebClient, wrong for anything generic or
  * interface-injected.
  *
- * Import-based detection is retained but tagged with a distinct rule_id, so the
- * harness can count SITES without double-counting an import plus its use. Note
- * that import-based rules structurally undercount: ocs-api-service writes 540
- * annotations fully qualified inline, which leave no Import node at all.
+ * Detection is annotation- and type-based, not import-based: ocs-api-service
+ * writes 540 annotations fully qualified inline, which leave no Import node
+ * at all, so any import-based rule for this surface would undercount badly.
  *
  * @kind table
  * @id spring-signals/outbound-clients
@@ -59,7 +58,12 @@ where
     isExactly(a, "org.springframework.cloud.openfeign", name) and
     signature("spring", "org.springframework.cloud.openfeign", name, "feign", generation) and
     signal = "org.springframework.cloud.openfeign." + name and
-    detail = concat(string s | s = attr(a, "name") and s != "" or s = attr(a, "url") and s != "" or s = attr(a, "basePackages") and s != "" | s, " " order by s) and
+    // `value` is the positional spelling and an @AliasFor of `name` on
+    // @FeignClient, and of `basePackages` on @EnableFeignClients. Alias pairs
+    // are mutually exclusive, so the join degenerates to a fallback and no
+    // "|" can appear between aliases; omitting `value` here dropped the
+    // service id for the most common spelling, @FeignClient("svc").
+    detail = attrs(a, "value,name,url,basePackages") and
     rule_id = "outbound__feign"
   )
   or
@@ -70,7 +74,8 @@ where
     isExactly(a, "org.springframework.web.service.annotation", name) and
     signature("spring", "org.springframework.web.service.annotation", name, "http_exchange", generation) and
     signal = "org.springframework.web.service.annotation." + name and
-    detail = concat(string s | s = attr(a, "value") and s != "" or s = attr(a, "url") and s != "" | s, " " order by s) and
+    // value/url are @AliasFor on @HttpExchange: fallback, not join.
+    detail = attrFallback(a, "value,url") and
     rule_id = "outbound__http_exchange"
   )
   or
@@ -78,6 +83,11 @@ where
   exists(Variable v, string fqn |
     e = v and
     outboundClientType(v.getType(), fqn, generation) and
+    not exists(string other |
+      outboundClientType(v.getType(), other, _) and
+      other != fqn and
+      typeStrictlyExtendsFqn(other, fqn)
+    ) and
     signal = fqn and
     detail = v.getName() and
     rule_id = "outbound__type_usage"
@@ -86,6 +96,13 @@ where
   exists(Method m, string fqn |
     e = m and
     outboundClientType(m.getReturnType(), fqn, generation) and
+    // Same most-specific guard as the Variable arm above: a return type whose
+    // catalogue entries include an interface/impl pair fans out identically.
+    not exists(string other |
+      outboundClientType(m.getReturnType(), other, _) and
+      other != fqn and
+      typeStrictlyExtendsFqn(other, fqn)
+    ) and
     signal = fqn and
     detail = m.getName() and
     rule_id = "outbound__type_usage"

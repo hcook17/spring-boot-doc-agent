@@ -1,2 +1,0 @@
-# Queries expected to produce zero rows in the fixture.
-# Format: query_name expected_count

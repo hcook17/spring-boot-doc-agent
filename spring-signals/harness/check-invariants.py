@@ -57,6 +57,36 @@ from pathlib import Path
 MARKER = Path("codeql") / "packs" / "java-signals-lib"
 
 
+def _downward(start: Path, depth: int) -> list[Path]:
+    """Candidate pack roots at or below `start`, bounded by `depth`.
+
+    Deterministic (sorted). Searched a few levels deep to tolerate nested
+    archives (e.g. extracted overlay/v1/spring-signals/...).
+    """
+    if depth <= 0:
+        return []
+    found: list[Path] = []
+    for cand in sorted(start.glob("*/")):
+        if (cand / MARKER).is_dir():
+            found.append(cand.resolve())
+        else:
+            found.extend(_downward(cand, depth - 1))
+    return found
+
+
+def _first_unambiguous(found: list[Path]) -> Path | None:
+    """Ambiguity is REPORTED rather than silently resolved: two extracted packs
+    side by side would otherwise make a green run attributable to the
+    alphabetically first one by accident."""
+    if len(found) > 1:
+        print(
+            "WARNING: multiple pack roots found; using the first. Pass --root to "
+            "disambiguate.\n  " + "\n  ".join(str(f) for f in found),
+            file=sys.stderr,
+        )
+    return found[0] if found else None
+
+
 def find_root(explicit: str | None = None) -> Path:
     """
     Locate the pack root by SEARCHING for it, not by relative arithmetic.
@@ -74,9 +104,10 @@ def find_root(explicit: str | None = None) -> Path:
     and reporting nothing is indistinguishable from passing if the exit code is
     not read carefully.
 
-    Resolution order: explicit --root, then upward from the script, then downward
-    one level (the overlay-mirror case, where an extracted `spring-signals/` sits
-    beside the script), then the current working directory.
+    Resolution order: explicit --root, then upward from the script, then a
+    bounded downward search (the overlay-mirror case, where an extracted
+    `spring-signals/` sits beside the script), then the current working
+    directory.
     """
     if explicit:
         root = Path(explicit).resolve()
@@ -88,24 +119,12 @@ def find_root(explicit: str | None = None) -> Path:
     for cand in [here.parent, *here.parents]:
         if (cand / MARKER).is_dir():
             return cand
-    # Downward search. Deterministic (sorted), but ambiguity is REPORTED rather
-    # than silently resolved: two extracted packs side by side would otherwise
-    # make a green run attributable to the alphabetically first one by accident.
-    found = []
-    for cand in sorted(here.parent.glob("*/")) + sorted(Path.cwd().glob("*/")):
-        if (cand / MARKER).is_dir():
-            found.append(cand.resolve())
-        elif (cand / "spring-signals" / MARKER).is_dir():
-            found.append((cand / "spring-signals").resolve())
-    found = sorted(set(found))
-    if len(found) > 1:
-        print(
-            "WARNING: multiple pack roots found; using the first. Pass --root to "
-            "disambiguate.\n  " + "\n  ".join(str(f) for f in found),
-            file=sys.stderr,
-        )
-    if found:
-        return found[0]
+
+    found = _first_unambiguous(
+        sorted(set(_downward(here.parent, 4) + _downward(Path.cwd(), 4)))
+    )
+    if found is not None:
+        return found
     if (Path.cwd() / MARKER).is_dir():
         return Path.cwd()
 
@@ -113,7 +132,7 @@ def find_root(explicit: str | None = None) -> Path:
         "Could not locate the pack root.\n"
         f"Looked for a directory containing {MARKER}, searching upward from\n"
         f"  {here}\n"
-        "and one level down from there and from the current directory.\n\n"
+        "and a few levels down from there and from the current directory.\n\n"
         "If you extracted an overlay archive, the pack is inside the nested\n"
         "spring-signals.zip -- extract it first, or pass --root explicitly:\n"
         "  python3 check-invariants.py --root path/to/spring-signals"
@@ -162,6 +181,14 @@ def strip_strings(text: str) -> str:
     return re.sub(r'"(?:\\.|[^"\\])*"', '""', text)
 
 
+def extract_comments(text: str) -> str:
+    """Return all QL block and line comments, with strings stripped first."""
+    text = strip_strings(text)
+    parts = re.findall(r"//[^\n]*", text)
+    parts += re.findall(r"/\*.*?\*/", text, flags=re.S)
+    return "\n".join(parts)
+
+
 def ql_files(base: Path):
     return sorted(p for p in base.rglob("*.q*") if p.suffix in {".ql", ".qll"})
 
@@ -183,7 +210,13 @@ def check_or_or() -> list[str]:
     bad = []
     terminators = {"}", ")", "]"}
     for f in ql_files(ROOT / "codeql"):
-        toks = re.findall(r"[A-Za-z_][A-Za-z0-9_]*|[(){}\[\]]", strip_strings(strip_comments(f.read_text())))
+        # Strip strings BEFORE comments so a string containing "//" is not
+        # mangled by the comment stripper. Tokenise numbers and punctuation so
+        # tokens like "1 or 2 or y" are not collapsed into adjacent "or" tokens.
+        text = strip_comments(strip_strings(f.read_text()))
+        toks = re.findall(
+            r"[A-Za-z_][A-Za-z0-9_]*|[0-9]+|[(){}\[\]]|[^\sA-Za-z0-9_(){}\[\]]+", text
+        )
         for i in range(1, len(toks)):
             if toks[i] == "or" and toks[i - 1] == "or":
                 bad.append(f"{f.relative_to(ROOT)}: adjacent 'or' at token {i}")
@@ -248,10 +281,9 @@ def check_no_count_claims() -> list[str]:
         if not f.exists():
             continue
         text = f.read_text()
-        # QL: only comments are prose. Markdown: all of it is.
-        prose = text if f.suffix == ".md" else "\n".join(
-            ln for ln in text.splitlines() if ln.lstrip().startswith(("*", "//", "/*"))
-        )
+        # QL: only comments are prose (including trailing comments after code).
+        # Markdown: all of it is.
+        prose = text if f.suffix == ".md" else extract_comments(text)
         for m in COUNT_CLAIM.finditer(prose):
             line = prose[: m.start()].count("\n") + 1
             offenders.append(
@@ -331,7 +363,7 @@ def main() -> int:
     if failures:
         print(f"FAILED: {len(failures)} invariant violation(s)")
         return 1
-    print("All static invariants hold. Wave 0 items 2-4 remain blocked on CodeQL CLI.")
+    print("All static invariants hold. Compile and fixture-runtime gates cover the CLI side; only the ocs database build still needs Artifactory.")
     return 0
 
 

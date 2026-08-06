@@ -84,14 +84,21 @@ predicate signature(string framework, string pkg, string name, string kind, stri
     pkg = "jakarta.transaction" and name = "Transactional" and generation = "jakarta"
   )
   or
+  // No query consumes these tuples yet; they are catalogue correctness, kept
+  // honest anyway: @Validated does NOT exist under javax/jakarta.validation
+  // (those packages carry only @Valid) -- it is Spring's own annotation, in
+  // org.springframework.validation.annotation (spring-context).
   framework = "validation" and
   kind = "constraint" and
   (
-    pkg = "javax.validation" and generation = "javax"
+    pkg = "javax.validation" and name = "Valid" and generation = "javax"
     or
-    pkg = "jakarta.validation" and generation = "jakarta"
-  ) and
-  name in ["Valid", "Validated"]
+    pkg = "jakarta.validation" and name = "Valid" and generation = "jakarta"
+    or
+    pkg = "org.springframework.validation.annotation" and
+    name = "Validated" and
+    generation = ""
+  )
   or
   framework = "annotation" and
   kind = "lifecycle" and
@@ -241,6 +248,14 @@ predicate signature(string framework, string pkg, string name, string kind, stri
     name = "RequestPart" and kind = "param_binding"
     or
     name = "CookieValue" and kind = "param_binding"
+    or
+    // NOT "param_binding". api_surface__param_binding treats an empty `detail`
+    // as the Spring 6.1 -parameters finding, and @RequestBody carries no name
+    // attribute in any Spring version, so every one was a false positive. It was
+    // then dropped from the catalogue entirely, which removed the false positive
+    // by removing the signal -- request bodies are part of the API surface and
+    // should still be inventoried. Own kind, own rule_id.
+    name = "RequestBody" and kind = "body_binding"
   )
   or
   // Spring 6.1 / Boot 3.2 HTTP interface clients. Absent from ocs-api-service
@@ -429,8 +444,10 @@ predicate repositoryRoot(string pkg, string name, string generation) {
  * carrying inline SQL that no `@Query`-based rule can see.
  */
 predicate sqlExecutorType(string pkg, string name, string generation) {
-  // Concrete types only. Including both JdbcTemplate and JdbcOperations would
-  // double-count every JdbcTemplate site, because typeIsOrExtends matches both.
+  // Concrete types only today. If JdbcOperations is ever catalogued for
+  // injection-site recall, the most-specific guard in NativeSql.ql (via
+  // typeStrictlyExtends) is what prevents two rows per call site -- do not
+  // remove the guard when adding the interface.
   pkg = "org.springframework.jdbc.core" and
   generation = "" and
   name = "JdbcTemplate"

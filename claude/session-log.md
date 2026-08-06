@@ -4672,3 +4672,23 @@ Assumptions affected:
 - Semgrep missing recall baseline / empty pack soft-pass — [Resolved — fail-closed; no invented recall baseline file]
 - Dead `CI_EXEMPT_SUITES` registry — [Resolved — removed; Check D is scripts/test_*.py wrapper refusal only]
 Files touched: src/doc_engine/pipeline/compliance.py, covering.py, validation.py, validate_artifacts.py, .github/workflows/ci.yml, scripts/coverage/semgrep_rule_coverage.py, scripts/ci/check_repo_claims.py, STATUS.md, related tests, comment hygiene on rule_coverage/require_hardened_tests
+
+
+## 2026-08-05 — PR #92 adversarial-review fixes (Jakarta boundary, ocs gate path, recall arms, harness hardening)
+
+Commit: c7501ce, 3991ff1, 0502351, 6a8fd71, b75faf7
+Tests: pytest tests/spring_signals 47/47; mutation driver 10/10 killed; codeql query compile 16/16 (local CLI 2.26.0); codeql test run 18/18; check-invariants.py PASS; check_repo_claims.py OK; bash -n 5/5; full local fixture E2E (Git Bash + Windows codeql + javac --release 17): 31/31 jars digest-verified, extraction delta 0 (set equality), all 54 JSON assertions hold
+Assumptions affected:
+- steering prompts — none name the spring-signals harness internals these commits change; 08 "CodeQL CLI remains a standalone binary" — [Still accurate]
+- run.sh / ocs expectations — "the Messaging=0 gate is ON by default" — [New info — the default invocation always exited 2 (stale-CSV check vs unnamed CSVs); ocs-api-service.json now names all ten wave-1 queries, and tests/spring_signals pins DEFAULT_QUERIES coverage]
+- JakartaMigration.ql header — "Every first-party reference to a javax.* namespace" — [New info — was overclaimed; on-demand imports, type arguments, and class literals are now covered, and the header enumerates covered shapes instead]
+Files touched: spring-signals/codeql/packs/{java-signals-lib/signals/Schema.qll,spring-signals/{Jakarta.qll,JakartaMigration.ql,OutboundClients.ql,Catalog.qll,NativeSql.ql}}, spring-signals/harness/{check-assertions.py,check-invariants.py,create-db.sh,fixture-repo/fetch-deps.sh,expectations/{fixture-repo.json,ocs-api-service.json}}, spring-signals/docs/SYMBOLS.md, .github/workflows/ci.yml, .gitattributes, tests/spring_signals/test_check_assertions.py, fixture + QL test stubs/expected files, claude/tool-quirks.md
+
+## 2026-08-06 — PR #92 follow-up: transaction.xa + cache + mutation CI
+
+Commit: pending
+Tests: codeql test run 18/18 (JakartaMigrationSanity pins xa retained / cache relocated); pytest tests/spring_signals 47/47; mutation_driver 10/10 killed
+Assumptions affected:
+- Jakarta.qll relocated list as EE-complete vs JDK-retained complement — [New info — javax.transaction.xa was false-positive pending via bare `transaction` slot; split like security.auth; javax.cache added from mappings.adoc]
+- mutation_driver as verified gate — [Resolved — wired non-blocking in ci.yml with ENFORCE=False matching mutate.py]
+Files touched: spring-signals/codeql/packs/spring-signals/Jakarta.qll, JakartaMigrationSanity.{ql,expected}, spring-signals/harness/fixture-repo/fetch-deps.sh, tests/spring_signals/mutation_driver.py, .github/workflows/ci.yml, claude/session-log.md

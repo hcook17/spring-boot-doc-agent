@@ -1,4 +1,0 @@
-# query    expected_rows
-# Asserted zero-result queries on ocs-api-service @ develop.
-# A FAIL here means either the repo changed or the query broke. Both need a look.
-Messaging 0

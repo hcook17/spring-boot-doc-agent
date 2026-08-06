@@ -1,4 +1,5 @@
-# CodeQL runtime gate artifacts
 .codeql/
 out/
-*.packcache/
+out-fixture/
+out-open/
+.compcache/

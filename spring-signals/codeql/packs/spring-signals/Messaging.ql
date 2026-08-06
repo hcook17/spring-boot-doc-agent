@@ -10,10 +10,12 @@
  * interface-typed injection (`KafkaOperations`, `AmqpTemplate`, `JmsOperations`)
  * and project-local subclasses.
  *
- * STATUS ON ocs-api-service: zero rows. No messaging library is on the
- * classpath. This query is retained rather than deleted so that "no messaging"
- * is an asserted result rather than an untested one; see the coverage assertion
- * in harness/expected-empty.txt.
+ * STATUS ON ocs-api-service: zero rows expected. No messaging library is on
+ * the classpath; the expectation is asserted (exact zero) by
+ * harness/expectations/ocs-api-service.json. The non-zero direction is gated
+ * on the fixture: MessagingFixture exercises Kafka/Rabbit/JMS client types,
+ * and harness/expectations/fixture-repo.json pins both the row count and the
+ * surviving signal per client type.
  *
  * @kind table
  * @id spring-signals/messaging
@@ -25,14 +27,12 @@ import Common
 /** Holds if `t` is a messaging client type. Interfaces first, impls second. */
 private predicate messagingClientType(Type t, string fqn) {
   typeIsOrExtends(t, "org.springframework.kafka.core", "KafkaOperations") and
-  not typeIsOrExtends(t, "org.springframework.kafka.core", "KafkaTemplate") and
   fqn = "org.springframework.kafka.core.KafkaOperations"
   or
   typeIsOrExtends(t, "org.springframework.kafka.core", "KafkaTemplate") and
   fqn = "org.springframework.kafka.core.KafkaTemplate"
   or
   typeIsOrExtends(t, "org.springframework.amqp.core", "AmqpTemplate") and
-  not typeIsOrExtends(t, "org.springframework.amqp.rabbit.core", "RabbitTemplate") and
   fqn = "org.springframework.amqp.core.AmqpTemplate"
   or
   typeIsOrExtends(t, "org.springframework.amqp.rabbit.core", "RabbitTemplate") and
@@ -40,6 +40,9 @@ private predicate messagingClientType(Type t, string fqn) {
   or
   typeIsOrExtends(t, "org.springframework.jms.core", "JmsOperations") and
   fqn = "org.springframework.jms.core.JmsOperations"
+  or
+  typeIsOrExtends(t, "org.springframework.jms.core", "JmsTemplate") and
+  fqn = "org.springframework.jms.core.JmsTemplate"
   or
   typeIsOrExtends(t, "io.awspring.cloud.sqs.operations", "SqsTemplate") and
   fqn = "io.awspring.cloud.sqs.operations.SqsTemplate"
@@ -79,13 +82,24 @@ where
     isExactly(a, pkg, name) and
     listenerAnnotation(pkg, name) and
     signal = pkg + "." + name and
-    detail = concat(string s | s = attr(a, "topics") and s != "" or s = attr(a, "queues") and s != "" or s = attr(a, "destination") and s != "" or s = attr(a, "value") and s != "" | s, "|" order by s) and
+    detail = attrs(a, "topics,queues,destination,value") and
     rule_id = "messaging__listener"
   )
   or
   exists(Variable v, string fqn |
     e = v and
     messagingClientType(v.getType(), fqn) and
+    // Most specific catalogued client type only, derived from the hierarchy
+    // (KafkaTemplate strictly extends KafkaOperations, RabbitTemplate strictly
+    // extends AmqpTemplate). The previous hand-written per-pair exclusions had
+    // to be repeated for every interface/impl pair; a forgotten one emits a
+    // duplicate silently. One asymmetric survivor (RabbitTemplate) is worse
+    // than none: it reads as intentional while protecting only half the pairs.
+    not exists(string other |
+      messagingClientType(v.getType(), other) and
+      other != fqn and
+      typeStrictlyExtendsFqn(other, fqn)
+    ) and
     signal = fqn and
     detail = v.getName() and
     rule_id = "messaging__client_type"

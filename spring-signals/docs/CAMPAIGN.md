@@ -145,7 +145,8 @@ pack), and abstract-class contribution across a pack boundary.
 Nothing in this pack has ever executed. Two compile errors (`Catalog.qll`
 unbound variables; `NativeSql.ql` referencing a nonexistent `Argument` class)
 meant `codeql query compile` could not have passed, and `run.sh` aborted on the
-first comment line in `expected-empty.txt` before reporting any assertion.
+first comment line in the ocs absence-assertion file before reporting any
+assertion.
 
 Every number in this document is grep-derived. Wave 0 is: fix the compile
 errors, run `create-db.sh` and `run.sh` once against ocs @ develop, and let the
@@ -209,7 +210,7 @@ Supersedes #88's P0 work.
 repository interface per *most specific* root — the four `BookBased*Repository`
 types that the one-hop supertype walk missed appear once each, not five times
 each. `persistence__repository_marker` reports four rows for `BookBasedRepository`.
-`Messaging.ql` returns 0 and `expected-empty.txt` asserts it.
+`Messaging.ql` returns 0 and `harness/expectations/ocs-api-service.json` asserts it.
 
 The "once each" clause is load-bearing: the naive any-reachable-root form fanned
 out ~5x, which would have made this test report 12-20 and fail for a reason
@@ -445,8 +446,8 @@ meta-annotation-derived number is quoted anywhere.
    through `query run` + `bqrs decode`.
 4. **Precompile before timing.** `compiled: false` puts QL compilation inside
    every measurement, which is most of the CodeQL-vs-ast-grep latency delta.
-5. **A zero-row query is not self-evidently correct.** `expected-empty.txt` makes
-   asserted-zero distinguishable from broken.
+5. **A zero-row query is not self-evidently correct.** An exact-zero entry in
+   the per-repo expectations JSON makes asserted-zero distinguishable from broken.
 6. **Check for duplicate rows** (`count(*)` vs `count(distinct …)`) before
    quoting any total. Annotated generic types can yield one row per
    instantiation.

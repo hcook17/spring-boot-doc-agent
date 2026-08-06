@@ -1,0 +1,38 @@
+# Pinned compile-time dependencies for the spring-signals fixture repo.
+# Boot 2.7.18 / Spring 5.3.31 / javax namespace -- deliberately the SAME
+# generation as ocs-api-service, so generation-tagged rows are exercised.
+#
+# Format: <group>:<artifact>:<version>  <sha256>
+# To add a jar: download it from Maven Central and paste its sha256 here, e.g.
+#   curl -fsSL https://repo.maven.apache.org/maven2/<group>/<artifact>/<version>/<artifact>-<version>.jar | sha256sum
+org.springframework:spring-core:5.3.31  7013ed3da15a8d4be797f5c310f9aa1b196b97f2313bc41e60ef3f5627224fe9
+org.springframework:spring-beans:5.3.31  a8d6d99003d0a28049cba4273afbcfc64e1107ee3c33f67935853e9711544aa7
+org.springframework:spring-context:5.3.31  38def055d1e22b5514b1cb19cef4474e5c1b0d2127c483e7d014bde87c4a4cf3
+org.springframework:spring-web:5.3.31  7b7b4db19acc8c0cdb0dea93a3aa4b1b706db4bcc7b77f677a0c56e86d379ac7
+org.springframework:spring-webflux:5.3.31  c4c9be602667336a66e402227b53dda8103e9cc839c8f5c3dd546758f74cf81b
+org.springframework:spring-tx:5.3.31  8e7835cf87a57ba93360d9badc45ae0a8bcbe0bc9e04a17433cbc8d00a9cf43c
+org.springframework:spring-jdbc:5.3.31  3cc06d5a00adff04a289d93bd5c4b7a2937eebab567e88af6ac1f0aeb5ef032c
+org.springframework:spring-jms:5.3.31  6564b1fdc1b5b8787e7ee97e68c0b40545536c79a71b04e48c6afe8f1e6d21f6
+org.springframework:spring-messaging:5.3.31  be560cb5c2bc23b928407beec63498696218aa86abb20aa84fbc2aa4f3b67bdf
+org.springframework.boot:spring-boot:2.7.18  530f4e0fdfeb3a0e2b3a369d15cdea38fbdc1696f8b030c35a6ad65c27524950
+org.springframework.boot:spring-boot-autoconfigure:2.7.18  1c4e0aadcb662b6149b536a2cf288003ffefe81a6cc69846e9f14976529a1b08
+org.springframework.data:spring-data-commons:2.7.18  896e203a870b77a5a58f6c642fb9ba1cac858e013637ce3f9bffa9420e1f7f56
+org.springframework.data:spring-data-jpa:2.7.18  a16bbbf5721d9c35cbb21ef3f079ae2c28fd9cb8d9d6451cacc0fa917e44620d
+org.springframework.kafka:spring-kafka:2.8.11  e5600201712436cce964b47ad4229b47d6c8163e255eb5ed9395c84c4c7f8c4c
+org.springframework.amqp:spring-amqp:2.4.17  3d3e6273a381ee154c1e783f53e4e2b045ba2166bd0929cd79dc1023c4d368ac
+org.springframework.amqp:spring-rabbit:2.4.17  c4236fcd4a547a209e0402b3006ef1232746290d0c523e864e941a50ae89551c
+org.springframework.cloud:spring-cloud-openfeign-core:3.1.9  e760724976a3b64c28a61e27eec7fc8a26e26ef903e326df82d2173a77b82f45
+javax.persistence:javax.persistence-api:2.2  5578b71b37999a5eaed3fea0d14aa61c60c6ec6328256f2b63472f336318baf4
+javax.validation:validation-api:2.0.1.Final  9873b46df1833c9ee8f5bc1ff6853375115dadd8897bcb5a0dffb5848835ee6c
+javax.annotation:javax.annotation-api:1.3.2  e04ba5195bcd555dc95650f7cc614d151e4bcd52d29a10b8aa2197f3ab89ab9b
+javax.transaction:javax.transaction-api:1.3  603df5e4fc1eeae8f5e5d363a8be6c1fa47d0df1df8739a05cbcb9fafd6df2da
+org.hibernate:hibernate-core:5.6.15.Final  9b5a7e1faf094d98c9e33b6a27c4cae42e52f65b139091c08b9a0b4a9858b207
+com.vladmihalcea:hibernate-types-52:2.21.1  7c24b7940e88aacc3ceaa929075dc50d837fa8bba6727f8659353dcef0cf5cd3
+io.swagger:swagger-annotations:1.6.11  2b4a17b5c2937ab7d3d710ee62266563cfc57bee920959f2eacc6f1613f68993
+io.swagger.core.v3:swagger-annotations:2.2.20  7a6a38358b8239985b5dedc1ffbe3c842e2413b6c14688a1f2668cadbde36190
+org.junit.jupiter:junit-jupiter-api:5.8.2  1808ee87e0f718cd6e25f3b75afc17956ac8a3edc48c7e9bab9f19f9a79e3801
+org.apiguardian:apiguardian-api:1.1.2  b509448ac506d607319f182537f0b35d71007582ec741832a1f111e5b5b70b38
+org.opentest4j:opentest4j:1.2.0  58812de60898d976fb81ef3b62da05c6604c18fd4a249f5044282479fc286af2
+org.slf4j:slf4j-api:1.7.36  d3ef575e3e4979678dc01bf1dcce51021493b4d11fb7f1be8ad982877c16a1c0
+com.google.code.findbugs:jsr305:3.0.2  766ad2a0783f2687962c8ad74ceecc38a28b9f72a2d085ee438b7813e928d0c7
+jakarta.persistence:jakarta.persistence-api:3.1.0  475389446d35c6f46c565728b756dc508c284644ea2690644e0d8e7e339d42fd
