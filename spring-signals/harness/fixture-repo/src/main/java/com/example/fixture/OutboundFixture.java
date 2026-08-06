@@ -15,7 +15,9 @@ public class OutboundFixture {
   }
 }
 
-@FeignClient(name = "catalog", url = "https://catalog.example.com")
+// Positional value= spelling (@AliasFor of name): the detail extraction must
+// read it, or the service id is lost for the most common form.
+@FeignClient(value = "catalog", url = "https://catalog.example.com")
 interface CatalogClient {
   String fetch(String id);
 }

@@ -84,14 +84,21 @@ predicate signature(string framework, string pkg, string name, string kind, stri
     pkg = "jakarta.transaction" and name = "Transactional" and generation = "jakarta"
   )
   or
+  // No query consumes these tuples yet; they are catalogue correctness, kept
+  // honest anyway: @Validated does NOT exist under javax/jakarta.validation
+  // (those packages carry only @Valid) -- it is Spring's own annotation, in
+  // org.springframework.validation.annotation (spring-context).
   framework = "validation" and
   kind = "constraint" and
   (
-    pkg = "javax.validation" and generation = "javax"
+    pkg = "javax.validation" and name = "Valid" and generation = "javax"
     or
-    pkg = "jakarta.validation" and generation = "jakarta"
-  ) and
-  name in ["Valid", "Validated"]
+    pkg = "jakarta.validation" and name = "Valid" and generation = "jakarta"
+    or
+    pkg = "org.springframework.validation.annotation" and
+    name = "Validated" and
+    generation = ""
+  )
   or
   framework = "annotation" and
   kind = "lifecycle" and

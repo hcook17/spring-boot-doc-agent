@@ -12,7 +12,8 @@ import org.springframework.web.service.invoker.HttpServiceProxyFactory;
 import java.net.http.HttpClient;
 import okhttp3.OkHttpClient;
 
-@FeignClient(name = "books", url = "http://example.com")
+// Positional value= spelling: the most common form, and an @AliasFor of name.
+@FeignClient(value = "books", url = "http://example.com")
 @HttpExchange("/books")
 public interface OutboundClient {
     @GetExchange

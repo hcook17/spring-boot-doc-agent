@@ -8,6 +8,9 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface FeignClient {
+    // The real @FeignClient has value() as the positional @AliasFor of name();
+    // a stub without it cannot reproduce the @FeignClient("svc") spelling.
+    String value() default "";
     String name() default "";
     String url() default "";
     String[] basePackages() default {};

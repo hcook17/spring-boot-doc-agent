@@ -9,10 +9,9 @@
  * accident for RestTemplate/WebClient, wrong for anything generic or
  * interface-injected.
  *
- * Import-based detection is retained but tagged with a distinct rule_id, so the
- * harness can count SITES without double-counting an import plus its use. Note
- * that import-based rules structurally undercount: ocs-api-service writes 540
- * annotations fully qualified inline, which leave no Import node at all.
+ * Detection is annotation- and type-based, not import-based: ocs-api-service
+ * writes 540 annotations fully qualified inline, which leave no Import node
+ * at all, so any import-based rule for this surface would undercount badly.
  *
  * @kind table
  * @id spring-signals/outbound-clients
@@ -59,7 +58,12 @@ where
     isExactly(a, "org.springframework.cloud.openfeign", name) and
     signature("spring", "org.springframework.cloud.openfeign", name, "feign", generation) and
     signal = "org.springframework.cloud.openfeign." + name and
-    detail = attrs(a, "name,url,basePackages") and
+    // `value` is the positional spelling and an @AliasFor of `name` on
+    // @FeignClient, and of `basePackages` on @EnableFeignClients. Alias pairs
+    // are mutually exclusive, so the join degenerates to a fallback and no
+    // "|" can appear between aliases; omitting `value` here dropped the
+    // service id for the most common spelling, @FeignClient("svc").
+    detail = attrs(a, "value,name,url,basePackages") and
     rule_id = "outbound__feign"
   )
   or
