@@ -122,16 +122,21 @@ def load_counts(out_dir: Path, query: str) -> tuple[int, Counter]:
         return -1, Counter()
     rows = 0
     by_rule: Counter = Counter()
-    # utf-8-sig: bqrs decode writes plain UTF-8 under bash redirection, but a
-    # PowerShell `>` re-decode produces a UTF-16/UTF-8-BOM file; that should
-    # read as an empty/missing result, not an uncaught UnicodeDecodeError.
-    with path.open(newline="", encoding="utf-8-sig") as fh:
-        for row in csv.DictReader(fh):
-            rows += 1
-            # v0 queries have a rule_id column too; v1 adds the rest.
-            rule = row.get("rule_id")
-            if rule:
-                by_rule[rule] += 1
+    # utf-8-sig handles a UTF-8 BOM. bqrs decode writes plain UTF-8 under bash
+    # redirection, but a PowerShell `>` re-decode produces UTF-16, which
+    # utf-8-sig cannot read: catch that and treat the file as MISSING (-1),
+    # which fails closed as a MISS, rather than dying on an uncaught
+    # UnicodeDecodeError traceback.
+    try:
+        with path.open(newline="", encoding="utf-8-sig") as fh:
+            for row in csv.DictReader(fh):
+                rows += 1
+                # v0 queries have a rule_id column too; v1 adds the rest.
+                rule = row.get("rule_id")
+                if rule:
+                    by_rule[rule] += 1
+    except UnicodeDecodeError:
+        return -1, Counter()
     return rows, by_rule
 
 
@@ -142,11 +147,15 @@ def load_signals(out_dir: Path, query: str) -> dict[str, list[str]]:
     signals: dict[str, list[str]] = {}
     if not path.exists():
         return signals
-    with path.open(newline="", encoding="utf-8-sig") as fh:
-        for row in csv.DictReader(fh):
-            rule = row.get("rule_id")
-            if rule:
-                signals.setdefault(rule, []).append(row.get("signal", ""))
+    try:
+        with path.open(newline="", encoding="utf-8-sig") as fh:
+            for row in csv.DictReader(fh):
+                rule = row.get("rule_id")
+                if rule:
+                    signals.setdefault(rule, []).append(row.get("signal", ""))
+    except UnicodeDecodeError:
+        # Same contract as load_counts: an unreadable CSV is a missing one.
+        return {}
     return {rule: sorted(values) for rule, values in signals.items()}
 
 

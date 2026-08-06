@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -201,6 +202,29 @@ class TestFailClosed:
             run(spec_path, tmp_path / "out")
         assert exc.value.code == 2
 
+    def test_utf16_csv_is_a_miss_not_a_traceback(self, tmp_path):
+        # A PowerShell `>` re-decode produces UTF-16, which utf-8-sig cannot
+        # read. The documented contract is fail-closed-as-missing (exit 1 via
+        # MISS), never an uncaught UnicodeDecodeError.
+        import codecs
+
+        (tmp_path / "out").mkdir()
+        (tmp_path / "out" / "A.csv").write_bytes(
+            codecs.BOM_UTF16_LE + HEADER.encode("utf-16-le")
+        )
+        spec_path = write_spec(tmp_path / "s.json", base_spec(asserted={"A": {"_rows": 0}}))
+        assert run(spec_path, tmp_path / "out") == 1
+
+    def test_utf8_bom_csv_reads_normally(self, tmp_path):
+        import codecs
+
+        (tmp_path / "out").mkdir()
+        (tmp_path / "out" / "A.csv").write_bytes(
+            codecs.BOM_UTF8 + (HEADER + row("r", "g")).encode("utf-8")
+        )
+        spec_path = write_spec(tmp_path / "s.json", base_spec(asserted={"A": {"_rows": 1}}))
+        assert run(spec_path, tmp_path / "out") == 0
+
 
 # ------------------------------------------------------------------ snapshots
 
@@ -341,6 +365,36 @@ class TestRecord:
             assert "Ghost" not in written["snapshot"]
         finally:
             spec_path.unlink(missing_ok=True)
+
+
+# ------------------------------------------------------- real expectations files
+
+
+class TestRealExpectations:
+    """The run.sh default wave and the shipped specs must agree on query names.
+
+    run.sh emits one CSV per DEFAULT_QUERIES entry; check_no_stale_csvs exits 2
+    on any CSV the spec does not name. A spec that names fewer queries than the
+    default wave makes the default invocation un-runnable -- the exact failure
+    this test exists to catch.
+    """
+
+    @staticmethod
+    def _default_queries() -> list[str]:
+        run_sh = (REPO_ROOT / "spring-signals" / "harness" / "run.sh").read_text(encoding="utf-8")
+        m = re.search(r'^DEFAULT_QUERIES="([^"]+)"', run_sh, re.M)
+        assert m, "run.sh no longer defines DEFAULT_QUERIES"
+        return m.group(1).split()
+
+    @pytest.mark.parametrize(
+        "spec_name", ["ocs-api-service.json", "fixture-repo.json"]
+    )
+    def test_spec_names_every_default_wave_query(self, spec_name):
+        spec_path = REPO_ROOT / "spring-signals" / "harness" / "expectations" / spec_name
+        spec = json.loads(spec_path.read_text(encoding="utf-8"))
+        named = ca.spec_queries(spec)
+        missing = [q for q in self._default_queries() if q not in named]
+        assert not missing, f"{spec_name} does not name default-wave queries: {missing}"
 
 
 # ------------------------------------------------------------------ end to end
