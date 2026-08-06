@@ -1,0 +1,98 @@
+name: spring-signals
+
+on:
+  # No `branches:` filter on pull_request, deliberately: this workflow gates
+  # PRs whose base is a stacked feature branch, and a branches:[main] filter
+  # would silently skip exactly those. The fixture gate must run on stacked
+  # PRs or the chain merges unverified.
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spring-signals-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # codeql-bundle-v2.26.2 (CLI 2.26.2), published 2026-07-29.
+  # Digest provenance: the `digest` field of the codeql-bundle-linux64.tar.gz
+  # asset in
+  #   https://api.github.com/repos/github/codeql-action/releases/tags/codeql-bundle-v2.26.2
+  # fetched 2026-08-05. The release also ships a
+  # codeql-bundle-linux64.tar.gz.checksum.txt sidecar for independent
+  # re-verification. Bump URL and digest in the same commit, always.
+  CODEQL_BUNDLE_URL: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.26.2/codeql-bundle-linux64.tar.gz
+  CODEQL_SHA256: cb361567fa1bdb9d322da4240f621b36f245e4d7bb97db3c3a2ad7f743c8e8e7
+
+jobs:
+  fixture-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pinned CodeQL CLI
+        uses: ./.github/actions/setup-codeql
+        with:
+          bundle-url: ${{ env.CODEQL_BUNDLE_URL }}
+          bundle-sha256: ${{ env.CODEQL_SHA256 }}
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # The new pack tree must carry committed lock files the way the old
+      # codeql/spring-signals tree does (java-all 9.2.1 pinned there). A
+      # missing or stale lock is a reproducibility regression, so this fails
+      # closed. Bootstrap: the first run requires a maintainer with the CLI
+      # to run `codeql pack install` per pack and commit the result --
+      # `git status --porcelain` (not `git diff`) so untracked lock files
+      # count as stale too.
+      - name: Pack lock files are committed and current
+        run: |
+          codeql pack install spring-signals/codeql/packs/java-signals-lib
+          codeql pack install spring-signals/codeql/packs/spring-signals
+          if [ -n "$(git status --porcelain -- 'spring-signals/**/codeql-pack.lock.yml')" ]; then
+            git status --porcelain -- 'spring-signals/**/codeql-pack.lock.yml'
+            echo "::error::codeql-pack.lock.yml is missing or stale; run 'codeql pack install' on each pack and commit the result."
+            exit 1
+          fi
+
+      - name: Compile the packs
+        run: |
+          codeql query compile spring-signals/codeql/packs/spring-signals/
+          codeql query compile spring-signals/codeql/packs/java-signals-lib/signals/
+
+      - name: Fetch and verify fixture jars
+        run: bash spring-signals/harness/fixture-repo/fetch-deps.sh
+
+      # The extractor watches the pinned javac build, so the fixture database
+      # resolves Spring types from the verified jars -- buildless extraction
+      # would leave them <unknown> and under-match every type predicate.
+      - name: Create fixture database
+        run: |
+          codeql database create "$RUNNER_TEMP/fixture-db" \
+            --language=java \
+            --source-root=spring-signals/harness/fixture-repo/src \
+            --overwrite \
+            --command="bash spring-signals/harness/fixture-repo/build.sh"
+
+      - name: Fixture gate (precompile, run wave 1, assert)
+        env:
+          DB: ${{ runner.temp }}/fixture-db
+          OUT: ${{ runner.temp }}/out-fixture
+          PACKS: ${{ github.workspace }}/spring-signals/codeql/packs
+          SPEC: ${{ github.workspace }}/spring-signals/harness/expectations/fixture-repo.json
+        run: bash spring-signals/harness/run.sh
+
+      - name: Assertion engine unit tests
+        run: |
+          pip install pytest
+          python -m pytest tests/spring_signals/ -q

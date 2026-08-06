@@ -1,0 +1,28 @@
+# Pinned Maven Central artifacts for the fixture build.
+# Format: group:artifact:version:sha256
+#
+# Provenance of each sha256: the jar was downloaded from
+# https://repo1.maven.org/maven2/<group-path>/<artifact>/<version>/, verified
+# against Central's authoritative .sha1 sidecar (Central serves no .sha256
+# sidecar for these 2023-era artifacts -- probed 2026-08-05), and the sha256
+# computed from those verified bytes. fetch-deps.sh repeats the sha1-sidecar
+# check on every fetch, then enforces the sha256 pin below.
+#
+# Version pairing: Spring Framework 5.3.31 is what Spring Boot 2.7.18 ships
+# (spring.io release notes, 2023-11-16). spring-kafka 2.8.11 and
+# spring-data-commons 2.7.18 are Boot 2.7.18-managed. The javax.* (JSR-250,
+# JPA) + jakarta.annotation-api 2.1.1 + JSR-305 trio is the javax/jakarta
+# boundary JakartaMigration.ql grades. jakarta.annotation-api must be >= 2.0:
+# the 1.3.x line is still javax.annotation-packaged (the Jakarta EE 9 package
+# rename is what 2.0 carries), so 1.3.5 cannot satisfy a jakarta.* import.
+org.springframework:spring-core:5.3.31:7013ed3da15a8d4be797f5c310f9aa1b196b97f2313bc41e60ef3f5627224fe9
+org.springframework:spring-beans:5.3.31:a8d6d99003d0a28049cba4273afbcfc64e1107ee3c33f67935853e9711544aa7
+org.springframework:spring-context:5.3.31:38def055d1e22b5514b1cb19cef4474e5c1b0d2127c483e7d014bde87c4a4cf3
+org.springframework:spring-web:5.3.31:7b7b4db19acc8c0cdb0dea93a3aa4b1b706db4bcc7b77f677a0c56e86d379ac7
+org.springframework:spring-messaging:5.3.31:be560cb5c2bc23b928407beec63498696218aa86abb20aa84fbc2aa4f3b67bdf
+org.springframework.kafka:spring-kafka:2.8.11:e5600201712436cce964b47ad4229b47d6c8163e255eb5ed9395c84c4c7f8c4c
+org.springframework.data:spring-data-commons:2.7.18:896e203a870b77a5a58f6c642fb9ba1cac858e013637ce3f9bffa9420e1f7f56
+javax.persistence:javax.persistence-api:2.2:5578b71b37999a5eaed3fea0d14aa61c60c6ec6328256f2b63472f336318baf4
+javax.annotation:javax.annotation-api:1.3.2:e04ba5195bcd555dc95650f7cc614d151e4bcd52d29a10b8aa2197f3ab89ab9b
+jakarta.annotation:jakarta.annotation-api:2.1.1:5f65fdaf424eee2b55e1d882ba9bb376be93fb09b37b808be6e22e8851c909fe
+com.google.code.findbugs:jsr305:3.0.2:766ad2a0783f2687962c8ad74ceecc38a28b9f72a2d085ee438b7813e928d0c7

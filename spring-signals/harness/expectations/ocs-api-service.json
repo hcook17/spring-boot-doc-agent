@@ -1,0 +1,17 @@
+{
+  "spec_version": "v1",
+  "description": "Expectations for ocs-api-service @ develop (Spring Boot 2.7.18, javax). asserted: graded zero-result queries -- a DIFF means the repo changed or the query broke, both need a look. rule_minimums: campaign exit criteria, ported from expected-empty.txt's 'checked manually until run.sh grows a min-rows mode' list. Every number below verified structurally against the checkout 2026-08-05 (ast-grep 0.45.0 + build.gradle inspection): 596 .java files (420 main / 176 test); Messaging=0 holds (no kafka/rabbit/sqs/pulsar/jms dependency); 48 @RestController + 1 @Controller = 49; exactly 369 method-level shortcut mapping annotations (216+3 Get, 39+72 Post, 36 Put, 1+2 Delete); 45 @RequestMapping total of which 35 class-level per wave 1c; exactly 4 interfaces extend the BookBasedRepository marker (Topic, Module, Lesson, Concept). build.gradle's credentials read findProperty(artifactory_user) ?: env(artifactory_user), so create-db.sh's ORG_GRADLE_PROJECT_artifactory_user env feeds the property lookup.",
+  "asserted": {
+    "Messaging": 0
+  },
+  "rule_minimums": {
+    "ApiSurface": {
+      "api_surface__controller": 49,
+      "api_surface__endpoint": 369,
+      "api_surface__path_prefix": 35
+    },
+    "Persistence": {
+      "persistence__repository_marker": 4
+    }
+  }
+}

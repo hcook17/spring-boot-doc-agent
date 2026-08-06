@@ -1,0 +1,4 @@
+# Downloaded jars and javac output are derived data, rebuilt by
+# fetch-deps.sh + build.sh and verified against deps.txt every time.
+lib/
+classes/

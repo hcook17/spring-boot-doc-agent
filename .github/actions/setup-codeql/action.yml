@@ -1,0 +1,41 @@
+name: setup-codeql
+description: >-
+  Download a pinned CodeQL bundle, verify its SHA-256 (fail closed), extract
+  it, and put the CLI on PATH. The two load-bearing values are declared
+  inputs, not ambient env: the caller must state both the artifact and the
+  digest it expects, which is what makes a digest change a reviewed diff.
+
+inputs:
+  bundle-url:
+    description: "URL of the codeql-bundle tarball (a github/codeql-action release asset)"
+    required: true
+  bundle-sha256:
+    description: "SHA-256 of the tarball, from the release asset's digest field"
+    required: true
+
+outputs:
+  codeql-dir:
+    description: "Directory the bundle was extracted into (CLI at <dir>/codeql/codeql)"
+    value: ${{ steps.extract.outputs.codeql-dir }}
+
+runs:
+  using: composite
+  steps:
+    - name: Download bundle
+      shell: bash
+      run: curl -fsSL "${{ inputs.bundle-url }}" -o "$RUNNER_TEMP/codeql-bundle.tar.gz"
+
+    - name: Verify SHA-256 (fail closed)
+      shell: bash
+      run: |
+        echo "${{ inputs.bundle-sha256 }}  $RUNNER_TEMP/codeql-bundle.tar.gz" | sha256sum -c -
+
+    - name: Extract and put on PATH
+      id: extract
+      shell: bash
+      run: |
+        dest="$RUNNER_TEMP/codeql-bundle"
+        mkdir -p "$dest"
+        tar -xzf "$RUNNER_TEMP/codeql-bundle.tar.gz" -C "$dest"
+        echo "codeql-dir=$dest" >> "$GITHUB_OUTPUT"
+        echo "$dest/codeql" >> "$GITHUB_PATH"

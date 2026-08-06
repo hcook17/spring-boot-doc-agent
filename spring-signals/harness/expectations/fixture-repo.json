@@ -1,0 +1,50 @@
+{
+  "spec_version": "v1",
+  "description": "Expectations for harness/fixture-repo (synthetic, fully controlled, 9 sources). Floors are chosen to survive the query-layer changes staged for the review layer above this one (messaging client_type most-specific-subtype dedup, jsr305Symbol guard): they pin direction and survivor identity, not self-graded exact counts. javax.annotation.Nullable currently counts as pending (the jsr305 guard has not landed in the pack); the pending floors of 6 pass with or without it. messaging__client_type >= 2 passes both with dedup (2 rows) and without (3 rows); the survivor identity is pinned by signals below, which is the assertion a count cannot express. Exact counts graduate to asserted/snapshot via --record once the fixture gate is observed green in CI. Every wave-1 query is named somewhere in this spec, which is what licenses the engine's unexpected-CSV check on the fixture out dir.",
+  "asserted": {
+    "ErrorHandling": 0,
+    "HibernateTypes": 0,
+    "NativeSql": 0,
+    "OpenApiSurface": 0,
+    "OutboundClients": 0
+  },
+  "rule_minimums": {
+    "ApiSurface": {
+      "api_surface__controller": 1,
+      "api_surface__path_prefix": 1,
+      "api_surface__endpoint": 1,
+      "api_surface__param_binding": 1
+    },
+    "Persistence": {
+      "persistence__entity": 1,
+      "persistence__repository": 2,
+      "persistence__repository_marker": 1
+    },
+    "JakartaMigration": {
+      "jakarta__pending_import": 6,
+      "jakarta__pending_annotation": 6,
+      "jakarta__migrated_import": 1,
+      "jakarta__migrated_annotation": 1
+    },
+    "Messaging": {
+      "messaging__client_type": 2
+    },
+    "Configuration": {
+      "configuration__config_annotation": 1
+    }
+  },
+  "signals": [
+    {
+      "query": "Messaging",
+      "rule_id": "messaging__client_type",
+      "symbol": "com.example.fixture/MessagingFixture#interfaceOnly.",
+      "signal": "org.springframework.kafka.core.KafkaOperations"
+    },
+    {
+      "query": "Messaging",
+      "rule_id": "messaging__client_type",
+      "symbol": "com.example.fixture/MessagingFixture#implField.",
+      "signal": "org.springframework.kafka.core.KafkaTemplate"
+    }
+  ]
+}
