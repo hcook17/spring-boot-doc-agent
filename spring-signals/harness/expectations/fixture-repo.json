@@ -34,14 +34,14 @@
       "_note": "HibernateFixture: one JsonBinaryType import, one legacy library usage, three custom type annotations (@TypeDefs, @TypeDef, @Type), one @Where filter."
     },
     "JakartaMigration": {
-      "_rows": 50,
-      "jakarta__pending_import": 20,
+      "_rows": 54,
+      "jakarta__pending_import": 21,
       "jakarta__pending_annotation": 20,
       "jakarta__migrated_import": 3,
       "jakarta__migrated_annotation": 3,
-      "jakarta__pending_type": 3,
+      "jakarta__pending_type": 6,
       "jakarta__migrated_type": 1,
-      "_note": "Pending javax.* imports and annotations from Book, Chapter, BookDao, HibernateFixture and JakartaFixture. JakartaFixture contributes JSR-250 (@PostConstruct, @Resource -- javax.annotation IS relocated); its @Nullable import and use are JSR-305 and must NOT appear (jsr305Symbol). Migrated jakarta.* imports and annotations from MigratedEntity. Pending type from BookDao.entityManager() return type and two variable/field types. Migrated type from JakartaFixture.migrated() return type."
+      "_note": "Pending javax.* imports and annotations from Book, Chapter, BookDao, HibernateFixture and JakartaFixture. JakartaFixture contributes JSR-250 (@PostConstruct, @Resource -- javax.annotation IS relocated); its @Nullable import and use are JSR-305 and must NOT appear (jsr305Symbol). Migrated jakarta.* imports and annotations from MigratedEntity. Pending imports: 20 single-type plus one on-demand (javax.persistence.* in JakartaFixture). Pending types: BookDao.entityManager() return type, two variable/field types, the List<Entity> type argument on JakartaFixture.entities, the Class<Entity> return type argument on entityClass(), and the Entity.class literal. Migrated type from JakartaFixture.migrated() return type."
     },
     "Messaging": {
       "_rows": 6,
@@ -77,7 +77,7 @@
       "_rows": 4,
       "outbound__type_usage": 3,
       "outbound__feign": 1,
-      "_note": "RestTemplate field and accessor method, WebClient field, plus one FeignClient interface."
+      "_note": "RestTemplate field and accessor method, WebClient field, plus one FeignClient interface written with the positional value= spelling (@AliasFor of name), so the detail extraction must read value, not just name."
     },
     "Persistence": {
       "_rows": 19,
@@ -89,7 +89,7 @@
       "persistence__transactional": 2,
       "persistence__repository": 2,
       "persistence__repository_marker": 1,
-      "_note": "Entities: Book, Chapter, HibernateFixture, MigratedEntity. IDs: one per entity plus MigratedEntity id. Relations: Chapter.book. Tables: Book (with schema), MigratedEntity (with schema). Columns: Book.isbn, HibernateFixture.payload. Transactional: BookDao touch and rename. Repositories: TopicRepository and BookBasedTopicRepository. Marker: BookBasedRepository."
+      "_note": "Entities: Book, Chapter, HibernateFixture, MigratedEntity. IDs: four @Id (one per entity) plus Book's @GeneratedValue, which the catalog classifies as kind id. Relations: Chapter.book. Tables: Book (with schema), MigratedEntity (with schema). Columns: Book.isbn, HibernateFixture.payload. Transactional: BookDao touch and rename. Repositories: TopicRepository and BookBasedTopicRepository. Marker: BookBasedRepository."
     }
   },
   "snapshot": {},

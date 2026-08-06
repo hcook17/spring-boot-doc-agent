@@ -71,19 +71,57 @@ string schemaVersion() { result = "v1" }
  * out for `attr()` and `tableNameOf` elsewhere in this file, reproduced in the
  * helper that guards every query.
  *
- * The three-tier structure below is therefore deliberate and exhaustive:
- * declaration -> owning declaration -> file. The last tier can never fail, so
- * `symbolOf` is total for any `Element` with a file. Do not add a branch that
- * can return no result.
+ * The four-tier structure below is therefore deliberate and exhaustive:
+ * declaration -> import -> owning declaration -> file. The last tier can never
+ * fail, so `symbolOf` is total for any `Element` with a file. Do not add a
+ * branch that can return no result.
  */
 string symbolOf(Element e) {
   result = declSymbol(e)
   or
+  // No `not exists(declSymbol(e))` guard here or below: the tiers are
+  // disjoint by construction (an Import is none of declSymbol's types, and
+  // ownerSymbol only covers Annotation/Expr/Stmt), and the compiler proves
+  // such a guard an empty relation.
+  result = importSymbol(e)
+  or
   result = min(string s | s = ownerSymbol(e) and not exists(declSymbol(e)) | s)
   or
   not exists(declSymbol(e)) and
+  not exists(importSymbol(e)) and
   not exists(ownerSymbol(e)) and
   result = e.getFile().getRelativePath() + "#"
+}
+
+/**
+ * Gets the symbol of an import declaration: `<file>#<imported-fqn>`, or
+ * `<file>#<pkg>.*` for an on-demand package import.
+ *
+ * Imports are neither declarations nor owned by one, so without this tier
+ * every import in a file fell through to the file tier and shared a single
+ * `<file>#` symbol -- N pending imports in one file were N rows with the same
+ * (file, symbol, rule_id) join key, the collision the contract forbids.
+ * Static imports keep the file tier: the pack binds no rule to them.
+ */
+private string importSymbol(Element e) {
+  exists(ImportType imp |
+    imp = e |
+    result =
+      imp.getFile().getRelativePath() + "#" +
+        imp.getImportedType().getSourceDeclaration().getQualifiedName() + "."
+  )
+  or
+  exists(ImportOnDemandFromPackage imp |
+    imp = e |
+    result = imp.getFile().getRelativePath() + "#" + imp.getPackageHoldingImport().getName() + ".*"
+  )
+  or
+  exists(ImportOnDemandFromType imp |
+    imp = e |
+    result =
+      imp.getFile().getRelativePath() + "#" +
+        imp.getTypeHoldingImport().getSourceDeclaration().getQualifiedName() + ".*"
+  )
 }
 
 /**
