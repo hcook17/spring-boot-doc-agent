@@ -105,11 +105,12 @@ where
     e = call and
     sqlExecutorType(pkg, name, generation) and
     typeIsOrExtends(call.getReceiverType(), pkg, name) and
-    // Most specific catalogued executor only. The current executor catalogue
-    // is concrete-only (no comparable pairs), so this guard is PREVENTIVE: it
-    // is what makes cataloguing JdbcOperations alongside JdbcTemplate safe for
-    // injection-site recall later, instead of a silent two-rows-per-call
-    // regression.
+    // Most specific catalogued executor only. The catalogue carries no
+    // comparable interface/impl PAIRS today (EntityManager and JdbcClient are
+    // interfaces, but no catalogue entry extends another), so this guard is
+    // PREVENTIVE: it is what makes cataloguing JdbcOperations alongside
+    // JdbcTemplate safe for injection-site recall later, instead of a silent
+    // two-rows-per-call regression.
     not exists(string p2, string n2 |
       sqlExecutorType(p2, n2, _) and
       typeIsOrExtends(call.getReceiverType(), p2, n2) and

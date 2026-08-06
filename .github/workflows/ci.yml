@@ -7,12 +7,12 @@ on:
 
 env:
   # Pinned CodeQL CLI bundle. The SHA256 must be updated whenever the bundle
-  # URL is changed. Digest provenance: the `digest` field of the
-  # codeql-bundle-linux64.tar.gz asset in
+  # URL is changed; the version lives in the URL (single source), and the
+  # digest is what the setup-codeql action verifies. Digest provenance: the
+  # `digest` field of the codeql-bundle-linux64.tar.gz asset in
   #   https://api.github.com/repos/github/codeql-action/releases/tags/codeql-bundle-v2.26.2
   # (verified 2026-08-05; the release also ships a .checksum.txt sidecar for
   # independent re-verification).
-  CODEQL_VERSION: v2.26.2
   CODEQL_SHA256: cb361567fa1bdb9d322da4240f621b36f245e4d7bb97db3c3a2ad7f743c8e8e7
   CODEQL_BUNDLE_URL: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.26.2/codeql-bundle-linux64.tar.gz
 
@@ -245,10 +245,10 @@ jobs:
         run: python3 scripts/ci/check_llms_coverage.py
 
   # Wave 0 static invariants for the spring-signals CodeQL pack. Runs without a
-  # CodeQL CLI, so it is the only automatable gate for the pack while Wave 0
-  # items 2-4 (compile, create-db.sh, Probe.ql) are blocked on the CLI and
-  # Artifactory. Exits non-zero if the count-claim enforcer, layering checks,
-  # or or-or lint find a violation.
+  # CodeQL CLI; the compile and runtime jobs below cover the CLI side (the ocs
+  # database build remains the only piece that needs Artifactory). Exits
+  # non-zero if the count-claim enforcer, layering checks, or or-or lint find
+  # a violation.
   codeql-signals-invariants:
     runs-on: ubuntu-latest
     steps:

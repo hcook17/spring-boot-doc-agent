@@ -1,0 +1,9 @@
+# Shell scripts must keep LF on every platform. Without this, a Windows clone
+# with core.autocrlf=true checks the harness scripts out as CRLF and bash
+# rejects them: syntax error near unexpected token `$'in\r''.
+*.sh text eol=lf
+
+# Archives and build output are binary; never let EOL conversion touch them.
+*.jar binary
+*.class binary
+*.bqrs binary

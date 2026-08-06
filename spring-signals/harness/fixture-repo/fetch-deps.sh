@@ -23,12 +23,17 @@ fail=0
 count=0
 while read -r line; do
   line="${line%%#*}"
-  [ -z "${line// }" ] && continue
+  [ -z "${line//[[:space:]]/}" ] && continue
   coord="$(echo "$line" | awk '{print $1}')"
   want="$(echo "$line" | awk '{print $2}')"
   g="${coord%%:*}"; rest="${coord#*:}"; a="${rest%%:*}"; v="${rest##*:}"
   # The coordinate becomes a filename and a URL path segment; reject anything
-  # that could escape lib/ or smuggle a path.
+  # that could escape lib/ or smuggle a path, and anything empty (a
+  # whitespace-only or malformed line would otherwise pass the case guard).
+  if [ -z "$g" ] || [ -z "$a" ] || [ -z "$v" ]; then
+    echo "ERROR: malformed coordinate in deps.txt: ${line}" >&2
+    exit 1
+  fi
   case "$g$a$v" in
     *[!A-Za-z0-9._-]*|*..*)
       echo "ERROR: unsafe coordinate in deps.txt: $coord" >&2
@@ -51,20 +56,22 @@ while read -r line; do
     mv "$tmp" "$jar"
   fi
 
-  if [ -n "$want" ]; then
-    got="$(sha256sum "$jar" | awk '{print $1}')"
-    if [ "$got" != "$want" ]; then
-      echo "  DIGEST MISMATCH $a-$v.jar"
-      echo "    expected $want"
-      echo "    got      $got"
-      # Remove the bad jar: leaving it would make every later run fail the
-      # same digest check without re-fetching, which reads as a permanent
-      # mismatch rather than a one-off bad download.
-      if [ "$VERIFY_ONLY" != "1" ]; then rm -f "$jar"; fi
-      fail=1
-    fi
-  else
-    echo "  WARNING: no sha256 pinned for $coord"
+  # A missing digest is an error, not a warning: the digest is what makes this
+  # fixture a fixture, and an unpinned jar must never reach the classpath.
+  if [ -z "$want" ]; then
+    echo "ERROR: no sha256 pinned for $coord" >&2
+    exit 1
+  fi
+  got="$(sha256sum "$jar" | awk '{print $1}')"
+  if [ "$got" != "$want" ]; then
+    echo "  DIGEST MISMATCH $a-$v.jar"
+    echo "    expected $want"
+    echo "    got      $got"
+    # Remove the bad jar: leaving it would make every later run fail the
+    # same digest check without re-fetching, which reads as a permanent
+    # mismatch rather than a one-off bad download.
+    if [ "$VERIFY_ONLY" != "1" ]; then rm -f "$jar"; fi
+    fail=1
   fi
 done < "$HERE/deps.txt"
 

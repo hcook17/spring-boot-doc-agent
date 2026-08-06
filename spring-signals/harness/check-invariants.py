@@ -363,7 +363,7 @@ def main() -> int:
     if failures:
         print(f"FAILED: {len(failures)} invariant violation(s)")
         return 1
-    print("All static invariants hold. Wave 0 items 2-4 remain blocked on CodeQL CLI.")
+    print("All static invariants hold. Compile and fixture-runtime gates cover the CLI side; only the ocs database build still needs Artifactory.")
     return 0
 
 

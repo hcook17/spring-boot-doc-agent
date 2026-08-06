@@ -85,9 +85,12 @@ echo "== extraction coverage sanity check =="
 # sources with no relative path, so the delta was uninterpretable in both
 # directions. It also only echoed a WARNING, so "extraction delta 0" could never
 # fail a run that listed it as an exit criterion.
+# A missing SOURCE_DIR is not a skip: it means the disk side of the comparison
+# is the EMPTY SET, and the diff below will fail (STRICT_EXTRACTION=1) if the
+# database extracted anything at all -- which is the honest answer to "did the
+# build compile what is on disk" when nothing is on disk.
 if [ ! -d "$REPO/$SOURCE_DIR" ]; then
-  echo "no $REPO/$SOURCE_DIR; skipping coverage check"
-  exit 0
+  echo "WARNING: no $REPO/$SOURCE_DIR; treating the on-disk set as empty."
 fi
 
 # Both sides must be the SAME POPULATION and the SAME SET. The previous
@@ -97,7 +100,7 @@ fi
 # disk {A,B} vs extracted {A,C} both count to 2. Diff the sorted path lists.
 DISK_LIST="$DB.coverage.disk.txt"
 EXTRACTED_LIST="$DB.coverage.extracted.txt"
-( cd "$REPO" && find "$SOURCE_DIR" -name '*.java' \
+( cd "$REPO" && find "$SOURCE_DIR" -name '*.java' 2>/dev/null \
     | sed 's#^\./##' \
     | grep -E "^${SOURCE_DIR}/(main|test)/java/.*\.java$" \
     | sort -u || true ) > "$DISK_LIST"
