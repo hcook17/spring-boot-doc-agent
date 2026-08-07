@@ -1,15 +1,19 @@
 """Validate CodeQL build commands before passing them to subprocess.
 
 CodeQL ``database create --command`` executes the string under instrumentation
-(CWE-78/88). Target-repo config is untrusted by default, so this allowlist is
-exact-basename only: no ``startswith`` prefixes, and shells are accepted only
-when they wrap a known build-tool basename as the next token.
+inside ``--source-root`` (CWE-78/88). An allowlist of tool *names* cannot make
+an untrusted tree safe to build — that requires refusing CodeQL build mode
+(see ``RepoConfigTrust`` / ``--allow-codeql-build``). This module only removes
+foot-guns: exact basenames, bash/sh wrappers that actually wrap a tool, and
+known arbitrary-code flags (``-I``, ``--init-script``, ``-s``, …).
 """
 
 from __future__ import annotations
 
 import re
 import shlex
+import subprocess
+import sys
 from typing import Optional
 
 
@@ -32,15 +36,25 @@ _ALLOWED_TOOLS = frozenset({
     "mvn.cmd",
 })
 
+# Only shapes with a real use case (Git Bash → gradlew). cmd/powershell
+# second-token normalization turns ``/c`` into ``c`` and breaks legitimate
+# wrappers while still not making untrusted builds safe.
 _SHELL_WRAPPERS = frozenset({
     "bash",
     "bash.exe",
     "sh",
     "sh.exe",
-    "cmd",
-    "cmd.exe",
-    "powershell",
-    "powershell.exe",
+})
+
+# Flags that load attacker-controlled scripts/settings without shell metacharacters.
+_FORBIDDEN_FLAGS = frozenset({
+    "-I",
+    "--init-script",
+    "-s",
+    "--settings",
+    "--project-cache-dir",
+    "--gradle-user-home",
+    "--system-properties-file",
 })
 
 
@@ -48,13 +62,47 @@ def _token_basename(token: str) -> str:
     return token.strip('"').strip("'").replace("\\", "/").rsplit("/", 1)[-1].lower()
 
 
+def _flag_name(token: str) -> str:
+    stripped = token.strip('"').strip("'")
+    if stripped.startswith("--") and "=" in stripped:
+        return stripped.split("=", 1)[0]
+    return stripped
+
+
+def _reject_dangerous_flags(tokens: list[str]) -> None:
+    for token in tokens[1:]:
+        name = _flag_name(token)
+        if name in _FORBIDDEN_FLAGS:
+            raise BuildCommandError(
+                f"build command flag {name!r} is not allowed "
+                f"(loads external scripts/settings under CodeQL --command)"
+            )
+
+
+def _strip_outer_quotes(token: str) -> str:
+    stripped = token.strip()
+    if len(stripped) >= 2 and stripped[0] == stripped[-1] and stripped[0] in "'\"":
+        return stripped[1:-1]
+    return stripped
+
+
+def _canonicalize_tokens(tokens: list[str]) -> str:
+    """Rejoin validated tokens so the return value is derived from the parse."""
+    cleaned = [_strip_outer_quotes(t) for t in tokens]
+    if sys.platform == "win32":
+        return subprocess.list2cmdline(cleaned)
+    return shlex.join(cleaned)
+
+
 def validate_build_command(build_command: Optional[str]) -> str:
-    """Reject build commands that embed shell chaining or unknown tools.
+    """Reject shell chaining, unknown tools, and known arbitrary-code flags.
 
     Accepted shapes:
-    - ``gradlew|mvn|…`` (exact basename) plus args
-    - ``bash|sh|cmd|powershell`` (exact) followed by a token whose basename is
-      an allowed build tool (e.g. Git Bash wrapping ``gradlew``)
+    - exact build-tool basename plus args
+    - ``bash``/``sh`` followed by a token whose basename is an allowed tool
+
+    Returns a canonical rejoined form of the validated tokens (not a blind
+    echo of the input), so callers pass only the allowlisted parse forward.
     """
     if build_command is None or not str(build_command).strip():
         raise BuildCommandError("build command is empty")
@@ -73,7 +121,8 @@ def validate_build_command(build_command: Optional[str]) -> str:
 
     first = _token_basename(tokens[0])
     if first in _ALLOWED_TOOLS:
-        return command
+        _reject_dangerous_flags(tokens)
+        return _canonicalize_tokens(tokens)
 
     if first in _SHELL_WRAPPERS:
         if len(tokens) < 2:
@@ -87,7 +136,8 @@ def validate_build_command(build_command: Optional[str]) -> str:
                 f"shell wrapper {first!r} must wrap a known build tool, "
                 f"got second token basename {second!r}"
             )
-        return command
+        _reject_dangerous_flags(tokens)
+        return _canonicalize_tokens(tokens)
 
     raise BuildCommandError(
         f"build command must start with a known build tool "
