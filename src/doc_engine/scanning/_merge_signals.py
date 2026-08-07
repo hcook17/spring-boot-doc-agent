@@ -5,11 +5,14 @@ The merge is deterministic and rule-based: no LLM involvement. Downstream
 stages read the merged output exactly as they read a single-scanner output.
 """
 
+import logging
 import sys
 from typing import Any, Dict, List, Optional
 
 from doc_engine.core.protocols import Merger
 from doc_engine.scanning.java_extract import to_snake_case
+
+_LOG = logging.getLogger(__name__)
 
 
 def _default_dict() -> Dict[str, Any]:
@@ -162,13 +165,23 @@ def _merge_config_key_sets(partials: List[Dict[str, Any]]) -> Dict[str, List[str
 
 
 def _merge_file_signatures(partials: List[Dict[str, Any]]) -> Dict[str, str]:
-    """Merge file_signatures. All backends must agree on the hash for a file."""
+    """Merge Path A ``file_signatures`` maps (first-wins on conflict).
+
+    The Stage-0 covering proof is built from the walk SoR
+    (``ScanContext.file_signatures``), not this merged dict. Conflicts here are
+    therefore Path A / drift telemetry issues — log and keep the first hash.
+    """
     merged: Dict[str, str] = {}
     for partial in partials:
         for file_path, sig in partial.get("file_signatures", {}).items():
             if file_path in merged and merged[file_path] != sig:
-                # Same file, different hash across backends is a serious inconsistency.
-                # Keep the first and warn; callers should not get here for a normal repo.
+                _LOG.warning(
+                    "file_signatures conflict for %s: keeping %s, ignoring %s "
+                    "(covering proof uses walk SoR, not this Path A map)",
+                    file_path,
+                    merged[file_path],
+                    sig,
+                )
                 continue
             merged[file_path] = sig
     return merged

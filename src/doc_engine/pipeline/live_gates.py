@@ -121,6 +121,11 @@ def run_live_gates(
     from argparse import Namespace
 
     repo_config = load_repo_config(repo_path)
+    from doc_engine.config.repo_trust import sanitize_repo_settings, trust_from_flag
+
+    # Live gates inherit the same untrusted default; operators who already
+    # chose a weaker profile via --compliance-profile keep that explicit choice.
+    repo_config = sanitize_repo_settings(repo_config, trust_from_flag(False))
     profile = resolve_compliance_profile(
         repo_config,
         Namespace(

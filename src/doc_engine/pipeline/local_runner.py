@@ -85,6 +85,7 @@ import sys
 import time
 from pathlib import Path
 
+from doc_engine.core.timeouts import tool_timeout_seconds
 from doc_engine.paths import repo_root
 
 REPO_ROOT = str(repo_root())
@@ -206,10 +207,12 @@ class Runner:
             self.log(f"  $ {printable}")
 
         started = time.time()
+        timeout = tool_timeout_seconds()
         try:
             proc = subprocess.run(
                 argv, cwd=cwd, env=env, capture_output=True, text=True,
                 encoding="utf-8", errors="replace",
+                timeout=timeout,
             )
         except FileNotFoundError as exc:
             elapsed = time.time() - started
@@ -217,6 +220,16 @@ class Runner:
             self.record(label, "ERROR", elapsed, str(exc))
             if gate and gate_id:
                 self._record_gate(gate_id, label, "ERROR", str(exc))
+            if critical and not self.keep_going:
+                self.aborted = True
+            return None
+        except subprocess.TimeoutExpired as exc:
+            elapsed = time.time() - started
+            detail = f"timed out after {timeout}s"
+            self.log(f"  !! {detail}: {exc}")
+            self.record(label, "ERROR", elapsed, detail)
+            if gate and gate_id:
+                self._record_gate(gate_id, label, "ERROR", detail)
             if critical and not self.keep_going:
                 self.aborted = True
             return None
@@ -438,6 +451,15 @@ def add_run_arguments(ap: argparse.ArgumentParser) -> None:
              "(e.g. signal_scan, partition, cross_group_edges). "
              "Stage graph SoT remains stages.py — this only truncates.",
     )
+    ap.add_argument(
+        "--trust-repo-config",
+        action="store_true",
+        help=(
+            "honor security-sensitive keys from the target repo's "
+            ".doc-engine.yml (build_command, db_path, scanners, weakened "
+            "compliance_profile). Default: treat that file as untrusted."
+        ),
+    )
 
 
 def run_pipeline(args) -> int:
@@ -447,6 +469,10 @@ def run_pipeline(args) -> int:
         return 2
 
     repo_config = load_repo_config(repo_path)
+    from doc_engine.config.repo_trust import sanitize_repo_settings, trust_from_flag
+
+    trust = trust_from_flag(bool(getattr(args, "trust_repo_config", False)))
+    repo_config = sanitize_repo_settings(repo_config, trust)
     profile = resolve_compliance_profile(repo_config, args)
     allow_mock = bool(getattr(args, "allow_mock", False))
     skip_signal_scan = bool(args.signals_file)

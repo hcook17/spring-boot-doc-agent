@@ -31,6 +31,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from doc_engine.core.timeouts import codeql_database_timeout_seconds, tool_timeout_seconds
 from doc_engine.scanning.build_command import BuildCommandError, validate_build_command
 
 # Directories whose contents do not affect the Java build/CodeQL extraction and
@@ -44,44 +45,60 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_PACK_DIR = REPO_ROOT / "codeql" / "spring-signals"
 
-CODEQL_DEFAULT_PATHS = [
-    Path(r"C:\Users\16145\.cursor\tools\codeql\codeql.exe"),
-]
-
 
 class CodeQLError(RuntimeError):
     """Any CodeQL CLI failure that should not silently kill the process."""
 
 
 class CodeQLNotFoundError(CodeQLError):
-    """Raised when the CodeQL CLI cannot be found on PATH or default locations."""
+    """Raised when the CodeQL CLI cannot be found on PATH or DOC_ENGINE_CODEQL."""
 
 
 def find_codeql() -> Path:
     """Return the CodeQL CLI executable path.
 
-    Looks on PATH first, then checks a small list of known install locations.
+    Resolution order: ``DOC_ENGINE_CODEQL`` (if set to an existing file), then
+    ``PATH``. No machine-local fallback paths are consulted.
     """
+    env = os.environ.get("DOC_ENGINE_CODEQL")
+    if env and str(env).strip():
+        candidate = Path(env)
+        if candidate.is_file():
+            return candidate
+        raise CodeQLNotFoundError(
+            f"error: DOC_ENGINE_CODEQL={env!r} is not an existing file"
+        )
     path = shutil.which("codeql")
     if path:
         return Path(path)
-    for candidate in CODEQL_DEFAULT_PATHS:
-        if candidate.is_file():
-            return candidate
     raise CodeQLNotFoundError(
-        "error: the 'codeql' binary is not on PATH and not in any known "
-        "install location. Install the CodeQL CLI (e.g. from "
-        "https://github.com/github/codeql-cli-binaries/releases) and add it "
-        "to PATH, or place it at one of: "
-        + ", ".join(str(p) for p in CODEQL_DEFAULT_PATHS)
+        "error: the 'codeql' binary is not on PATH. Install the CodeQL CLI "
+        "(e.g. from https://github.com/github/codeql-cli-binaries/releases), "
+        "add it to PATH, or set DOC_ENGINE_CODEQL to the executable."
     )
+
+
+def _run_codeql(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise CodeQLError(
+            f"codeql timed out after {timeout}s: {' '.join(argv[:4])}…"
+        ) from exc
 
 
 def codeql_version(codeql_path: Path) -> str:
     """Return the CodeQL CLI version string, e.g. '2.26.0'."""
-    proc = subprocess.run(
+    proc = _run_codeql(
         [str(codeql_path), "--version"],
-        capture_output=True, text=True, encoding="utf-8", errors="replace"
+        timeout=tool_timeout_seconds(),
     )
     if proc.returncode != 0:
         raise CodeQLError(f"codeql --version failed: {proc.stderr}")
@@ -269,10 +286,7 @@ def create_database(
     ]
     if overwrite:
         cmd.append("--overwrite")
-    proc = subprocess.run(
-        cmd,
-        capture_output=True, text=True, encoding="utf-8", errors="replace"
-    )
+    proc = _run_codeql(cmd, timeout=codeql_database_timeout_seconds())
     if proc.returncode != 0:
         raise CodeQLError(
             f"codeql database create failed (exit {proc.returncode}):\n"
@@ -282,9 +296,9 @@ def create_database(
 
 def install_pack(codeql_path: Path, pack_dir: Path) -> None:
     """Install the QL pack dependencies (codeql/java-all, etc.)."""
-    proc = subprocess.run(
+    proc = _run_codeql(
         [str(codeql_path), "pack", "install", str(pack_dir)],
-        capture_output=True, text=True, encoding="utf-8", errors="replace"
+        timeout=tool_timeout_seconds(),
     )
     if proc.returncode != 0:
         raise CodeQLError(
@@ -305,14 +319,14 @@ def run_query(
     bqrs_path: Path,
 ) -> None:
     """Run a single .ql query against a database, writing a BQRS file."""
-    proc = subprocess.run(
+    proc = _run_codeql(
         [
             str(codeql_path), "query", "run",
             f"--database={db_path}",
             f"--output={bqrs_path}",
             str(query_file),
         ],
-        capture_output=True, text=True, encoding="utf-8", errors="replace"
+        timeout=tool_timeout_seconds(),
     )
     if proc.returncode != 0:
         raise CodeQLError(
@@ -333,7 +347,7 @@ def decode_bqrs(
     We map each tuple to a dict using the column names. Columns without a
     name get synthetic names (col_0, col_1, ...).
     """
-    proc = subprocess.run(
+    proc = _run_codeql(
         [
             str(codeql_path), "bqrs", "decode",
             "--format=json",
@@ -341,7 +355,7 @@ def decode_bqrs(
             "--entities=string,url",
             str(bqrs_path),
         ],
-        capture_output=True, text=True, encoding="utf-8", errors="replace"
+        timeout=tool_timeout_seconds(),
     )
     if proc.returncode != 0:
         raise CodeQLError(

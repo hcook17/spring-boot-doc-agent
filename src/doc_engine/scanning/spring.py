@@ -30,16 +30,19 @@ class AstGrepNotFoundError(AstGrepError):
 
 
 def detect_build_command(repo_path: str) -> Optional[str]:
-    """Return a reasonable default build command for a Java project."""
+    """Return a reasonable default build command for a Java project.
+
+    Prefers native wrappers (``gradlew.bat`` / ``gradlew`` / ``mvnw``) over a
+    Git-Bash prefix so validation stays exact-basename. A Bash-wrapped
+    ``gradlew`` is only emitted when the Unix wrapper exists and native
+    execution is unavailable on Windows.
+    """
     repo_path = os.path.abspath(repo_path)
     if os.path.exists(os.path.join(repo_path, "gradlew.bat")):
         gradlew = os.path.join(repo_path, "gradlew.bat")
         return f'"{gradlew}" --no-daemon clean compileJava compileTestJava'
     if os.path.exists(os.path.join(repo_path, "gradlew")):
         gradlew = os.path.join(repo_path, "gradlew")
-        git_bash = r"C:\Program Files\Git\bin\bash.exe"
-        if os.path.exists(git_bash):
-            return f'"{git_bash}" "{gradlew}" --no-daemon clean compileJava compileTestJava'
         return f'"{gradlew}" --no-daemon clean compileJava compileTestJava'
     if os.path.exists(os.path.join(repo_path, "build.gradle")) or \
        os.path.exists(os.path.join(repo_path, "build.gradle.kts")):

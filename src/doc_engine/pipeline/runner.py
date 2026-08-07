@@ -7,7 +7,7 @@ import json
 from doc_engine.pipeline.context import PipelineContext, StageKind, StageResult, StageSpec
 from doc_engine.pipeline.executor import MockStageExecutor, StageExecutor, SubprocessStageRunner
 from doc_engine.pipeline.stages import build_stage_specs, manifest_fanout
-from doc_engine.pipeline.validation import validate_artifact_file
+from doc_engine.pipeline.validation import ArtifactValidationError, validate_artifact_file
 
 
 class PipelineRunner:
@@ -48,6 +48,15 @@ class PipelineRunner:
                     success=False,
                     error=str(exc),
                     detail="missing_required_output",
+                )
+                results[-1] = (spec.name, fail)
+                context.log(f"  !! stage {spec.name} failed: {exc}")
+                break
+            except (ArtifactValidationError, json.JSONDecodeError) as exc:
+                fail = StageResult(
+                    success=False,
+                    error=str(exc),
+                    detail="invalid_required_output",
                 )
                 results[-1] = (spec.name, fail)
                 context.log(f"  !! stage {spec.name} failed: {exc}")

@@ -97,7 +97,13 @@ See also [`src/doc_engine/pipeline/adapters.md`](../src/doc_engine/pipeline/adap
 | Anti-corruption layer | `pipeline/artifacts.py`, `validation.py` | JSON boundary DTOs |
 | Gateway | `tools/certification.py`, compliance gates | Machine enforcement |
 | Strangler fig (complete for product tools) | `tools/`, scanning SDK | Product left `scripts/`; meta CI stays there |
-| Twelve-factor config | `.doc-engine.yml`, CLI overrides | Portable target-repo policy |
+| Twelve-factor config | `.doc-engine.yml`, CLI overrides | Portable target-repo policy; see untrusted defaults below |
+
+### Target-repo `.doc-engine.yml` trust
+
+Customer Spring trees are **untrusted by default**. Without `--trust-repo-config`, the kernel ignores security-sensitive keys from the target's `.doc-engine.yml` (`build_command`, `db_path`, `scanners`, and any `compliance_profile` weaker than `certified`). Non-executing keys (`sql_dialect`, `respect_gitignore`, `doc_taxonomy`) still apply. Operator CLI flags (`--build-command`, `--scanners`, `--compliance-profile`, …) always win. Pass `--trust-repo-config` only when you intend to honor that file's sensitive keys.
+
+CodeQL CLI discovery uses `DOC_ENGINE_CODEQL` then `PATH` — never a machine-local hardcoded path. Build commands are exact-basename allowlisted (`gradlew`/`mvn`/…); shells may wrap a tool basename only.
 
 External catalogs ([awesome-design-patterns](https://github.com/DovAmir/awesome-design-patterns), [microservices.io](http://microservices.io/patterns)) inform naming only — this repo's constraints (`CONSTRAINTS.md`) are authoritative.
 

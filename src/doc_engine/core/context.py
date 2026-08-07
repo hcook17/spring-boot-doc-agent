@@ -8,7 +8,13 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from doc_engine.core.excludes import load_gitignore_spec
-from doc_engine.core.walk import JAVA_EXT, compute_file_signature, dfs_walk
+from doc_engine.core.walk import (
+    JAVA_EXT,
+    compute_file_signature,
+    dfs_walk,
+    is_path_inside_root,
+    warn_skipped_escape,
+)
 
 
 @dataclass(frozen=True)
@@ -42,6 +48,9 @@ class ScanContext:
 
         for full in dfs_walk(repo_path, gitignore_spec=gitignore_spec):
             rel = os.path.relpath(full, repo_path).replace("\\", "/")
+            if not is_path_inside_root(full, repo_path):
+                warn_skipped_escape(rel, full)
+                continue
             name = os.path.basename(full)
             _, ext = os.path.splitext(name)
             entry = FileEntry(full_path=full, rel_path=rel, name=name, ext=ext)

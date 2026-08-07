@@ -6,7 +6,7 @@ import sys
 from typing import Any, Dict
 
 from doc_engine import Engine
-from doc_engine.config import Config, load_repo_config, merge_config
+from doc_engine.config import Config, load_repo_config, merge_config, sanitize_repo_settings, trust_from_flag
 from doc_engine.pipeline.local_run import add_run_arguments, run_pipeline
 
 
@@ -21,7 +21,8 @@ def _save_json(path: str, data: Dict[str, Any]) -> None:
 
 
 def _scan_config(repo: str, args: argparse.Namespace) -> Config:
-    base = load_repo_config(repo) or Config()
+    trust = trust_from_flag(bool(getattr(args, "trust_repo_config", False)))
+    base = sanitize_repo_settings(load_repo_config(repo) or Config(), trust) or Config()
     overrides: Dict[str, Any] = {}
     if args.scanners:
         overrides["scanners"] = [s.strip() for s in args.scanners.split(",") if s.strip()]
@@ -116,6 +117,15 @@ def main() -> int:
     scan_ap.add_argument("--respect-gitignore", action="store_true")
     scan_ap.add_argument("--build-command", default=None)
     scan_ap.add_argument("--db-path", default=None)
+    scan_ap.add_argument(
+        "--trust-repo-config",
+        action="store_true",
+        help=(
+            "honor security-sensitive keys from the target repo's "
+            ".doc-engine.yml (build_command, db_path, scanners, weakened "
+            "compliance_profile). Default: treat that file as untrusted."
+        ),
+    )
     scan_ap.set_defaults(func=cmd_scan)
 
     docs_ap = sub.add_parser(

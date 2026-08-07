@@ -33,15 +33,22 @@ def run_subprocess_gate(
     env: Optional[dict[str, str]] = None,
 ) -> tuple[int, str]:
     """Run a gate via subprocess argv (typically ``python -m doc_engine.tools.*``)."""
-    proc = subprocess.run(
-        argv,
-        cwd=cwd,
-        env=env,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
+    from doc_engine.core.timeouts import tool_timeout_seconds
+
+    timeout = tool_timeout_seconds()
+    try:
+        proc = subprocess.run(
+            argv,
+            cwd=cwd,
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return 124, f"subprocess timed out after {timeout}s: {exc}"
     body = (proc.stdout or "") + (proc.stderr or "")
     return proc.returncode, body
 
