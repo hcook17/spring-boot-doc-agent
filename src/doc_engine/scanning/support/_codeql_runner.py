@@ -78,22 +78,57 @@ def find_codeql() -> Path:
     )
 
 
-def _run_codeql(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
-    """Run CodeQL CLI with an argv list (never a shell string).
+# Closed CLI surface. An open ``argv: list[str]`` API would let a confused or
+# LLM-driven caller substitute ``bash -c …`` (or any other binary on disk) for
+# ``codeql``. Subcommands are the only verbs this module may ever invoke.
+_CODEQL_SUBCOMMANDS: frozenset[tuple[str, ...]] = frozenset({
+    ("--version",),
+    ("database", "create"),
+    ("pack", "install"),
+    ("query", "run"),
+    ("bqrs", "decode"),
+})
 
-    Validates shape before ``subprocess.run`` so untrusted/LLM-supplied data
-    cannot reach the OS command boundary without an allowlisted list form.
-    """
-    if not argv or not isinstance(argv, list):
-        raise CodeQLError("codeql argv must be a non-empty list")
-    if not all(isinstance(arg, str) and arg for arg in argv):
-        raise CodeQLError("codeql argv entries must be non-empty strings")
-    exe = Path(argv[0])
+
+def _resolve_codeql_exe(codeql_path: Path) -> Path:
+    exe = Path(codeql_path).resolve()
     if not exe.is_file():
         raise CodeQLError(f"codeql executable is not a file: {exe}")
-    # Fixed CodeQL subcommands only — never pass a raw shell string.
+    return exe
+
+
+def _reject_unsafe_option(opt: str) -> None:
+    if not isinstance(opt, str) or not opt:
+        raise CodeQLError("codeql option must be a non-empty string")
+    if "\x00" in opt or "\n" in opt or "\r" in opt:
+        raise CodeQLError("codeql option must be a single-line string without NUL")
+
+
+def _invoke_codeql(
+    codeql_path: Path,
+    subcommand: tuple[str, ...],
+    *options: str,
+    timeout: int,
+) -> subprocess.CompletedProcess[str]:
+    """Invoke one allowlisted CodeQL subcommand (never a free-form argv list).
+
+    Executable comes only from ``codeql_path`` (resolved to a real file).
+    ``subcommand`` must be a member of ``_CODEQL_SUBCOMMANDS``. Callers build
+    options from typed paths / already-validated build commands — they cannot
+    pick a different binary or invent a new verb.
+    """
+    if subcommand not in _CODEQL_SUBCOMMANDS:
+        raise CodeQLError(
+            f"refusing non-allowlisted codeql subcommand {subcommand!r}; "
+            f"allowed: {sorted(_CODEQL_SUBCOMMANDS)}"
+        )
+    for opt in options:
+        _reject_unsafe_option(opt)
+
+    exe = _resolve_codeql_exe(codeql_path)
+    argv = [str(exe), *subcommand, *options]
     try:
-        return subprocess.run(  # noqa: S603 — argv list, shell=False, exe pre-checked
+        return subprocess.run(
             argv,
             shell=False,
             capture_output=True,
@@ -110,8 +145,9 @@ def _run_codeql(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess
 
 def codeql_version(codeql_path: Path) -> str:
     """Return the CodeQL CLI version string, e.g. '2.26.0'."""
-    proc = _run_codeql(
-        [str(codeql_path), "--version"],
+    proc = _invoke_codeql(
+        codeql_path,
+        ("--version",),
         timeout=tool_timeout_seconds(),
     )
     if proc.returncode != 0:
@@ -386,19 +422,27 @@ def create_database(
 ) -> None:
     """Create a CodeQL Java database for the repo using the supplied build.
 
-    The build_command is passed straight to `codeql database create --command`.
-    On Windows this often needs to be a .bat file or a shell script that sets
-    JAVA_HOME before invoking the build.
+    ``build_command`` is re-validated here before being passed as a single
+    ``--command=`` argv element (no shell). CodeQL still executes that build
+    inside ``--source-root`` — callers must also pass ``--allow-codeql-build``
+    for untrusted trees; this layer only removes free-form OS argv and
+    foot-gun build strings.
     """
-    cmd = [
-        str(codeql_path), "database", "create", str(db_path),
+    safe_build = validate_build_command(build_command)
+    options = [
+        str(db_path),
         "--language=java",
-        f"--command={build_command}",
+        f"--command={safe_build}",
         f"--source-root={repo_path}",
     ]
     if overwrite:
-        cmd.append("--overwrite")
-    proc = _run_codeql(cmd, timeout=codeql_database_timeout_seconds())
+        options.append("--overwrite")
+    proc = _invoke_codeql(
+        codeql_path,
+        ("database", "create"),
+        *options,
+        timeout=codeql_database_timeout_seconds(),
+    )
     if proc.returncode != 0:
         raise CodeQLError(
             f"codeql database create failed (exit {proc.returncode}):\n"
@@ -408,8 +452,10 @@ def create_database(
 
 def install_pack(codeql_path: Path, pack_dir: Path) -> None:
     """Install the QL pack dependencies (codeql/java-all, etc.)."""
-    proc = _run_codeql(
-        [str(codeql_path), "pack", "install", str(pack_dir)],
+    proc = _invoke_codeql(
+        codeql_path,
+        ("pack", "install"),
+        str(pack_dir),
         timeout=tool_timeout_seconds(),
     )
     if proc.returncode != 0:
@@ -431,13 +477,12 @@ def run_query(
     bqrs_path: Path,
 ) -> None:
     """Run a single .ql query against a database, writing a BQRS file."""
-    proc = _run_codeql(
-        [
-            str(codeql_path), "query", "run",
-            f"--database={db_path}",
-            f"--output={bqrs_path}",
-            str(query_file),
-        ],
+    proc = _invoke_codeql(
+        codeql_path,
+        ("query", "run"),
+        f"--database={db_path}",
+        f"--output={bqrs_path}",
+        str(query_file),
         timeout=tool_timeout_seconds(),
     )
     if proc.returncode != 0:
@@ -459,14 +504,13 @@ def decode_bqrs(
     We map each tuple to a dict using the column names. Columns without a
     name get synthetic names (col_0, col_1, ...).
     """
-    proc = _run_codeql(
-        [
-            str(codeql_path), "bqrs", "decode",
-            "--format=json",
-            # Include source locations and strings as plain values.
-            "--entities=string,url",
-            str(bqrs_path),
-        ],
+    proc = _invoke_codeql(
+        codeql_path,
+        ("bqrs", "decode"),
+        "--format=json",
+        # Include source locations and strings as plain values.
+        "--entities=string,url",
+        str(bqrs_path),
         timeout=tool_timeout_seconds(),
     )
     if proc.returncode != 0:
