@@ -40,7 +40,18 @@ def _scan_config(repo: str, args: argparse.Namespace) -> Config:
 def cmd_scan(args: argparse.Namespace) -> int:
     config = _scan_config(args.repo, args)
     engine = Engine(config)
-    signals = engine.scan(args.repo)
+    try:
+        signals = engine.scan(
+            args.repo,
+            allow_codeql_build=bool(getattr(args, "allow_codeql_build", False)),
+        )
+    except Exception as exc:
+        from doc_engine.scanning.spring import CodeQLScannerError
+
+        if isinstance(exc, CodeQLScannerError):
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        raise
     _save_json(args.out, signals)
     print(f"Wrote signals to {args.out}")
     return 0
@@ -124,6 +135,15 @@ def main() -> int:
             "honor security-sensitive keys from the target repo's "
             ".doc-engine.yml (build_command, db_path, scanners, weakened "
             "compliance_profile). Default: treat that file as untrusted."
+        ),
+    )
+    scan_ap.add_argument(
+        "--allow-codeql-build",
+        action="store_true",
+        help=(
+            "permit CodeQL database create --command against this tree. "
+            "Required when --scanners includes codeql; only use for first-party "
+            "repos or a sandboxed host."
         ),
     )
     scan_ap.set_defaults(func=cmd_scan)

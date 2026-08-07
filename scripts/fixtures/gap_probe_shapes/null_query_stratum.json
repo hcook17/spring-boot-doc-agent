@@ -1,0 +1,29 @@
+{
+  "intent": "null_query_stratum_isolated_from_native",
+  "signals": {
+    "entity_table_map": {},
+    "evidence": {
+      "raw_queries": [
+        {
+          "file": "A.java",
+          "line": 1,
+          "query_kind": "native",
+          "query": null,
+          "lineage": {"available": false}
+        },
+        {
+          "file": "B.java",
+          "line": 2,
+          "query_kind": "native",
+          "query": "SELECT 1",
+          "lineage": {"available": true}
+        }
+      ]
+    }
+  },
+  "expect": {
+    "null_query_denominator": 1,
+    "native_rate": 1.0,
+    "mean_rate_callable": 1.0
+  }
+}

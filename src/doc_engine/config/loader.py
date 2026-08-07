@@ -5,16 +5,21 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from doc_engine.config.settings import Settings
+from doc_engine.core.walk import is_path_inside_root
 
 _CONFIG_NAMES = (".doc-engine.yml", ".doc-engine.yaml", ".doc-engine.json")
 
 
 def find_repo_config(repo_path: str) -> Optional[Path]:
+    """Return the config path if it exists *and* resolves inside the repo root."""
     root = Path(repo_path).resolve()
     for name in _CONFIG_NAMES:
         candidate = root / name
-        if candidate.is_file():
-            return candidate
+        if not candidate.is_file():
+            continue
+        if not is_path_inside_root(str(candidate), str(root)):
+            continue
+        return candidate
     return None
 
 
@@ -58,7 +63,7 @@ def load_repo_config(repo_path: str) -> Optional[Settings]:
         db_path=raw.get("db_path"),
         doc_taxonomy=raw.get("doc_taxonomy"),
         compliance_profile=profile,
-        extra=raw.get("extra", {}),
+        extra=raw.get("extra", {}) if isinstance(raw.get("extra", {}), dict) else {},
     )
 
 

@@ -119,6 +119,14 @@ def main() -> int:
         "--scanners", default=None,
         help="Comma-separated scanner names. Default: filesystem,ast-grep.",
     )
+    ap.add_argument(
+        "--allow-codeql-build",
+        action="store_true",
+        help=(
+            "permit CodeQL database create --command against this tree. "
+            "Required when --scanners includes codeql."
+        ),
+    )
     args = ap.parse_args()
 
     if not os.path.isdir(args.repo_path):
@@ -135,6 +143,7 @@ def main() -> int:
             build_command=args.build_command,
             db_path=args.db_path,
             scanners=scanners,
+            allow_codeql_build=bool(args.allow_codeql_build),
         )
     except (CodeQLScannerError, CodeQLNotFoundError, AstGrepError, CoveringProofError) as exc:
         print(exc, file=sys.stderr)

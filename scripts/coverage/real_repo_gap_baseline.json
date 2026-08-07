@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "$comment": "Anonymized gap/AET bands measured on an external mid-size Spring corpus (dev machine). Corpus name is intentionally generic — never a client checkout dirname. Refresh after an intentional measurement change; public CI validates schema + hermetic fixture rates, not the live tree. Bands must be non-vacuous (R_lin not [0,1], U_max < 1).",
+  "corpus": "external-dev-corpus",
+  "measured_at": "2026-07-30",
+  "bands": {
+    "R_sym_min": 1.0,
+    "R_coll_max": 0.0,
+    "R_join_min": 1.0,
+    "R_lin_mean_min": 0.35,
+    "R_lin_mean_max": 0.65,
+    "U_max": 0.40
+  },
+  "expected": {
+    "R_sym": 1.0,
+    "R_coll": 0.0,
+    "R_join": 1.0,
+    "R_lin_mean": 0.49,
+    "U": 0.278,
+    "lineage_dominant_stratum": "dialect_or_syntax"
+  },
+  "counts_snapshot": {
+    "entity_table_map": 53,
+    "maps_to": 53,
+    "raw_queries": 198
+  }
+}

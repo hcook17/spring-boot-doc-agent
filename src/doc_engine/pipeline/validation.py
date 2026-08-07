@@ -102,3 +102,80 @@ def missing_required_artifacts(
         if not path.is_file():
             missing.append(name)
     return missing
+
+
+# Sidecar filenames written next to spring_signals.json by Stage 0 (not all
+# are ARTIFACT_FILENAMES keys — covering_proof is proof-of-S1, not a DTO yet).
+_STAGE0_SIDECARS = (
+    ARTIFACT_FILENAMES["facts"],
+    "covering_proof.json",
+)
+
+_GAP_REPORT_REL = Path("gap_report") / "gap_report.json"
+
+
+def require_stage0_siblings(directory: Path) -> None:
+    """Fail closed when spring_signals.json is present without Stage-0 sidecars.
+
+    Path A certification consumes facts + covering_proof; a signals-only dump
+    must not validate as a complete Stage-0 boundary.
+    """
+    directory = directory.resolve()
+    signals = directory / ARTIFACT_FILENAMES["spring_signals"]
+    if not signals.is_file():
+        return
+    for filename in _STAGE0_SIDECARS:
+        path = directory / filename
+        if not path.is_file():
+            raise ArtifactValidationError(
+                "spring_signals",
+                signals,
+                f"missing Stage-0 sibling {filename!r} (required next to spring_signals.json)",
+            )
+
+
+def require_gap_probe_artifact(directory: Path) -> None:
+    """Fail closed when spring_signals.json is present without a verified gap_report.
+
+    Existence alone is insufficient: planted ``{}`` or ``s1_covering.verified=false``
+    must not green ``validate --all``.
+    """
+    from doc_engine.scanning.gap_probe import GAP_PROBE_SCHEMA_VERSION
+
+    directory = directory.resolve()
+    signals = directory / ARTIFACT_FILENAMES["spring_signals"]
+    if not signals.is_file():
+        return
+    path = directory / _GAP_REPORT_REL
+    if not path.is_file():
+        raise ArtifactValidationError(
+            "spring_signals",
+            signals,
+            f"missing gap probe report at {_GAP_REPORT_REL.as_posix()}",
+        )
+    try:
+        data = load_json(path)
+    except json.JSONDecodeError as exc:
+        raise ArtifactValidationError("gap_report", path, exc) from exc
+    if not isinstance(data, dict):
+        raise ArtifactValidationError("gap_report", path, "root must be a JSON object")
+    if data.get("schema_version") != GAP_PROBE_SCHEMA_VERSION:
+        raise ArtifactValidationError(
+            "gap_report",
+            path,
+            f"schema_version={data.get('schema_version')!r} "
+            f"(expected {GAP_PROBE_SCHEMA_VERSION})",
+        )
+    covering = data.get("s1_covering")
+    if not isinstance(covering, dict) or covering.get("verified") is not True:
+        raise ArtifactValidationError(
+            "gap_report",
+            path,
+            "s1_covering.verified must be true",
+        )
+    if "uncertainty" not in data or not isinstance(data.get("uncertainty"), dict):
+        raise ArtifactValidationError(
+            "gap_report",
+            path,
+            "uncertainty object required",
+        )

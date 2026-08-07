@@ -1,0 +1,190 @@
+{
+  "$defs": {
+    "GapOracleBlock": {
+      "additionalProperties": true,
+      "properties": {
+        "arm_present": {
+          "title": "Arm Present",
+          "type": "boolean"
+        },
+        "claim": {
+          "enum": [
+            "measured",
+            "omitted_without_oracle",
+            "untrusted_planted"
+          ],
+          "title": "Claim",
+          "type": "string"
+        },
+        "R_recall": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "R Recall"
+        }
+      },
+      "required": [
+        "arm_present",
+        "claim"
+      ],
+      "title": "GapOracleBlock",
+      "type": "object"
+    },
+    "GapRatesBlock": {
+      "additionalProperties": true,
+      "properties": {
+        "R_recall": {
+          "$ref": "#/$defs/GapRecallRate"
+        }
+      },
+      "required": [
+        "R_recall"
+      ],
+      "title": "GapRatesBlock",
+      "type": "object"
+    },
+    "GapRecallRate": {
+      "additionalProperties": true,
+      "description": "rates.R_recall — always stamped; never silently omit the key.",
+      "properties": {
+        "claim": {
+          "enum": [
+            "measured",
+            "omitted_without_oracle",
+            "untrusted_planted"
+          ],
+          "title": "Claim",
+          "type": "string"
+        },
+        "numerator": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Numerator"
+        },
+        "denominator": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Denominator"
+        },
+        "rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rate"
+        }
+      },
+      "required": [
+        "claim"
+      ],
+      "title": "GapRecallRate",
+      "type": "object"
+    },
+    "GapS1Covering": {
+      "additionalProperties": true,
+      "properties": {
+        "verified": {
+          "title": "Verified",
+          "type": "boolean"
+        },
+        "proof_present": {
+          "title": "Proof Present",
+          "type": "boolean"
+        },
+        "inventory_root": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inventory Root"
+        }
+      },
+      "required": [
+        "verified",
+        "proof_present"
+      ],
+      "title": "GapS1Covering",
+      "type": "object"
+    },
+    "GapUncertaintyBlock": {
+      "additionalProperties": true,
+      "properties": {
+        "U": {
+          "title": "U",
+          "type": "number"
+        }
+      },
+      "required": [
+        "U"
+      ],
+      "title": "GapUncertaintyBlock",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "gap_report/gap_report.json residual measurement (oracle + R_recall claim stamps)",
+  "properties": {
+    "schema_version": {
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "s1_covering": {
+      "$ref": "#/$defs/GapS1Covering"
+    },
+    "oracle": {
+      "$ref": "#/$defs/GapOracleBlock"
+    },
+    "rates": {
+      "$ref": "#/$defs/GapRatesBlock"
+    },
+    "uncertainty": {
+      "$ref": "#/$defs/GapUncertaintyBlock"
+    }
+  },
+  "required": [
+    "schema_version",
+    "s1_covering",
+    "oracle",
+    "rates",
+    "uncertainty"
+  ],
+  "title": "GapReportArtifact",
+  "type": "object"
+}

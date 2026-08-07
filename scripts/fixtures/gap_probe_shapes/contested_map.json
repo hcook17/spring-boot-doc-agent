@@ -1,0 +1,32 @@
+{
+  "intent": "contested_entity_map_raises_r_coll",
+  "signals": {
+    "entity_table_map": {
+      "User": {
+        "file": "a/User.java",
+        "table": "a_user",
+        "status": "contested",
+        "fqcn": "com.example.a.User",
+        "package": "com.example.a",
+        "candidates": [
+          {
+            "file": "a/User.java",
+            "table": "a_user",
+            "package": "com.example.a",
+            "fqcn": "com.example.a.User"
+          },
+          {
+            "file": "b/User.java",
+            "table": "b_user",
+            "package": "com.example.b",
+            "fqcn": "com.example.b.User"
+          }
+        ]
+      }
+    },
+    "evidence": {}
+  },
+  "expect": {
+    "R_coll_rate": 1.0
+  }
+}

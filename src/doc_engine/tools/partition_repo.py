@@ -162,16 +162,24 @@ def relpath_posix(full: str, root: str) -> str:
 
 def dfs_file_list(repo_path, excluded_dirs, excluded_exts, excluded_files, gitignore_spec=None):
     """Depth-first, deterministically-ordered walk of the repo, yielding
-    relative file paths. Directories and files are sorted at each level so
+    absolute file paths. Directories and files are sorted at each level so
     the ordering is stable across runs (important since overlap depends on
     a consistent DFS order).
+
+    File symlinks that resolve outside ``repo_path`` are skipped (untrusted
+    trees). Directory symlinks are not followed (``os.path.isdir`` on the
+    link itself without walking through it via ``os.listdir`` of the target
+    as a root — we only recurse into real directories under the walk).
 
     gitignore_spec, if given, is a pathspec.PathSpec (see
     _shared_excludes.load_gitignore_spec) additionally consulted against
     each entry's path relative to repo_path — opt-in, off by default, on
     top of the hardcoded excluded_dirs/excluded_exts/excluded_files floor,
     not a replacement for it."""
+    from doc_engine.core.walk import is_path_inside_root
+
     files = []
+    root = os.path.abspath(repo_path)
 
     def _relpath(full):
         return os.path.relpath(full, repo_path).replace("\\", "/")
@@ -184,12 +192,12 @@ def dfs_file_list(repo_path, excluded_dirs, excluded_exts, excluded_files, gitig
         dirs, regular = [], []
         for name in entries:
             full = os.path.join(dir_path, name)
-            if os.path.isdir(full):
+            if os.path.isdir(full) and not os.path.islink(full):
                 if name not in excluded_dirs and not name.startswith("."):
                     if gitignore_spec is not None and gitignore_spec.match_file(_relpath(full) + "/"):
                         continue
                     dirs.append(full)
-            else:
+            elif os.path.isfile(full) or os.path.islink(full):
                 regular.append((name, full))
         for name, full in regular:
             if name in excluded_files:
@@ -198,6 +206,8 @@ def dfs_file_list(repo_path, excluded_dirs, excluded_exts, excluded_files, gitig
             if ext.lower() in excluded_exts:
                 continue
             if gitignore_spec is not None and gitignore_spec.match_file(_relpath(full)):
+                continue
+            if not is_path_inside_root(full, root):
                 continue
             files.append(full)
         for d in dirs:

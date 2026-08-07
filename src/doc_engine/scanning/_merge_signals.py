@@ -6,7 +6,6 @@ stages read the merged output exactly as they read a single-scanner output.
 """
 
 import logging
-import sys
 from typing import Any, Dict, List, Optional
 
 from doc_engine.core.protocols import Merger
@@ -112,12 +111,13 @@ def _finalize_entity_table_map(entity_candidates: Dict[str, List[Dict[str, Any]]
                 if c.get("package") is not None:
                     cand["package"] = c["package"]
                 winner["candidates"].append(cand)
-            print(
-                f"warning: entity_table_map key '{class_name}' is contested — "
-                f"{len(ordered)} @Entity classes share this simple name across packages; "
-                f"JPQL lineage for this name will be unavailable rather than guessed. "
-                f"Files: {', '.join(c['file'] for c in ordered)}",
-                file=sys.stderr,
+            _LOG.warning(
+                "entity_table_map key %r is contested — %d @Entity classes share "
+                "this simple name across packages; JPQL lineage for this name will "
+                "be unavailable rather than guessed. Files: %s",
+                class_name,
+                len(ordered),
+                ", ".join(c["file"] for c in ordered),
             )
         entity_table_map[class_name] = winner
     return entity_table_map
@@ -229,32 +229,23 @@ def merge(
     result["scanner_version"] = scanner_version
     result["scanners"] = list(scanner_names) if scanner_names else []
 
-    # Finalize any candidate maps before merging, then merge explicit maps.
-    entity_maps = []
+    # Evidence first — entity_table_map derivation reads the merged bag.
+    result["evidence"] = _sort_evidence(_merge_evidence(partials))
+
+    entity_maps: List[Dict[str, Any]] = []
     for partial in partials:
         if "entity_table_map_candidates" in partial:
-            entity_maps.append(_finalize_entity_table_map(partial["entity_table_map_candidates"]))
+            entity_maps.append(
+                _finalize_entity_table_map(partial["entity_table_map_candidates"])
+            )
         if "entity_table_map" in partial:
             entity_maps.append(partial["entity_table_map"])
-    merged_map = {}
-    for em in entity_maps:
-        for class_name, entry in em.items():
-            if class_name not in merged_map:
-                merged_map[class_name] = dict(entry)
-                continue
-            existing = merged_map[class_name]
-            if existing.get("table") != entry.get("table") or existing.get("file") != entry.get("file"):
-                existing["status"] = "contested"
-                candidates = existing.setdefault("candidates", [dict(existing)])
-                candidate_copy = dict(entry)
-                if candidate_copy not in candidates:
-                    candidates.append(candidate_copy)
-
-    # If no backend provided an entity map, derive one from merged evidence.
+    merged_map = _merge_entity_table_map(
+        [{"entity_table_map": em} for em in entity_maps]
+    )
     if not merged_map:
         merged_map = _build_entity_table_map_from_evidence(result)
 
-    result["evidence"] = _sort_evidence(_merge_evidence(partials))
     result["entity_table_map"] = dict(sorted(merged_map.items()))
     result["redaction_zones"] = _merge_redaction_zones(partials)
     result["config_key_sets"] = _merge_config_key_sets(partials)

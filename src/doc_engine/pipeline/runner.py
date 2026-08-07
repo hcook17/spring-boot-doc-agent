@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import json
 
+from doc_engine.pipeline.artifacts import ARTIFACT_FILENAMES
 from doc_engine.pipeline.context import PipelineContext, StageKind, StageResult, StageSpec
 from doc_engine.pipeline.executor import MockStageExecutor, StageExecutor, SubprocessStageRunner
 from doc_engine.pipeline.stages import build_stage_specs, manifest_fanout
 from doc_engine.pipeline.validation import ArtifactValidationError, validate_artifact_file
+
+# Reverse registry: filename → artifact key (schema-validated when registered).
+_FILENAME_TO_ARTIFACT = {filename: name for name, filename in ARTIFACT_FILENAMES.items()}
 
 
 class PipelineRunner:
@@ -103,19 +107,19 @@ class PipelineRunner:
             ]
             if not result.success:
                 end_argv.extend(["--error", result.error or result.detail or "stage failed"])
-            self.subprocess_runner.run(end_argv, context)
+            end = self.subprocess_runner.run(end_argv, context)
+            if result.success and not end.success:
+                return StageResult(
+                    success=False,
+                    error=end.error or end.detail or "end-stage failed",
+                    detail="manifest_end_stage_failed",
+                )
 
         return result
 
     def _validate_outputs(self, spec: StageSpec, context: PipelineContext) -> None:
         if not self.validate_boundaries or not spec.outputs:
             return
-        name_map = {
-            "spring_signals.json": "spring_signals",
-            "groups.json": "groups",
-            "summaries.json": "summaries",
-            "interview_answers.json": "interview_answers",
-        }
         for filename in spec.outputs:
             path = context.out_dir / filename
             if not path.is_file():
@@ -123,8 +127,8 @@ class PipelineRunner:
                     f"stage {spec.name!r} did not produce required output {filename!r} "
                     f"at {path}"
                 )
-            artifact = name_map.get(filename)
-            if not artifact:
+            artifact = _FILENAME_TO_ARTIFACT.get(filename)
+            if artifact is None:
                 continue
             validate_artifact_file(artifact, path)
 

@@ -10,6 +10,8 @@ from doc_engine.pipeline.artifacts import ARTIFACT_FILENAMES, ARTIFACT_MODELS
 from doc_engine.pipeline.validation import (
     ArtifactValidationError,
     missing_required_artifacts,
+    require_gap_probe_artifact,
+    require_stage0_siblings,
     validate_artifact_file,
     validate_artifacts_in_dir,
 )
@@ -65,13 +67,15 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 return 1
         try:
+            require_stage0_siblings(directory)
+            require_gap_probe_artifact(directory)
             validated = validate_artifacts_in_dir(directory)
         except (ArtifactValidationError, FileNotFoundError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
         if not validated and not required:
-            print(f"warning: no known artifact files found in {directory}", file=sys.stderr)
-            return 0
+            print(f"error: no known artifact files found in {directory}", file=sys.stderr)
+            return 1
         for artifact, path in validated:
             print(f"OK  {artifact}  {path}")
         return 0
