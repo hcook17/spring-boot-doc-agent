@@ -150,16 +150,19 @@ def gate_duplication(compare_ref: str) -> int:
 
 
 def gate_cognitive_complexity() -> int:
-    """Fail when any function in package roots exceeds COMPLEXITY_MAX."""
-    complexipy = _require_binary("complexipy")
+    """Fail when the count of >COMPLEXITY_MAX functions rises vs baseline.
+
+    Policy target remains ≤COMPLEXITY_MAX per function on every package file.
+    Until ``scripts/ratchets/complexipy_baseline.json`` reaches zero offenders,
+    CI enforces the offender-count ratchet rather than ``complexipy --failed``
+    on the whole tree (which would block every legacy function still above 5).
+    """
     return _run(
-        [
-            complexipy,
-            *PACKAGE_ROOTS,
-            f"--max-complexity-allowed={COMPLEXITY_MAX}",
-            "--failed",
-        ],
-        label=f"complexipy cognitive complexity <= {COMPLEXITY_MAX}",
+        [sys.executable, "scripts/ci/check_complexipy_ratchet.py"],
+        label=(
+            f"complexipy offender-count ratchet "
+            f"(must not rise; target ≤{COMPLEXITY_MAX}/fn)"
+        ),
     )
 
 

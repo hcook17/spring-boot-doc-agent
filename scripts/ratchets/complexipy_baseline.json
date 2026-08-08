@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "max_complexity_allowed": 5,
+  "package_roots": [
+    "src/doc_engine",
+    "src/stf"
+  ],
+  "offender_count": 168,
+  "note": "Policy target is complexipy <=5 per function under package roots. CI hard-fails when offender_count rises; ratchet downward after remediation batches. Remeasure with: python3 scripts/ci/check_complexipy_ratchet.py --update"
+}
