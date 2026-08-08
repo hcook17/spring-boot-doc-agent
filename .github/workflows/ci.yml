@@ -213,8 +213,9 @@ jobs:
             --cov-fail-under=${{ env.COV_FAIL_UNDER }}
         env:
           # Keep in lockstep with [tool.coverage.report] fail_under in pyproject.toml.
-          # Floor is the integer of combined statement+branch Cover% on a clean run.
-          COV_FAIL_UNDER: "85"
+          # Floor is the integer of combined statement+branch Cover% on a clean run
+          # (not coverage.xml line-rate, which is statement-only and reads higher).
+          COV_FAIL_UNDER: "82"
 
       - name: Coverage summary
         if: always()
@@ -241,7 +242,7 @@ jobs:
           print(f"line coverage={pct:.2f}%")
           PY
         env:
-          COV_FAIL_UNDER: "85"
+          COV_FAIL_UNDER: "82"
           PYTHON_VERSION: ${{ matrix.python-version }}
 
       - name: Upload coverage.xml (3.11 canonical)
