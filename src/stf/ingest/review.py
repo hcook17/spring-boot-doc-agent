@@ -117,26 +117,34 @@ def _first_claim_line(body: str) -> str:
     return ""
 
 
+def _parts_for_dash(rest: str, dash: str) -> tuple[str, str] | None:
+    if dash not in rest:
+        return None
+    finding_id, _sep, title = rest.partition(dash)
+    finding_id = finding_id.strip()
+    title = title.strip()
+    if finding_id and title:
+        return finding_id, title
+    return None
+
+
+def _split_heading_rest(rest: str) -> tuple[str, str] | None:
+    for dash in _HEADING_DASHES:
+        parts = _parts_for_dash(rest, dash)
+        if parts is not None:
+            return parts
+    return None
+
+
 def _parse_heading_line(line: str) -> tuple[str, str] | None:
     """Parse ``### ID — title`` (em dash, en dash, or hyphen)."""
     stripped = line.strip()
     if not stripped.startswith("###"):
         return None
-    rest = stripped[3:].strip()
-    for dash in _HEADING_DASHES:
-        if dash not in rest:
-            continue
-        finding_id, _sep, title = rest.partition(dash)
-        finding_id = finding_id.strip()
-        title = title.strip()
-        if finding_id and title:
-            return finding_id, title
-    return None
+    return _split_heading_rest(stripped[3:].strip())
 
 
-def _heading_sections(text: str) -> list[tuple[str, str, str]]:
-    """Return (finding_id, title, body) for each ``###`` finding heading."""
-    lines = text.splitlines()
+def _heading_starts(lines: list[str]) -> list[tuple[int, str, str]]:
     starts: list[tuple[int, str, str]] = []
     for line_no, line in enumerate(lines):
         parsed = _parse_heading_line(line)
@@ -144,13 +152,30 @@ def _heading_sections(text: str) -> list[tuple[str, str, str]]:
             continue
         finding_id, title = parsed
         starts.append((line_no, finding_id, title))
+    return starts
 
+
+def _section_end(starts: list[tuple[int, str, str]], index: int, n_lines: int) -> int:
+    if index + 1 < len(starts):
+        return starts[index + 1][0]
+    return n_lines
+
+
+def _sections_from_starts(
+    lines: list[str], starts: list[tuple[int, str, str]]
+) -> list[tuple[str, str, str]]:
     sections: list[tuple[str, str, str]] = []
     for index, (line_no, finding_id, title) in enumerate(starts):
-        end_line = starts[index + 1][0] if index + 1 < len(starts) else len(lines)
+        end_line = _section_end(starts, index, len(lines))
         body = "\n".join(lines[line_no:end_line])
         sections.append((finding_id, title, body))
     return sections
+
+
+def _heading_sections(text: str) -> list[tuple[str, str, str]]:
+    """Return (finding_id, title, body) for each ``###`` finding heading."""
+    lines = text.splitlines()
+    return _sections_from_starts(lines, _heading_starts(lines))
 
 
 def _finding_from_heading(

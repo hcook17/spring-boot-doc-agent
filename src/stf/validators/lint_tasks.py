@@ -23,6 +23,63 @@ class LintResult:
 
 CheckFn = Callable[[str, str, bool, str], None]
 
+_ANCHOR_EXTS = (".py", ".md", ".json", ".yml", ".yaml", ".java")
+
+
+def _is_task_ref(origin: str) -> bool:
+    return origin.startswith("T") and origin[1:].isdigit()
+
+
+def _lint_task_origin(
+    t: Any, origin: str, known_tasks: set[str], check: CheckFn
+) -> None:
+    check(
+        "FAIL",
+        f"{t.id} input {origin} in depends",
+        origin in t.depends,
+        f"depends={t.depends}",
+    )
+    check(
+        "FAIL",
+        f"{t.id} input {origin} exists",
+        origin in known_tasks,
+        f"unknown task origin {origin}",
+    )
+
+
+def _lint_inventory_origin(
+    t: Any,
+    origin: str,
+    inventory: set[str],
+    spec: SpecDocument | None,
+    check: CheckFn,
+) -> None:
+    if origin.lower() == "new" or spec is None:
+        return
+    check(
+        "FAIL",
+        f"{t.id} inventory ID {origin} exists in SPEC",
+        origin in inventory,
+        "cited inventory ID absent from SPEC",
+    )
+
+
+def _lint_one_origin(
+    t: Any,
+    origin: str,
+    *,
+    known_tasks: set[str],
+    inventory: set[str],
+    spec: SpecDocument | None,
+    check: CheckFn,
+) -> None:
+    if not origin:
+        return
+    if _is_task_ref(origin):
+        _lint_task_origin(t, origin, known_tasks, check)
+        return
+    _lint_inventory_origin(t, origin, inventory, spec, check)
+
 
 def _lint_origins(
     t: Any,
@@ -32,45 +89,34 @@ def _lint_origins(
     spec: SpecDocument | None,
     check: CheckFn,
 ) -> None:
-    origins = [i.get("origin", "") for i in t.inputs]
-    for origin in origins:
-        if not origin:
-            continue
-        if origin.startswith("T") and origin[1:].isdigit():
-            check(
-                "FAIL",
-                f"{t.id} input {origin} in depends",
-                origin in t.depends,
-                f"depends={t.depends}",
-            )
-            check(
-                "FAIL",
-                f"{t.id} input {origin} exists",
-                origin in known_tasks,
-                f"unknown task origin {origin}",
-            )
-        elif origin.lower() != "new" and spec is not None:
-            check(
-                "FAIL",
-                f"{t.id} inventory ID {origin} exists in SPEC",
-                origin in inventory,
-                "cited inventory ID absent from SPEC",
-            )
+    for origin in (i.get("origin", "") for i in t.inputs):
+        _lint_one_origin(
+            t,
+            origin,
+            known_tasks=known_tasks,
+            inventory=inventory,
+            spec=spec,
+            check=check,
+        )
+
+
+def _anchor_rel(token: str) -> str | None:
+    if "/" not in token and "\\" not in token:
+        return None
+    rel = token.strip("`").replace("\\", "/")
+    if not any(rel.endswith(ext) for ext in _ANCHOR_EXTS):
+        return None
+    return rel
 
 
 def _lint_locate_anchors(t: Any, root: Path, check: CheckFn) -> None:
     if t.id == "T0" or not t.locate:
         return
     for token in t.locate.replace(",", " ").split():
-        if "/" not in token and "\\" not in token:
+        rel = _anchor_rel(token)
+        if rel is None:
             continue
-        rel = token.strip("`").replace("\\", "/")
-        if not any(
-            rel.endswith(ext) for ext in (".py", ".md", ".json", ".yml", ".yaml", ".java")
-        ):
-            continue
-        fpath = root / rel
-        check("FAIL", f"{t.id} anchor file {rel}", fpath.is_file(), "cited file missing")
+        check("FAIL", f"{t.id} anchor file {rel}", (root / rel).is_file(), "cited file missing")
 
 
 def _lint_waves(depends_map: dict[str, list[str]], cycle: list[str] | None, check: CheckFn) -> None:
@@ -113,6 +159,26 @@ def _lint_task_block(
         _lint_locate_anchors(t, root, check)
 
 
+def _make_check(results: list[LintResult]) -> CheckFn:
+    def check(level: str, name: str, ok: bool, detail: str = "") -> None:
+        results.append(LintResult(level if not ok else "PASS", name, detail if not ok else ""))
+
+    return check
+
+
+def _lint_document_preamble(
+    tasks: TasksDocument, check: CheckFn
+) -> tuple[list[str], dict[str, list[str]], list[str] | None]:
+    check("FAIL", "has task blocks", len(tasks.tasks) >= 1, f"found {len(tasks.tasks)}")
+    ids = [t.id for t in tasks.tasks]
+    check("FAIL", "T0 pre-flight block", "T0" in ids, "no T0 task")
+    check("FAIL", "why-this-order narrative", bool(tasks.why_this_order.strip()))
+    depends_map = {t.id: list(t.depends) for t in tasks.tasks}
+    cycle = detect_cycle(depends_map)
+    check("FAIL", "dag acyclic", cycle is None, f"cycle: {cycle}")
+    return ids, depends_map, cycle
+
+
 def lint_tasks_document(
     tasks: TasksDocument,
     spec: SpecDocument | None = None,
@@ -121,19 +187,8 @@ def lint_tasks_document(
 ) -> list[LintResult]:
     """Validate typed TASKS against contract + optional SPEC inventory."""
     results: list[LintResult] = []
-
-    def check(level: str, name: str, ok: bool, detail: str = "") -> None:
-        results.append(LintResult(level if not ok else "PASS", name, detail if not ok else ""))
-
-    check("FAIL", "has task blocks", len(tasks.tasks) >= 1, f"found {len(tasks.tasks)}")
-    ids = [t.id for t in tasks.tasks]
-    check("FAIL", "T0 pre-flight block", "T0" in ids, "no T0 task")
-    check("FAIL", "why-this-order narrative", bool(tasks.why_this_order.strip()))
-
-    depends_map = {t.id: list(t.depends) for t in tasks.tasks}
-    cycle = detect_cycle(depends_map)
-    check("FAIL", "dag acyclic", cycle is None, f"cycle: {cycle}")
-
+    check = _make_check(results)
+    ids, depends_map, cycle = _lint_document_preamble(tasks, check)
     inventory = spec.inventory_ids() if spec else set()
     known_tasks = set(ids)
     for t in tasks.tasks:
@@ -145,21 +200,22 @@ def lint_tasks_document(
             root=root,
             check=check,
         )
-
     _lint_waves(depends_map, cycle, check)
     _lint_blockers(tasks, check)
     return results
 
 
+def _count_level(results: list[LintResult], level: str) -> int:
+    return sum(1 for r in results if r.level == level)
+
+
 def lint_summary(results: list[LintResult]) -> dict[str, Any]:
-    fails = [r for r in results if r.level == "FAIL"]
-    warns = [r for r in results if r.level == "WARN"]
-    passes = [r for r in results if r.level == "PASS"]
+    fails = _count_level(results, "FAIL")
     return {
-        "pass": len(passes),
-        "fail": len(fails),
-        "warn": len(warns),
-        "ok": len(fails) == 0,
+        "pass": _count_level(results, "PASS"),
+        "fail": fails,
+        "warn": _count_level(results, "WARN"),
+        "ok": fails == 0,
         "results": [r.to_dict() for r in results],
     }
 

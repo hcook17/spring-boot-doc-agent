@@ -31,6 +31,27 @@ def issues_from_tasks(tasks: TasksDocument) -> list[dict[str, Any]]:
     return issues
 
 
+def _gh_issue_cmd(issue: dict[str, Any], repo: str | None) -> list[str]:
+    cmd = ["gh", "issue", "create", "--title", issue["title"], "--body", issue["body"]]
+    if repo:
+        cmd.extend(["--repo", repo])
+    for lab in issue.get("labels") or []:
+        cmd.extend(["--label", lab])
+    return cmd
+
+
+def _create_gh_issue(issue: dict[str, Any], repo: str | None) -> dict[str, Any]:
+    proc = subprocess.run(
+        _gh_issue_cmd(issue, repo), capture_output=True, text=True, check=False
+    )
+    return {
+        "title": issue["title"],
+        "rc": proc.returncode,
+        "stdout": proc.stdout.strip(),
+        "stderr": proc.stderr.strip(),
+    }
+
+
 def handoff_gh(
     tasks: TasksDocument,
     *,
@@ -40,23 +61,7 @@ def handoff_gh(
     issues = issues_from_tasks(tasks)
     if dry_run:
         return [{"dry_run": True, **i} for i in issues]
-    created = []
-    for issue in issues:
-        cmd = ["gh", "issue", "create", "--title", issue["title"], "--body", issue["body"]]
-        if repo:
-            cmd.extend(["--repo", repo])
-        for lab in issue.get("labels") or []:
-            cmd.extend(["--label", lab])
-        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        created.append(
-            {
-                "title": issue["title"],
-                "rc": proc.returncode,
-                "stdout": proc.stdout.strip(),
-                "stderr": proc.stderr.strip(),
-            }
-        )
-    return created
+    return [_create_gh_issue(issue, repo) for issue in issues]
 
 
 def write_handoff_checklist(path: Path, tasks: TasksDocument) -> Path:

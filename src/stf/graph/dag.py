@@ -102,14 +102,26 @@ def _build_reverse_depends(depends: dict[str, Iterable[str]]) -> dict[str, set[s
     return reverse
 
 
+def _maybe_add_task_origin_edge(
+    reverse: dict[str, set[str]], tid: str, origin: str
+) -> None:
+    if _is_task_origin(origin):
+        reverse[origin].add(tid)
+
+
 def _add_inputs_origin_edges(
     reverse: dict[str, set[str]],
     inputs_origins: dict[str, Iterable[str]],
 ) -> None:
     for tid, origins in inputs_origins.items():
-        for o in origins:
-            if _is_task_origin(o):
-                reverse[o].add(tid)
+        for origin in origins:
+            _maybe_add_task_origin_edge(reverse, tid, origin)
+
+
+def _enqueue_unseen(q: deque[str], seen: set[str], nodes: Iterable[str]) -> None:
+    for nxt in nodes:
+        if nxt not in seen:
+            q.append(nxt)
 
 
 def _bfs_reachable(seeds: Iterable[str], reverse: dict[str, set[str]]) -> set[str]:
@@ -120,9 +132,7 @@ def _bfs_reachable(seeds: Iterable[str], reverse: dict[str, set[str]]) -> set[st
         if cur in seen:
             continue
         seen.add(cur)
-        for nxt in reverse.get(cur, ()):
-            if nxt not in seen:
-                q.append(nxt)
+        _enqueue_unseen(q, seen, reverse.get(cur, ()))
     return seen
 
 

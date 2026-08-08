@@ -24,12 +24,19 @@ class VerifyGateError(RuntimeError):
     pass
 
 
+def _cited_origins(tasks: TasksDocument) -> set[object]:
+    return {i.get("origin") for t in tasks.tasks for i in t.inputs}
+
+
+def _critical_finding_ids(finding_ids: list[str]) -> list[str]:
+    return [fid for fid in finding_ids if fid.startswith("C")]
+
+
 def _finding_coverage(tasks: TasksDocument, spec: SpecDocument | None) -> bool:
     if spec is None or not spec.finding_ids:
         return True
-    inv_cited = {i.get("origin") for t in tasks.tasks for i in t.inputs}
-    critical = [fid for fid in spec.finding_ids if fid.startswith("C")]
-    return any(f"INV-{fid}" in inv_cited for fid in critical)
+    inv_cited = _cited_origins(tasks)
+    return any(f"INV-{fid}" in inv_cited for fid in _critical_finding_ids(spec.finding_ids))
 
 
 def plan_gate(tasks: TasksDocument, spec: SpecDocument | None = None) -> dict:
