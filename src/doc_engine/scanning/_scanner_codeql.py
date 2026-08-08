@@ -29,23 +29,23 @@ class CodeQLBackend(ScannerBackend):
         return "codeql"
 
     def version_hash(self) -> str:
-        h = hashlib.sha256()
+        digest = hashlib.sha256()
         paths = [
             str(Path(__file__).resolve()),
             str(Path(__file__).resolve().parent / "support" / "_codeql_runner.py"),
         ]
         pack_dir = codeql_pack_dir()
         if pack_dir.is_dir():
-            for ql in sorted(glob.glob(str(pack_dir / "*.ql"))):
-                paths.append(ql)
-        for p in sorted(paths):
+            for query_file in sorted(glob.glob(str(pack_dir / "*.ql"))):
+                paths.append(query_file)
+        for path in sorted(paths):
             try:
-                with open(p, "rb") as f:
-                    for chunk in iter(lambda: f.read(1 << 20), b""):
-                        h.update(chunk)
+                with open(path, "rb") as handle:
+                    for chunk in iter(lambda: handle.read(1 << 20), b""):
+                        digest.update(chunk)
             except OSError:
                 pass
-        return h.hexdigest()[:16]
+        return digest.hexdigest()[:16]
 
     def scan(
         self,

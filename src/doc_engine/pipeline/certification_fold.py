@@ -24,6 +24,8 @@ from doc_engine.pipeline.compliance import (
     required_stage_names_for_profile,
 )
 
+_LIVE_SKIPPED_PYTEST_GATE = "test_pipeline_stages"
+
 
 def _stage_fold_failures(
     stages: list[StageRecord],
@@ -45,38 +47,66 @@ def _stage_fold_failures(
     return failures
 
 
-def _gate_fold_failures(
-    gates: list[GateRecord],
+def _append_unique(failures: list[str], failure: str) -> None:
+    if failure not in failures:
+        failures.append(failure)
+
+
+def _recorded_required_gate_failures(gates: list[GateRecord]) -> list[str]:
+    """Failures for gates already present that are required but not ok."""
+    return [
+        f"gate:{gate.id}:{gate.status}"
+        for gate in gates
+        if gate.required and gate.status != RecordStatus.OK
+    ]
+
+
+def _profile_gate_fold_failures(
+    gates_by_id: dict[str, GateRecord],
     required_ids: frozenset[str],
     generative_executor: GenerativeExecutor,
+    existing_failures: list[str],
 ) -> list[str]:
-    """Failures from gate rows and profile-required gate ids."""
+    """Failures for profile-required gate ids (missing / not_required / not ok)."""
     failures: list[str] = []
-    by_id = {gate.id: gate for gate in gates}
-    for gate in gates:
-        if gate.required and gate.status != RecordStatus.OK:
-            failures.append(f"gate:{gate.id}:{gate.status}")
     for gate_id in sorted(required_ids):
         # Live gates intentionally do not rerun pytest; the skipped gate is
         # recorded separately with required=False. Treating it as a missing or
         # not-required profile gate would make the live path self-fail.
         if (
             generative_executor == GenerativeExecutor.LIVE
-            and gate_id == "test_pipeline_stages"
+            and gate_id == _LIVE_SKIPPED_PYTEST_GATE
         ):
             continue
-        gate = by_id.get(gate_id)
+        gate = gates_by_id.get(gate_id)
         if gate is None:
             failures.append(f"gate:{gate_id}:missing")
         elif not gate.required:
             # Presence alone is not enough — required=False forges the fold.
             failures.append(f"gate:{gate_id}:not_required")
         elif gate.status != RecordStatus.OK:
-            # Already recorded above when required=True; keep explicit for
-            # profile-required ids so the failure list is complete if the
-            # earlier loop is ever narrowed.
-            if f"gate:{gate_id}:{gate.status}" not in failures:
-                failures.append(f"gate:{gate_id}:{gate.status}")
+            # May already be recorded by _recorded_required_gate_failures;
+            # keep explicit so profile-required ids stay complete if that loop
+            # is ever narrowed.
+            failure = f"gate:{gate_id}:{gate.status}"
+            if failure not in existing_failures:
+                _append_unique(failures, failure)
+    return failures
+
+
+def _gate_fold_failures(
+    gates: list[GateRecord],
+    required_ids: frozenset[str],
+    generative_executor: GenerativeExecutor,
+) -> list[str]:
+    """Failures from gate rows and profile-required gate ids."""
+    failures = _recorded_required_gate_failures(gates)
+    gates_by_id = {gate.id: gate for gate in gates}
+    failures.extend(
+        _profile_gate_fold_failures(
+            gates_by_id, required_ids, generative_executor, failures,
+        ),
+    )
     return failures
 
 

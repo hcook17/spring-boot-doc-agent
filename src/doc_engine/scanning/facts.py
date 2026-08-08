@@ -27,7 +27,7 @@ def _default_scanner(signals: Mapping[str, Any]) -> Optional[str]:
     scanners = signals.get("scanners") or []
     if not scanners:
         return None
-    return ",".join(str(s) for s in scanners)
+    return ",".join(str(scanner) for scanner in scanners)
 
 
 def _fact(

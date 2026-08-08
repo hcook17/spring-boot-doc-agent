@@ -78,7 +78,7 @@ class DriftReportFreshness:
     """Mark paths listed as changed/stale in a prior drift_report.json."""
 
     def __init__(self, *, stale_paths: set[str], inner: SignatureFreshness | AssumeIndexed) -> None:
-        self._stale = {p.replace("\\", "/") for p in stale_paths}
+        self._stale = {path.replace("\\", "/") for path in stale_paths}
         self._inner = inner
 
     def freshness_for(self, rel_path: str | None) -> str:
