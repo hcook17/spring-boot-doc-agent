@@ -11,6 +11,12 @@ from __future__ import annotations
 
 import re
 
+from doc_engine.pipeline.artifacts.vocab import (
+    ResearchTiers,
+    ResearchVerdict,
+    ReviewLens,
+    ReviewSeverity,
+)
 from doc_engine.tools.doc_tag_utils import VALID_DOC_FILES
 
 # agents/file-summarizer.md step 4's exact enumerated list.
@@ -27,10 +33,11 @@ FILE_SUMMARY_REQUIRED_KEYS = frozenset({
 GAP_EVIDENCE_CITATION_RE = re.compile(r"[\w][\w./-]*\.[A-Za-z0-9]+(?::\d+)?")
 ELIDED_PATH_RE = re.compile(r"/\.\.\.(?:/|\b)")
 
-VALID_REVIEW_LENSES = frozenset({"ddia", "testing"})
-VALID_REVIEW_SEVERITIES = frozenset({"informational", "worth-flagging"})
-VALID_RESEARCH_TIERS = frozenset({"A", "B", "C"})
-VALID_RESEARCH_VERDICTS = frozenset({"CONFIRMED", "PLAUSIBLE", "REFUTED", "UNRESOLVED"})
+# Single SoT: StrEnums on artifacts.vocab (encoding contract / DRY).
+VALID_REVIEW_LENSES = frozenset(ReviewLens)
+VALID_REVIEW_SEVERITIES = frozenset(ReviewSeverity)
+VALID_RESEARCH_TIERS = frozenset(ResearchTiers)
+VALID_RESEARCH_VERDICTS = frozenset(ResearchVerdict)
 
 NODE_LABEL_PATTERN = re.compile(r'\[["\']?([^\]"\']+)["\']?\]')
 
@@ -111,45 +118,69 @@ def validate_gap_analyzer_questions(questions, max_questions=40):
     return problems
 
 
+def _validate_review_evidence(index: int, evidence) -> list:
+    """Return problems for one finding's evidence array."""
+    problems = []
+    if not isinstance(evidence, list) or not evidence:
+        problems.append(
+            (index, "evidence must be a non-empty array — a claim with no anchor is unfalsifiable"),
+        )
+        return problems
+    for anchor in evidence:
+        if not isinstance(anchor, dict) or "line" not in anchor or "what" not in anchor:
+            problems.append((index, f"evidence entry missing line/what: {anchor!r}"))
+    return problems
+
+
+def _validate_external_research(index: int, external: dict) -> list:
+    """Return problems for one finding's optional external_research block."""
+    problems = []
+    verdict = external.get("verdict")
+    if verdict not in VALID_RESEARCH_VERDICTS:
+        problems.append(
+            (index, f"external_research verdict {verdict!r} not one of {sorted(VALID_RESEARCH_VERDICTS)}"),
+        )
+    sources = external.get("sources", [])
+    only_tier_c = bool(sources) and all(source.get("tier") == "C" for source in sources)
+    if only_tier_c:
+        problems.append(
+            (index, "external_research rests entirely on Tier C sources — Tier C is orientation-only "
+             "and may never be the sole ground for a claim"),
+        )
+    for source in sources:
+        if source.get("tier") not in VALID_RESEARCH_TIERS:
+            problems.append(
+                (index, f"external_research source tier {source.get('tier')!r} "
+                 f"not one of {sorted(VALID_RESEARCH_TIERS)}"),
+            )
+    return problems
+
+
+def _validate_review_finding(index: int, finding: dict) -> list:
+    """Return problems for a single architecture/testing review finding."""
+    required_keys = {"lens", "concept", "claim", "evidence", "severity"}
+    missing = required_keys - finding.keys()
+    if missing:
+        return [(index, f"missing keys: {sorted(missing)}")]
+
+    problems = []
+    if finding["lens"] not in VALID_REVIEW_LENSES:
+        problems.append((index, f"lens {finding['lens']!r} not one of {sorted(VALID_REVIEW_LENSES)}"))
+    if finding["severity"] not in VALID_REVIEW_SEVERITIES:
+        problems.append(
+            (index, f"severity {finding['severity']!r} not one of {sorted(VALID_REVIEW_SEVERITIES)}"),
+        )
+    problems.extend(_validate_review_evidence(index, finding["evidence"]))
+    external = finding.get("external_research")
+    if external:
+        problems.extend(_validate_external_research(index, external))
+    return problems
+
+
 def validate_architecture_testing_review_findings(findings, max_findings=60):
     problems = []
-    required_keys = {"lens", "concept", "claim", "evidence", "severity"}
-    for i, f in enumerate(findings):
-        missing = required_keys - f.keys()
-        if missing:
-            problems.append((i, f"missing keys: {sorted(missing)}"))
-            continue
-        if f["lens"] not in VALID_REVIEW_LENSES:
-            problems.append((i, f"lens {f['lens']!r} not one of {sorted(VALID_REVIEW_LENSES)}"))
-        if f["severity"] not in VALID_REVIEW_SEVERITIES:
-            problems.append((i, f"severity {f['severity']!r} not one of {sorted(VALID_REVIEW_SEVERITIES)}"))
-        evidence = f["evidence"]
-        if not isinstance(evidence, list) or not evidence:
-            problems.append((i, "evidence must be a non-empty array — a claim with no anchor is unfalsifiable"))
-        else:
-            for anchor in evidence:
-                if not isinstance(anchor, dict) or "line" not in anchor or "what" not in anchor:
-                    problems.append((i, f"evidence entry missing line/what: {anchor!r}"))
-        external = f.get("external_research")
-        if external:
-            verdict = external.get("verdict")
-            if verdict not in VALID_RESEARCH_VERDICTS:
-                problems.append(
-                    (i, f"external_research verdict {verdict!r} not one of {sorted(VALID_RESEARCH_VERDICTS)}"),
-                )
-            sources = external.get("sources", [])
-            only_tier_c = bool(sources) and all(s.get("tier") == "C" for s in sources)
-            if only_tier_c:
-                problems.append(
-                    (i, "external_research rests entirely on Tier C sources — Tier C is orientation-only "
-                     "and may never be the sole ground for a claim"),
-                )
-            for source in sources:
-                if source.get("tier") not in VALID_RESEARCH_TIERS:
-                    problems.append(
-                        (i, f"external_research source tier {source.get('tier')!r} "
-                         f"not one of {sorted(VALID_RESEARCH_TIERS)}"),
-                    )
+    for index, finding in enumerate(findings):
+        problems.extend(_validate_review_finding(index, finding))
     if len(findings) > max_findings:
         problems.append(
             (None, f"{len(findings)} findings exceeds sanity ceiling of {max_findings} — "
