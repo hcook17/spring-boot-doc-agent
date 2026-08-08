@@ -156,8 +156,9 @@ MUTATORS: List[Mutator] = [
     Mutator(
         "freshness-mismatch-always-fresh",
         "src/doc_engine/query/freshness.py", "python",
-        'return "fresh_indexed" if actual == expected else "stale"',
-        'return "fresh_indexed"',
+        "return (FreshnessLabel.FRESH_INDEXED if actual == expected "
+        "else FreshnessLabel.STALE)",
+        "return FreshnessLabel.FRESH_INDEXED",
         "test_context_packet.py",
         "signature mismatch must label stale; always-fresh hides drift"),
 
