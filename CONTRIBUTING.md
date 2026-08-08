@@ -151,7 +151,7 @@ review concerns ([2310.03673](https://arxiv.org/abs/2310.03673),
 | Gate | Tool | Stars (≈) | Latest release | Last push | Metric type | CI behavior |
 | --- | --- | --- | --- | --- | --- | --- |
 | New-code coverage ≥ **98.7%** | [diff-cover](https://github.com/Bachmann1234/diff_cover) `~=10.5.0` (+ pytest-cov XML) | 843 | **v10.5.0** (2026-08-08) | 2026-08-08 | Diff line coverage vs compare ref | **hard fail** |
-| Duplication ≤ **3%** | [jscpd](https://github.com/kucherenko/jscpd) `@5.0.14` via `npx` | 5980 | **v5.0.14** (2026-07-27) | 2026-08-07 | Token clone % on **changed** `src/doc_engine` + `src/stf` `.py` | **hard fail** |
+| Duplication ≤ **3%** | [jscpd](https://github.com/kucherenko/jscpd) `@5.0.14` via local `npm ci` | 5980 | **v5.0.14** (2026-07-27) | 2026-08-07 | Token clone % on **changed** `src/doc_engine` + `src/stf` `.py` | **hard fail** |
 | Complexity ≤ **5** / function | [complexipy](https://github.com/rohaquinlop/complexipy) `~=6.2.0` | 748 | **6.2.0** (2026-07-23) | 2026-08-04 | Cognitive complexity (Campbell/Sonar-inspired; not affiliated with Sonar) | **hard fail** on offender-count ratchet (`scripts/ratchets/complexipy_baseline.json`) until count reaches 0 |
 | Import cycles / coupling | [tach](https://github.com/tach-org/tach) `~=0.35.0` | 2785 | **v0.35.0** (2026-05-12) | 2026-06-11 | `forbid_circular_dependencies` (`tach.toml`) | **hard fail** |
 | Soft McCabe backup | [ruff](https://github.com/astral-sh/ruff) C901 (already pinned `~=0.16.0`) | 49k+ | 2026 releases | 2026-08-08 | Cyclomatic (McCabe) — **not** cognitive | optional / not selected in `.ruff.toml` |
@@ -162,13 +162,20 @@ review concerns ([2310.03673](https://arxiv.org/abs/2310.03673),
 
 **Complexity remediation.** Policy target is ≤5 cognitive complexity per function on all of `src/doc_engine` + `src/stf`. While legacy offenders remain, CI hard-fails when the offender *count* rises vs `scripts/ratchets/complexipy_baseline.json` (ratchet downward after each remediation batch; never raise it). Prefer named helpers and early returns over micro-fragmentation; do not weaken the ≤5 threshold.
 
-### Local run
+### Quality gates (all OS)
+
+One portable entry point — same on Mac, Windows, and Linux (and in CI):
 
 ```bash
 pip install -r requirements-dev.txt && pip install -e .
-# after a coverage.xml exists from pytest --cov ...
+npm ci
+# produce coverage.xml once (pytest --cov=doc_engine --cov=stf --cov-branch --cov-report=xml)
 python3 scripts/ci/run_quality_gates.py --compare-ref origin/main
 ```
+
+- Python tools (`diff-cover`, `tach`, `complexipy`) come from `requirements-dev.txt` and are invoked via `sys.executable -m …` or the venv console script next to that interpreter — no OS-specific wrappers.
+- `jscpd` is pinned in `package.json` / `package-lock.json`. After `npm ci`, the runner prefers the platform native binary under `node_modules/jscpd-*/bin/`, else `node node_modules/jscpd/run-jscpd.js`. Do **not** use ad-hoc `npx` or throwaway `.ps1`/`.sh` gate wrappers.
+- Skip coverage locally with `--skip-coverage` only for debugging other gates.
 
 ### Deferred (no fake CI gates)
 

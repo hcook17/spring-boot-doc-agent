@@ -16,40 +16,21 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from doc_engine.paths import repo_root
+from gate_tools import REPO_ROOT, require_venv_script
 
-REPO_ROOT = repo_root()
 PACKAGE_ROOTS = ("src/doc_engine", "src/stf")
 COMPLEXITY_MAX = 5
 DEFAULT_BASELINE = REPO_ROOT / "scripts" / "ratchets" / "complexipy_baseline.json"
 SCHEMA_VERSION = 1
 
 
-def _require_complexipy() -> str:
-    resolved = shutil.which("complexipy")
-    if resolved:
-        return resolved
-    sibling = Path(sys.executable).resolve().parent
-    for candidate in (
-        sibling / "complexipy",
-        sibling / "complexipy.exe",
-        sibling / "Scripts" / "complexipy",
-        sibling / "Scripts" / "complexipy.exe",
-    ):
-        if candidate.is_file():
-            return str(candidate)
-    print("error: complexipy is not on PATH", file=sys.stderr)
-    raise SystemExit(2)
-
-
 def count_offenders() -> int:
     """Return how many functions exceed COMPLEXITY_MAX under package roots."""
-    complexipy = _require_complexipy()
+    complexipy = require_venv_script("complexipy")
     completed = subprocess.run(
         [
             complexipy,

@@ -1,0 +1,11 @@
+{
+  "name": "spring-boot-doc-agent-quality-gates",
+  "private": true,
+  "description": "Pinned Node tooling for in-repo quality gates (jscpd). Install with npm ci.",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "jscpd": "5.0.14"
+  }
+}

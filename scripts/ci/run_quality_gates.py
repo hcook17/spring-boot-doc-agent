@@ -6,6 +6,10 @@ Usage:
     python3 scripts/ci/run_quality_gates.py --compare-ref HEAD~1 \\
         --coverage-xml coverage.xml
 
+Same command on Mac, Windows, and Linux (CI uses this entry point too).
+Requires: ``pip install -r requirements-dev.txt && pip install -e .`` and
+``npm ci`` (pins jscpd; see CONTRIBUTING.md "Quality gates (all OS)").
+
 Exit codes:
     0  all hard gates passed
     1  one or more hard gates failed
@@ -15,50 +19,24 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from doc_engine.paths import repo_root
+from gate_tools import JSCPD_VERSION, REPO_ROOT, jscpd_command, python_module_command
 
-REPO_ROOT = repo_root()
 PACKAGE_ROOTS = ("src/doc_engine", "src/stf")
 NEW_CODE_COVERAGE_FLOOR = 98.7
 COMPLEXITY_MAX = 5
 DUPLICATION_MAX_PERCENT = 3
-JSCPD_VERSION = "5.0.14"
 
 
 def _run(command: list[str], *, label: str) -> int:
-    """Run *command*; print a labeled header; return the process exit code."""
+    """Run *command* as an argv list (no shell); return the process exit code."""
     print(f"\n=== {label} ===", flush=True)
     print("+", " ".join(command), flush=True)
     completed = subprocess.run(command, cwd=REPO_ROOT, check=False)
     return int(completed.returncode)
-
-
-def _require_binary(name: str) -> str:
-    """Return absolute path to *name* or exit 2 if missing.
-
-    Prefers PATH, then the Scripts/bin directory next to ``sys.executable``
-    (venv tools are often absent from PATH when the interpreter is invoked
-    by absolute path on Windows).
-    """
-    resolved = shutil.which(name)
-    if resolved:
-        return resolved
-    sibling_dir = Path(sys.executable).resolve().parent
-    for candidate in (
-        sibling_dir / name,
-        sibling_dir / f"{name}.exe",
-        sibling_dir / "Scripts" / name,
-        sibling_dir / "Scripts" / f"{name}.exe",
-    ):
-        if candidate.is_file():
-            return str(candidate)
-    print(f"error: {name!r} is not on PATH (pin in requirements-dev.txt)", file=sys.stderr)
-    raise SystemExit(2)
 
 
 def resolve_compare_ref(explicit: str | None) -> str:
@@ -103,16 +81,16 @@ def gate_new_code_coverage(compare_ref: str, coverage_xml: Path) -> int:
     if not coverage_xml.is_file():
         print(f"error: missing coverage report: {coverage_xml}", file=sys.stderr)
         return 2
-    diff_cover = _require_binary("diff-cover")
+    coverage_xml = coverage_xml if coverage_xml.is_absolute() else REPO_ROOT / coverage_xml
     return _run(
-        [
-            diff_cover,
+        python_module_command(
+            "diff_cover.diff_cover_tool",
             str(coverage_xml),
             f"--compare-branch={compare_ref}",
             f"--fail-under={NEW_CODE_COVERAGE_FLOOR}",
             "--include=src/doc_engine/*",
             "--include=src/stf/*",
-        ],
+        ),
         label=f"diff-cover new-code coverage >= {NEW_CODE_COVERAGE_FLOOR}%",
     )
 
@@ -122,37 +100,36 @@ def gate_duplication(compare_ref: str) -> int:
     changed = changed_python_under_packages(compare_ref)
     if not changed:
         print(
-            "\n=== jscpd duplication ≤ 3% ===\n"
+            "\n=== jscpd duplication <= 3% ===\n"
             "No changed Python under src/doc_engine or src/stf; skipping.",
             flush=True,
         )
         return 0
     if len(changed) == 1:
         print(
-            "\n=== jscpd duplication ≤ 3% ===\n"
-            f"Single changed file ({changed[0]}); intra-diff duplication N/A — pass.",
+            "\n=== jscpd duplication <= 3% ===\n"
+            f"Single changed file ({changed[0]}); intra-diff duplication N/A - pass.",
             flush=True,
         )
         return 0
-    npx = _require_binary("npx")
     return _run(
-        [
-            npx,
-            "--yes",
-            f"jscpd@{JSCPD_VERSION}",
+        jscpd_command(
             f"--threshold={DUPLICATION_MAX_PERCENT}",
             "--min-lines=5",
             "--format=python",
             *changed,
-        ],
-        label=f"jscpd@{JSCPD_VERSION} duplication <= {DUPLICATION_MAX_PERCENT}% (changed files)",
+        ),
+        label=(
+            f"jscpd@{JSCPD_VERSION} duplication <= {DUPLICATION_MAX_PERCENT}% "
+            "(changed files; local node_modules)"
+        ),
     )
 
 
 def gate_cognitive_complexity() -> int:
     """Fail when the count of >COMPLEXITY_MAX functions rises vs baseline.
 
-    Policy target remains ≤COMPLEXITY_MAX per function. While
+    Policy target remains <=COMPLEXITY_MAX per function. While
     ``scripts/ratchets/complexipy_baseline.json`` still lists offenders,
     whole-repo ``complexipy --failed`` cannot green CI — the ratchet is the
     hard gate. When the baseline reaches 0, ``--failed`` becomes free.
@@ -161,15 +138,17 @@ def gate_cognitive_complexity() -> int:
         [sys.executable, "scripts/ci/check_complexipy_ratchet.py"],
         label=(
             f"complexipy offender-count ratchet "
-            f"(must not rise; target ≤{COMPLEXITY_MAX}/fn)"
+            f"(must not rise; target <={COMPLEXITY_MAX}/fn)"
         ),
     )
 
 
 def gate_import_cycles() -> int:
     """Fail when tach finds circular imports among configured modules."""
-    tach = _require_binary("tach")
-    return _run([tach, "check"], label="tach forbid circular dependencies")
+    return _run(
+        python_module_command("tach", "check"),
+        label="tach forbid circular dependencies",
+    )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
