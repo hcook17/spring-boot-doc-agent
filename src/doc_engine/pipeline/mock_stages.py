@@ -92,6 +92,79 @@ SPRING_ROLE_BY_BUCKET = {
     "testing": "test",
 }
 
+_FALLBACK_CITATION_BUCKETS = (
+    "api_surface",
+    "security",
+    "persistence",
+    "configuration",
+    "deployment",
+    "observability",
+    "references",
+)
+
+_ARCHITECTURE_BUCKETS = (
+    "api_surface",
+    "security",
+    "persistence",
+    "raw_queries",
+    "messaging",
+    "outbound_clients",
+)
+
+
+def _file_line_count(repo_path, relpath, cache):
+    """Return cached line count for *relpath*, or 0 when unreadable."""
+    if relpath in cache:
+        return cache[relpath]
+    abspath = os.path.join(repo_path, relpath)
+    if not os.path.isfile(abspath):
+        cache[relpath] = 0
+        return 0
+    try:
+        with open(abspath, encoding="utf-8", errors="replace") as handle:
+            cache[relpath] = sum(1 for _ in handle)
+    except OSError:
+        cache[relpath] = 0
+    return cache[relpath]
+
+
+def _citation_resolves(repo_path, relpath, line, cache):
+    """True when *relpath* exists and *line* is in range (or line is None)."""
+    count = _file_line_count(repo_path, relpath, cache)
+    if count <= 0:
+        return False
+    if line is None:
+        return True
+    return 1 <= line <= count
+
+
+def _normalize_match_text(raw_match, bucket):
+    """Collapse whitespace and strip backticks so phrasing templates stay valid."""
+    match = (raw_match or "").strip().replace("\n", " ")
+    match = re.sub(r"\s+", " ", match)[:60] or bucket
+    return match.replace("`", "'")
+
+
+def _try_keep_citation_row(row, repo_path, bucket, line_counts):
+    """Return (relpath, line, match) when the row cites a resolvable location."""
+    relpath = row.get("file")
+    line = row.get("line")
+    if not relpath or not isinstance(line, int) or line < 1:
+        return None
+    if not _citation_resolves(repo_path, relpath, line, line_counts):
+        return None
+    return (relpath, line, _normalize_match_text(row.get("match"), bucket))
+
+
+def _kept_citations_for_bucket(rows, repo_path, bucket, line_counts):
+    """Filter one evidence bucket to resolvable citations."""
+    kept = []
+    for row in rows:
+        citation = _try_keep_citation_row(row, repo_path, bucket, line_counts)
+        if citation is not None:
+            kept.append(citation)
+    return kept
+
 
 def load_citations(signals, repo_path):
     """Build a bucket -> [(file, line, match)] pool of citations that actually
@@ -104,62 +177,39 @@ def load_citations(signals, repo_path):
     repo changed under the run, and it's cheap.
     """
     line_counts = {}
-
-    def resolves(relpath, line):
-        if relpath not in line_counts:
-            abspath = os.path.join(repo_path, relpath)
-            if not os.path.isfile(abspath):
-                line_counts[relpath] = 0
-            else:
-                try:
-                    with open(abspath, encoding="utf-8", errors="replace") as f:
-                        line_counts[relpath] = sum(1 for _ in f)
-                except OSError:
-                    line_counts[relpath] = 0
-        count = line_counts[relpath]
-        return count > 0 and (line is None or 1 <= line <= count)
-
     pool = {}
     for bucket, rows in (signals.get("evidence") or {}).items():
-        kept = []
-        for row in rows:
-            relpath = row.get("file")
-            line = row.get("line")
-            if not relpath or not isinstance(line, int) or line < 1:
-                continue
-            if not resolves(relpath, line):
-                continue
-            match = (row.get("match") or "").strip().replace("\n", " ")
-            match = re.sub(r"\s+", " ", match)[:60] or bucket
-            # A backtick inside the match would break the inline-code span the
-            # phrasing templates wrap it in.
-            kept.append((relpath, line, match.replace("`", "'")))
-        pool[bucket] = kept
+        pool[bucket] = _kept_citations_for_bucket(
+            rows, repo_path, bucket, line_counts
+        )
     return pool
+
+
+def _take_one_round(buckets, queues, round_index, selected, limit):
+    """Append one round-robin slice; return True if anything was added."""
+    added_any = False
+    for bucket, queue in zip(buckets, queues, strict=True):
+        if round_index >= len(queue):
+            continue
+        selected.append((bucket, queue[round_index]))
+        added_any = True
+        if len(selected) >= limit:
+            return True
+    return added_any
 
 
 def pick(pool, buckets, limit):
     """Take up to `limit` citations spread across `buckets`, round-robin, so a
     doc fed by three buckets doesn't get `limit` rows of the first one."""
-    lists = [list(pool.get(b) or []) for b in buckets]
-    out = []
-    i = 0
-    while len(out) < limit and any(lists):
-        # strict=True documents a real invariant rather than appeasing the
-        # linter: `lists` is built by comprehension over `buckets` directly
-        # above, so unequal lengths would mean that line changed and this one
-        # did not.
-        for bucket, rows in zip(buckets, lists, strict=True):
-            if not rows:
-                continue
-            if i < len(rows):
-                out.append((bucket, rows[i]))
-                if len(out) >= limit:
-                    break
-        if not any(i < len(rows) for rows in lists):
+    queues = [list(pool.get(bucket) or []) for bucket in buckets]
+    selected = []
+    round_index = 0
+    while len(selected) < limit:
+        added = _take_one_round(buckets, queues, round_index, selected, limit)
+        if not added:
             break
-        i += 1
-    return out
+        round_index += 1
+    return selected
 
 
 def evidenced(relpath, line):
@@ -196,42 +246,178 @@ TEXTUAL_SUFFIXES = {
 }
 
 
+def _is_textual_source(name):
+    """True when *name* is a source/config extension we sweep for TODO markers."""
+    suffix = os.path.splitext(name)[1].lower()
+    return suffix in TEXTUAL_SUFFIXES or name.lower() == "dockerfile"
+
+
+def _prune_walk_dirs(dirs):
+    """Mutate os.walk dirs in place to skip excluded / hidden directories."""
+    dirs[:] = [
+        name for name in dirs
+        if name not in DEFAULT_EXCLUDED_DIRS and not name.startswith(".")
+    ]
+
+
+def _scan_todo_lines(handle, relpath, remaining_cap):
+    """Collect TODO/FIXME hits from an open text handle, up to *remaining_cap*."""
+    hits = []
+    for lineno, line in enumerate(handle, 1):
+        match = TODO_RE.search(line)
+        if match is None:
+            continue
+        hits.append({
+            "file": relpath,
+            "line": lineno,
+            "marker": match.group(1),
+            "text": line.strip()[:200],
+        })
+        if len(hits) >= remaining_cap:
+            break
+    return hits
+
+
+def _todo_hits_in_file(abspath, relpath, remaining_cap):
+    """Read one file and return TODO hits, or [] on I/O failure."""
+    try:
+        with open(abspath, encoding="utf-8", errors="replace") as handle:
+            return _scan_todo_lines(handle, relpath, remaining_cap)
+    except OSError:
+        return []
+
+
+def _extend_hits_from_name(repo_path, root, name, hits, cap):
+    """Append TODO hits from one walk entry when it is a textual source file."""
+    if not _is_textual_source(name):
+        return hits
+    abspath = os.path.join(root, name)
+    relpath = os.path.relpath(abspath, repo_path).replace(os.sep, "/")
+    remaining = cap - len(hits)
+    return hits + _todo_hits_in_file(abspath, relpath, remaining)
+
+
+def _extend_hits_from_dir(repo_path, root, files, hits, cap):
+    """Append TODO hits from every textual file under one walk directory."""
+    for name in files:
+        hits = _extend_hits_from_name(repo_path, root, name, hits, cap)
+        if len(hits) >= cap:
+            return hits
+    return hits
+
+
+def _collect_todo_hits_under(repo_path, cap):
+    """Walk *repo_path* and gather up to *cap* TODO/FIXME hits."""
+    hits = []
+    for root, dirs, files in os.walk(repo_path):
+        _prune_walk_dirs(dirs)
+        hits = _extend_hits_from_dir(repo_path, root, files, hits, cap)
+        if len(hits) >= cap:
+            return hits
+    return hits
+
+
 def sweep_todos(repo_path, cap=200):
     """SKILL.md Stage 0: 'grep for TODO|FIXME|XXX|HACK yourself (not worth a
     dedicated script) and keep the hits — they feed known_limitations.md as
     candidates, not facts.' Done in-process, honoring the same excluded-dir set
     the scan and partition stages share."""
-    hits = []
-    for root, dirs, files in os.walk(repo_path):
-        dirs[:] = [d for d in dirs
-                   if d not in DEFAULT_EXCLUDED_DIRS and not d.startswith(".")]
-        for name in files:
-            suffix = os.path.splitext(name)[1].lower()
-            if suffix not in TEXTUAL_SUFFIXES and name.lower() != "dockerfile":
-                continue
-            abspath = os.path.join(root, name)
-            relpath = os.path.relpath(abspath, repo_path).replace(os.sep, "/")
-            try:
-                with open(abspath, encoding="utf-8", errors="replace") as f:
-                    for lineno, line in enumerate(f, 1):
-                        m = TODO_RE.search(line)
-                        if m:
-                            hits.append({
-                                "file": relpath,
-                                "line": lineno,
-                                "marker": m.group(1),
-                                "text": line.strip()[:200],
-                            })
-                            if len(hits) >= cap:
-                                return hits
-            except OSError:
-                continue
-    return hits
+    return _collect_todo_hits_under(repo_path, cap)
 
 
 # --------------------------------------------------------------------------
 # Mock Stage 1 — file summaries
 # --------------------------------------------------------------------------
+
+def _index_pool_by_file(pool):
+    """Invert citation pool into relpath -> [(bucket, line, match), ...]."""
+    by_file = {}
+    for bucket, rows in pool.items():
+        for relpath, line, match in rows:
+            by_file.setdefault(relpath, []).append((bucket, line, match))
+    return by_file
+
+
+def _cross_group_arc_snippets(group_edges):
+    """Serialize a few outbound / same-package arcs for mock summary entries."""
+    snippets = []
+    for arc in (group_edges.get("outbound") or [])[:5]:
+        snippets.append(json.dumps(arc, sort_keys=True)[:200])
+    for block in (group_edges.get("same_package_outside") or [])[:5]:
+        snippets.append(json.dumps(block, sort_keys=True)[:200])
+    return snippets
+
+
+def _spring_role_for_signals(signals_for_file):
+    """Map the first recognized signal bucket to a spring_role enum value."""
+    for bucket, _line, _match in signals_for_file:
+        if bucket in SPRING_ROLE_BY_BUCKET:
+            return SPRING_ROLE_BY_BUCKET[bucket]
+    return "other"
+
+
+def _summary_entry(relpath, group_id, group_files, signals_for_file, cross):
+    """Build one file-summarizer entry in the contract shape."""
+    siblings = [path for path in group_files if path != relpath][:4]
+    return {
+        "file": relpath,
+        "cluster": siblings,
+        "summary": (
+            f"MOCK SUMMARY (no model produced this): {relpath} was placed in "
+            f"group {group_id} and carries {len(signals_for_file)} deterministic "
+            f"signal-scan hit(s)."
+        ),
+        "relationships": siblings[:2],
+        "cross_group_relationships": cross,
+        "group_function": f"MOCK group function for group {group_id}",
+        "spring_role": _spring_role_for_signals(signals_for_file),
+        "evidence": [
+            {"line": line, "what": f"signal-scan hit: {match}"}
+            for _bucket, line, match in signals_for_file[:4]
+        ],
+    }
+
+
+def _write_group_summaries(out_dir, groups, by_file, edges, log):
+    """Write per-group summaries_group_<id>.json files; return their paths."""
+    written = []
+    for group in groups["groups"]:
+        group_id = group["id"]
+        group_edges = (edges.get("groups") or {}).get(str(group_id), {})
+        cross = _cross_group_arc_snippets(group_edges)
+        entries = [
+            _summary_entry(
+                relpath,
+                group_id,
+                group["files"],
+                by_file.get(relpath, []),
+                cross,
+            )
+            for relpath in group["files"]
+        ]
+        path = os.path.join(out_dir, f"summaries_group_{group_id}.json")
+        _write_json(path, entries)
+        written.append(path)
+        log(
+            f"  wrote {os.path.basename(path)} ({len(entries)} file entries, "
+            f"{len(cross)} cross-group arc(s) attached)"
+        )
+    return written
+
+
+def _combine_summary_files(out_dir, written, log):
+    """Concatenate group summary files into summaries.json."""
+    combined = []
+    for path in written:
+        with open(path, encoding="utf-8") as handle:
+            combined.extend(json.load(handle))
+    _write_json(os.path.join(out_dir, "summaries.json"), combined)
+    log(
+        f"  wrote summaries.json ({len(combined)} entries from "
+        f"{len(written)} group file(s))"
+    )
+    return combined
+
 
 def mock_file_summaries(out_dir, groups, pool, edges, log):
     """One summaries_group_<id>.json per group, in agents/file-summarizer.md's
@@ -245,60 +431,9 @@ def mock_file_summaries(out_dir, groups, pool, edges, log):
     this mock and the real contract shows up as a test failure rather than
     quietly producing artifacts nothing would accept.
     """
-    by_file = {}
-    for bucket, rows in pool.items():
-        for relpath, line, match in rows:
-            by_file.setdefault(relpath, []).append((bucket, line, match))
-
-    written = []
-    for group in groups["groups"]:
-        gid = group["id"]
-        group_edges = (edges.get("groups") or {}).get(str(gid), {})
-        cross = []
-        for arc in (group_edges.get("outbound") or [])[:5]:
-            cross.append(json.dumps(arc, sort_keys=True)[:200])
-        for block in (group_edges.get("same_package_outside") or [])[:5]:
-            cross.append(json.dumps(block, sort_keys=True)[:200])
-
-        entries = []
-        for relpath in group["files"]:
-            signals_for_file = by_file.get(relpath, [])
-            role = "other"
-            for bucket, _line, _match in signals_for_file:
-                if bucket in SPRING_ROLE_BY_BUCKET:
-                    role = SPRING_ROLE_BY_BUCKET[bucket]
-                    break
-            siblings = [f for f in group["files"] if f != relpath][:4]
-            entries.append({
-                "file": relpath,
-                "cluster": siblings,
-                "summary": (
-                    f"MOCK SUMMARY (no model produced this): {relpath} was placed in "
-                    f"group {gid} and carries {len(signals_for_file)} deterministic "
-                    f"signal-scan hit(s)."
-                ),
-                "relationships": siblings[:2],
-                "cross_group_relationships": cross,
-                "group_function": f"MOCK group function for group {gid}",
-                "spring_role": role,
-                "evidence": [
-                    {"line": line, "what": f"signal-scan hit: {match}"}
-                    for _bucket, line, match in signals_for_file[:4]
-                ],
-            })
-
-        path = os.path.join(out_dir, f"summaries_group_{gid}.json")
-        _write_json(path, entries)
-        written.append(path)
-        log(f"  wrote {os.path.basename(path)} ({len(entries)} file entries, "
-            f"{len(cross)} cross-group arc(s) attached)")
-
-    combined = []
-    for path in written:
-        with open(path, encoding="utf-8") as f:
-            combined.extend(json.load(f))
-    _write_json(os.path.join(out_dir, "summaries.json"), combined)
-    log(f"  wrote summaries.json ({len(combined)} entries from {len(written)} group file(s))")
+    by_file = _index_pool_by_file(pool)
+    written = _write_group_summaries(out_dir, groups, by_file, edges, log)
+    combined = _combine_summary_files(out_dir, written, log)
     return f"{len(written)} group file(s), {len(combined)} file summaries"
 
 
@@ -317,54 +452,92 @@ def _node_id(relpath, seen):
     return node
 
 
-def mock_architecture(out_dir, groups, pool, log):
-    """arch_fragment_<id>.md per group plus one architecture_merged.md.
-
-    Node labels are real file basenames, never paraphrased — that's
-    agents/architect-segment.md rule 3, and test_pipeline_stages.py's
-    find_untraceable_nodes() is the mechanical check for it.
-    """
+def _interesting_paths(pool):
+    """Paths that carry architecture-relevant signal buckets."""
     interesting = set()
-    for bucket in ("api_surface", "security", "persistence", "raw_queries",
-                   "messaging", "outbound_clients"):
+    for bucket in _ARCHITECTURE_BUCKETS:
         for relpath, _line, _match in pool.get(bucket) or []:
             interesting.add(relpath)
+    return interesting
 
+
+def _group_architecture_files(group, interesting):
+    """Prefer interesting files; fall back to a short prefix of the group."""
+    files = [path for path in group["files"] if path in interesting]
+    if not files:
+        files = group["files"][:6]
+    return files[:12]
+
+
+def _fragment_mermaid_lines(group_id, nodes):
+    """Build one Mermaid flowchart fragment for a partition group."""
+    lines = [
+        f"# MOCK architecture fragment {EM} group {group_id}",
+        "",
+        "Generated by doc_engine.pipeline.local_runner, not by architect-segment.",
+        "Node labels are real file names; the edges are adjacency within the",
+        "group, not analyzed call flow.",
+        "",
+        "```mermaid",
+        "flowchart TD",
+        f"    subgraph group_{group_id}[\"group {group_id}\"]",
+    ]
+    for relpath, node in nodes:
+        lines.append(f"        {node}[\"{os.path.basename(relpath)}\"]")
+    lines.append("    end")
+    # strict=False: the ragged tail is the point. zip(xs, xs[1:]) is the
+    # pairwise-adjacent idiom, so the operands differ in length by one by
+    # construction.
+    for (_path_a, node_a), (_path_b, node_b) in zip(nodes, nodes[1:], strict=False):
+        lines.append(f"    {node_a} --> {node_b}")
+    lines.append("```")
+    lines.append("")
+    return lines
+
+
+def _write_architecture_fragments(out_dir, groups, interesting, log):
+    """Write arch_fragment_<id>.md files; return (group_id, nodes, path) rows."""
     fragments = []
     for group in groups["groups"]:
-        gid = group["id"]
-        files = [f for f in group["files"] if f in interesting] or group["files"][:6]
-        files = files[:12]
+        group_id = group["id"]
+        files = _group_architecture_files(group, interesting)
         seen = set()
         nodes = [(relpath, _node_id(relpath, seen)) for relpath in files]
-
-        lines = [
-            f"# MOCK architecture fragment {EM} group {gid}",
-            "",
-            "Generated by doc_engine.pipeline.local_runner, not by architect-segment.",
-            "Node labels are real file names; the edges are adjacency within the",
-            "group, not analyzed call flow.",
-            "",
-            "```mermaid",
-            "flowchart TD",
-            f"    subgraph group_{gid}[\"group {gid}\"]",
-        ]
-        for relpath, node in nodes:
-            lines.append(f"        {node}[\"{os.path.basename(relpath)}\"]")
-        lines.append("    end")
-        # strict=False: the ragged tail is the point. zip(xs, xs[1:]) is the
-        # pairwise-adjacent idiom, so the operands differ in length by one by
-        # construction.
-        for (_a, node_a), (_b, node_b) in zip(nodes, nodes[1:], strict=False):
-            lines.append(f"    {node_a} --> {node_b}")
-        lines.append("```")
-        lines.append("")
-
-        path = os.path.join(out_dir, f"arch_fragment_{gid}.md")
-        _write_text(path, "\n".join(lines))
-        fragments.append((gid, nodes, path))
+        path = os.path.join(out_dir, f"arch_fragment_{group_id}.md")
+        _write_text(path, "\n".join(_fragment_mermaid_lines(group_id, nodes)))
+        fragments.append((group_id, nodes, path))
         log(f"  wrote {os.path.basename(path)} ({len(nodes)} node(s))")
+    return fragments
 
+
+def _append_subgraph_nodes(merged, group_id, nodes):
+    """Append one Mermaid subgraph block for a partition group."""
+    merged.append(f"    subgraph group_{group_id}[\"group {group_id}\"]")
+    for relpath, node in nodes:
+        merged.append(f"        {node}[\"{os.path.basename(relpath)}\"]")
+    merged.append("    end")
+
+
+def _cross_group_link(nodes_a, nodes_b):
+    """Dotted Mermaid edge between adjacent non-empty groups, or None."""
+    if not nodes_a or not nodes_b:
+        return None
+    return f"    {nodes_a[-1][1]} -.-> {nodes_b[0][1]}"
+
+
+def _append_cross_group_links(merged, fragments):
+    """Link adjacent group subgraphs with dotted edges."""
+    # strict=False for the pairwise-adjacent idiom; operands differ by one.
+    for (_gid_a, nodes_a, _path_a), (_gid_b, nodes_b, _path_b) in zip(
+        fragments, fragments[1:], strict=False
+    ):
+        link = _cross_group_link(nodes_a, nodes_b)
+        if link is not None:
+            merged.append(link)
+
+
+def _merged_architecture_lines(fragments):
+    """Assemble architecture_merged.md Mermaid from per-group fragments."""
     merged = [
         f"# MOCK merged architecture {EM} system level",
         "",
@@ -374,16 +547,9 @@ def mock_architecture(out_dir, groups, pool, log):
         "```mermaid",
         "flowchart TD",
     ]
-    for gid, nodes, _path in fragments:
-        merged.append(f"    subgraph group_{gid}[\"group {gid}\"]")
-        for relpath, node in nodes:
-            merged.append(f"        {node}[\"{os.path.basename(relpath)}\"]")
-        merged.append("    end")
-    # strict=False for the same pairwise-adjacent reason as above; the group
-    # ids are unused here, only the node lists they carry.
-    for (_gid_a, nodes_a, _pa), (_gid_b, nodes_b, _pb) in zip(fragments, fragments[1:], strict=False):
-        if nodes_a and nodes_b:
-            merged.append(f"    {nodes_a[-1][1]} -.-> {nodes_b[0][1]}")
+    for group_id, nodes, _path in fragments:
+        _append_subgraph_nodes(merged, group_id, nodes)
+    _append_cross_group_links(merged, fragments)
     merged += [
         "```",
         "",
@@ -394,8 +560,20 @@ def mock_architecture(out_dir, groups, pool, log):
         "the comparison architect-merge would actually perform here.",
         "",
     ]
+    return merged
+
+
+def mock_architecture(out_dir, groups, pool, log):
+    """arch_fragment_<id>.md per group plus one architecture_merged.md.
+
+    Node labels are real file basenames, never paraphrased — that's
+    agents/architect-segment.md rule 3, and test_pipeline_stages.py's
+    find_untraceable_nodes() is the mechanical check for it.
+    """
+    interesting = _interesting_paths(pool)
+    fragments = _write_architecture_fragments(out_dir, groups, interesting, log)
     merged_path = os.path.join(out_dir, "architecture_merged.md")
-    _write_text(merged_path, "\n".join(merged))
+    _write_text(merged_path, "\n".join(_merged_architecture_lines(fragments)))
     log(f"  wrote architecture_merged.md ({len(fragments)} fragment(s) merged)")
     return f"{len(fragments)} fragment(s) + architecture_merged.md"
 
@@ -416,6 +594,68 @@ GAP_TOPICS = [
 ]
 
 
+def _first_pool_citation(pool, buckets):
+    """Return the first citation found across *buckets*, or None."""
+    for bucket in buckets:
+        rows = pool.get(bucket) or []
+        if rows:
+            return rows[0]
+    return None
+
+
+def _fallback_citation(pool, todos):
+    """Any resolvable citation, else a TODO marker, else None."""
+    citation = _first_pool_citation(pool, _FALLBACK_CITATION_BUCKETS)
+    if citation is not None:
+        return citation
+    if todos:
+        return (todos[0]["file"], todos[0]["line"], "TODO marker")
+    return None
+
+
+def _citation_for_topic(pool, blocks_file, fallback):
+    """Prefer doc-bucket evidence; fall back to a repo-wide citation."""
+    citation = _first_pool_citation(pool, DOC_BUCKETS.get(blocks_file) or [])
+    return citation if citation is not None else fallback
+
+
+def _build_gap_questions(pool, todos):
+    """Build gap_questions.json rows anchored to resolvable evidence."""
+    fallback = _fallback_citation(pool, todos)
+    questions = []
+    for blocks_file, topic, prompt in GAP_TOPICS:
+        citation = _citation_for_topic(pool, blocks_file, fallback)
+        if citation is None:
+            continue
+        relpath, line, _match = citation
+        questions.append({
+            "blocks_file": blocks_file,
+            "topic": topic,
+            "question": f"MOCK QUESTION (nobody was asked this): {prompt}",
+            "evidence": f"{relpath.replace(os.sep, '/')}:{line}",
+        })
+    return questions
+
+
+def _build_interview_answers(questions, today):
+    """Record answered/skipped interview rows (every third is skipped)."""
+    answers = []
+    for index, question in enumerate(questions):
+        skipped = (index % 3 == 2)
+        answers.append({
+            "id": f"{question['blocks_file']}.{question['topic']}",
+            "question": question["question"],
+            "status": "skipped" if skipped else "answered",
+            "answer": None if skipped else (
+                "MOCK ANSWER: no human was interviewed for this run; this string "
+                "exists so run_manifest.py's answered/skipped counts and the "
+                "[Confirmed] tag lane have something to read."
+            ),
+            "date": today,
+        })
+    return answers
+
+
 def mock_gap_and_interview(out_dir, pool, todos, today, log):
     """gap_questions.json in agents/gap-analyzer.md's shape, then the
     interview_answers.json the orchestrating thread would record.
@@ -427,62 +667,25 @@ def mock_gap_and_interview(out_dir, pool, todos, today, log):
     the whole [Confirmed] lane is anchored to a real location, so the mock
     takes its citations from the same verified pool the docs use.
     """
-    any_citation = None
-    for bucket in ("api_surface", "security", "persistence", "configuration",
-                   "deployment", "observability", "references"):
-        rows = pool.get(bucket) or []
-        if rows:
-            any_citation = rows[0]
-            break
-    if any_citation is None and todos:
-        any_citation = (todos[0]["file"], todos[0]["line"], "TODO marker")
-
-    questions = []
-    for blocks_file, topic, prompt in GAP_TOPICS:
-        buckets = DOC_BUCKETS.get(blocks_file) or []
-        rows = []
-        for bucket in buckets:
-            rows = pool.get(bucket) or []
-            if rows:
-                break
-        citation = rows[0] if rows else any_citation
-        if citation is None:
-            continue  # nothing in this repo to anchor a question to
-        relpath, line, _match = citation
-        questions.append({
-            "blocks_file": blocks_file,
-            "topic": topic,
-            "question": f"MOCK QUESTION (nobody was asked this): {prompt}",
-            "evidence": f"{relpath.replace(os.sep, '/')}:{line}",
-        })
-
+    questions = _build_gap_questions(pool, todos)
     _write_json(os.path.join(out_dir, "gap_questions.json"), questions)
-    log(f"  wrote gap_questions.json ({len(questions)} question(s), "
-        f"grouped by blocks_file)")
+    log(
+        f"  wrote gap_questions.json ({len(questions)} question(s), "
+        f"grouped by blocks_file)"
+    )
 
     # The interview itself is the one stage that structurally cannot be mocked
     # into something true: it's the orchestrating thread talking to a person.
     # So every answer is marked as a mock, and every third is a skip — because
     # SKILL.md is explicit that "asked, unanswered" must be recorded as a skip
     # rather than a blank, and a mock run should exercise that path too.
-    answers = []
-    for i, q in enumerate(questions):
-        skipped = (i % 3 == 2)
-        answers.append({
-            "id": f"{q['blocks_file']}.{q['topic']}",
-            "question": q["question"],
-            "status": "skipped" if skipped else "answered",
-            "answer": None if skipped else (
-                "MOCK ANSWER: no human was interviewed for this run; this string "
-                "exists so run_manifest.py's answered/skipped counts and the "
-                "[Confirmed] tag lane have something to read."
-            ),
-            "date": today,
-        })
+    answers = _build_interview_answers(questions, today)
     _write_json(os.path.join(out_dir, "interview_answers.json"), answers)
-    answered = sum(1 for a in answers if a["status"] == "answered")
-    log(f"  wrote interview_answers.json ({answered} answered, "
-        f"{len(answers) - answered} skipped)")
+    answered = sum(1 for answer in answers if answer["status"] == "answered")
+    log(
+        f"  wrote interview_answers.json ({answered} answered, "
+        f"{len(answers) - answered} skipped)"
+    )
     return f"{len(questions)} gap question(s), {len(answers)} recorded answer(s)"
 
 
@@ -499,6 +702,94 @@ DOC_INTRO = (
 )
 
 
+def _append_known_limitations(body, todos, tag_totals):
+    """Append TODO/FIXME candidate bullets for known_limitations.md."""
+    body.append("## TODO/FIXME candidates (candidates, not facts)")
+    body.append("")
+    if not todos:
+        body.append(
+            f"- No TODO/FIXME/XXX/HACK markers were found in this repo. "
+            f"Whether that reflects a clean codebase or markers tracked "
+            f"elsewhere is {unknown_tag()}."
+        )
+        tag_totals["unknown"] += 1
+        return
+    for hit in todos[:15]:
+        body.append(
+            f"- `{hit['file']}` carries a `{hit['marker']}` marker "
+            f"{evidenced(hit['file'], hit['line'])}."
+        )
+        tag_totals["evidenced"] += 1
+
+
+def _append_evidenced_claims(body, pool, doc_name, tag_totals):
+    """Append evidenced claim bullets for a non-known_limitations doc."""
+    picks = pick(pool, DOC_BUCKETS.get(doc_name) or [], 8)
+    body.append("## Evidenced claims")
+    body.append("")
+    if not picks:
+        body.append(
+            f"- No deterministic signal-scan evidence mapped to this "
+            f"document for this repo, so its content is "
+            f"{unknown_tag()}."
+        )
+        tag_totals["unknown"] += 1
+        return
+    for bucket, (relpath, line, match) in picks:
+        template = BUCKET_PHRASING.get(bucket, "`{file}` matched `{match}`")
+        sentence = template.format(file=relpath, match=match)
+        body.append(f"- {sentence} {evidenced(relpath, line)}.")
+        tag_totals["evidenced"] += 1
+
+
+def _append_interview_section(body, confirmed_ids, today, tag_totals):
+    """Append interview-dependent claims shared by every mock doc."""
+    body += ["", "## Interview-dependent claims", ""]
+    if confirmed_ids:
+        body.append(
+            f"- Ownership and operational context for this service were "
+            f"recorded in the interview {confirmed_tag(today)}."
+        )
+        tag_totals["confirmed"] += 1
+    body.append(f"- Anything not covered above is {unknown_tag()}.")
+    tag_totals["unknown"] += 1
+
+
+def _append_existing_docs_section(body, existing_readme, tag_totals):
+    """Optionally note a pre-existing README under Per existing docs."""
+    if not existing_readme:
+        return
+    body += [
+        "",
+        "## Pre-existing documentation",
+        "",
+        f"- The repo's own overview was read but not verified against code "
+        f"{per_existing_docs_tag(existing_readme)}.",
+    ]
+    tag_totals["per_existing_docs"] += 1
+
+
+def _build_one_doc_body(name, pool, todos, confirmed_ids, today, existing_readme, tag_totals):
+    """Assemble markdown lines for one taxonomy document."""
+    body = [f"# {name.replace('_', ' ').title()}", "", DOC_INTRO, ""]
+    if name == "known_limitations":
+        _append_known_limitations(body, todos, tag_totals)
+    else:
+        _append_evidenced_claims(body, pool, name, tag_totals)
+    if name == "architecture":
+        body += [
+            "",
+            "## Merged diagram",
+            "",
+            "See `architecture_merged.md` in the run directory; a real run "
+            "inlines it here along with its Discrepancies section.",
+        ]
+    _append_interview_section(body, confirmed_ids, today, tag_totals)
+    _append_existing_docs_section(body, existing_readme, tag_totals)
+    body.append("")
+    return body
+
+
 def mock_docs(docs_dir, pool, todos, answers, today, existing_readme, log):
     """One file per taxonomy name, each carrying only well-formed tags.
 
@@ -509,64 +800,14 @@ def mock_docs(docs_dir, pool, todos, answers, today, existing_readme, log):
     one name duplicated and another missing, which a count check passes.
     """
     os.makedirs(docs_dir, exist_ok=True)
-    confirmed_ids = [a["id"] for a in answers if a["status"] == "answered"]
+    confirmed_ids = [answer["id"] for answer in answers if answer["status"] == "answered"]
     written = []
     tag_totals = {"evidenced": 0, "confirmed": 0, "unknown": 0, "per_existing_docs": 0}
 
     for name in DOC_ORDER:
-        body = [f"# {name.replace('_', ' ').title()}", "", DOC_INTRO, ""]
-
-        if name == "known_limitations":
-            body.append("## TODO/FIXME candidates (candidates, not facts)")
-            body.append("")
-            if todos:
-                for hit in todos[:15]:
-                    body.append(
-                        f"- `{hit['file']}` carries a `{hit['marker']}` marker "
-                        f"{evidenced(hit['file'], hit['line'])}."
-                    )
-                    tag_totals["evidenced"] += 1
-            else:
-                body.append(f"- No TODO/FIXME/XXX/HACK markers were found in this repo. "
-                            f"Whether that reflects a clean codebase or markers tracked "
-                            f"elsewhere is {unknown_tag()}.")
-                tag_totals["unknown"] += 1
-        else:
-            picks = pick(pool, DOC_BUCKETS.get(name) or [], 8)
-            body.append("## Evidenced claims")
-            body.append("")
-            if picks:
-                for bucket, (relpath, line, match) in picks:
-                    template = BUCKET_PHRASING.get(bucket, "`{file}` matched `{match}`")
-                    sentence = template.format(file=relpath, match=match)
-                    body.append(f"- {sentence} {evidenced(relpath, line)}.")
-                    tag_totals["evidenced"] += 1
-            else:
-                body.append(f"- No deterministic signal-scan evidence mapped to this "
-                            f"document for this repo, so its content is "
-                            f"{unknown_tag()}.")
-                tag_totals["unknown"] += 1
-
-        if name == "architecture":
-            body += ["", "## Merged diagram", "",
-                     "See `architecture_merged.md` in the run directory; a real run "
-                     "inlines it here along with its Discrepancies section."]
-
-        body += ["", "## Interview-dependent claims", ""]
-        if confirmed_ids:
-            body.append(f"- Ownership and operational context for this service were "
-                        f"recorded in the interview {confirmed_tag(today)}.")
-            tag_totals["confirmed"] += 1
-        body.append(f"- Anything not covered above is {unknown_tag()}.")
-        tag_totals["unknown"] += 1
-
-        if existing_readme:
-            body += ["", "## Pre-existing documentation", "",
-                     f"- The repo's own overview was read but not verified against code "
-                     f"{per_existing_docs_tag(existing_readme)}."]
-            tag_totals["per_existing_docs"] += 1
-
-        body.append("")
+        body = _build_one_doc_body(
+            name, pool, todos, confirmed_ids, today, existing_readme, tag_totals
+        )
         path = os.path.join(docs_dir, f"{name}.md")
         _write_text(path, "\n".join(body))
         written.append(path)

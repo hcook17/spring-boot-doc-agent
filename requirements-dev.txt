@@ -8,13 +8,12 @@
 # Compatible-release pins, matching requirements.txt's convention: a fresh
 # environment reliably gets a working version without being frozen forever.
 #
-# ruff rather than flake8 + black + isort: one binary covering all three,
-# 48.8k stars, last release 0.16.0 on 2026-07-23 (checked against the GitHub
-# API on 2026-07-24, not a blog post). Its C901 complexity rule is enabled in
-# .ruff.toml but is NOT the ratchet -- see scripts/ci/check_code_quality.py,
-# which owns the committed per-function baseline ruff has no equivalent for.
+# ruff rather than flake8 + black + isort: one binary covering all three.
+# C901 (McCabe) is deliberately NOT selected in .ruff.toml — cognitive complexity
+# is enforced by complexipy below; C901 remains an optional soft proxy only.
 ruff~=0.16.0
 pytest~=8.3.0
+pytest-cov~=6.0
 
 # Workflow YAML parse gate (scripts/ci/check_workflow_yaml.py). Catches the PR #57
 # class: unquoted colons in step names that make Actions reject the file.
@@ -24,4 +23,11 @@ PyYAML~=6.0.2
 # markdown docs. This is a dev/publishing dependency, not a runtime dependency of
 # the pipeline itself.
 mkdocs-material~=9.5.0
+
+# In-repo quality gates (scripts/ci/run_quality_gates.py + ci.yml quality-gates).
+# Pins are 2026-active tools only — see CONTRIBUTING.md "In-repo quality gates".
+# jscpd@5.0.14 is pinned in package.json / package-lock.json (npm ci); not a pip package.
+diff-cover~=10.5.0
+complexipy~=6.2.0
+tach~=0.35.0
 

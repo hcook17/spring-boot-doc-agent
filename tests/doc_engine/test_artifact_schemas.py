@@ -108,16 +108,24 @@ def test_validate_artifacts_require_missing_fails(tmp_path):
 
 
 def test_validate_artifacts_require_present_passes(tmp_path):
+    from doc_engine.scanning.gap_probe import run_gap_probe
+    from doc_engine.scanning.stage0_siblings import materialize_stage0_siblings
     from doc_engine.tools import validate_artifacts as va
     from tests.conftest import FIXTURE_SNAPSHOT_PATH
     import shutil
 
     dest = tmp_path / "spring_signals.json"
     shutil.copy(FIXTURE_SNAPSHOT_PATH, dest)
+    # --all fail-closes without Stage-0 siblings + verified gap_report.
+    materialize_stage0_siblings(dest, tmp_path)
+    run_gap_probe(
+        dest,
+        tmp_path / "facts.jsonl",
+        tmp_path / "gap_report",
+        covering_path=tmp_path / "covering_proof.json",
+    )
     code = va.main(["--all", str(tmp_path), "--require", "spring_signals"])
     assert code == 0
-
-
 def test_artifact_filenames_cover_models():
     assert set(ARTIFACT_FILENAMES) == set(ARTIFACT_MODELS)
     assert set(ARTIFACT_FILENAMES) == {

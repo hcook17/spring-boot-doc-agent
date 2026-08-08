@@ -13,6 +13,9 @@ __pycache__/
 .venv/
 venv/
 
+# Node (jscpd pin via package.json / package-lock.json — install with npm ci)
+node_modules/
+
 # Local pipeline runs and generated preview sites (never commit)
 /local-runs/
 /ocs_html_preview/

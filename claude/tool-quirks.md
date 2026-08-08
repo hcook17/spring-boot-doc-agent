@@ -373,3 +373,13 @@ Symptom 1: on a fresh Windows clone, all five harness shell scripts arrive as CR
 Resolution 1: `.gitattributes` at repo root with `*.sh text eol=lf` (plus `*.jar`/`*.class`/`*.bqrs binary`), added on the pr92 branch. Until something similar lands on your branch, run bash checks against the blob (`git show HEAD:<path> > tmp.sh`, byte-faithful redirect via cmd, not PowerShell `>` which re-encodes to CRLF) rather than the working copy.
 Symptom 2: `create-test-db.sh` on Windows dies at database creation: `[build-stderr] The system cannot execute the specified program` — the CodeQL Windows tracer wraps the build command as `cmd.exe /C type NUL && <BUILD_COMMAND>`, and cmd cannot execute a `.sh` file. The harness's `./create-test-db.sh` path works on Windows only inside an environment that provides both bash AND a codeql the tracer can use, which WSL bash + Windows codeql.exe is not.
 Resolution 2 (verified end to end 2026-08-05): keep Git Bash for the harness, but override the traced command with a Windows-executable equivalent: `BUILD_COMMAND='C:\...\compile-fixture.bat'` (a .bat that assembles the lib/*.jar classpath and runs `javac --release 17 -implicit:none` twice, main then test), with `CODEQL=/c/Users/<you>/.cursor/tools/codeql/codeql.exe`. Result: 31/31 jars digest-verified, extraction delta 0 (set equality), all fixture JSON assertions hold on the pr92 branch. The .bat is a local-verification artifact, not committed.
+
+---
+
+## 2026-08-08 — Quality gates: local jscpd + `sys.executable -m` instead of `npx`; worktree-safe gate REPO_ROOT
+Tools/commands involved: `scripts/ci/run_quality_gates.py`, `scripts/ci/gate_tools.py`, `npx jscpd@…`, Windows CreateProcess / cp1252 console, git worktrees + `pip install -e .` from another checkout
+Status: [Resolved — portable entry point]
+Symptom 1: duplication gate used `npx --yes jscpd@5.0.14` (network flakiness; Windows `npx` without `.cmd` is the WinError 193 class already documented for npm/Gradle).
+Symptom 2: importing `doc_engine.paths.repo_root()` from a worktree follows the editable-install source tree, so a worktree-local `node_modules/jscpd` is invisible and the runner reports jscpd missing.
+Symptom 3: printing `≤` in gate labels raises `UnicodeEncodeError` on Windows cp1252 consoles.
+Resolution: pin `jscpd@5.0.14` in `package.json` / `package-lock.json`; CI and local both `npm ci` then `python3 scripts/ci/run_quality_gates.py`; prefer native `node_modules/jscpd-*/bin/jscpd[.exe]` else `node …/run-jscpd.js`; invoke `diff-cover`/`tach` via `sys.executable -m`; derive gate `REPO_ROOT` from `Path(__file__).parents[2]`; keep console labels ASCII (`<=`). See CONTRIBUTING.md "Quality gates (all OS)".

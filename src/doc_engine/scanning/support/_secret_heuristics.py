@@ -101,6 +101,26 @@ HIGH_CONFIDENCE_PATTERNS = {
 }
 
 
+def _high_confidence_hits(line_no, line):
+    return [
+        {"line": line_no, "heuristic": name}
+        for name, pattern in HIGH_CONFIDENCE_PATTERNS.items()
+        if pattern.search(line)
+    ]
+
+
+def _key_name_secret_hit(line_no, line):
+    kv = KEY_VALUE_LINE_RE.match(line)
+    if not kv:
+        return None
+    key, value = kv.group(1), kv.group(2)
+    if not SECRET_KEY_NAME_RE.search(key):
+        return None
+    if PLACEHOLDER_VALUE_RE.match(_unquote(value)):
+        return None
+    return {"line": line_no, "heuristic": f"key-name:{key.lower()}"}
+
+
 def scan_text_for_secrets(text):
     """Returns a list of {"line": <1-based int>, "heuristic": <name>} dicts
     for lines in `text` that look like they carry a real credential. Never
@@ -108,15 +128,10 @@ def scan_text_for_secrets(text):
     heuristic name, nothing that could itself become the leak.
     """
     hits = []
-    for i, line in enumerate(text.splitlines(), start=1):
-        for name, pattern in HIGH_CONFIDENCE_PATTERNS.items():
-            if pattern.search(line):
-                hits.append({"line": i, "heuristic": name})
-
-        kv = KEY_VALUE_LINE_RE.match(line)
-        if kv:
-            key, value = kv.group(1), kv.group(2)
-            if SECRET_KEY_NAME_RE.search(key) and not PLACEHOLDER_VALUE_RE.match(_unquote(value)):
-                hits.append({"line": i, "heuristic": f"key-name:{key.lower()}"})
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        hits.extend(_high_confidence_hits(line_no, line))
+        key_hit = _key_name_secret_hit(line_no, line)
+        if key_hit is not None:
+            hits.append(key_hit)
 
     return hits

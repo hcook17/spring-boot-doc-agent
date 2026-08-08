@@ -106,6 +106,27 @@ CHARS_PER_TOKEN_DENSE = 3
 DENSE_EXTS = {".yml", ".yaml", ".json", ".properties", ".xml", ".toml"}
 
 
+def _decode_file_bytes(chunk: bytes):
+    """Return (text, skip_reason). skip_reason is set when undecodable."""
+    if b"\x00" in chunk[:8000]:
+        return None, "binary"
+    try:
+        return chunk.decode("utf-8"), None
+    except UnicodeDecodeError:
+        try:
+            return chunk.decode("latin-1"), None
+        except Exception:
+            return None, "undecodable"
+
+
+def _read_file_bytes(path: str, size: int):
+    try:
+        with open(path, "rb") as handle:
+            return handle.read(size), None
+    except OSError:
+        return None, "read-failed"
+
+
 def estimate_tokens(path, max_file_bytes):
     """Cheap token estimate: chars / N, where N is CHARS_PER_TOKEN_DENSE for
     structured-data extensions (DENSE_EXTS) and CHARS_PER_TOKEN_DEFAULT
@@ -117,22 +138,18 @@ def estimate_tokens(path, max_file_bytes):
         return 0, "stat-failed"
     if size > max_file_bytes:
         return 0, f"too-large ({size} bytes)"
-    try:
-        with open(path, "rb") as f:
-            chunk = f.read(size)
-    except OSError:
-        return 0, "read-failed"
-    if b"\x00" in chunk[:8000]:
-        return 0, "binary"
-    try:
-        text = chunk.decode("utf-8")
-    except UnicodeDecodeError:
-        try:
-            text = chunk.decode("latin-1")
-        except Exception:
-            return 0, "undecodable"
-    _, ext = os.path.splitext(path)
-    divisor = CHARS_PER_TOKEN_DENSE if ext.lower() in DENSE_EXTS else CHARS_PER_TOKEN_DEFAULT
+    chunk, read_error = _read_file_bytes(path, size)
+    if read_error:
+        return 0, read_error
+    text, decode_error = _decode_file_bytes(chunk)
+    if decode_error:
+        return 0, decode_error
+    _, extension = os.path.splitext(path)
+    divisor = (
+        CHARS_PER_TOKEN_DENSE
+        if extension.lower() in DENSE_EXTS
+        else CHARS_PER_TOKEN_DEFAULT
+    )
     return max(1, len(text) // divisor), None
 
 
@@ -160,51 +177,339 @@ def relpath_posix(full: str, root: str) -> str:
     return to_posix(os.path.relpath(full, root))
 
 
+def _relpath_under_repo(full_path: str, repo_path: str) -> str:
+    return os.path.relpath(full_path, repo_path).replace("\\", "/")
+
+
+def _should_descend_directory(
+    name: str,
+    full_path: str,
+    repo_path: str,
+    excluded_dirs,
+    gitignore_spec,
+) -> bool:
+    if name in excluded_dirs or name.startswith("."):
+        return False
+    if gitignore_spec is None:
+        return True
+    return not gitignore_spec.match_file(_relpath_under_repo(full_path, repo_path) + "/")
+
+
+def _should_include_file(
+    name: str,
+    full_path: str,
+    repo_path: str,
+    root: str,
+    excluded_files,
+    excluded_exts,
+    gitignore_spec,
+    is_path_inside_root,
+) -> bool:
+    if name in excluded_files:
+        return False
+    _, extension = os.path.splitext(name)
+    if extension.lower() in excluded_exts:
+        return False
+    if gitignore_spec is not None and gitignore_spec.match_file(
+        _relpath_under_repo(full_path, repo_path)
+    ):
+        return False
+    return is_path_inside_root(full_path, root)
+
+
+def _classify_dir_entry(name: str, full_path: str):
+    """Return 'directory', 'file', or None for ignored entry kinds."""
+    if os.path.isdir(full_path) and not os.path.islink(full_path):
+        return "directory"
+    if os.path.isfile(full_path) or os.path.islink(full_path):
+        return "file"
+    return None
+
+
+def _partition_dir_entries(dir_path: str):
+    """Split sorted directory entries into real dirs vs files/symlinks."""
+    try:
+        entries = sorted(os.listdir(dir_path))
+    except OSError:
+        return [], []
+    directories, regular_files = [], []
+    for name in entries:
+        full_path = os.path.join(dir_path, name)
+        kind = _classify_dir_entry(name, full_path)
+        if kind == "directory":
+            directories.append((name, full_path))
+        elif kind == "file":
+            regular_files.append((name, full_path))
+    return directories, regular_files
+
+
+def _collect_descendable_dirs(
+    directories,
+    repo_path: str,
+    excluded_dirs,
+    gitignore_spec,
+):
+    return [
+        full_path
+        for name, full_path in directories
+        if _should_descend_directory(
+            name, full_path, repo_path, excluded_dirs, gitignore_spec
+        )
+    ]
+
+
+def _append_included_files(
+    files: list,
+    regular_files,
+    *,
+    repo_path: str,
+    root: str,
+    excluded_files,
+    excluded_exts,
+    gitignore_spec,
+    is_path_inside_root,
+) -> None:
+    for name, full_path in regular_files:
+        if _should_include_file(
+            name,
+            full_path,
+            repo_path,
+            root,
+            excluded_files,
+            excluded_exts,
+            gitignore_spec,
+            is_path_inside_root,
+        ):
+            files.append(full_path)
+
+
+def _walk_repo_collecting_files(
+    dir_path: str,
+    files: list,
+    *,
+    repo_path: str,
+    root: str,
+    excluded_dirs,
+    excluded_exts,
+    excluded_files,
+    gitignore_spec,
+    is_path_inside_root,
+) -> None:
+    directories, regular_files = _partition_dir_entries(dir_path)
+    descendable = _collect_descendable_dirs(
+        directories, repo_path, excluded_dirs, gitignore_spec
+    )
+    _append_included_files(
+        files,
+        regular_files,
+        repo_path=repo_path,
+        root=root,
+        excluded_files=excluded_files,
+        excluded_exts=excluded_exts,
+        gitignore_spec=gitignore_spec,
+        is_path_inside_root=is_path_inside_root,
+    )
+    for full_path in descendable:
+        _walk_repo_collecting_files(
+            full_path,
+            files,
+            repo_path=repo_path,
+            root=root,
+            excluded_dirs=excluded_dirs,
+            excluded_exts=excluded_exts,
+            excluded_files=excluded_files,
+            gitignore_spec=gitignore_spec,
+            is_path_inside_root=is_path_inside_root,
+        )
+
+
 def dfs_file_list(repo_path, excluded_dirs, excluded_exts, excluded_files, gitignore_spec=None):
     """Depth-first, deterministically-ordered walk of the repo, yielding
-    relative file paths. Directories and files are sorted at each level so
+    absolute file paths. Directories and files are sorted at each level so
     the ordering is stable across runs (important since overlap depends on
     a consistent DFS order).
+
+    File symlinks that resolve outside ``repo_path`` are skipped (untrusted
+    trees). Directory symlinks are not followed (``os.path.isdir`` on the
+    link itself without walking through it via ``os.listdir`` of the target
+    as a root — we only recurse into real directories under the walk).
 
     gitignore_spec, if given, is a pathspec.PathSpec (see
     _shared_excludes.load_gitignore_spec) additionally consulted against
     each entry's path relative to repo_path — opt-in, off by default, on
     top of the hardcoded excluded_dirs/excluded_exts/excluded_files floor,
     not a replacement for it."""
+    from doc_engine.core.walk import is_path_inside_root
+
     files = []
-
-    def _relpath(full):
-        return os.path.relpath(full, repo_path).replace("\\", "/")
-
-    def _walk(dir_path):
-        try:
-            entries = sorted(os.listdir(dir_path))
-        except OSError:
-            return
-        dirs, regular = [], []
-        for name in entries:
-            full = os.path.join(dir_path, name)
-            if os.path.isdir(full):
-                if name not in excluded_dirs and not name.startswith("."):
-                    if gitignore_spec is not None and gitignore_spec.match_file(_relpath(full) + "/"):
-                        continue
-                    dirs.append(full)
-            else:
-                regular.append((name, full))
-        for name, full in regular:
-            if name in excluded_files:
-                continue
-            _, ext = os.path.splitext(name)
-            if ext.lower() in excluded_exts:
-                continue
-            if gitignore_spec is not None and gitignore_spec.match_file(_relpath(full)):
-                continue
-            files.append(full)
-        for d in dirs:
-            _walk(d)
-
-    _walk(repo_path)
+    root = os.path.abspath(repo_path)
+    _walk_repo_collecting_files(
+        repo_path,
+        files,
+        repo_path=repo_path,
+        root=root,
+        excluded_dirs=excluded_dirs,
+        excluded_exts=excluded_exts,
+        excluded_files=excluded_files,
+        gitignore_spec=gitignore_spec,
+        is_path_inside_root=is_path_inside_root,
+    )
     return files
+
+
+def _should_skip_carry_candidate(
+    relpath: str,
+    tokens: int,
+    *,
+    carried: int,
+    overlap_budget: float,
+    max_tokens: int,
+    carried_in_paths,
+) -> str | None:
+    """Return 'break', 'continue', or None to accept the candidate."""
+    if carried >= overlap_budget:
+        return "break"
+    if relpath in carried_in_paths:
+        return "continue"
+    if carried + tokens >= max_tokens:
+        return "break"
+    return None
+
+
+def _carry_forward_overlap(closed_group, closed_tokens, overlap_ratio, max_tokens, carried_in_paths=frozenset()):
+    """Build ~overlap_ratio worth of trailing tokens from a just-closed
+    group to seed the next one. Files that entered the closed group only
+    via overlap from the prior group are not re-carried — that prevents
+    overlap cascading into three or more consecutive groups."""
+    overlap_budget = closed_tokens * overlap_ratio
+    carry, carried = [], 0
+    for relpath, tokens in reversed(closed_group):
+        decision = _should_skip_carry_candidate(
+            relpath,
+            tokens,
+            carried=carried,
+            overlap_budget=overlap_budget,
+            max_tokens=max_tokens,
+            carried_in_paths=carried_in_paths,
+        )
+        if decision == "break":
+            break
+        if decision == "continue":
+            continue
+        carry.append((relpath, tokens))
+        carried += tokens
+    carry.reverse()
+    return carry, carried
+
+
+def _should_close_group(
+    current,
+    current_tokens,
+    candidate_tokens,
+    *,
+    is_last_group_being_filled: bool,
+    max_tokens: int,
+    target_per_group: float,
+) -> bool:
+    would_exceed_hard_cap = bool(current) and (current_tokens + candidate_tokens > max_tokens)
+    would_exceed_soft_target = (
+        bool(current)
+        and not is_last_group_being_filled
+        and current_tokens >= target_per_group
+    )
+    return would_exceed_hard_cap or would_exceed_soft_target
+
+
+def _guard_zero_progress_carry(
+    carry,
+    carried,
+    current_tokens,
+    candidate_tokens,
+    *,
+    groups_closed_so_far: int,
+    num_groups: int,
+    max_tokens: int,
+    target_per_group: float,
+):
+    """Clear carry when it would re-trigger the same close decision forever."""
+    if carried != current_tokens:
+        return carry, carried
+    re_triggers_hard_cap = carried + candidate_tokens > max_tokens
+    re_triggers_soft_target = (
+        groups_closed_so_far != num_groups - 1 and carried >= target_per_group
+    )
+    if re_triggers_hard_cap or re_triggers_soft_target:
+        return [], 0
+    return carry, carried
+
+
+def _close_group_and_seed_next(
+    groups,
+    current,
+    current_tokens,
+    candidate_tokens,
+    *,
+    overlap_ratio,
+    max_tokens,
+    carried_in_paths,
+    num_groups,
+    target_per_group,
+):
+    groups.append(current)
+    carry, carried = _carry_forward_overlap(
+        current, current_tokens, overlap_ratio, max_tokens, carried_in_paths,
+    )
+    carry, carried = _guard_zero_progress_carry(
+        carry,
+        carried,
+        current_tokens,
+        candidate_tokens,
+        groups_closed_so_far=len(groups),
+        num_groups=num_groups,
+        max_tokens=max_tokens,
+        target_per_group=target_per_group,
+    )
+    return list(carry), carried, frozenset(path for path, _ in carry)
+
+
+def _step_group_assignment(
+    file_tokens,
+    index,
+    *,
+    groups,
+    current,
+    current_tokens,
+    carried_in_paths,
+    num_groups,
+    max_tokens,
+    overlap_ratio,
+    target_per_group,
+):
+    """Advance one file into the current group, or close and re-evaluate."""
+    relpath, tokens = file_tokens[index]
+    is_last_group_being_filled = len(groups) == num_groups - 1
+    if _should_close_group(
+        current,
+        current_tokens,
+        tokens,
+        is_last_group_being_filled=is_last_group_being_filled,
+        max_tokens=max_tokens,
+        target_per_group=target_per_group,
+    ):
+        current, current_tokens, carried_in_paths = _close_group_and_seed_next(
+            groups,
+            current,
+            current_tokens,
+            tokens,
+            overlap_ratio=overlap_ratio,
+            max_tokens=max_tokens,
+            carried_in_paths=carried_in_paths,
+            num_groups=num_groups,
+            target_per_group=target_per_group,
+        )
+        return index, current, current_tokens, carried_in_paths
+    current.append((relpath, tokens))
+    return index + 1, current, current_tokens + tokens, carried_in_paths
 
 
 def build_groups(file_tokens, max_tokens, overlap_ratio):
@@ -226,93 +531,71 @@ def build_groups(file_tokens, max_tokens, overlap_ratio):
     message for the exact scenarios and output, so nobody has to re-derive
     this from scratch if it's questioned later.
     """
-    total_tokens = sum(t for _, t in file_tokens)
+    total_tokens = sum(tokens for _, tokens in file_tokens)
     if total_tokens == 0 or not file_tokens:
         return []
 
     num_groups = max(1, math.ceil(total_tokens / max_tokens))
     target_per_group = total_tokens / num_groups
 
-    def carry_forward(closed_group, closed_tokens, overlap_ratio, carried_in_paths=frozenset()):
-        """Build ~overlap_ratio worth of trailing tokens from a just-closed
-        group to seed the next one. Files that entered the closed group only
-        via overlap from the prior group are not re-carried — that prevents
-        overlap cascading into three or more consecutive groups."""
-        overlap_budget = closed_tokens * overlap_ratio
-        carry, carried = [], 0
-        for relpath2, tok2 in reversed(closed_group):
-            if carried >= overlap_budget:
-                break
-            if relpath2 in carried_in_paths:
-                continue
-            if carried + tok2 >= max_tokens:
-                break
-            carry.append((relpath2, tok2))
-            carried += tok2
-        carry.reverse()
-        return carry, carried
-
     groups = []
     current = []
     current_tokens = 0
     carried_in_paths: frozenset[str] = frozenset()
-    i = 0
-    n = len(file_tokens)
+    index = 0
+    file_count = len(file_tokens)
 
-    while i < n:
-        relpath, tok = file_tokens[i]
-        is_last_group_being_filled = len(groups) == num_groups - 1
-
-        would_exceed_hard_cap = bool(current) and (current_tokens + tok > max_tokens)
-        would_exceed_soft_target = (
-            bool(current)
-            and not is_last_group_being_filled
-            and current_tokens >= target_per_group
+    while index < file_count:
+        index, current, current_tokens, carried_in_paths = _step_group_assignment(
+            file_tokens,
+            index,
+            groups=groups,
+            current=current,
+            current_tokens=current_tokens,
+            carried_in_paths=carried_in_paths,
+            num_groups=num_groups,
+            max_tokens=max_tokens,
+            overlap_ratio=overlap_ratio,
+            target_per_group=target_per_group,
         )
-
-        if would_exceed_hard_cap or would_exceed_soft_target:
-            groups.append(current)
-            carry, carried = carry_forward(
-                current, current_tokens, overlap_ratio, carried_in_paths,
-            )
-
-            # Zero-progress guard: if the entire just-closed group got
-            # carried forward unchanged (carried == current_tokens, i.e.
-            # nothing was dropped), the next iteration re-evaluates the same
-            # file against an identical group and reaches an identical
-            # decision — forever. Force the carry empty instead: better to
-            # lose the overlap at this one seam than to hang.
-            #
-            # Both triggers have to be re-checked, not just the hard cap. The
-            # original guard tested only `carried + tok > max_tokens`, which
-            # left the soft-target path looping: a single carried file whose
-            # tokens land in [target_per_group, max_tokens) is large enough to
-            # re-trip the soft target on its own, yet small enough that the
-            # next file still fits under the hard cap — so neither the old
-            # guard nor the hard cap fired, `i` never advanced, and the group
-            # list grew without bound. Reproduced with a 2916-token file at
-            # max_tokens=3000 / target_per_group=2901; see
-            # test_enterprise_kitchen_sink.py's termination test.
-            if carried == current_tokens:
-                re_triggers_hard_cap = carried + tok > max_tokens
-                re_triggers_soft_target = (
-                    len(groups) != num_groups - 1 and carried >= target_per_group
-                )
-                if re_triggers_hard_cap or re_triggers_soft_target:
-                    carry, carried = [], 0
-
-            current, current_tokens = list(carry), carried
-            carried_in_paths = frozenset(relpath for relpath, _ in carry)
-            continue  # re-evaluate the same file against the new group
-
-        current.append((relpath, tok))
-        current_tokens += tok
-        i += 1
 
     if current:
         groups.append(current)
 
     return groups
+
+
+def _collect_file_tokens(repo_path, all_files, max_file_bytes):
+    file_tokens = []
+    skipped = []
+    for full_path in all_files:
+        rel = relpath_posix(full_path, repo_path)
+        tokens, reason = estimate_tokens(full_path, max_file_bytes)
+        if reason:
+            skipped.append({"file": rel, "reason": reason})
+            continue
+        file_tokens.append((rel, tokens))
+    return file_tokens, skipped
+
+
+def _groups_output_payload(repo_path, max_tokens, overlap, file_tokens, skipped, groups_raw):
+    return {
+        "repo_path": repo_path,
+        "max_tokens_per_group": max_tokens,
+        "overlap": overlap,
+        "total_files_considered": len(file_tokens),
+        "total_files_skipped": len(skipped),
+        "skipped": skipped,
+        "num_groups": len(groups_raw),
+        "groups": [
+            {
+                "id": index,
+                "files": [path for path, _ in group],
+                "est_tokens": sum(tokens for _, tokens in group),
+            }
+            for index, group in enumerate(groups_raw)
+        ],
+    }
 
 
 def main():
@@ -339,54 +622,28 @@ def main():
         sys.exit(1)
 
     excluded_dirs = DEFAULT_EXCLUDED_DIRS | set(args.exclude_dir)
-
     gitignore_spec = load_gitignore_spec(repo_path) if args.respect_gitignore else None
-
-    all_files = dfs_file_list(repo_path, excluded_dirs, DEFAULT_EXCLUDED_EXTS, DEFAULT_EXCLUDED_FILES,
-                               gitignore_spec=gitignore_spec)
-
-    file_tokens = []
-    skipped = []
-    for full in all_files:
-        # Forward slashes, as spring_signal_scan.py does for every path it
-        # emits: Stage 1 slices spring_signals.json's evidence by which group
-        # each `file` falls in, so a raw os.path.relpath() here yields
-        # backslashes that match nothing and every subagent silently receives
-        # an empty evidence slice instead of a failure. The reasoning and the
-        # full three-site history now live on relpath_posix() above.
-        rel = relpath_posix(full, repo_path)
-        tokens, reason = estimate_tokens(full, args.max_file_bytes)
-        if reason:
-            skipped.append({"file": rel, "reason": reason})
-            continue
-        file_tokens.append((rel, tokens))
-
+    all_files = dfs_file_list(
+        repo_path,
+        excluded_dirs,
+        DEFAULT_EXCLUDED_EXTS,
+        DEFAULT_EXCLUDED_FILES,
+        gitignore_spec=gitignore_spec,
+    )
+    file_tokens, skipped = _collect_file_tokens(repo_path, all_files, args.max_file_bytes)
     groups_raw = build_groups(file_tokens, args.max_tokens, args.overlap)
+    output = _groups_output_payload(
+        repo_path, args.max_tokens, args.overlap, file_tokens, skipped, groups_raw
+    )
 
-    output = {
-        "repo_path": repo_path,
-        "max_tokens_per_group": args.max_tokens,
-        "overlap": args.overlap,
-        "total_files_considered": len(file_tokens),
-        "total_files_skipped": len(skipped),
-        "skipped": skipped,
-        "num_groups": len(groups_raw),
-        "groups": [
-            {
-                "id": idx,
-                "files": [f for f, _ in g],
-                "est_tokens": sum(t for _, t in g),
-            }
-            for idx, g in enumerate(groups_raw)
-        ],
-    }
+    with open(args.out, "w") as handle:
+        json.dump(output, handle, indent=2)
 
-    with open(args.out, "w") as f:
-        json.dump(output, f, indent=2)
-
-    print(f"Wrote {args.out}: {output['num_groups']} groups, "
-          f"{output['total_files_considered']} files considered, "
-          f"{output['total_files_skipped']} skipped.")
+    print(
+        f"Wrote {args.out}: {output['num_groups']} groups, "
+        f"{output['total_files_considered']} files considered, "
+        f"{output['total_files_skipped']} skipped."
+    )
 
 
 if __name__ == "__main__":

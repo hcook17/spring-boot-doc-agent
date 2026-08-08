@@ -25,6 +25,8 @@ from doc_engine.pipeline.runner import PipelineRunner
 from doc_engine.pipeline.stages import build_stage_specs
 from doc_engine.pipeline.validation import (
     ArtifactValidationError,
+    require_gap_probe_artifact,
+    require_stage0_siblings,
     validate_artifact_file,
     validate_artifacts_in_dir,
 )
@@ -48,6 +50,8 @@ __all__ = [
     "SubprocessStageRunner",
     "SummariesArtifact",
     "build_stage_specs",
+    "require_gap_probe_artifact",
+    "require_stage0_siblings",
     "validate_artifact_file",
     "validate_artifacts_in_dir",
 ]

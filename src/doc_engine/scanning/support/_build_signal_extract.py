@@ -140,80 +140,167 @@ GRADLE_APPLY_PLUGIN_RE = re.compile(
 )
 
 
+def _gradle_row(
+    rel: str,
+    text: str,
+    match: re.Match[str],
+    *,
+    rule_id: str,
+    **extra: object,
+) -> Dict[str, object]:
+    line = _capture_line(text, match)
+    row: Dict[str, object] = {
+        "file": rel,
+        "line": line,
+        "match": _safe_match(text, line),
+        "rule_id": rule_id,
+    }
+    row.update(extra)
+    return row
+
+
+def _gradle_versioned_plugins(
+    rel: str, text: str, comment_free: str,
+) -> Dict[int, Dict[str, object]]:
+    versioned_by_start: Dict[int, Dict[str, object]] = {}
+    for match in GRADLE_PLUGIN_VERSIONED_RE.finditer(comment_free):
+        versioned_by_start[match.start(1)] = _gradle_row(
+            rel,
+            text,
+            match,
+            rule_id="deployment__build_plugin",
+            plugin_id=match.group(1),
+            plugin_version=match.group(2),
+        )
+    return versioned_by_start
+
+
+def _gradle_dependency_coordinate(match: re.Match[str]) -> Dict[str, str]:
+    coordinate = {"group": match.group(2)}
+    if match.group(3):
+        coordinate["name"] = match.group(3)
+    if match.group(4):
+        coordinate["version"] = match.group(4)
+    return coordinate
+
+
+def _append_bare_gradle_plugins(
+    results: List[Dict[str, object]],
+    *,
+    rel: str,
+    text: str,
+    comment_free: str,
+    versioned_by_start: Dict[int, Dict[str, object]],
+) -> None:
+    for match in GRADLE_PLUGIN_RE.finditer(comment_free):
+        if match.start(1) in versioned_by_start:
+            continue
+        results.append(
+            _gradle_row(
+                rel,
+                text,
+                match,
+                rule_id="deployment__build_plugin",
+                plugin_id=match.group(1),
+                plugin_version=match.group(2) or None,
+            )
+        )
+
+
+def _append_gradle_apply_plugins(
+    results: List[Dict[str, object]],
+    *,
+    rel: str,
+    text: str,
+    comment_free: str,
+) -> None:
+    for match in GRADLE_APPLY_PLUGIN_RE.finditer(comment_free):
+        results.append(
+            _gradle_row(
+                rel,
+                text,
+                match,
+                rule_id="deployment__build_plugin",
+                plugin_id=match.group(1),
+                plugin_version=None,
+            )
+        )
+
+
+def _append_gradle_dependencies(
+    results: List[Dict[str, object]],
+    *,
+    rel: str,
+    text: str,
+    comment_free: str,
+) -> None:
+    for match in GRADLE_DEPENDENCY_RE.finditer(comment_free):
+        results.append(
+            _gradle_row(
+                rel,
+                text,
+                match,
+                rule_id="deployment__build_dependency",
+                configuration=match.group(1),
+                coordinate=_gradle_dependency_coordinate(match),
+            )
+        )
+
+
+def _append_gradle_modules_and_toolchains(
+    results: List[Dict[str, object]],
+    *,
+    rel: str,
+    text: str,
+    comment_free: str,
+) -> None:
+    for match in GRADLE_INCLUDE_RE.finditer(comment_free):
+        results.append(
+            _gradle_row(
+                rel,
+                text,
+                match,
+                rule_id="deployment__build_module",
+                module=match.group(1).lstrip(":"),
+            )
+        )
+    for match in GRADLE_TOOLCHAIN_RE.finditer(comment_free):
+        results.append(
+            _gradle_row(
+                rel,
+                text,
+                match,
+                rule_id="deployment__build_toolchain",
+                toolchain_kind=match.group(1),
+                toolchain_value=match.group(2),
+            )
+        )
+
+
 def _extract_gradle(rel: str, text: str, comment_free: str) -> List[Dict[str, object]]:
     results: List[Dict[str, object]] = []
     # Collect all versioned plugin ids first, then skip the bare id
     # matches that would otherwise duplicate them. We key by the position of
     # the id keyword, which is the same start position both regexes use, so
     # the bare id match for a versioned plugin is detected and suppressed.
-    versioned_by_start = {}
-    for match in GRADLE_PLUGIN_VERSIONED_RE.finditer(comment_free):
-        line = _capture_line(text, match)
-        versioned_by_start[match.start(1)] = {
-            "file": rel,
-            "line": line,
-            "match": _safe_match(text, line),
-            "rule_id": "deployment__build_plugin",
-            "plugin_id": match.group(1),
-            "plugin_version": match.group(2),
-        }
+    versioned_by_start = _gradle_versioned_plugins(rel, text, comment_free)
     results.extend(versioned_by_start.values())
-    for match in GRADLE_PLUGIN_RE.finditer(comment_free):
-        if match.start(1) in versioned_by_start:
-            continue
-        line = _capture_line(text, match)
-        results.append({
-            "file": rel,
-            "line": line,
-            "match": _safe_match(text, line),
-            "rule_id": "deployment__build_plugin",
-            "plugin_id": match.group(1),
-            "plugin_version": match.group(2) or None,
-        })
-    for match in GRADLE_APPLY_PLUGIN_RE.finditer(comment_free):
-        line = _capture_line(text, match)
-        results.append({
-            "file": rel,
-            "line": line,
-            "match": _safe_match(text, line),
-            "rule_id": "deployment__build_plugin",
-            "plugin_id": match.group(1),
-            "plugin_version": None,
-        })
-    for match in GRADLE_DEPENDENCY_RE.finditer(comment_free):
-        line = _capture_line(text, match)
-        coordinate = {"group": match.group(2)}
-        if match.group(3):
-            coordinate["name"] = match.group(3)
-        if match.group(4):
-            coordinate["version"] = match.group(4)
-        results.append({
-            "file": rel,
-            "line": line,
-            "match": _safe_match(text, line),
-            "rule_id": "deployment__build_dependency",
-            "configuration": match.group(1),
-            "coordinate": coordinate,
-        })
-    for match in GRADLE_INCLUDE_RE.finditer(comment_free):
-        line = _capture_line(text, match)
-        results.append({
-            "file": rel,
-            "line": line,
-            "match": _safe_match(text, line),
-            "rule_id": "deployment__build_module",
-            "module": match.group(1).lstrip(":"),
-        })
-    for match in GRADLE_TOOLCHAIN_RE.finditer(comment_free):
-        line = _capture_line(text, match)
-        results.append({
-            "file": rel,
-            "line": line,
-            "match": _safe_match(text, line),
-            "rule_id": "deployment__build_toolchain",
-            "toolchain_kind": match.group(1),
-            "toolchain_value": match.group(2),
-        })
+    _append_bare_gradle_plugins(
+        results,
+        rel=rel,
+        text=text,
+        comment_free=comment_free,
+        versioned_by_start=versioned_by_start,
+    )
+    _append_gradle_apply_plugins(
+        results, rel=rel, text=text, comment_free=comment_free,
+    )
+    _append_gradle_dependencies(
+        results, rel=rel, text=text, comment_free=comment_free,
+    )
+    _append_gradle_modules_and_toolchains(
+        results, rel=rel, text=text, comment_free=comment_free,
+    )
     return results
 
 
@@ -241,32 +328,43 @@ MAVEN_PLUGIN_RE = re.compile(
 )
 
 
+def _maven_plugin_row(rel: str, text: str, match: re.Match[str]) -> Dict[str, object]:
+    line = _capture_line(text, match)
+    group = match.group(1) or "org.apache.maven.plugins"
+    return {
+        "file": rel,
+        "line": line,
+        "match": _safe_match(text, line),
+        "rule_id": "deployment__build_plugin",
+        "plugin_id": f"{group}:{match.group(2)}",
+        "plugin_version": match.group(3) or None,
+    }
+
+
+def _maven_dependency_row(rel: str, text: str, match: re.Match[str]) -> Dict[str, object]:
+    line = _capture_line(text, match)
+    coordinate = {"group": match.group(1), "name": match.group(2)}
+    if match.group(3):
+        coordinate["version"] = match.group(3)
+    return {
+        "file": rel,
+        "line": line,
+        "match": _safe_match(text, line),
+        "rule_id": "deployment__build_dependency",
+        "configuration": match.group(4) or "compile",
+        "coordinate": coordinate,
+    }
+
+
 def _extract_maven(rel: str, text: str) -> List[Dict[str, object]]:
-    results: List[Dict[str, object]] = []
-    for match in MAVEN_PLUGIN_RE.finditer(text):
-        line = _capture_line(text, match)
-        group = match.group(1) or "org.apache.maven.plugins"
-        results.append({
-            "file": rel,
-            "line": line,
-            "match": _safe_match(text, line),
-            "rule_id": "deployment__build_plugin",
-            "plugin_id": f"{group}:{match.group(2)}",
-            "plugin_version": match.group(3) or None,
-        })
-    for match in MAVEN_DEPENDENCY_RE.finditer(text):
-        line = _capture_line(text, match)
-        coordinate = {"group": match.group(1), "name": match.group(2)}
-        if match.group(3):
-            coordinate["version"] = match.group(3)
-        results.append({
-            "file": rel,
-            "line": line,
-            "match": _safe_match(text, line),
-            "rule_id": "deployment__build_dependency",
-            "configuration": match.group(4) or "compile",
-            "coordinate": coordinate,
-        })
+    results: List[Dict[str, object]] = [
+        _maven_plugin_row(rel, text, match)
+        for match in MAVEN_PLUGIN_RE.finditer(text)
+    ]
+    results.extend(
+        _maven_dependency_row(rel, text, match)
+        for match in MAVEN_DEPENDENCY_RE.finditer(text)
+    )
     return results
 
 
@@ -285,33 +383,47 @@ VERSION_CATALOG_LIBRARY_RE = re.compile(
 )
 
 
+def _catalog_version_row(rel: str, text: str, match: re.Match[str]) -> Dict[str, object]:
+    line = _capture_line(text, match)
+    return {
+        "file": rel,
+        "line": line,
+        "match": _safe_match(text, line),
+        "rule_id": "deployment__version_catalog",
+        "catalog_kind": "version",
+        "catalog_key": match.group(1),
+        "catalog_value": match.group(2),
+    }
+
+
+def _catalog_library_row(
+    rel: str, text: str, match: re.Match[str],
+) -> Dict[str, object] | None:
+    group = match.group(2) or match.group(4)
+    name = match.group(3) or match.group(5)
+    if not (group and name):
+        return None
+    line = _capture_line(text, match)
+    return {
+        "file": rel,
+        "line": line,
+        "match": _safe_match(text, line),
+        "rule_id": "deployment__version_catalog",
+        "catalog_kind": "library",
+        "catalog_key": match.group(1),
+        "coordinate": {"group": group, "name": name},
+    }
+
+
 def _extract_version_catalog(rel: str, text: str) -> List[Dict[str, object]]:
-    results: List[Dict[str, object]] = []
-    for match in VERSION_CATALOG_VERSION_RE.finditer(text):
-        line = _capture_line(text, match)
-        results.append({
-            "file": rel,
-            "line": line,
-            "match": _safe_match(text, line),
-            "rule_id": "deployment__version_catalog",
-            "catalog_kind": "version",
-            "catalog_key": match.group(1),
-            "catalog_value": match.group(2),
-        })
+    results: List[Dict[str, object]] = [
+        _catalog_version_row(rel, text, match)
+        for match in VERSION_CATALOG_VERSION_RE.finditer(text)
+    ]
     for match in VERSION_CATALOG_LIBRARY_RE.finditer(text):
-        line = _capture_line(text, match)
-        group = match.group(2) or match.group(4)
-        name = match.group(3) or match.group(5)
-        if group and name:
-            results.append({
-                "file": rel,
-                "line": line,
-                "match": _safe_match(text, line),
-                "rule_id": "deployment__version_catalog",
-                "catalog_kind": "library",
-                "catalog_key": match.group(1),
-                "coordinate": {"group": group, "name": name},
-            })
+        row = _catalog_library_row(rel, text, match)
+        if row is not None:
+            results.append(row)
     return results
 
 

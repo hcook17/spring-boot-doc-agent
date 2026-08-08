@@ -137,6 +137,30 @@ MUTATORS: List[Mutator] = [
         "test_set_delta.py",
         "a relation that permits everything makes every metamorphic assertion "
         "pass while checking nothing"),
+    Mutator(
+        "query-limit-ceiling-removed",
+        "src/doc_engine/query/envelope.py", "python",
+        "cap = max(0, min(cap, max_limit))",
+        "cap = max(0, cap)",
+        "test_query_artifacts.py",
+        "agents rely on hard --limit clamp; removing it dumps unbounded "
+        "evidence into context (DDIA backpressure)"),
+    Mutator(
+        "context-packet-budget-trim-disabled",
+        "src/doc_engine/query/rank.py", "python",
+        "tokens_used + cost > budget",
+        "False",
+        "test_context_packet.py",
+        "context_packet budgetTokens must trim primaryContext; disabling "
+        "the guard dumps unbounded packets"),
+    Mutator(
+        "freshness-mismatch-always-fresh",
+        "src/doc_engine/query/freshness.py", "python",
+        "return (FreshnessLabel.FRESH_INDEXED if actual == expected "
+        "else FreshnessLabel.STALE)",
+        "return FreshnessLabel.FRESH_INDEXED",
+        "test_context_packet.py",
+        "signature mismatch must label stale; always-fresh hides drift"),
 
     # --- literal: see Mutator's docstring for why each one cannot be ---------
     # --- structural, and RegistryAnchorsTest for what guards them instead ----

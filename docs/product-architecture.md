@@ -97,7 +97,13 @@ See also [`src/doc_engine/pipeline/adapters.md`](../src/doc_engine/pipeline/adap
 | Anti-corruption layer | `pipeline/artifacts.py`, `validation.py` | JSON boundary DTOs |
 | Gateway | `tools/certification.py`, compliance gates | Machine enforcement |
 | Strangler fig (complete for product tools) | `tools/`, scanning SDK | Product left `scripts/`; meta CI stays there |
-| Twelve-factor config | `.doc-engine.yml`, CLI overrides | Portable target-repo policy |
+| Twelve-factor config | `.doc-engine.yml`, CLI overrides | Portable target-repo policy; see untrusted defaults below |
+
+### Target-repo `.doc-engine.yml` trust
+
+Customer Spring trees are **untrusted by default**. Without `--trust-repo-config`, the kernel ignores security-sensitive keys from the target's `.doc-engine.yml` (`build_command`, `db_path`, `scanners`, and any `compliance_profile` weaker than `certified`). Non-executing keys (`sql_dialect`, `respect_gitignore`, `doc_taxonomy`) still apply; YAML `extra` is cleared. Operator CLI flags (`--build-command`, `--scanners`, `--compliance-profile`, …) always win. Pass `--trust-repo-config` only when you intend to honor that file's sensitive keys.
+
+**CodeQL build mode is refused by default.** `codeql database create --command` executes the build inside `--source-root` (attacker-controlled `gradlew`/`pom`). Pass `--allow-codeql-build` only for first-party trees or a sandboxed host. The build-command allowlist (exact basenames; `bash`/`sh` may wrap a tool; flags like `-I`/`--init-script`/`-s` rejected) is foot-gun hygiene, not an untrusted-tree control. CodeQL CLI discovery uses `DOC_ENGINE_CODEQL` then `PATH` — never a machine-local hardcoded path. Results cache lives under the user cache dir (`0700`), keyed by repo + pack + CLI version, and refuses symlink hijack.
 
 External catalogs ([awesome-design-patterns](https://github.com/DovAmir/awesome-design-patterns), [microservices.io](http://microservices.io/patterns)) inform naming only — this repo's constraints (`CONSTRAINTS.md`) are authoritative.
 
@@ -127,7 +133,12 @@ Legacy `Engine.generate_docs()` / `build_site()` are placeholders — use `doc-e
 
 ## Agent search policy
 
-Claude agents must not use text search for code citations. See [`adapters/claude/SEARCH.md`](../adapters/claude/SEARCH.md) and [`docs/search-methodology-benchmark.md`](search-methodology-benchmark.md).
+Claude agents must not use text search for code citations. Prefer
+`doc-engine query context-packet` for vague tasks when a run dir exists, then
+specialized `doc-engine query` kinds, then `ast-grep` for live structural gaps.
+Optional MCP: [`adapters/mcp/`](../adapters/mcp/). See
+[`adapters/claude/SEARCH.md`](../adapters/claude/SEARCH.md) and
+[`docs/search-methodology-benchmark.md`](search-methodology-benchmark.md).
 
 ## Design north star (DDIA)
 

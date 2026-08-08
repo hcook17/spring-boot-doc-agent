@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "query_result.schema.json",
+  "title": "doc-engine query result envelope",
+  "type": "object",
+  "required": ["schema_version", "kind", "truncated", "count", "rows"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "kind": { "type": "string", "minLength": 1 },
+    "truncated": { "type": "boolean" },
+    "count": { "type": "integer", "minimum": 0 },
+    "rows": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "hard_stops": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

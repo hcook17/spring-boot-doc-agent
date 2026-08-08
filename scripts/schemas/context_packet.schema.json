@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "context_packet.schema.json",
+  "title": "doc-engine context_packet envelope",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "request",
+    "budgetTokens",
+    "tokensUsed",
+    "truncated",
+    "primaryContext",
+    "relatedContext",
+    "activeFindings",
+    "risks",
+    "providersUsed",
+    "_hints",
+    "empty"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "kind": { "type": "string", "const": "context-packet" },
+    "request": { "type": "string" },
+    "budgetTokens": { "type": "integer", "minimum": 0 },
+    "tokensUsed": { "type": "integer", "minimum": 0 },
+    "truncated": { "type": "boolean" },
+    "empty": { "type": "boolean" },
+    "primaryContext": { "type": "array", "items": { "$ref": "#/$defs/contextItem" } },
+    "relatedContext": { "type": "array", "items": { "$ref": "#/$defs/contextItem" } },
+    "activeFindings": { "type": "array", "items": { "$ref": "#/$defs/contextItem" } },
+    "risks": { "type": "array", "items": { "$ref": "#/$defs/contextItem" } },
+    "providersUsed": { "type": "array", "items": { "type": "string" } },
+    "_hints": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "contextItem": {
+      "type": "object",
+      "required": ["provider", "score", "reason"],
+      "properties": {
+        "provider": { "type": "string" },
+        "score": { "type": "number" },
+        "reason": { "type": "string" },
+        "path": { "type": ["string", "null"] },
+        "line": { "type": ["integer", "null"] },
+        "match": { "type": ["string", "null"] },
+        "bucket": { "type": ["string", "null"] },
+        "freshness": {
+          "type": "string",
+          "enum": ["live", "fresh_indexed", "stale", "unknown"]
+        },
+        "payload": { "type": "object" }
+      }
+    }
+  }
+}

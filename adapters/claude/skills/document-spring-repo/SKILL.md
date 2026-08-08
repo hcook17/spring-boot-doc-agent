@@ -43,6 +43,7 @@ Artifacts cross stage boundaries. Shapes are enforced by Pydantic models in `doc
 | Artifact | Producer | Consumers |
 |----------|----------|-----------|
 | `spring_signals.json` | Stage 0 (CLI) | generative stages |
+| `facts.jsonl` | Stage 0 (CLI, dual-emit) | gap_analysis_interview / doc_writer (contested identity) |
 | `groups.json` | Stage 0 (CLI) | file_summarize / architect |
 | `cross_group_edges.json` | Stage 0 (CLI) | file_summarize |
 | `summaries.json` | file_summarize agents | later generative stages |
@@ -63,9 +64,12 @@ doc-engine pipeline run <repo_path> \
 
 Optional drift pre-check: `python -m doc_engine.tools.spring_drift_check`. Prefer re-running Stage 0 when unsure. Boundary validation uses `validate_artifacts.py` / `python -m doc_engine.tools.validate_artifacts`.
 
-Also search for `TODO|FIXME|XXX|HACK` across the target repo yourself and keep the hits for `known_limitations.md`.
+Also collect `TODO`/`FIXME`/`XXX`/`HACK` candidates for `known_limitations.md` via
+structural search (`ast-grep` on Java — comments are AST nodes) or from
+file-summarizer evidence; **do not** use text `grep`/`rg` (denied for agents).
+Keep hits as candidates, not facts — see doc-taxonomy.md.
 
-Read `spring_signals.json`, `groups.json`, and `cross_group_edges.json` from `<run_dir>` before generative work.
+Read `spring_signals.json`, `facts.jsonl`, `groups.json`, and `cross_group_edges.json` from `<run_dir>` before generative work. Prefer `doc-engine query …` for bounded lookups (see `${CLAUDE_PLUGIN_ROOT}/SEARCH.md`).
 
 ## Generative stages (live adapter)
 

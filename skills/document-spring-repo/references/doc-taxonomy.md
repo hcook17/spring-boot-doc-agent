@@ -91,7 +91,7 @@ Not everything that's technically text in the repository carries the same eviden
 
 ## 14. known_limitations.md
 **Purpose**: known gaps, deliberate shortcuts, and things that are technically debt rather than design.
-**Evidence**: TODO/FIXME comments (worth a dedicated grep pass if not already surfaced by file-summarizer), deprecated-annotation usage.
+**Evidence**: TODO/FIXME comments (worth a dedicated **ast-grep** / summarizer pass if not already surfaced — never text grep), deprecated-annotation usage.
 **Interview-worthy**: this is almost entirely an interview file. Code can surface *candidates* (TODO comments, deprecated APIs still in use) but "known limitation" is inherently a claim about intent and awareness that only a person can confirm. Present the code-derived candidates as a checklist ("here's what looks like a shortcut — confirm or correct each") rather than asserting them as established fact.
 
 ---

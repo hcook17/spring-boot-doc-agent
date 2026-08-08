@@ -918,6 +918,20 @@ def _call_attr_names(node: ast.AST) -> List[str]:
     return names
 
 
+def _is_java_files_is_none(test: ast.AST) -> bool:
+    """True for ``java_files is None`` (fail-closed / no-inventory branch)."""
+    if not isinstance(test, ast.Compare):
+        return False
+    if not (isinstance(test.left, ast.Name) and test.left.id == "java_files"):
+        return False
+    if len(test.ops) != 1 or not isinstance(test.ops[0], ast.Is):
+        return False
+    if len(test.comparators) != 1:
+        return False
+    comp = test.comparators[0]
+    return isinstance(comp, ast.Constant) and comp.value is None
+
+
 def _is_java_files_is_not_none(test: ast.AST) -> bool:
     """True for ``java_files is not None`` (the inventory-supplied branch)."""
     if not isinstance(test, ast.Compare):
@@ -935,7 +949,13 @@ def _is_java_files_is_not_none(test: ast.AST) -> bool:
 def _behavior_astgrep_inventory_never_widens_to_repo_root(
     root: Path,
 ) -> Tuple[bool, str]:
-    """With ScanContext inventory, ast-grep must chunk — never repo-root fallback."""
+    """With ScanContext inventory, ast-grep must chunk — never repo-root fallback.
+
+    Accepts either control-flow shape:
+
+    - ``if java_files is not None: ...chunk... else: raise`` (legacy), or
+    - ``if java_files is None: raise`` then inventory helpers that chunk (current).
+    """
     path = root / "src" / "doc_engine" / "scanning" / "_scanner_astgrep.py"
     if not path.is_file():
         return False, "src/doc_engine/scanning/_scanner_astgrep.py missing"
@@ -945,8 +965,10 @@ def _behavior_astgrep_inventory_never_widens_to_repo_root(
         return False, f"_scanner_astgrep.py does not parse: {exc}"
 
     run_fn: Optional[ast.FunctionDef] = None
+    class_node: Optional[ast.ClassDef] = None
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef) and node.name == "AstGrepBackend":
+            class_node = node
             for item in node.body:
                 if isinstance(item, ast.FunctionDef) and item.name == "_run_ast_grep":
                     run_fn = item
@@ -954,55 +976,102 @@ def _behavior_astgrep_inventory_never_widens_to_repo_root(
     if run_fn is None:
         return False, "AstGrepBackend._run_ast_grep not found"
 
+    all_run_calls = _call_attr_names(run_fn)
+    if "_repo_root_scan_argv" in all_run_calls:
+        return False, (
+            "_run_ast_grep calls _repo_root_scan_argv — must not widen to repo root"
+        )
+
+    # Legacy shape: positive ``is not None`` inventory branch.
     inventory_if: Optional[ast.If] = None
+    none_if: Optional[ast.If] = None
     for stmt in run_fn.body:
         if isinstance(stmt, ast.If) and _is_java_files_is_not_none(stmt.test):
             inventory_if = stmt
-            break
-    if inventory_if is None:
+        if isinstance(stmt, ast.If) and _is_java_files_is_none(stmt.test):
+            none_if = stmt
+
+    if inventory_if is not None:
+        inv_calls = _call_attr_names(inventory_if)
+        if "_repo_root_scan_argv" in inv_calls:
+            return False, (
+                "inventory branch (`java_files is not None`) calls "
+                "_repo_root_scan_argv — must chunk, not widen to repo root"
+            )
+        if "_invoke_ast_grep_chunked" not in inv_calls:
+            return False, (
+                "inventory branch does not call _invoke_ast_grep_chunked"
+            )
+        orelse_nodes: List[ast.AST] = list(inventory_if.orelse)
+        if not orelse_nodes:
+            after = False
+            for stmt in run_fn.body:
+                if stmt is inventory_if:
+                    after = True
+                    continue
+                if after:
+                    orelse_nodes.append(stmt)
+        legacy_calls: List[str] = []
+        raises = False
+        for node in orelse_nodes:
+            legacy_calls.extend(_call_attr_names(node))
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Raise):
+                    raises = True
+        if "_repo_root_scan_argv" in legacy_calls:
+            return False, (
+                "no-inventory path still calls _repo_root_scan_argv — "
+                "must fail closed without widening to repo root"
+            )
+        if not raises:
+            return False, (
+                "no-inventory path does not raise — must fail closed when "
+                "java_files is None"
+            )
+        return True, ""
+
+    # Current shape: early ``is None`` raise, then inventory helpers that chunk.
+    if none_if is None:
         return False, (
-            "_run_ast_grep has no `if java_files is not None` inventory branch"
+            "_run_ast_grep has neither `if java_files is not None` nor "
+            "`if java_files is None` inventory guard"
+        )
+    raises_on_none = any(
+        isinstance(sub, ast.Raise) for sub in ast.walk(none_if)
+    )
+    if not raises_on_none:
+        return False, (
+            "`java_files is None` branch does not raise — must fail closed"
+        )
+    if "_repo_root_scan_argv" in _call_attr_names(none_if):
+        return False, (
+            "`java_files is None` branch calls _repo_root_scan_argv"
         )
 
-    inv_calls = _call_attr_names(inventory_if)
-    if "_repo_root_scan_argv" in inv_calls:
-        return False, (
-            "inventory branch (`java_files is not None`) calls "
-            "_repo_root_scan_argv — must chunk, not widen to repo root"
-        )
-    if "_invoke_ast_grep_chunked" not in inv_calls:
-        return False, (
-            "inventory branch does not call _invoke_ast_grep_chunked"
-        )
-
-    # No-inventory path must fail closed — never call _repo_root_scan_argv.
-    orelse_nodes: List[ast.AST] = list(inventory_if.orelse)
-    if not orelse_nodes:
-        after = False
-        for stmt in run_fn.body:
-            if stmt is inventory_if:
-                after = True
-                continue
-            if after:
-                orelse_nodes.append(stmt)
-    legacy_calls: List[str] = []
-    raises = False
-    for node in orelse_nodes:
-        legacy_calls.extend(_call_attr_names(node))
-        for sub in ast.walk(node):
-            if isinstance(sub, ast.Raise):
-                raises = True
-    if "_repo_root_scan_argv" in legacy_calls:
-        return False, (
-            "no-inventory path still calls _repo_root_scan_argv — "
-            "must fail closed without widening to repo root"
-        )
-    if not raises:
-        return False, (
-            "no-inventory path does not raise — must fail closed when "
-            "java_files is None"
-        )
-    return True, ""
+    # Inventory-present path must still chunk (directly or via a helper).
+    if "_invoke_ast_grep_chunked" in all_run_calls:
+        return True, ""
+    if class_node is None:
+        return False, "AstGrepBackend class missing while checking helpers"
+    helper_names = {
+        call
+        for call in all_run_calls
+        if call.startswith("_") and call != "_repo_root_scan_argv"
+    }
+    for item in class_node.body:
+        if not isinstance(item, ast.FunctionDef) or item.name not in helper_names:
+            continue
+        helper_calls = _call_attr_names(item)
+        if "_repo_root_scan_argv" in helper_calls:
+            return False, (
+                f"inventory helper {item.name} calls _repo_root_scan_argv"
+            )
+        if "_invoke_ast_grep_chunked" in helper_calls:
+            return True, ""
+    return False, (
+        "inventory-present path does not call _invoke_ast_grep_chunked "
+        "(directly or via a helper)"
+    )
 
 
 # Closed outcome-bound keys — documents select a key; this file owns the check.

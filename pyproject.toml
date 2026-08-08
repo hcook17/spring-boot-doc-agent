@@ -48,10 +48,11 @@ Repository = "https://github.com/example/doc-engine.git"
 
 [project.scripts]
 doc-engine = "doc_engine.cli:main"
+stf = "stf.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["doc_engine*"]
+include = ["doc_engine*", "stf*"]
 
 [tool.setuptools.package-data]
 doc_engine = ["scanning/resources/*.yml"]
@@ -59,3 +60,18 @@ doc_engine = ["scanning/resources/*.yml"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["doc_engine", "stf"]
+branch = true
+# Relative paths so SonarScanner on GitHub Actions can resolve coverage.xml
+# filenames against the checkout (absolute runner paths do not match).
+relative_files = true
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+# Integer floor of combined statement+branch Cover% on a clean CI run
+# (3.11/3.12 measured 82.48%; XML line-rate alone reads ~85% and is not the gate).
+fail_under = 82
+show_missing = true
+skip_empty = true

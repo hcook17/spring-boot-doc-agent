@@ -62,14 +62,27 @@ def _validate_java_ident(name: str, *, what: str) -> str:
     return name
 
 
+def _package_has_empty_segment(package: str) -> bool:
+    """True when ``package`` contains a leading/trailing/double-dot empty segment."""
+    return any(not part for part in package.split("."))
+
+
+def _split_package_segments(package: str) -> tuple[str, ...]:
+    """Split a non-empty package string into validated-nonempty segments."""
+    if _package_has_empty_segment(package):
+        raise SymbolError(f"invalid package: {package!r}")
+    parts = tuple(p for p in package.split(".") if p)
+    if not parts:
+        raise SymbolError(f"invalid package: {package!r}")
+    return parts
+
+
 def _namespaces_from_package(package: Optional[str]) -> tuple[str, ...]:
     if package is None or package == "":
         return ()
-    parts = tuple(p for p in package.split(".") if p)
-    if not parts or any(not p for p in package.split(".")):
-        raise SymbolError(f"invalid package: {package!r}")
-    for p in parts:
-        _validate_java_ident(p, what="package segment")
+    parts = _split_package_segments(package)
+    for part in parts:
+        _validate_java_ident(part, what="package segment")
     return parts
 
 
@@ -128,6 +141,74 @@ def format_method(
     return f"{base}{method}()."
 
 
+def _strip_method_member(body: str, symbol: str) -> tuple[str, str]:
+    """Peel a trailing ``Method().`` member; return ``(member, type_body)``."""
+    hash_idx = body.rfind("#")
+    if hash_idx < 0:
+        raise SymbolError(f"unparseable method symbol: {symbol!r}")
+    member_part = body[hash_idx + 1 :]
+    if not member_part.endswith("()."):
+        raise SymbolError(f"unparseable method symbol: {symbol!r}")
+    member = member_part[:-3]
+    _validate_java_ident(member, what="method name")
+    return member, body[: hash_idx + 1]
+
+
+def _strip_field_member(body: str, symbol: str) -> tuple[Optional[str], str]:
+    """Peel a trailing ``field.`` member when present; else leave body unchanged."""
+    hash_idx = body.rfind("#")
+    member_part = body[hash_idx + 1 :]
+    if not (member_part.endswith(".") and member_part != "."):
+        return None, body
+    member = member_part[:-1]
+    if "(" in member or ")" in member or not member:
+        raise SymbolError(f"unparseable field symbol: {symbol!r}")
+    _validate_java_ident(member, what="field name")
+    return member, body[: hash_idx + 1]
+
+
+def _split_member_suffix(body: str, symbol: str) -> tuple[str, Optional[str], str]:
+    """Classify and strip method/field suffixes from a descriptor body."""
+    if body.endswith("()."):
+        member, type_body = _strip_method_member(body, symbol)
+        return "method", member, type_body
+    if body.endswith(".") and "#" in body:
+        member, type_body = _strip_field_member(body, symbol)
+        if member is not None:
+            return "field", member, type_body
+    return "type", None, body
+
+
+def _split_ns_and_type_part(type_body: str) -> tuple[tuple[str, ...], str]:
+    """Split ``ns/ns/Outer#Inner#`` into namespaces and the type-chain part."""
+    slash = type_body.rfind("/")
+    if slash < 0:
+        return (), type_body
+    ns_part = type_body[:slash]
+    type_part = type_body[slash + 1 :]
+    namespaces = tuple(ns_part.split("/")) if ns_part else ()
+    return namespaces, type_part
+
+
+def _parse_type_names(type_part: str, symbol: str) -> tuple[str, ...]:
+    if not type_part.endswith("#"):
+        raise SymbolError(f"unparseable symbol: {symbol!r}")
+    type_names = tuple(t for t in type_part.split("#") if t)
+    if not type_names:
+        raise SymbolError(f"missing type name: {symbol!r}")
+    return type_names
+
+
+def _validate_parsed_idents(
+    namespaces: tuple[str, ...],
+    type_names: tuple[str, ...],
+) -> None:
+    for name in namespaces:
+        _validate_java_ident(name, what="package segment")
+    for name in type_names:
+        _validate_java_ident(name, what="type name")
+
+
 def parse(symbol: str) -> ParsedSymbol:
     """Parse a claim-symbol into structured parts."""
     if not isinstance(symbol, str) or not symbol.startswith(_PREFIX):
@@ -136,57 +217,13 @@ def parse(symbol: str) -> ParsedSymbol:
     if not rest:
         raise SymbolError(f"unparseable symbol: {symbol!r}")
 
-    kind = "type"
-    member: Optional[str] = None
-    body = rest
-
-    if body.endswith("()."):
-        kind = "method"
-        hash_idx = body.rfind("#")
-        if hash_idx < 0:
-            raise SymbolError(f"unparseable method symbol: {symbol!r}")
-        member_part = body[hash_idx + 1 :]
-        if not member_part.endswith("()."):
-            raise SymbolError(f"unparseable method symbol: {symbol!r}")
-        member = member_part[:-3]
-        _validate_java_ident(member, what="method name")
-        body = body[: hash_idx + 1]
-    elif body.endswith(".") and "#" in body:
-        # field: …#field.  (type form ends with # alone — not a field)
-        hash_idx = body.rfind("#")
-        member_part = body[hash_idx + 1 :]
-        if member_part.endswith(".") and member_part != ".":
-            member = member_part[:-1]
-            if "(" in member or ")" in member or not member:
-                raise SymbolError(f"unparseable field symbol: {symbol!r}")
-            _validate_java_ident(member, what="field name")
-            kind = "field"
-            body = body[: hash_idx + 1]
-
-    if not body.endswith("#"):
+    kind, member, type_body = _split_member_suffix(rest, symbol)
+    if not type_body.endswith("#"):
         raise SymbolError(f"type descriptor must end with '#': {symbol!r}")
 
-    # Split namespaces from type chain: ns/ns/Outer#Inner#
-    # Types are '#"-separated and body ends with '#'.
-    type_body = body
-    slash = type_body.rfind("/")
-    if slash >= 0:
-        ns_part = type_body[:slash]
-        type_part = type_body[slash + 1 :]
-        namespaces = tuple(ns_part.split("/")) if ns_part else ()
-    else:
-        namespaces = ()
-        type_part = type_body
-
-    if not type_part.endswith("#"):
-        raise SymbolError(f"unparseable symbol: {symbol!r}")
-    type_names = tuple(t for t in type_part.split("#") if t)
-    if not type_names:
-        raise SymbolError(f"missing type name: {symbol!r}")
-    for n in namespaces:
-        _validate_java_ident(n, what="package segment")
-    for n in type_names:
-        _validate_java_ident(n, what="type name")
+    namespaces, type_part = _split_ns_and_type_part(type_body)
+    type_names = _parse_type_names(type_part, symbol)
+    _validate_parsed_idents(namespaces, type_names)
 
     return ParsedSymbol(
         kind=kind,

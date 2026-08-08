@@ -84,6 +84,43 @@ PACKAGE_RE = re.compile(r"^package\s+([\w.]+)\s*;")
 IMPORT_RE = re.compile(r"^import\s+(static\s+)?([\w.*]+)\s*;")
 
 
+def _type_stem_from_path(path: str) -> str:
+    return path.replace("\\", "/").rsplit("/", 1)[-1].rsplit(".", 1)[0]
+
+
+def _index_package_declaration(
+    path: str,
+    package_name: str,
+    decl_files: Dict[str, Set[str]],
+    stem_index: Dict[Tuple[str, str], str],
+) -> None:
+    decl_files[package_name].add(path)
+    stem_index[(package_name, _type_stem_from_path(path))] = path
+
+
+def _ingest_reference_row(
+    row: dict,
+    decl_files: Dict[str, Set[str]],
+    stem_index: Dict[Tuple[str, str], str],
+    imports: Dict[str, List[Tuple[str, bool]]],
+) -> None:
+    path = row.get("file")
+    text = (row.get("match") or "").strip()
+    if not path:
+        return
+    package_match = PACKAGE_RE.match(text)
+    if package_match:
+        _index_package_declaration(
+            path, package_match.group(1), decl_files, stem_index
+        )
+        return
+    import_match = IMPORT_RE.match(text)
+    if import_match:
+        imports[path].append(
+            (import_match.group(2), bool(import_match.group(1)))
+        )
+
+
 def parse_references(references: List[dict]):
     """Split the `references` bucket into the two indexes the join needs.
 
@@ -95,24 +132,28 @@ def parse_references(references: List[dict]):
     decl_files: Dict[str, Set[str]] = collections.defaultdict(set)
     stem_index: Dict[Tuple[str, str], str] = {}
     imports: Dict[str, List[Tuple[str, bool]]] = collections.defaultdict(list)
-
     for row in references:
-        path = row.get("file")
-        text = (row.get("match") or "").strip()
-        if not path:
-            continue
-        m = PACKAGE_RE.match(text)
-        if m:
-            pkg = m.group(1)
-            decl_files[pkg].add(path)
-            stem = path.replace("\\", "/").rsplit("/", 1)[-1].rsplit(".", 1)[0]
-            stem_index[(pkg, stem)] = path
-            continue
-        m = IMPORT_RE.match(text)
-        if m:
-            imports[path].append((m.group(2), bool(m.group(1))))
-
+        _ingest_reference_row(row, decl_files, stem_index, imports)
     return decl_files, stem_index, imports
+
+
+def _resolve_wildcard_import(qualified: str, decl_files) -> Tuple[List[str], str]:
+    package_name = qualified[:-2]
+    targets = sorted(decl_files.get(package_name, ()))
+    return targets, ("package-fanout" if targets else "unresolved")
+
+
+def _resolve_type_import(qualified: str, decl_files, stem_index) -> Tuple[List[str], str]:
+    name = qualified
+    while "." in name:
+        package_name, stem = name.rsplit(".", 1)
+        hit = stem_index.get((package_name, stem))
+        if hit is not None:
+            return [hit], "exact"
+        if package_name in decl_files:
+            return sorted(decl_files[package_name]), "package-fanout"
+        name = package_name  # shorten and retry: static member / nested class
+    return [], "unresolved"
 
 
 def resolve_targets(qualified: str, decl_files, stem_index) -> Tuple[List[str], str]:
@@ -132,20 +173,8 @@ def resolve_targets(qualified: str, decl_files, stem_index) -> Tuple[List[str], 
     the single easiest way to under-report the cut.
     """
     if qualified.endswith(".*"):
-        pkg = qualified[:-2]
-        targets = sorted(decl_files.get(pkg, ()))
-        return targets, ("package-fanout" if targets else "unresolved")
-
-    name = qualified
-    while "." in name:
-        pkg, stem = name.rsplit(".", 1)
-        hit = stem_index.get((pkg, stem))
-        if hit is not None:
-            return [hit], "exact"
-        if pkg in decl_files:
-            return sorted(decl_files[pkg]), "package-fanout"
-        name = pkg  # shorten and retry: static member / nested class
-    return [], "unresolved"
+        return _resolve_wildcard_import(qualified, decl_files)
+    return _resolve_type_import(qualified, decl_files, stem_index)
 
 
 def build_membership(groups: List[dict]) -> Dict[str, Set[int]]:
@@ -164,64 +193,200 @@ def is_cut(memb: Dict[str, Set[int]], u: str, v: str) -> bool:
     return not (memb.get(u, set()) & memb.get(v, set()))
 
 
+def _empty_per_group_buckets(group_ids: List[int]) -> Dict[int, dict]:
+    return {
+        group_id: {"outbound": [], "inbound": [], "same_package_outside": []}
+        for group_id in group_ids
+    }
+
+
+def _append_cut_edge(
+    per_group: Dict[int, dict],
+    memb: Dict[str, Set[int]],
+    edge: dict,
+) -> None:
+    for group_id in memb.get(edge["from"], ()):
+        per_group[group_id]["outbound"].append(edge)
+    for group_id in memb.get(edge["to"], ()):
+        per_group[group_id]["inbound"].append(edge)
+
+
+def _maybe_emit_cut_arc(
+    source_path: str,
+    destination_path: str,
+    qualified: str,
+    confidence: str,
+    is_static: bool,
+    memb: Dict[str, Set[int]],
+    per_group: Dict[int, dict],
+    seen: Set[Tuple[str, str, str]],
+    counts: collections.Counter,
+) -> None:
+    if destination_path == source_path or not is_cut(memb, source_path, destination_path):
+        return
+    edge_key = (source_path, destination_path, qualified)
+    if edge_key in seen:
+        return
+    seen.add(edge_key)
+    counts["cut_arcs"] += 1
+    counts[f"confidence_{confidence}"] += 1
+    edge = {
+        "from": source_path,
+        "to": destination_path,
+        "via": qualified,
+        "confidence": confidence,
+        "static_import": is_static,
+    }
+    _append_cut_edge(per_group, memb, edge)
+
+
+def _emit_targets_for_import(
+    source_path: str,
+    qualified: str,
+    is_static: bool,
+    decl_files,
+    stem_index,
+    memb: Dict[str, Set[int]],
+    per_group: Dict[int, dict],
+    seen: Set[Tuple[str, str, str]],
+    counts: collections.Counter,
+) -> None:
+    targets, confidence = resolve_targets(qualified, decl_files, stem_index)
+    if confidence == "unresolved":
+        counts["unresolved_imports"] += 1
+        return
+    for destination_path in targets:
+        _maybe_emit_cut_arc(
+            source_path,
+            destination_path,
+            qualified,
+            confidence,
+            is_static,
+            memb,
+            per_group,
+            seen,
+            counts,
+        )
+
+
+def _record_resolved_import_arcs(
+    imports: Dict[str, List[Tuple[str, bool]]],
+    decl_files,
+    stem_index,
+    memb: Dict[str, Set[int]],
+    per_group: Dict[int, dict],
+    counts: collections.Counter,
+) -> None:
+    """Emit cut import arcs into per-group outbound/inbound buckets."""
+    seen: Set[Tuple[str, str, str]] = set()
+    for source_path, entries in imports.items():
+        for qualified, is_static in entries:
+            _emit_targets_for_import(
+                source_path,
+                qualified,
+                is_static,
+                decl_files,
+                stem_index,
+                memb,
+                per_group,
+                seen,
+                counts,
+            )
+
+
+def _adjacency_outside_group(
+    members: Set[str],
+    group_id: int,
+    files_of: Dict[int, Set[str]],
+    memb: Dict[str, Set[int]],
+) -> Tuple[List[str], List[str]]:
+    inside = sorted(members & files_of[group_id])
+    outside = sorted(
+        path for path in members if group_id not in memb.get(path, set())
+    )
+    return inside, outside
+
+
+def _record_package_group_adjacency(
+    package_name: str,
+    members: Set[str],
+    group_id: int,
+    files_of: Dict[int, Set[str]],
+    memb: Dict[str, Set[int]],
+    per_group: Dict[int, dict],
+    counts: collections.Counter,
+) -> None:
+    inside, outside = _adjacency_outside_group(members, group_id, files_of, memb)
+    if not inside or not outside:
+        return
+    per_group[group_id]["same_package_outside"].append(
+        {
+            "package": package_name,
+            "files_in_group": inside,
+            "files_outside_group": outside,
+        }
+    )
+    counts["same_package_adjacency_rows"] += len(outside)
+
+
+def _record_same_package_adjacency(
+    decl_files: Dict[str, Set[str]],
+    group_ids: List[int],
+    files_of: Dict[int, Set[str]],
+    memb: Dict[str, Set[int]],
+    per_group: Dict[int, dict],
+    counts: collections.Counter,
+) -> None:
+    """Same-package neighbours as adjacency, never a materialized clique."""
+    for package_name, members in sorted(decl_files.items()):
+        if len(members) < 2:
+            continue
+        for group_id in group_ids:
+            _record_package_group_adjacency(
+                package_name, members, group_id, files_of, memb, per_group, counts
+            )
+
+
+def _shipping_stats(
+    references: List[dict],
+    groups: List[dict],
+    per_group: Dict[int, dict],
+    counts: collections.Counter,
+) -> dict:
+    broadcast_rows = len(references) * len(groups)
+    shipped_rows = (
+        sum(
+            len(bucket["outbound"]) + len(bucket["inbound"])
+            for bucket in per_group.values()
+        )
+        + counts["same_package_adjacency_rows"]
+    )
+    reduction_factor = (
+        round(broadcast_rows / shipped_rows, 1) if shipped_rows else None
+    )
+    return {
+        "broadcast_rows_avoided": broadcast_rows,
+        "rows_shipped": shipped_rows,
+        "reduction_factor": reduction_factor,
+        **dict(counts),
+    }
+
+
 def build_report(groups_data: dict, signals_data: dict) -> dict:
     groups = groups_data["groups"]
     references = signals_data.get("evidence", {}).get("references", [])
     decl_files, stem_index, imports = parse_references(references)
     memb = build_membership(groups)
-    group_ids = [g["id"] for g in groups]
-    files_of = {g["id"]: set(g["files"]) for g in groups}
+    group_ids = [group["id"] for group in groups]
+    files_of = {group["id"]: set(group["files"]) for group in groups}
+    per_group = _empty_per_group_buckets(group_ids)
+    counts: collections.Counter = collections.Counter()
 
-    per_group = {
-        gid: {"outbound": [], "inbound": [], "same_package_outside": []}
-        for gid in group_ids
-    }
-
-    seen = set()
-    counts = collections.Counter()
-    for src, entries in imports.items():
-        for qualified, is_static in entries:
-            targets, confidence = resolve_targets(qualified, decl_files, stem_index)
-            if confidence == "unresolved":
-                counts["unresolved_imports"] += 1
-                continue
-            for dst in targets:
-                if dst == src or not is_cut(memb, src, dst):
-                    continue
-                key = (src, dst, qualified)
-                if key in seen:
-                    continue
-                seen.add(key)
-                counts["cut_arcs"] += 1
-                counts[f"confidence_{confidence}"] += 1
-                edge = {
-                    "from": src, "to": dst, "via": qualified,
-                    "confidence": confidence, "static_import": is_static,
-                }
-                for gid in memb.get(src, ()):
-                    per_group[gid]["outbound"].append(edge)
-                for gid in memb.get(dst, ()):
-                    per_group[gid]["inbound"].append(edge)
-
-    # Same-package neighbours as ADJACENCY, never a materialized clique:
-    # a package with k files spanning two groups has O(k^2) cross pairs but
-    # only O(k) members to name.
-    for pkg, members in sorted(decl_files.items()):
-        if len(members) < 2:
-            continue
-        for gid in group_ids:
-            inside = sorted(members & files_of[gid])
-            outside = sorted(f for f in members if gid not in memb.get(f, set()))
-            if inside and outside:
-                per_group[gid]["same_package_outside"].append(
-                    {"package": pkg, "files_in_group": inside, "files_outside_group": outside}
-                )
-                counts["same_package_adjacency_rows"] += len(outside)
-
-    broadcast_rows = len(references) * len(groups)
-    shipped_rows = (
-        sum(len(v["outbound"]) + len(v["inbound"]) for v in per_group.values())
-        + counts["same_package_adjacency_rows"]
+    _record_resolved_import_arcs(
+        imports, decl_files, stem_index, memb, per_group, counts
+    )
+    _record_same_package_adjacency(
+        decl_files, group_ids, files_of, memb, per_group, counts
     )
 
     return {
@@ -229,13 +394,8 @@ def build_report(groups_data: dict, signals_data: dict) -> dict:
         "repo_path": groups_data.get("repo_path"),
         "num_groups": len(groups),
         "references_rows": len(references),
-        "stats": {
-            "broadcast_rows_avoided": broadcast_rows,
-            "rows_shipped": shipped_rows,
-            "reduction_factor": round(broadcast_rows / shipped_rows, 1) if shipped_rows else None,
-            **dict(counts),
-        },
-        "groups": {str(gid): per_group[gid] for gid in group_ids},
+        "stats": _shipping_stats(references, groups, per_group, counts),
+        "groups": {str(group_id): per_group[group_id] for group_id in group_ids},
     }
 
 

@@ -45,7 +45,7 @@ def test_pipeline_runner_with_fixture_signals_and_mock_generative(pipeline_conte
     deterministic = [
         s for s in all_specs
         if s.kind == StageKind.DETERMINISTIC
-        and s.name not in ("init_manifest", "signal_scan")
+        and s.name not in ("init_manifest", "signal_scan", "gap_probe")
     ]
     generative = [s for s in all_specs if s.kind == StageKind.GENERATIVE]
 
@@ -119,6 +119,70 @@ def test_missing_required_output_is_stage_failure_not_crash(pipeline_context):
     assert result.detail == "missing_required_output"
     assert result.error is not None
     assert "facts.jsonl" in result.error
+
+
+def test_malformed_required_output_is_stage_failure_not_crash(pipeline_context):
+    """Schema-invalid declared outputs fail as StageResult, not an uncaught exception."""
+    spec = StageSpec(
+        name="noop_bad_signals",
+        kind=StageKind.DETERMINISTIC,
+        outputs=("spring_signals.json",),
+        argv_builder=lambda ctx: [
+            ctx.python,
+            "-c",
+            (
+                "import json, pathlib, sys; "
+                "p = pathlib.Path(sys.argv[1]); "
+                "p.write_text(json.dumps({'schema_version': 7}), encoding='utf-8')"
+            ),
+            str(pipeline_context.out_dir / "spring_signals.json"),
+        ],
+    )
+    runner = PipelineRunner(
+        generative_executor=MockStageExecutor({}),
+        stages=[spec],
+        validate_boundaries=True,
+    )
+    results = runner.run(pipeline_context)
+    assert len(results) == 1
+    name, result = results[0]
+    assert name == "noop_bad_signals"
+    assert result.success is False
+    assert result.detail == "invalid_required_output"
+    assert result.error is not None
+
+
+def test_end_stage_failure_fails_otherwise_successful_stage(pipeline_context):
+    """H3: a failing end-stage must not leave the stage marked success."""
+
+    class FlakyManifestRunner:
+        def run(self, argv, context):
+            from doc_engine.pipeline.context import StageResult
+
+            if "end-stage" in argv:
+                return StageResult(
+                    success=False, error="manifest locked", detail="end failed"
+                )
+            return StageResult(success=True, detail="ok")
+
+    spec = StageSpec(
+        name="noop_with_manifest",
+        kind=StageKind.DETERMINISTIC,
+        manifest_stage="signal_scan",
+        outputs=(),
+        argv_builder=lambda ctx: [ctx.python, "-c", "pass"],
+    )
+    runner = PipelineRunner(
+        subprocess_runner=FlakyManifestRunner(),
+        generative_executor=MockStageExecutor({}),
+        stages=[spec],
+        validate_boundaries=False,
+    )
+    results = runner.run(pipeline_context)
+    assert len(results) == 1
+    _, result = results[0]
+    assert result.success is False
+    assert result.detail == "manifest_end_stage_failed"
 
 
 def _write_summaries(ctx: PipelineContext) -> str:

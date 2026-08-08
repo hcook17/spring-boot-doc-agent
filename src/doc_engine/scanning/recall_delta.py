@@ -24,6 +24,49 @@ def _fqcn_for(signals: Mapping[str, Any], class_name: str) -> Optional[str]:
     return entry.get("fqcn")
 
 
+def _recall_verdict(
+    signals: Mapping[str, Any],
+    *,
+    name: str,
+    oracle_arm: str,
+) -> str:
+    # Heuristic: simple-name only in oracle often STRUCTURAL (inheritance /
+    # pattern expressiveness); classpath-only → EVIDENTIARY when CodeQL.
+    if oracle_arm != "codeql":
+        return "STRUCTURAL"
+    if name in (signals.get("entity_table_map") or {}):
+        return "STRUCTURAL"
+    # Present in CodeQL bag, absent from merged map after contest —
+    # still a miss relative to native keys supplied.
+    return "EVIDENTIARY" if name.endswith("Impl") else "STRUCTURAL"
+
+
+def _recall_miss_fact(
+    signals: Mapping[str, Any],
+    *,
+    name: str,
+    oracle_arm: str,
+    native_arm: str,
+) -> Dict[str, Any]:
+    fqcn = _fqcn_for(signals, name)
+    return {
+        "predicate": "RECALL_MISS",
+        "subject": f"entity:{name}",
+        "object": fqcn,
+        "qualifiers": {
+            "verdict": _recall_verdict(signals, name=name, oracle_arm=oracle_arm),
+            "oracle_arm": oracle_arm,
+            "native_arm": native_arm,
+            "display_name": name,
+            "fqcn": fqcn,
+        },
+        "file": ((signals.get("entity_table_map") or {}).get(name) or {}).get("file"),
+        "line": None,
+        "rule_id": "persistence__entity",
+        "scanner": "recall-delta-writer",
+    }
+
+
 def write_recall_miss_facts(
     signals: Mapping[str, Any],
     *,
@@ -35,35 +78,12 @@ def write_recall_miss_facts(
     """Oracle − native → RECALL_MISS. Inheritance-shaped names → STRUCTURAL."""
     if not oracle_entity_keys:
         return []
-    misses = sorted(oracle_entity_keys - native_entity_keys)
-    facts: List[Dict[str, Any]] = []
-    for name in misses:
-        # Heuristic: simple-name only in oracle often STRUCTURAL (inheritance /
-        # pattern expressiveness); classpath-only → EVIDENTIARY when CodeQL.
-        verdict = "STRUCTURAL"
-        if oracle_arm == "codeql" and name not in (signals.get("entity_table_map") or {}):
-            # Present in CodeQL bag, absent from merged map after contest —
-            # still a miss relative to native keys supplied.
-            verdict = "EVIDENTIARY" if name.endswith("Impl") else "STRUCTURAL"
-        facts.append(
-            {
-                "predicate": "RECALL_MISS",
-                "subject": f"entity:{name}",
-                "object": _fqcn_for(signals, name),
-                "qualifiers": {
-                    "verdict": verdict,
-                    "oracle_arm": oracle_arm,
-                    "native_arm": native_arm,
-                    "display_name": name,
-                    "fqcn": _fqcn_for(signals, name),
-                },
-                "file": ((signals.get("entity_table_map") or {}).get(name) or {}).get("file"),
-                "line": None,
-                "rule_id": "persistence__entity",
-                "scanner": "recall-delta-writer",
-            }
+    return [
+        _recall_miss_fact(
+            signals, name=name, oracle_arm=oracle_arm, native_arm=native_arm,
         )
-    return facts
+        for name in sorted(oracle_entity_keys - native_entity_keys)
+    ]
 
 
 def collect_arm_entity_keys(

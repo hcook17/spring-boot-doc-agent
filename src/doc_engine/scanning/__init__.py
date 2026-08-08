@@ -27,6 +27,7 @@ def scan_repository(
     db_path: Optional[str] = None,
     scanners: Optional[List[str]] = None,
     scan_context: Optional[Any] = None,
+    allow_codeql_build: bool = False,
 ) -> Dict[str, Any]:
     """Run Stage 0 signal extraction for a Spring Boot repository."""
     return scan(
@@ -37,4 +38,5 @@ def scan_repository(
         db_path=db_path,
         scanners=scanners,
         scan_context=scan_context,
+        allow_codeql_build=allow_codeql_build,
     )

@@ -84,10 +84,12 @@ Run with:
 
     pytest tests/doc_engine/test_enterprise_kitchen_sink.py -v
 
-Opt-in lane against a real repository (skipped unless set):
+Opt-in lane against a real repository (skipped unless configured)::
 
-    KITCHEN_SINK_REPO=/abs/path/to/a/real/spring/repo \\
-        pytest tests/doc_engine/test_enterprise_kitchen_sink.py -v
+    DOC_ENGINE_REAL_REPO=/abs/path/to/a/real/spring/repo \\
+        pytest tests/doc_engine/test_enterprise_kitchen_sink.py::RealEnterpriseRepoTest -v
+
+Or ``local-runs/real-repo.path`` / legacy ``KITCHEN_SINK_REPO``.
 
 Requires: ast-grep on PATH, and git (for the write-scope gate).
 
@@ -1512,8 +1514,17 @@ class Ch12GateResponsibilityTest(unittest.TestCase):
 # Opt-in lane: the portable invariants, against a real repository
 # ---------------------------------------------------------------------------
 
-@unittest.skipUnless(os.environ.get("KITCHEN_SINK_REPO"),
-                     "KITCHEN_SINK_REPO not set — opt-in real-repo lane skipped")
+def _kitchen_sink_real_repo() -> str | None:
+    from doc_engine.real_fixture import real_repo_path
+
+    path = real_repo_path()
+    return str(path) if path is not None else None
+
+
+@unittest.skipUnless(
+    _kitchen_sink_real_repo(),
+    "DOC_ENGINE_REAL_REPO / local-runs/real-repo.path not set — opt-in real-repo lane skipped",
+)
 class RealEnterpriseRepoTest(unittest.TestCase):
     """Only assertions that hold for *any* Spring repo.
 
@@ -1525,9 +1536,9 @@ class RealEnterpriseRepoTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        repo = os.path.abspath(os.environ["KITCHEN_SINK_REPO"])
+        repo = os.path.abspath(_kitchen_sink_real_repo() or "")
         if not os.path.isdir(repo):
-            raise unittest.SkipTest(f"KITCHEN_SINK_REPO={repo!r} is not a directory")
+            raise unittest.SkipTest(f"real repo {repo!r} is not a directory")
         cls.repo = repo
         cls.scratch = tempfile.mkdtemp(prefix="ks_real_")
         cls.out = os.path.join(cls.scratch, "run")

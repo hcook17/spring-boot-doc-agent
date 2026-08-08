@@ -111,6 +111,96 @@ PY
 Look for the gap; put the threshold inside it. If the distribution stops being bimodal, this check
 has stopped measuring something real and should be reconsidered rather than retuned.
 
+## Line coverage ratchet
+
+CI measures statement+branch coverage for the installable packages `doc_engine`
+and `stf` (not `scripts/` or `adapters/`) and fails if the combined total drops
+below `[tool.coverage.report] fail_under` in `pyproject.toml`. Ratchet upward by
+editing that one number after a deliberate coverage gain. Delete local
+`.coverage*` files before measuring if you previously collected statement-only
+data — mixing them with `branch = true` makes coverage refuse to combine.
+
+Locally (after `pip install -r requirements-dev.txt` and `pip install -e .`):
+
+```bash
+rm -f .coverage .coverage.* coverage.xml
+pytest tests/ -q --cov=doc_engine --cov=stf --cov-branch --cov-report=term-missing
+```
+
+CI also uploads `coverage.xml` from the Python 3.11 matrix cell. The hard
+**Coverage on New Code** gate is `diff-cover` in the `quality-gates` job (below),
+not SonarCloud. The overall `fail_under` floor (82) stays separate.
+
+## In-repo quality gates
+
+SonarCloud **Free** cannot customize Quality Gate thresholds. Policy is enforced
+in GitHub Actions by the `quality-gates` job in `.github/workflows/ci.yml`, which
+runs `scripts/ci/run_quality_gates.py` after the `test` job publishes
+`coverage-xml`.
+
+### Evidence table (2026-qualified tools only)
+
+Audited against GitHub/PyPI on 2026-08-08. Rejected without 2026 push **or**
+release: radon, xenon, Melevir/`cognitive_complexity`, and other pre-2026
+zombies. Metric research framing: Campbell cognitive complexity (TechDebt 2018);
+empirical understandability work on arXiv ([2007.12520](https://arxiv.org/abs/2007.12520),
+[2303.07722](https://arxiv.org/abs/2303.07722)); coupling/churn/bus-factor as
+review concerns ([2310.03673](https://arxiv.org/abs/2310.03673),
+[2401.03303](https://arxiv.org/abs/2401.03303)).
+
+| Gate | Tool | Stars (≈) | Latest release | Last push | Metric type | CI behavior |
+| --- | --- | --- | --- | --- | --- | --- |
+| New-code coverage ≥ **98.7%** | [diff-cover](https://github.com/Bachmann1234/diff_cover) `~=10.5.0` (+ pytest-cov XML) | 843 | **v10.5.0** (2026-08-08) | 2026-08-08 | Diff line coverage vs compare ref | **hard fail** |
+| Duplication ≤ **3%** | [jscpd](https://github.com/kucherenko/jscpd) `@5.0.14` via local `npm ci` | 5980 | **v5.0.14** (2026-07-27) | 2026-08-07 | Token clone % on **changed** `src/doc_engine` + `src/stf` `.py` | **hard fail** |
+| Complexity ≤ **5** / function | [complexipy](https://github.com/rohaquinlop/complexipy) `~=6.2.0` | 748 | **6.2.0** (2026-07-23) | 2026-08-04 | Cognitive complexity (Campbell/Sonar-inspired; not affiliated with Sonar) | **hard fail** on offender-count ratchet (`scripts/ratchets/complexipy_baseline.json`) until count reaches 0 |
+| Import cycles / coupling | [tach](https://github.com/tach-org/tach) `~=0.35.0` | 2785 | **v0.35.0** (2026-05-12) | 2026-06-11 | `forbid_circular_dependencies` (`tach.toml`) | **hard fail** |
+| Soft McCabe backup | [ruff](https://github.com/astral-sh/ruff) C901 (already pinned `~=0.16.0`) | 49k+ | 2026 releases | 2026-08-08 | Cyclomatic (McCabe) — **not** cognitive | optional / not selected in `.ruff.toml` |
+| Security signal | Semgrep + CodeQL (existing CI jobs) | — | — | — | SAST | unchanged hard jobs |
+| SonarCloud | scanner job kept | — | — | — | Dashboard signal | **non-blocking** (`continue-on-error`) |
+
+**import-linter** also 2026-PASS (PyPI 2.13 uploaded 2026-07-03; push 2026-08-07) but is not wired — tach alone owns the cycle gate.
+
+**Complexity remediation.** Policy target is ≤5 cognitive complexity per function on all of `src/doc_engine` + `src/stf`. While legacy offenders remain, CI hard-fails when the offender *count* rises vs `scripts/ratchets/complexipy_baseline.json` (ratchet downward after each remediation batch; never raise it). Prefer named helpers and early returns over micro-fragmentation; do not weaken the ≤5 threshold.
+
+### Quality gates (all OS)
+
+One portable entry point — same on Mac, Windows, and Linux (and in CI):
+
+```bash
+pip install -r requirements-dev.txt && pip install -e .
+npm ci
+# produce coverage.xml once (pytest --cov=doc_engine --cov=stf --cov-branch --cov-report=xml)
+python3 scripts/ci/run_quality_gates.py --compare-ref origin/main
+```
+
+- Python tools (`diff-cover`, `tach`, `complexipy`) come from `requirements-dev.txt` and are invoked via `sys.executable -m …` or the venv console script next to that interpreter — no OS-specific wrappers.
+- `jscpd` is pinned in `package.json` / `package-lock.json`. After `npm ci`, the runner prefers the platform native binary under `node_modules/jscpd-*/bin/`, else `node node_modules/jscpd/run-jscpd.js`. Do **not** use ad-hoc `npx` or throwaway `.ps1`/`.sh` gate wrappers.
+- Skip coverage locally with `--skip-coverage` only for debugging other gates.
+
+### Deferred (no fake CI gates)
+
+| Taxonomy item | Status |
+| --- | --- |
+| Halstead / Maintainability Index / essential complexity | **Deferred** — radon/xenon lack 2026 releases/pushes |
+| Big-O time/space | **Deferred** — not statically enforceable; ADR/review |
+| LCOM / full cohesion suites | **Deferred** — no 2026-maintained Python CI tool selected |
+| Fan-in/out scores as thresholds | **Deferred** — tach cycles only for now |
+| Code churn as bug predictor | **Deferred** — needs history heuristics, not a merge gate |
+| Bus factor | **Deferred** — blame/ownership analysis ([2401.03303](https://arxiv.org/abs/2401.03303)), not CI |
+| Sonar custom Quality Gate | **Deferred on Free** — cannot set 98.7% / 3% / complexity in UI |
+
+## SonarCloud (soft signal only)
+
+The `sonarcloud` job still uploads analysis for the dashboard but is
+**non-blocking**. Free-plan Quality Gates are not the source of truth for the
+thresholds above — `quality-gates` is. Keep `SONAR_TOKEN` if you want the
+dashboard; turn Automatic Analysis **OFF** if you run CI analysis (dual-method
+error otherwise). `sonar.qualitygate.wait` is off in CI on purpose.
+
+In-repo Sonar parameters remain in `sonar-project.properties`
+(`sonar.python.coverage.reportPaths`, coverage exclusions for `adapters/**` /
+`scripts/**`, `relative_files = true` under coverage).
+
 ## Current status and steering prompts
 
 See `STATUS.md` for a current-state snapshot of this plugin (what's done, what's pending, next concrete action) and `claude/session-log.md` for the append-only history of commits that affect the assumptions in `claude/steering-prompts/`. `CLAUDE.md` explains when a commit needs a session-log entry.

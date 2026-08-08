@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 from typing import Callable, Protocol
 
+from doc_engine.core.timeouts import tool_timeout_seconds
 from doc_engine.pipeline.context import PipelineContext, StageResult
 
 
@@ -21,6 +22,7 @@ class SubprocessStageRunner:
     def run(self, argv: list[str], context: PipelineContext, cwd: str | None = None) -> StageResult:
         printable = " ".join(argv)
         context.log(f"  $ {printable}")
+        timeout = tool_timeout_seconds()
         try:
             proc = subprocess.run(
                 argv,
@@ -29,10 +31,18 @@ class SubprocessStageRunner:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
+                timeout=timeout,
             )
         except FileNotFoundError as exc:
             context.log(f"  !! could not execute: {exc}")
             return StageResult(success=False, error=str(exc))
+        except subprocess.TimeoutExpired as exc:
+            context.log(f"  !! timed out after {timeout}s: {exc}")
+            return StageResult(
+                success=False,
+                detail=f"timeout {timeout}s",
+                error="subprocess timed out",
+            )
 
         body = (proc.stdout or "") + (proc.stderr or "")
         for line in body.rstrip("\n").splitlines():

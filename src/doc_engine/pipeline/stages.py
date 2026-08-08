@@ -18,6 +18,7 @@ from doc_engine.pipeline.context import (
 # Package module paths for deterministic Stage 0 (portable; no scripts/ tree).
 MOD_RUN_MANIFEST = "doc_engine.tools.run_manifest"
 MOD_SIGNAL_SCAN = "doc_engine.tools.spring_signal_scan"
+MOD_GAP_PROBE = "doc_engine.tools.gap_probe"
 MOD_PARTITION = "doc_engine.tools.partition_repo"
 MOD_CROSS_GROUP = "doc_engine.tools.build_cross_group_edges"
 MOD_CAPACITY = "doc_engine.tools.capacity_preflight"
@@ -55,7 +56,11 @@ def build_stage_specs() -> list[StageSpec]:
             name="signal_scan",
             kind=StageKind.DETERMINISTIC,
             manifest_stage=STAGE_SIGNAL_SCAN,
-            outputs=(ARTIFACT_FILENAMES["spring_signals"], "facts.jsonl"),
+            outputs=(
+                ARTIFACT_FILENAMES["spring_signals"],
+                ARTIFACT_FILENAMES["facts"],
+                "covering_proof.json",
+            ),
             argv_builder=lambda ctx: _py_mod(
                 ctx,
                 MOD_SIGNAL_SCAN,
@@ -64,6 +69,23 @@ def build_stage_specs() -> list[StageSpec]:
                 str(ctx.signals_path or ctx.artifact_path("spring_signals.json")),
             )
             + _scan_flags(ctx),
+        ),
+        StageSpec(
+            name="gap_probe",
+            kind=StageKind.DETERMINISTIC,
+            outputs=("gap_report/gap_report.json",),
+            argv_builder=lambda ctx: _py_mod(
+                ctx,
+                MOD_GAP_PROBE,
+                "--signals",
+                str(ctx.signals_path or ctx.artifact_path("spring_signals.json")),
+                "--facts",
+                str(ctx.artifact_path("facts.jsonl")),
+                "--covering",
+                str(ctx.artifact_path("covering_proof.json")),
+                "--out",
+                str(ctx.out_dir / "gap_report"),
+            ),
         ),
         StageSpec(
             name="partition",
@@ -84,7 +106,7 @@ def build_stage_specs() -> list[StageSpec]:
         StageSpec(
             name="cross_group_edges",
             kind=StageKind.DETERMINISTIC,
-            outputs=("cross_group_edges.json",),
+            outputs=(ARTIFACT_FILENAMES["cross_group_edges"],),
             argv_builder=lambda ctx: _py_mod(
                 ctx,
                 MOD_CROSS_GROUP,
@@ -97,6 +119,7 @@ def build_stage_specs() -> list[StageSpec]:
         StageSpec(
             name="capacity_preflight",
             kind=StageKind.DETERMINISTIC,
+            outputs=(ARTIFACT_FILENAMES["capacity_preflight_report"],),
             argv_builder=lambda ctx: _py_mod(
                 ctx,
                 MOD_CAPACITY,
@@ -143,7 +166,11 @@ def build_stage_specs() -> list[StageSpec]:
             generative_key="gap_analysis_interview",
             agent_names=("gap-analyzer", "software-architect-and-testing"),
             requires_human_interview=True,
-            input_artifacts=(ARTIFACT_FILENAMES["summaries"],),
+            input_artifacts=(
+                ARTIFACT_FILENAMES["summaries"],
+                ARTIFACT_FILENAMES["spring_signals"],
+                ARTIFACT_FILENAMES["facts"],
+            ),
         ),
         StageSpec(
             name="doc_writer",
@@ -155,6 +182,7 @@ def build_stage_specs() -> list[StageSpec]:
                 ARTIFACT_FILENAMES["summaries"],
                 ARTIFACT_FILENAMES["interview_answers"],
                 ARTIFACT_FILENAMES["spring_signals"],
+                ARTIFACT_FILENAMES["facts"],
             ),
         ),
     ]
@@ -183,11 +211,20 @@ def generative_choreography() -> list[dict[str, object]]:
     return rows
 
 
-def manifest_fanout(spec: StageSpec, context: PipelineContext) -> int | None:
-    if spec.manifest_stage == STAGE_FILE_SUMMARIZE and context.groups:
+def _fanout_from_groups(spec: StageSpec, context: PipelineContext) -> int | None:
+    if not context.groups:
+        return None
+    if spec.manifest_stage == STAGE_FILE_SUMMARIZE:
         return context.groups.get("num_groups")
-    if spec.manifest_stage == STAGE_ARCHITECT and context.groups:
+    if spec.manifest_stage == STAGE_ARCHITECT:
         return context.groups.get("num_groups", 0) + 1
+    return None
+
+
+def manifest_fanout(spec: StageSpec, context: PipelineContext) -> int | None:
+    grouped = _fanout_from_groups(spec, context)
+    if grouped is not None:
+        return grouped
     if spec.manifest_stage == STAGE_GAP_INTERVIEW:
         return 1
     if spec.manifest_stage == STAGE_DOC_WRITER:

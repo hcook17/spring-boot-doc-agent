@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "max_complexity_allowed": 5,
+  "package_roots": [
+    "src/doc_engine",
+    "src/stf"
+  ],
+  "offender_count": 0,
+  "note": "Whole-repo complexipy ≤5 is the hard gate in run_quality_gates.py (--failed). This baseline ratchets the offender count at 0 — never raise it. Remeasure with: python3 scripts/ci/check_complexipy_ratchet.py --update"
+}

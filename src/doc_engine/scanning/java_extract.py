@@ -67,6 +67,34 @@ def read_source_lines(repo_path: str, rel: str, start_line: int, max_lines: int 
     return "".join(slice_).rstrip("\n")
 
 
+def _explicit_table_name(text: str) -> Optional[str]:
+    table_args = TABLE_ARGS_RE.search(text)
+    if not table_args:
+        return None
+    name_arg = TABLE_NAME_ARG_RE.search(table_args.group(1))
+    if not name_arg:
+        return None
+    return name_arg.group(1)
+
+
+def _entity_entry(
+    rel: str,
+    class_name: str,
+    *,
+    table_name: Optional[str],
+    package: Optional[str],
+) -> Dict[str, Any]:
+    entry: Dict[str, Any] = {
+        "file": rel,
+        "table": table_name if table_name else to_snake_case(class_name),
+        "table_name_source": "explicit" if table_name else "inferred-default-naming",
+        "fqcn": fqcn_for_class(package, class_name),
+    }
+    if package is not None:
+        entry["package"] = package
+    return entry
+
+
 def extract_entity(
     rel: str,
     text: str,
@@ -83,22 +111,15 @@ def extract_entity(
     class_name = name_match.group(1) if name_match else None
     if class_name is None:
         return None
-    table_name = None
-    table_args = TABLE_ARGS_RE.search(text)
-    if table_args:
-        name_arg = TABLE_NAME_ARG_RE.search(table_args.group(1))
-        if name_arg:
-            table_name = name_arg.group(1)
-    package = extract_java_package(package_source if package_source is not None else text)
-    entry: Dict[str, Any] = {
-        "file": rel,
-        "table": table_name if table_name else to_snake_case(class_name),
-        "table_name_source": "explicit" if table_name else "inferred-default-naming",
-        "fqcn": fqcn_for_class(package, class_name),
-    }
-    if package is not None:
-        entry["package"] = package
-    return class_name, entry
+    package = extract_java_package(
+        package_source if package_source is not None else text
+    )
+    return class_name, _entity_entry(
+        rel,
+        class_name,
+        table_name=_explicit_table_name(text),
+        package=package,
+    )
 
 
 def extract_repository(text: str) -> Dict[str, str]:

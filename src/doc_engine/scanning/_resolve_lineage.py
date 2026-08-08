@@ -41,23 +41,29 @@ def _clean_table_name(table: Any) -> str:
     return s
 
 
+def _lineage_exception_reason(exc: Exception) -> str:
+    reason = str(exc).splitlines()[0][:150] if str(exc) else ""
+    return f"{type(exc).__name__}: {reason}".rstrip(": ")
+
+
+def _run_sqllineage(query_text: str, dialect: str) -> Dict[str, Any]:
+    normalized = _normalize_bind_params(query_text)
+    runner = LineageRunner(normalized, dialect=dialect)
+    return {
+        "available": True,
+        "source_tables": sorted({_clean_table_name(t) for t in runner.source_tables}),
+        "target_tables": sorted({_clean_table_name(t) for t in runner.target_tables}),
+    }
+
+
 def extract_sql_lineage(query_text: str, dialect: str = "ansi") -> Dict[str, Any]:
     """Best-effort source/target table extraction for one native SQL query."""
     if not _SQLLINEAGE_AVAILABLE:
         return {"available": False, "reason": "sqllineage not installed"}
     try:
-        normalized = _normalize_bind_params(query_text)
-        runner = LineageRunner(normalized, dialect=dialect)
-        source_tables = sorted({_clean_table_name(t) for t in runner.source_tables})
-        target_tables = sorted({_clean_table_name(t) for t in runner.target_tables})
-        return {
-            "available": True,
-            "source_tables": source_tables,
-            "target_tables": target_tables,
-        }
-    except Exception as e:
-        reason = str(e).splitlines()[0][:150] if str(e) else ""
-        return {"available": False, "reason": f"{type(e).__name__}: {reason}".rstrip(": ")}
+        return _run_sqllineage(query_text, dialect)
+    except Exception as exc:
+        return {"available": False, "reason": _lineage_exception_reason(exc)}
 
 
 def _entity_map_lineage_gate(entity_name: str, map_entry: Dict[str, Any]) -> Any:
@@ -84,52 +90,70 @@ def _entity_map_lineage_gate(entity_name: str, map_entry: Dict[str, Any]) -> Any
     }
 
 
+_MULTI_ENTITY_REASON = (
+    "multi-entity or unparseable FROM clause, out of scope for the bounded JPQL resolver"
+)
+
+
+def _jpql_unavailable(reason: str) -> Dict[str, Any]:
+    return {"available": False, "reason": reason}
+
+
+def _jpql_from_match_or_reject(jpql_text: str) -> Any:
+    """Return the sole FROM match when in scope, else an unavailable dict."""
+    if JPQL_JOIN_RE.search(jpql_text):
+        return _jpql_unavailable(_MULTI_ENTITY_REASON)
+    matches = list(JPQL_FROM_RE.finditer(jpql_text))
+    if len(matches) != 1:
+        return _jpql_unavailable(_MULTI_ENTITY_REASON)
+    if JPQL_FUNCTION_RE.search(jpql_text):
+        return _jpql_unavailable(
+            "uses a JPQL-only relationship function (SIZE/KEY/VALUE/INDEX/TYPE), out of scope"
+        )
+    from_match = matches[0]
+    if jpql_text[from_match.end():].lstrip().startswith(","):
+        return _jpql_unavailable(_MULTI_ENTITY_REASON)
+    return from_match
+
+
+def _jpql_alias_traversal_reject(jpql_text: str, alias: str) -> Any:
+    traversal_re = re.compile(r"\b" + re.escape(alias) + r"\.\w+\.\w+")
+    if traversal_re.search(jpql_text):
+        return _jpql_unavailable(
+            "association-traversal path through the entity alias, out of scope"
+        )
+    return None
+
+
+def _rewrite_jpql_from_entity(jpql_text: str, from_match: Any, table: str, alias: str) -> str:
+    rewritten = (
+        jpql_text[:from_match.start()]
+        + f"FROM {table}"
+        + jpql_text[from_match.end():]
+    )
+    alias_prefix_re = re.compile(r"\b" + re.escape(alias) + r"\.")
+    return alias_prefix_re.sub("", rewritten)
+
+
 def resolve_jpql_to_lineage(jpql_text: str, entity_table_map: Dict[str, Any], dialect: str = "ansi") -> Dict[str, Any]:
     """Best-effort lineage for the narrow slice of JPQL this scanner can
     safely rewrite to real SQL. See spring_signal_scan.py for the full
     scope statement; this is a direct extraction of that logic.
     """
-    if JPQL_JOIN_RE.search(jpql_text):
-        return {
-            "available": False,
-            "reason": "multi-entity or unparseable FROM clause, out of scope for the bounded JPQL resolver",
-        }
-    matches = list(JPQL_FROM_RE.finditer(jpql_text))
-    if len(matches) != 1:
-        return {
-            "available": False,
-            "reason": "multi-entity or unparseable FROM clause, out of scope for the bounded JPQL resolver",
-        }
-    if JPQL_FUNCTION_RE.search(jpql_text):
-        return {
-            "available": False,
-            "reason": "uses a JPQL-only relationship function (SIZE/KEY/VALUE/INDEX/TYPE), out of scope",
-        }
-
-    from_match = matches[0]
+    scoped = _jpql_from_match_or_reject(jpql_text)
+    if not hasattr(scoped, "group"):
+        return scoped
+    from_match = scoped
     entity_name, alias = from_match.group(1), from_match.group(2)
-
-    if jpql_text[from_match.end():].lstrip().startswith(","):
-        return {
-            "available": False,
-            "reason": "multi-entity or unparseable FROM clause, out of scope for the bounded JPQL resolver",
-        }
-
-    traversal_re = re.compile(r"\b" + re.escape(alias) + r"\.\w+\.\w+")
-    if traversal_re.search(jpql_text):
-        return {
-            "available": False,
-            "reason": "association-traversal path through the entity alias, out of scope",
-        }
-
+    traversal_reject = _jpql_alias_traversal_reject(jpql_text, alias)
+    if traversal_reject is not None:
+        return traversal_reject
     map_entry = entity_table_map.get(entity_name)
     if (gated := _entity_map_lineage_gate(entity_name, map_entry)) is not None:
         return gated
-
-    rewritten = jpql_text[:from_match.start()] + f"FROM {map_entry['table']}" + jpql_text[from_match.end():]
-    alias_prefix_re = re.compile(r"\b" + re.escape(alias) + r"\.")
-    rewritten = alias_prefix_re.sub("", rewritten)
-
+    rewritten = _rewrite_jpql_from_entity(
+        jpql_text, from_match, map_entry["table"], alias,
+    )
     result = extract_sql_lineage(rewritten, dialect=dialect)
     if result["available"]:
         result["resolved_via_entity"] = entity_name
@@ -139,11 +163,28 @@ def resolve_jpql_to_lineage(jpql_text: str, entity_table_map: Dict[str, Any], di
 class SpringLineageResolver(LineageResolver):
     """Spring Boot implementation of the LineageResolver protocol."""
 
+    def _annotate_query_entry(
+        self,
+        entry: Dict[str, Any],
+        *,
+        entity_table_map: Dict[str, Any],
+        sql_dialect: str,
+    ) -> None:
+        query = entry.get("query")
+        if query is None:
+            return
+        kind = entry.get("query_kind")
+        if kind == "native":
+            entry["lineage"] = extract_sql_lineage(query, dialect=sql_dialect)
+        elif kind == "jpql":
+            entry["lineage"] = resolve_jpql_to_lineage(
+                query, entity_table_map, dialect=sql_dialect,
+            )
+
     def resolve(self, signal: Dict[str, Any], sql_dialect: str = "ansi", **kwargs: Any) -> Dict[str, Any]:
         entity_table_map = signal.get("entity_table_map", {})
         for entry in signal.get("evidence", {}).get("raw_queries", []):
-            if entry.get("query_kind") == "native" and entry.get("query") is not None:
-                entry["lineage"] = extract_sql_lineage(entry["query"], dialect=sql_dialect)
-            elif entry.get("query_kind") == "jpql" and entry.get("query") is not None:
-                entry["lineage"] = resolve_jpql_to_lineage(entry["query"], entity_table_map, dialect=sql_dialect)
+            self._annotate_query_entry(
+                entry, entity_table_map=entity_table_map, sql_dialect=sql_dialect,
+            )
         return signal

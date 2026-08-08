@@ -107,8 +107,10 @@ def _strip_internal_keys(result: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+def _build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("repo_path")
     ap.add_argument("--out", default="spring_signals.json")
     ap.add_argument("--sql-dialect", default="ansi")
@@ -116,32 +118,24 @@ def main() -> int:
     ap.add_argument("--build-command", default=None)
     ap.add_argument("--db-path", default=None)
     ap.add_argument(
-        "--scanners", default=None,
+        "--scanners",
+        default=None,
         help="Comma-separated scanner names. Default: filesystem,ast-grep.",
     )
-    args = ap.parse_args()
+    ap.add_argument(
+        "--allow-codeql-build",
+        action="store_true",
+        help=(
+            "permit CodeQL database create --command against this tree. "
+            "Required when --scanners includes codeql."
+        ),
+    )
+    return ap
 
-    if not os.path.isdir(args.repo_path):
-        print(f"error: not a directory: {args.repo_path}", file=sys.stderr)
-        return 1
 
-    scanners = args.scanners.split(",") if args.scanners else None
-
-    try:
-        result = scan(
-            args.repo_path,
-            sql_dialect=args.sql_dialect,
-            respect_gitignore=args.respect_gitignore,
-            build_command=args.build_command,
-            db_path=args.db_path,
-            scanners=scanners,
-        )
-    except (CodeQLScannerError, CodeQLNotFoundError, AstGrepError, CoveringProofError) as exc:
-        print(exc, file=sys.stderr)
-        return 1
-
+def _emit_covering_proof(result: Dict[str, Any], out_path: str):
+    covering_path = covering_proof_path_for_signals_out(out_path)
     proof = result.get("_covering_proof")
-    covering_path = covering_proof_path_for_signals_out(args.out)
     if isinstance(proof, dict):
         write_covering_proof(covering_path, proof)
         print(
@@ -156,9 +150,11 @@ def main() -> int:
             ),
             file=sys.stderr,
         )
+    return covering_path
 
-    # Facts need internal covering keys; Path A JSON must not carry them.
-    facts_path = facts_path_for_signals_out(args.out)
+
+def _emit_facts(result: Dict[str, Any], out_path: str):
+    facts_path = facts_path_for_signals_out(out_path)
     facts = facts_from_signals(result)
     write_facts_jsonl(facts_path, facts)
     emit = fact_emit_counts(facts)
@@ -166,15 +162,20 @@ def main() -> int:
         json.dumps({"event": "facts_emit", "path": str(facts_path), **emit}, sort_keys=True),
         file=sys.stderr,
     )
+    return facts_path, emit
 
-    path_a = _strip_internal_keys(result)
-    with open(args.out, "w", encoding="utf-8") as f:
-        json.dump(path_a, f, indent=2)
 
+def _print_scan_summary(
+    out_path: str,
+    covering_path,
+    facts_path,
+    emit: Dict[str, Any],
+    path_a: Dict[str, Any],
+) -> None:
     counts = {k: len(v) for k, v in path_a["evidence"].items()}
     redaction_hit_count = sum(len(hits) for hits in path_a["redaction_zones"].values())
     print(
-        f"Wrote {args.out}, {covering_path}, and {facts_path} "
+        f"Wrote {out_path}, {covering_path}, and {facts_path} "
         f"(facts_total={emit['facts_total']}, "
         f"facts_maps_to={emit['facts_maps_to']}, "
         f"facts_maps_to_contested={emit['facts_maps_to_contested']}, "
@@ -189,6 +190,36 @@ def main() -> int:
         f"{len(path_a['redaction_zones'])} file(s). "
         f"Config key sets recorded for {len(path_a['config_key_sets'])} file(s)."
     )
+
+
+def main() -> int:
+    args = _build_parser().parse_args()
+    if not os.path.isdir(args.repo_path):
+        print(f"error: not a directory: {args.repo_path}", file=sys.stderr)
+        return 1
+
+    scanners = args.scanners.split(",") if args.scanners else None
+    try:
+        result = scan(
+            args.repo_path,
+            sql_dialect=args.sql_dialect,
+            respect_gitignore=args.respect_gitignore,
+            build_command=args.build_command,
+            db_path=args.db_path,
+            scanners=scanners,
+            allow_codeql_build=bool(args.allow_codeql_build),
+        )
+    except (CodeQLScannerError, CodeQLNotFoundError, AstGrepError, CoveringProofError) as exc:
+        print(exc, file=sys.stderr)
+        return 1
+
+    covering_path = _emit_covering_proof(result, args.out)
+    # Facts need internal covering keys; Path A JSON must not carry them.
+    facts_path, emit = _emit_facts(result, args.out)
+    path_a = _strip_internal_keys(result)
+    with open(args.out, "w", encoding="utf-8") as handle:
+        json.dump(path_a, handle, indent=2)
+    _print_scan_summary(args.out, covering_path, facts_path, emit, path_a)
     return 0
 
 

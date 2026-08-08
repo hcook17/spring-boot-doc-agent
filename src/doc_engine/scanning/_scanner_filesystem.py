@@ -59,6 +59,53 @@ def _process_config_deployment_file(
         config_key_sets[rel] = keys
 
 
+def _read_build_text(full: str, rel: str) -> str:
+    try:
+        with open(full, encoding="utf-8-sig", errors="replace") as fh:
+            return fh.read()
+    except OSError as exc:
+        print(
+            f"warning: could not read build file '{rel}' for signal extraction: {exc}",
+            file=sys.stderr,
+        )
+        return ""
+
+
+def _classify_named_config(
+    full: str,
+    rel: str,
+    name: str,
+    buckets: Dict[str, List[Dict[str, Any]]],
+    files_scanned: Dict[str, int],
+    redaction_zones: Dict[str, List[Dict[str, Any]]],
+    config_key_sets: Dict[str, List[str]],
+) -> bool:
+    if not any(pattern.match(name) for pattern in CONFIG_NAME_PATTERNS):
+        return False
+    files_scanned["config"] += 1
+    buckets["configuration"].append({"file": rel, "match": "config file"})
+    _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
+    return True
+
+
+def _classify_logging_or_migration(
+    rel: str,
+    name: str,
+    buckets: Dict[str, List[Dict[str, Any]]],
+    files_scanned: Dict[str, int],
+) -> bool:
+    if name in LOGGING_CONFIG_NAMES:
+        files_scanned["other_relevant"] += 1
+        buckets["observability"].append({"file": rel, "match": "logging config file"})
+        return True
+    rel_posix = rel.replace("\\", "/")
+    if any(hint in rel_posix for hint in MIGRATION_DIR_HINTS):
+        files_scanned["other_relevant"] += 1
+        buckets["persistence"].append({"file": rel, "match": "migration script"})
+        return True
+    return False
+
+
 def _classify_non_java_file(
     full: str,
     rel: str,
@@ -70,53 +117,73 @@ def _classify_non_java_file(
     config_key_sets: Dict[str, List[str]],
 ) -> None:
     """Classify a non-Java file into the appropriate evidence bucket."""
-    if any(p.match(name) for p in CONFIG_NAME_PATTERNS):
-        files_scanned["config"] += 1
-        buckets["configuration"].append({"file": rel, "match": "config file"})
-        _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
+    if _classify_named_config(
+        full, rel, name, buckets, files_scanned, redaction_zones, config_key_sets,
+    ):
         return
-
-    if _is_build_file(name, ext) or name == "libs.versions.toml":
-        files_scanned["deployment"] += 1
-        if name == "libs.versions.toml":
-            buckets["deployment"].append({"file": rel, "match": "version catalog"})
-        else:
-            buckets["deployment"].append({"file": rel, "match": "build script"})
-        try:
-            with open(full, encoding="utf-8-sig", errors="replace") as fh:
-                build_text = fh.read()
-        except OSError as e:
-            build_text = ""
-            print(f"warning: could not read build file '{rel}' for signal extraction: {e}", file=sys.stderr)
-        for row in extract_build_signals(rel, build_text):
-            buckets["deployment"].append(row)
-        _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
+    if _classify_build_file(
+        full, rel, name, ext, buckets, files_scanned, redaction_zones, config_key_sets,
+    ):
         return
-
-    if name in LOGGING_CONFIG_NAMES:
-        files_scanned["other_relevant"] += 1
-        buckets["observability"].append({"file": rel, "match": "logging config file"})
+    if _classify_logging_or_migration(rel, name, buckets, files_scanned):
         return
+    _classify_container_or_manifest(
+        full, rel, name, ext, buckets, files_scanned, redaction_zones, config_key_sets,
+    )
 
+
+def _classify_build_file(
+    full: str,
+    rel: str,
+    name: str,
+    ext: str,
+    buckets: Dict[str, List[Dict[str, Any]]],
+    files_scanned: Dict[str, int],
+    redaction_zones: Dict[str, List[Dict[str, Any]]],
+    config_key_sets: Dict[str, List[str]],
+) -> bool:
+    if not (_is_build_file(name, ext) or name == "libs.versions.toml"):
+        return False
+    files_scanned["deployment"] += 1
+    match = "version catalog" if name == "libs.versions.toml" else "build script"
+    buckets["deployment"].append({"file": rel, "match": match})
+    build_text = _read_build_text(full, rel)
+    buckets["deployment"].extend(extract_build_signals(rel, build_text))
+    _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
+    return True
+
+
+def _is_deploy_yaml_path(rel: str, ext: str) -> bool:
+    if ext not in (".yml", ".yaml"):
+        return False
+    segments = set(rel.replace("\\", "/").split("/"))
+    return bool(
+        segments
+        & {"k8s", "helm", "charts", "deploy", "deployment", ".github"}
+    )
+
+
+def _classify_container_or_manifest(
+    full: str,
+    rel: str,
+    name: str,
+    ext: str,
+    buckets: Dict[str, List[Dict[str, Any]]],
+    files_scanned: Dict[str, int],
+    redaction_zones: Dict[str, List[Dict[str, Any]]],
+    config_key_sets: Dict[str, List[str]],
+) -> bool:
     if name.startswith("Dockerfile") or re.match(r"docker-compose.*\.ya?ml$", name):
         files_scanned["deployment"] += 1
         buckets["deployment"].append({"file": rel, "match": "container/compose file"})
         _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
-        return
-
-    if ext in (".yml", ".yaml") and any(
-        seg in rel.replace("\\", "/").split("/") for seg in ("k8s", "helm", "charts", "deploy", "deployment", ".github")
-    ):
+        return True
+    if _is_deploy_yaml_path(rel, ext):
         files_scanned["deployment"] += 1
         buckets["deployment"].append({"file": rel, "match": "deployment manifest"})
         _process_config_deployment_file(full, rel, redaction_zones, config_key_sets)
-        return
-
-    rel_posix = rel.replace("\\", "/")
-    if any(hint in rel_posix for hint in MIGRATION_DIR_HINTS):
-        files_scanned["other_relevant"] += 1
-        buckets["persistence"].append({"file": rel, "match": "migration script"})
-        return
+        return True
+    return False
 
 
 class FilesystemBackend(ScannerBackend):

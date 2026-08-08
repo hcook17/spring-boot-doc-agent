@@ -18,6 +18,7 @@ class Engine:
 
     def scan(self, repo_path: str, **kwargs: Any) -> Dict[str, Any]:
         cfg = self._effective_config(kwargs)
+        allow_codeql = bool(kwargs.get("allow_codeql_build", False))
         return scan_repository(
             repo_path,
             sql_dialect=cfg.sql_dialect,
@@ -25,6 +26,7 @@ class Engine:
             build_command=cfg.build_command,
             db_path=cfg.db_path,
             scanners=cfg.scanners,
+            allow_codeql_build=allow_codeql,
         )
 
     def generate_docs(

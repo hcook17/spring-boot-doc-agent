@@ -1,0 +1,21 @@
+{
+  "intent": "healthy_dual_emit_identity_rates",
+  "signals": {
+    "schema_version": 7,
+    "scanner_version": "hermetic-shape",
+    "entity_table_map": {
+      "Order": {
+        "file": "Order.java",
+        "table": "orders",
+        "package": "com.example.billing",
+        "fqcn": "com.example.billing.Order"
+      }
+    },
+    "evidence": {"raw_queries": [], "deployment": []}
+  },
+  "expect": {
+    "R_sym": 1.0,
+    "R_coll": 0.0,
+    "R_join": 1.0
+  }
+}

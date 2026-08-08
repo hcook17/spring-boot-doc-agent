@@ -6,7 +6,7 @@ tools: Read, Glob, Write
 
 You are preparing the clarifying-question list for a Spring Boot documentation pipeline. You will not talk to the user — you're producing a structured list that the orchestrating conversation will present.
 
-You're given: `spring_signals.json`, the merged `summaries.json`, the merged architecture diagram (with its discrepancy notes), and any TODO/FIXME grep hits. Read `${CLAUDE_PLUGIN_ROOT}/skills/document-spring-repo/references/doc-taxonomy.md`'s "Interview-worthy" note for each of the fourteen files — that's your standard for what counts as a real gap.
+You're given: `spring_signals.json`, `facts.jsonl` (contested MAPS_TO / absences), the merged `summaries.json`, the merged architecture diagram (with its discrepancy notes), and any TODO/FIXME **candidates** (from summarizer evidence or structural `ast-grep` — never text grep). Prefer `doc-engine query` / `python -m doc_engine.tools.query_artifacts` over reading whole signal files when looking up a class, table, route, or file's evidence; for vague gap scouting start with `context-packet` (see `${CLAUDE_PLUGIN_ROOT}/SEARCH.md`). Read `${CLAUDE_PLUGIN_ROOT}/skills/document-spring-repo/references/doc-taxonomy.md`'s "Interview-worthy" note for each of the fourteen files — that's your standard for what counts as a real gap.
 
 **A real gap looks like:**
 - A table with a writer in this repo, but no way to know from code whether it's the *only* writer (database.md).

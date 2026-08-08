@@ -1,0 +1,233 @@
+{
+  "schema_version": 1,
+  "target": "pr-94-query-surface",
+  "source_spec": "specs\\pr-94-query-surface\\SPEC.md",
+  "why_this_order": "T0 probes first; inventory remediation depends on T0; critical before polish.",
+  "decisions": [
+    {
+      "decision": "Server-derived root mandatory for MCP",
+      "blocks": "Q0-1",
+      "resolution": "locked — C1 Critical"
+    },
+    {
+      "decision": "Payload Option A (row_ref / honest serialized budget)",
+      "blocks": "Q0-2",
+      "resolution": "locked"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T0",
+      "title": "Pre-flight probes",
+      "goal": "Reproduce critical findings with fail bars",
+      "inputs": [
+        {
+          "origin": "new",
+          "datum": "probe harness"
+        }
+      ],
+      "depends": [],
+      "gates": [
+        "INV-C1",
+        "INV-C2"
+      ],
+      "data_modeling": "n/a — probe",
+      "locate": "n/a",
+      "tests": "Record baseline pytest node ids for C1/C2",
+      "implement": "n/a — probe only",
+      "verify": "python -m pytest tests/doc_engine/test_query_artifacts.py -q --collect-only",
+      "acceptance": "Critical probes documented; suite baseline recorded",
+      "status": null,
+      "wave": null
+    },
+    {
+      "id": "T1",
+      "title": "Arbitrary file read: containment opt-in; nothing opts in",
+      "goal": "Address INV-C1",
+      "inputs": [
+        {
+          "origin": "INV-C1",
+          "datum": "Arbitrary file read: containment opt-in; nothing opts in"
+        }
+      ],
+      "depends": [
+        "T0"
+      ],
+      "gates": [],
+      "data_modeling": "n/a",
+      "locate": "src/doc_engine/query/load.py",
+      "tests": "Deviation test for INV-C1",
+      "implement": "Fix INV-C1",
+      "verify": "python -m pytest tests/stf -q -k INV_C1",
+      "acceptance": "INV-C1 remediated",
+      "status": null,
+      "wave": null
+    },
+    {
+      "id": "T2",
+      "title": "`tokensUsed` under-reports; budget does not bound serialized output",
+      "goal": "Address INV-C2",
+      "inputs": [
+        {
+          "origin": "INV-C2",
+          "datum": "`tokensUsed` under-reports; budget does not bound serialized output"
+        }
+      ],
+      "depends": [
+        "T0"
+      ],
+      "gates": [],
+      "data_modeling": "n/a",
+      "locate": "claude/research/context-packet-schema-spike-2026-08-07.md",
+      "tests": "Deviation test for INV-C2",
+      "implement": "Fix INV-C2",
+      "verify": "python -m pytest tests/stf -q -k INV_C2",
+      "acceptance": "INV-C2 remediated",
+      "status": null,
+      "wave": null
+    },
+    {
+      "id": "T3",
+      "title": "Nested fan-out unbounded; `truncated` lies",
+      "goal": "Address INV-H1",
+      "inputs": [
+        {
+          "origin": "INV-H1",
+          "datum": "Nested fan-out unbounded; `truncated` lies"
+        }
+      ],
+      "depends": [
+        "T0"
+      ],
+      "gates": [],
+      "data_modeling": "n/a",
+      "locate": "src/doc_engine/query/",
+      "tests": "Deviation test for INV-H1",
+      "implement": "Fix INV-H1",
+      "verify": "python -m pytest tests/stf -q -k INV_H1",
+      "acceptance": "INV-H1 remediated",
+      "status": null,
+      "wave": null
+    },
+    {
+      "id": "T4",
+      "title": "`RedactionProvider` dead on production shape",
+      "goal": "Address INV-H2",
+      "inputs": [
+        {
+          "origin": "INV-H2",
+          "datum": "`RedactionProvider` dead on production shape"
+        }
+      ],
+      "depends": [
+        "T0"
+      ],
+      "gates": [],
+      "data_modeling": "n/a",
+      "locate": "src/doc_engine/query/",
+      "tests": "Deviation test for INV-H2",
+      "implement": "Fix INV-H2",
+      "verify": "python -m pytest tests/stf -q -k INV_H2",
+      "acceptance": "INV-H2 remediated",
+      "status": null,
+      "wave": null
+    },
+    {
+      "id": "T5",
+      "title": "Unknown filters → silent empty success",
+      "goal": "Address INV-H3",
+      "inputs": [
+        {
+          "origin": "INV-H3",
+          "datum": "Unknown filters → silent empty success"
+        }
+      ],
+      "depends": [
+        "T0"
+      ],
+      "gates": [],
+      "data_modeling": "n/a",
+      "locate": "src/doc_engine/query/",
+      "tests": "Deviation test for INV-H3",
+      "implement": "Fix INV-H3",
+      "verify": "python -m pytest tests/stf -q -k INV_H3",
+      "acceptance": "INV-H3 remediated",
+      "status": null,
+      "wave": null
+    },
+    {
+      "id": "T6",
+      "title": "MCP fault isolation missing",
+      "goal": "Address INV-H4",
+      "inputs": [
+        {
+          "origin": "INV-H4",
+          "datum": "MCP fault isolation missing"
+        }
+      ],
+      "depends": [
+        "T0"
+      ],
+      "gates": [],
+      "data_modeling": "n/a",
+      "locate": "scripts/ratchets/mutate.py",
+      "tests": "Deviation test for INV-H4",
+      "implement": "Fix INV-H4",
+      "verify": "python -m pytest tests/stf -q -k INV_H4",
+      "acceptance": "INV-H4 remediated",
+      "status": null,
+      "wave": null
+    },
+    {
+      "id": "T7",
+      "title": "Spike (3d)",
+      "goal": "Address INV-S3-1",
+      "inputs": [
+        {
+          "origin": "INV-S3-1",
+          "datum": "Spike (3d)"
+        }
+      ],
+      "depends": [
+        "T0"
+      ],
+      "gates": [],
+      "data_modeling": "n/a",
+      "locate": "src/doc_engine/query/",
+      "tests": "Deviation test for INV-S3-1",
+      "implement": "Fix INV-S3-1",
+      "verify": "python -m pytest tests/stf -q -k INV_S3_1",
+      "acceptance": "INV-S3-1 remediated",
+      "status": null,
+      "wave": null
+    },
+    {
+      "id": "T8",
+      "title": "Spike (2d)",
+      "goal": "Address INV-S3-2",
+      "inputs": [
+        {
+          "origin": "INV-S3-2",
+          "datum": "Spike (2d)"
+        }
+      ],
+      "depends": [
+        "T0"
+      ],
+      "gates": [],
+      "data_modeling": "n/a",
+      "locate": "src/doc_engine/query/",
+      "tests": "Deviation test for INV-S3-2",
+      "implement": "Fix INV-S3-2",
+      "verify": "python -m pytest tests/stf -q -k INV_S3_2",
+      "acceptance": "INV-S3-2 remediated",
+      "status": null,
+      "wave": null
+    }
+  ],
+  "blockers": [],
+  "ledger": "plan",
+  "resume_wave": 0,
+  "validation_token": null,
+  "suite_baseline": {}
+}

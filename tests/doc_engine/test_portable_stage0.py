@@ -105,7 +105,10 @@ class GenerativeChoreographySoTTest(unittest.TestCase):
             ["architect-segment", "architect-merge"],
         )
         self.assertTrue(by_name["gap_analysis_interview"]["requires_human_interview"])
+        self.assertIn("facts.jsonl", by_name["gap_analysis_interview"]["inputs"])
+        self.assertIn("spring_signals.json", by_name["gap_analysis_interview"]["inputs"])
         self.assertEqual(by_name["doc_writer"]["agents"], ["doc-writer"])
+        self.assertIn("facts.jsonl", by_name["doc_writer"]["inputs"])
 
 
 if __name__ == "__main__":

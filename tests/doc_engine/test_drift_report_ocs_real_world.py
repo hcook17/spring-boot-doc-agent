@@ -1,30 +1,25 @@
-"""Opt-in L5 drift_report schema witness against a local real Spring checkout.
+"""Opt-in L5 drift_report schema witness against the canonical real Spring checkout.
 
-This file ships with the plugin (no proprietary content). The target checkout and
-its Stage-0 outputs do NOT — keep them local-only.
+Point ``DOC_ENGINE_REAL_REPO`` (or ``local-runs/real-repo.path``) at a local
+Spring Boot tree. Never commit that path.
 
-Artifact lane (uses an existing spring_signals.json + live repo tree)::
+Artifact lane (existing spring_signals.json + live repo tree)::
 
-    DRIFT_OCS_ARTIFACTS_DIR=local-runs/<artifact-dir> \\
-    DRIFT_OCS_REPO=/path/to/local-spring-service \\
+    DOC_ENGINE_REAL_ARTIFACTS_DIR=local-runs/real-repo-latest \\
         pytest tests/doc_engine/test_drift_report_ocs_real_world.py -v
 
-If DRIFT_OCS_REPO is unset, the test falls back to spring_signals.json's
-repo_path when that directory still exists.
+If the repo env/path file is unset, falls back to spring_signals.json's
+``repo_path`` when that directory still exists.
 
-Live-scan lane (slow; fresh Stage 0 then drift against itself → all unchanged)::
+Live-scan lane (slow; fresh Stage 0 then identity drift)::
 
-    DRIFT_OCS_REPO=/path/to/local-spring-service \\
-    DRIFT_OCS_LIVE_SCAN=1 \\
+    DOC_ENGINE_REAL_LIVE_SCAN=1 \\
         pytest tests/doc_engine/test_drift_report_ocs_real_world.py -v -k live_scan
-
-With env vars unset, every test is skipped (normal for CI / other machines).
 """
 
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -34,31 +29,28 @@ import pytest
 from doc_engine.paths import repo_root
 from doc_engine.pipeline.artifacts import DriftReportArtifact
 from doc_engine.pipeline.validation import validate_artifact_data, validate_artifact_file
+from doc_engine.real_fixture import (
+    live_scan_enabled,
+    real_artifacts_dir,
+    real_repo_path,
+    require_real_repo,
+)
 from doc_engine.tools import spring_drift_check
 
 REPO_ROOT = repo_root()
 
-ARTIFACTS_DIR = os.environ.get("DRIFT_OCS_ARTIFACTS_DIR")
-OCS_REPO = os.environ.get("DRIFT_OCS_REPO")
-LIVE_SCAN = os.environ.get("DRIFT_OCS_LIVE_SCAN", "").strip().lower() in {
-    "1",
-    "true",
-    "yes",
-}
-
 
 def _resolve_artifacts_dir() -> Path | None:
-    if not ARTIFACTS_DIR:
-        return None
-    p = Path(ARTIFACTS_DIR)
-    if not p.is_absolute():
-        p = REPO_ROOT / p
-    return p
+    root = real_artifacts_dir(prefer_default=False)
+    if root is None:
+        root = real_artifacts_dir(prefer_default=True)
+    return root
 
 
 def _resolve_repo(signals: dict | None = None) -> Path | None:
-    if OCS_REPO:
-        return Path(OCS_REPO)
+    configured = real_repo_path()
+    if configured is not None and configured.is_dir():
+        return configured
     if signals and signals.get("repo_path"):
         candidate = Path(signals["repo_path"])
         if candidate.is_dir():
@@ -69,13 +61,11 @@ def _resolve_repo(signals: dict | None = None) -> Path | None:
 @pytest.fixture(scope="module")
 def ocs_signals_and_repo() -> tuple[dict, Path, Path]:
     root = _resolve_artifacts_dir()
-    if root is None:
+    if root is None or not root.is_dir():
         pytest.skip(
-            "DRIFT_OCS_ARTIFACTS_DIR not set — opt-in ocs drift schema lane skipped "
-            "(see test_drift_report_ocs_real_world.py docstring)"
+            "DOC_ENGINE_REAL_ARTIFACTS_DIR unset / missing — opt-in drift artifact lane skipped "
+            "(regen via scripts/ci/regen_real_repo_artifacts.py)"
         )
-    if not root.is_dir():
-        pytest.skip(f"DRIFT_OCS_ARTIFACTS_DIR is not a directory: {root}")
     signals_path = root / "spring_signals.json"
     if not signals_path.is_file():
         pytest.skip(f"missing spring_signals.json under {root}")
@@ -88,8 +78,8 @@ def ocs_signals_and_repo() -> tuple[dict, Path, Path]:
     repo = _resolve_repo(signals)
     if repo is None or not repo.is_dir():
         pytest.skip(
-            "DRIFT_OCS_REPO not set and signals.repo_path is missing/absent — "
-            "point DRIFT_OCS_REPO at a local Spring service checkout"
+            "DOC_ENGINE_REAL_REPO unset and signals.repo_path is missing/absent — "
+            "point the canonical real-repo lane at a local Spring checkout"
         )
     return signals, repo, signals_path
 
@@ -101,7 +91,7 @@ def ocs_drift_report(ocs_signals_and_repo: tuple[dict, Path, Path]) -> dict:
 
 
 class TestOcsDriftReportSchema:
-    """L5 bite: real ocs check_drift output must validate as DriftReportArtifact."""
+    """L5 bite: real check_drift output must validate as DriftReportArtifact."""
 
     def test_writer_emits_schema_version(self, ocs_drift_report: dict) -> None:
         assert (
@@ -121,7 +111,6 @@ class TestOcsDriftReportSchema:
             "deleted",
             "added",
         }
-        # Real mid-size service must produce at least one citation outcome.
         assert dumped["citations_checked"] > 0
         assert len(dumped["results"]) == dumped["citations_checked"]
 
@@ -129,7 +118,7 @@ class TestOcsDriftReportSchema:
         self, ocs_drift_report: dict, tmp_path_factory: pytest.TempPathFactory
     ) -> None:
         validate_artifact_data("drift_report", ocs_drift_report)
-        out = tmp_path_factory.mktemp("ocs-drift") / "drift_report.json"
+        out = tmp_path_factory.mktemp("real-drift") / "drift_report.json"
         out.write_text(json.dumps(ocs_drift_report), encoding="utf-8")
         loaded = validate_artifact_file("drift_report", out)
         assert loaded.schema_version == 1
@@ -150,16 +139,15 @@ class TestOcsDriftReportSchema:
         assert set(ocs_drift_report["status_counts"]) <= allowed
 
 
-@pytest.mark.skipif(not LIVE_SCAN, reason="DRIFT_OCS_LIVE_SCAN not enabled")
+@pytest.mark.skipif(not live_scan_enabled(), reason="DOC_ENGINE_REAL_LIVE_SCAN not enabled")
 class TestOcsLiveScanDriftSchema:
-    """Fresh Stage 0 on ocs, then drift against that scan (identity → schema bite)."""
+    """Fresh Stage 0 on the real tree, then drift against that scan (identity)."""
 
     def test_live_scan_then_self_drift(self, tmp_path: Path) -> None:
-        if not OCS_REPO:
-            pytest.skip("DRIFT_OCS_REPO not set")
-        repo = Path(OCS_REPO)
-        if not repo.is_dir():
-            pytest.skip(f"DRIFT_OCS_REPO is not a directory: {repo}")
+        try:
+            repo = require_real_repo()
+        except FileNotFoundError as exc:
+            pytest.skip(str(exc))
 
         out_signals = tmp_path / "spring_signals.json"
         cmd = [
@@ -189,7 +177,6 @@ class TestOcsLiveScanDriftSchema:
         DriftReportArtifact.model_validate(report)
         assert report["schema_version"] == 1
         assert report["citations_checked"] > 0
-        # Identity drift: no file content change since the scan we just wrote.
         assert report["file_summary"]["changed"] == []
         assert report["file_summary"]["deleted"] == []
         assert set(report["status_counts"]) <= {
