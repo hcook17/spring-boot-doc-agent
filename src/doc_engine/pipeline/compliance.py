@@ -147,6 +147,38 @@ def citations_are_strict(
     return profile == ComplianceProfile.CERTIFIED or force_strict
 
 
+def _specs_for_profile(profile: ComplianceProfile, all_specs: list[StageSpec]) -> list[StageSpec]:
+    """Select the stage subset for a compliance profile (before filters)."""
+    if profile == ComplianceProfile.CERTIFIED:
+        return list(all_specs)
+    if profile == ComplianceProfile.DETERMINISTIC_ONLY:
+        return [spec for spec in all_specs if spec.kind == StageKind.DETERMINISTIC]
+    return _scan_only_specs(all_specs)
+
+
+def _scan_only_specs(all_specs: list[StageSpec]) -> list[StageSpec]:
+    """Stages allowed under the scan_only compliance profile."""
+    allowed = {"init_manifest", "signal_scan"}
+    return [spec for spec in all_specs if spec.name in allowed]
+
+
+def _truncate_until_stage(
+    specs: list[StageSpec],
+    until_stage: str,
+    all_specs: list[StageSpec],
+) -> list[StageSpec]:
+    """Keep stages through *until_stage* inclusive; raise on unknown name."""
+    names = [spec.name for spec in specs]
+    if until_stage not in names:
+        known = ", ".join(spec.name for spec in all_specs)
+        raise ValueError(
+            f"unknown --until stage {until_stage!r}; "
+            f"known stage names: {known}"
+        )
+    cut = names.index(until_stage) + 1
+    return specs[:cut]
+
+
 def stages_for_profile(
     profile: ComplianceProfile,
     all_specs: list[StageSpec],
@@ -157,29 +189,13 @@ def stages_for_profile(
     """Return the stage graph subset required by a compliance profile.
 
     If ``until_stage`` is set, truncate after that stage name (inclusive).
-    Stage names come from ``build_stage_specs()`` â€” the single SoT for the graph.
+    Stage names come from ``build_stage_specs()`` — the single SoT for the graph.
     """
-    if profile == ComplianceProfile.CERTIFIED:
-        specs = list(all_specs)
-    elif profile == ComplianceProfile.DETERMINISTIC_ONLY:
-        specs = [spec for spec in all_specs if spec.kind == StageKind.DETERMINISTIC]
-    else:
-        allowed = {"init_manifest", "signal_scan"}
-        specs = [spec for spec in all_specs if spec.name in allowed]
-
+    specs = _specs_for_profile(profile, all_specs)
     if skip_signal_scan:
         specs = [spec for spec in specs if spec.name != "signal_scan"]
-
     if until_stage:
-        names = [spec.name for spec in specs]
-        if until_stage not in names:
-            known = ", ".join(spec.name for spec in all_specs)
-            raise ValueError(
-                f"unknown --until stage {until_stage!r}; "
-                f"known stage names: {known}"
-            )
-        cut = names.index(until_stage) + 1
-        specs = specs[:cut]
+        specs = _truncate_until_stage(specs, until_stage, all_specs)
     return specs
 
 
@@ -222,6 +238,22 @@ def _stage_status_from_runner(status: str) -> RecordStatus:
     return RecordStatus.FAIL
 
 
+def _skipped_stage_executor(stage_name: str) -> StageExecutorKind:
+    """Executor stamp for a SKIPPED runner stage row."""
+    if stage_name in generative_stage_names():
+        return StageExecutorKind.NONE
+    return StageExecutorKind.DETERMINISTIC
+
+
+def _generative_stage_executor(status: str) -> StageExecutorKind:
+    """Executor stamp for a non-skipped generative stage."""
+    # OK without MOCK ⇒ non-mock generative adapter (live-in-runner).
+    # Fail/error must not be labelled live.
+    if status == "OK":
+        return StageExecutorKind.LIVE
+    return StageExecutorKind.NONE
+
+
 def _stage_executor_from_runner(
     status: str,
     stage_name: str,
@@ -230,16 +262,10 @@ def _stage_executor_from_runner(
     if status == "MOCK":
         return StageExecutorKind.MOCK
     if status == "SKIPPED":
-        if stage_name in generative_stage_names():
-            return StageExecutorKind.NONE
+        return _skipped_stage_executor(stage_name)
+    if stage_name not in generative_stage_names():
         return StageExecutorKind.DETERMINISTIC
-    if stage_name in generative_stage_names():
-        # OK without MOCK â‡’ non-mock generative adapter (live-in-runner).
-        # Fail/error must not be labelled live.
-        if status == "OK":
-            return StageExecutorKind.LIVE
-        return StageExecutorKind.NONE
-    return StageExecutorKind.DETERMINISTIC
+    return _generative_stage_executor(status)
 
 
 def write_certification_json(out_dir: str | Path, report: CertificationReport) -> Path:
@@ -252,6 +278,41 @@ def write_certification_json(out_dir: str | Path, report: CertificationReport) -
     return path
 
 
+def _should_drop_prior_stage(
+    stage: StageRecord,
+    deterministic_names: frozenset[str],
+    generative_names: frozenset[str],
+) -> bool:
+    """True when a prior stage row must not survive a live gates rewrite."""
+    if stage.name in generative_names or stage.name == GENERATIVE_EXTERNAL_STAGE:
+        return True
+    if stage.executor in (StageExecutorKind.MOCK, StageExecutorKind.LIVE):
+        return True
+    if (
+        stage.name not in deterministic_names
+        and stage.executor != StageExecutorKind.DETERMINISTIC
+    ):
+        return True
+    return False
+
+
+def _normalize_kept_prior_stage(
+    stage: StageRecord,
+    deterministic_names: frozenset[str],
+) -> StageRecord | None:
+    """Return a kept prior row (deterministic-labelled), or None to drop."""
+    if stage.name in deterministic_names:
+        if stage.executor != StageExecutorKind.DETERMINISTIC:
+            return stage.model_copy(
+                update={"executor": StageExecutorKind.DETERMINISTIC}
+            )
+        return stage
+    if stage.executor == StageExecutorKind.DETERMINISTIC:
+        # Non-graph deterministic-labelled row (unusual); keep as-is.
+        return stage
+    return None
+
+
 def stages_for_live_certification(prior: list[StageRecord]) -> list[StageRecord]:
     """Derive stage facts for a live gates rewrite (not a LWW merge).
 
@@ -262,24 +323,11 @@ def stages_for_live_certification(prior: list[StageRecord]) -> list[StageRecord]
     generative_names = generative_stage_names()
     kept: list[StageRecord] = []
     for stage in prior:
-        if stage.name in generative_names or stage.name == GENERATIVE_EXTERNAL_STAGE:
+        if _should_drop_prior_stage(stage, deterministic_names, generative_names):
             continue
-        if stage.executor in (StageExecutorKind.MOCK, StageExecutorKind.LIVE):
-            continue
-        if (
-            stage.name not in deterministic_names
-            and stage.executor != StageExecutorKind.DETERMINISTIC
-        ):
-            continue
-        if stage.name in deterministic_names:
-            kept.append(
-                stage.model_copy(update={"executor": StageExecutorKind.DETERMINISTIC})
-                if stage.executor != StageExecutorKind.DETERMINISTIC
-                else stage
-            )
-        elif stage.executor == StageExecutorKind.DETERMINISTIC:
-            # Non-graph deterministic-labelled row (unusual); keep as-is.
-            kept.append(stage)
+        normalized = _normalize_kept_prior_stage(stage, deterministic_names)
+        if normalized is not None:
+            kept.append(normalized)
     kept.append(
         StageRecord(
             name=GENERATIVE_EXTERNAL_STAGE,

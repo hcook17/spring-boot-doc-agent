@@ -28,27 +28,62 @@ def is_path_inside_root(path: str, root: str) -> bool:
         return False
 
 
+def _prune_excluded_dirnames(dirnames: list[str]) -> None:
+    """Drop build/cache and hidden directories from an os.walk dirnames list."""
+    dirnames[:] = sorted(
+        name for name in dirnames
+        if name not in DEFAULT_EXCLUDED_DIRS and not name.startswith(".")
+    )
+
+
+def _prune_gitignored_dirnames(
+    dirpath: str,
+    dirnames: list[str],
+    root: str,
+    gitignore_spec: Any,
+) -> None:
+    """Drop directories matched by *gitignore_spec* from the walk."""
+    dirnames[:] = [
+        name for name in dirnames
+        if not gitignore_spec.match_file(
+            os.path.relpath(os.path.join(dirpath, name), root).replace("\\", "/")
+            + "/"
+        )
+    ]
+
+
+def _rel_posix(path: str, root: str) -> str:
+    """Return a forward-slash relative path for gitignore matching."""
+    return os.path.relpath(path, root).replace("\\", "/")
+
+
+def _should_yield_file(full: str, root: str, gitignore_spec: Optional[Any]) -> bool:
+    """True when *full* is not gitignored (or no gitignore spec is active)."""
+    if gitignore_spec is None:
+        return True
+    return not gitignore_spec.match_file(_rel_posix(full, root))
+
+
+def _iter_dir_files(
+    dirpath: str,
+    filenames: list[str],
+    root: str,
+    gitignore_spec: Optional[Any],
+) -> Iterator[str]:
+    """Yield absolute paths for files in one walk directory that are not ignored."""
+    for name in sorted(filenames):
+        full = os.path.join(dirpath, name)
+        if _should_yield_file(full, root, gitignore_spec):
+            yield full
+
+
 def dfs_walk(root: str, gitignore_spec: Optional[Any] = None) -> Iterator[str]:
     """Yield absolute file paths under root, excluding standard build dirs."""
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = sorted(
-            d for d in dirnames
-            if d not in DEFAULT_EXCLUDED_DIRS and not d.startswith(".")
-        )
+        _prune_excluded_dirnames(dirnames)
         if gitignore_spec is not None:
-            dirnames[:] = [
-                d for d in dirnames
-                if not gitignore_spec.match_file(
-                    os.path.relpath(os.path.join(dirpath, d), root).replace("\\", "/") + "/"
-                )
-            ]
-        for name in sorted(filenames):
-            full = os.path.join(dirpath, name)
-            if gitignore_spec is not None and gitignore_spec.match_file(
-                os.path.relpath(full, root).replace("\\", "/")
-            ):
-                continue
-            yield full
+            _prune_gitignored_dirnames(dirpath, dirnames, root, gitignore_spec)
+        yield from _iter_dir_files(dirpath, filenames, root, gitignore_spec)
 
 
 def compute_file_signature(path: str) -> str:

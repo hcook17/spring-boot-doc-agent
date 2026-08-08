@@ -5,6 +5,6 @@
     "src/doc_engine",
     "src/stf"
   ],
-  "offender_count": 168,
-  "note": "Policy target is complexipy <=5 per function under package roots. CI hard-fails when offender_count rises; ratchet downward after remediation batches. Remeasure with: python3 scripts/ci/check_complexipy_ratchet.py --update"
+  "offender_count": 147,
+  "note": "Whole-repo complexipy ≤5 is the hard gate in run_quality_gates.py. This baseline additionally ratchets the interim offender count downward only — never raise it. Remeasure with: python3 scripts/ci/check_complexipy_ratchet.py --update"
 }

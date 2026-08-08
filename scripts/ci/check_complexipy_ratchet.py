@@ -5,11 +5,11 @@ Usage:
     python3 scripts/ci/check_complexipy_ratchet.py
     python3 scripts/ci/check_complexipy_ratchet.py --update
 
-Policy target is ``COMPLEXITY_MAX`` cognitive complexity per function under
-``src/doc_engine`` + ``src/stf``. While legacy offenders remain, CI hard-fails
-only when this count *rises* vs ``scripts/ratchets/complexipy_baseline.json``.
-Ratchet the baseline downward after each remediation batch; never raise it.
-When the count reaches 0, ``complexipy --failed`` becomes a free no-op.
+The hard gate remains ``complexipy --max-complexity-allowed=5 --failed`` on
+``src/doc_engine`` + ``src/stf`` (see ``run_quality_gates.py``). This script
+additionally fails when the *count* of functions above that ceiling rises vs
+``scripts/ratchets/complexipy_baseline.json``. Ratchet the baseline downward
+after each remediation batch; never raise it.
 """
 
 from __future__ import annotations
@@ -93,9 +93,9 @@ def write_baseline(path: Path, offender_count: int) -> None:
         "package_roots": list(PACKAGE_ROOTS),
         "offender_count": offender_count,
         "note": (
-            "Policy target is complexipy <=5 per function under package roots. "
-            "CI hard-fails when offender_count rises; ratchet downward after "
-            "remediation batches. Remeasure with: python3 scripts/ci/"
+            "Whole-repo complexipy ≤5 is the hard gate in run_quality_gates.py. "
+            "This baseline additionally ratchets the interim offender count "
+            "downward only — never raise it. Remeasure with: python3 scripts/ci/"
             "check_complexipy_ratchet.py --update"
         ),
     }

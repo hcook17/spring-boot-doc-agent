@@ -150,19 +150,24 @@ def gate_duplication(compare_ref: str) -> int:
 
 
 def gate_cognitive_complexity() -> int:
-    """Fail when the count of >COMPLEXITY_MAX functions rises vs baseline.
+    """Fail when any function in package roots exceeds COMPLEXITY_MAX."""
+    complexipy = _require_binary("complexipy")
+    return _run(
+        [
+            complexipy,
+            *PACKAGE_ROOTS,
+            f"--max-complexity-allowed={COMPLEXITY_MAX}",
+            "--failed",
+        ],
+        label=f"complexipy cognitive complexity <= {COMPLEXITY_MAX} (whole-repo)",
+    )
 
-    Policy target remains ≤COMPLEXITY_MAX per function on every package file.
-    Until ``scripts/ratchets/complexipy_baseline.json`` reaches zero offenders,
-    CI enforces the offender-count ratchet rather than ``complexipy --failed``
-    on the whole tree (which would block every legacy function still above 5).
-    """
+
+def gate_complexity_ratchet() -> int:
+    """Fail when the count of >COMPLEXITY_MAX functions rises vs baseline."""
     return _run(
         [sys.executable, "scripts/ci/check_complexipy_ratchet.py"],
-        label=(
-            f"complexipy offender-count ratchet "
-            f"(must not rise; target ≤{COMPLEXITY_MAX}/fn)"
-        ),
+        label="complexipy offender-count ratchet (must not rise)",
     )
 
 
@@ -206,6 +211,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     results.append(("duplication", gate_duplication(compare_ref)))
     results.append(("cognitive-complexity", gate_cognitive_complexity()))
+    results.append(("complexity-ratchet", gate_complexity_ratchet()))
     results.append(("import-cycles", gate_import_cycles()))
 
     print("\n=== quality-gates summary ===", flush=True)

@@ -53,6 +53,54 @@ def run_subprocess_gate(
     return proc.returncode, body
 
 
+def _gate_status_for_code(code: int, gate: bool) -> str:
+    """Map a subprocess exit code to Runner status vocabulary."""
+    if code == 0:
+        return "OK"
+    if gate:
+        return "FAIL"
+    return "NONZERO"
+
+
+def _record_gate_outcome(
+    runner,
+    label: str,
+    code: int,
+    elapsed: float,
+    *,
+    gate: bool,
+    gate_id: Optional[str],
+    critical: bool,
+) -> None:
+    """Log, record, and optionally abort after a completed gate call."""
+    status = _gate_status_for_code(code, gate)
+    runner.log(f"  -> exit {code} in {elapsed:.2f}s")
+    runner.record(label, status, elapsed, f"exit {code}")
+    if gate and gate_id:
+        runner._record_gate(gate_id, label, status, f"exit {code}")
+    if code != 0 and critical and not runner.keep_going:
+        runner.aborted = True
+
+
+def _record_gate_exception(
+    runner,
+    label: str,
+    exc: Exception,
+    elapsed: float,
+    *,
+    gate: bool,
+    gate_id: Optional[str],
+    critical: bool,
+) -> None:
+    """Log and record a gate that raised instead of returning a code."""
+    runner.log(f"  !! gate raised: {exc!r}")
+    runner.record(label, "ERROR", elapsed, repr(exc))
+    if gate and gate_id:
+        runner._record_gate(gate_id, label, "ERROR", repr(exc))
+    if critical and not runner.keep_going:
+        runner.aborted = True
+
+
 def run_gate_via_runner(
     runner,
     label: str,
@@ -74,29 +122,25 @@ def run_gate_via_runner(
     try:
         code, body = run_fn()
     except Exception as exc:
-        elapsed = time.time() - started
-        runner.log(f"  !! gate raised: {exc!r}")
-        runner.record(label, "ERROR", elapsed, repr(exc))
-        if gate and gate_id:
-            runner._record_gate(gate_id, label, "ERROR", repr(exc))
-        if critical and not runner.keep_going:
-            runner.aborted = True
+        _record_gate_exception(
+            runner,
+            label,
+            exc,
+            time.time() - started,
+            gate=gate,
+            gate_id=gate_id,
+            critical=critical,
+        )
         return
 
-    elapsed = time.time() - started
     for line in body.rstrip("\n").splitlines():
         runner.log(f"  | {line}")
-
-    if code == 0:
-        status = "OK"
-    elif gate:
-        status = "FAIL"
-    else:
-        status = "NONZERO"
-    runner.log(f"  -> exit {code} in {elapsed:.2f}s")
-    runner.record(label, status, elapsed, f"exit {code}")
-    if gate and gate_id:
-        runner._record_gate(gate_id, label, status, f"exit {code}")
-
-    if code != 0 and critical and not runner.keep_going:
-        runner.aborted = True
+    _record_gate_outcome(
+        runner,
+        label,
+        code,
+        time.time() - started,
+        gate=gate,
+        gate_id=gate_id,
+        critical=critical,
+    )
