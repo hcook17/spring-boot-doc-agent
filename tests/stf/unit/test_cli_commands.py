@@ -71,7 +71,8 @@ def test_constitution_and_mutate(tmp_path: Path) -> None:
         )
         == 0
     )
-    assert out.is_file() and out.stat().st_size > 0
+    assert out.is_file()
+    assert out.stat().st_size > 0
 
     # Mutants are expected to fail lint → CLI returns 0 when lint_ok is False.
     assert stf_main(["mutate", "--target-dir", str(tmp_path), "--mode", "no-acceptance"]) == 0

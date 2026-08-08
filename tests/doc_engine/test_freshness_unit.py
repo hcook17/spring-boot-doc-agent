@@ -74,15 +74,17 @@ def test_drift_overlay_and_label_item_path(tmp_path: Path) -> None:
     assert policy.freshness_for("a.java") == "stale"
     assert label_item_path(policy, "a.java") == "stale"
 
+    missing = object()
     with pytest.raises(QueryError, match="missing freshness_for"):
-        label_item_path(object(), "a.java")
+        label_item_path(missing, "a.java")
 
     class BadPolicy:
         def freshness_for(self, rel_path: str | None) -> str:
             return "weird"
 
+    bad = BadPolicy()
     with pytest.raises(QueryError, match="illegal freshness"):
-        label_item_path(BadPolicy(), "a.java")
+        label_item_path(bad, "a.java")
 
 
 def test_stale_paths_from_drift_report() -> None:
