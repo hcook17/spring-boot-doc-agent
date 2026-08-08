@@ -95,7 +95,7 @@ class TestCoveringVerifiedLie:
                 build_receipt(
                     scanner="filesystem",
                     version_hash="v",
-                    scope="all",
+                    scope="all_signatures",
                     expected_subset_root=root,
                     acked_subset_root=root,
                     status="complete",
@@ -218,7 +218,7 @@ class TestForgedCoveringProof:
                 build_receipt(
                     scanner="filesystem",
                     version_hash="v",
-                    scope="all",
+                    scope="all_signatures",
                     expected_subset_root=root,
                     acked_subset_root="deadbeef",
                     status="complete",

@@ -118,7 +118,7 @@ class StagesForProfileTest(unittest.TestCase):
         )
         self.assertEqual(
             [s.name for s in specs],
-            ["init_manifest", "signal_scan", "partition"],
+            ["init_manifest", "signal_scan", "gap_probe", "partition"],
         )
 
     def test_until_unknown_raises(self):

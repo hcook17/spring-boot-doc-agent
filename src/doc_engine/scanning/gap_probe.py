@@ -921,7 +921,10 @@ def build_gap_report(
         "scanner_version": signals.get("scanner_version"),
         "covering_proof_schema_version": COVERING_PROOF_SCHEMA_VERSION,
         "s1_covering": {
-            "verified": True,
+            # covering_ok alone is not proof — rate math may proceed, but
+            # verified requires an actual covering_proof object (anti-lie).
+            "verified": bool(covering_ok and covering_proof),
+            "proof_present": bool(covering_proof),
             "inventory_root": (covering_proof or {}).get("inventory_root"),
         },
         "inputs": {
@@ -958,7 +961,7 @@ def build_gap_report(
         },
         "design_reopen": {
             "path_a_to_symbols": (coll["rate"] or 0) > 0,
-            "join_incomplete": (join["rate"] is not None and join["rate"] < 1.0),
+            "join_incomplete": join["rate"] is None or join["rate"] < 1.0,
             "lineage_dominant_stratum": _dominant_failure_stratum(lin),
             "truncation_alarm": truncation["truncation_alarm"],
             "structural_recall_misses": bool(recall and recall.get("structural")),

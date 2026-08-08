@@ -200,7 +200,9 @@ class TestCorruptFactsFailValidation:
 class TestSignalsFileReuseRequiresSiblings:
     """Deviation: --signals-file copied Path A alone and skipped Stage-0 dual-emit."""
 
-    def test_local_runner_rejects_signals_without_siblings(self, tmp_path: Path) -> None:
+    def test_local_runner_materializes_siblings_when_reusing_signals(
+        self, tmp_path: Path
+    ) -> None:
         signals = tmp_path / "spring_signals.json"
         signals.write_text(json.dumps(_minimal_signals()), encoding="utf-8")
         out = tmp_path / "out"
@@ -225,8 +227,46 @@ class TestSignalsFileReuseRequiresSiblings:
             text=True,
             check=False,
         )
+        assert (out / "facts.jsonl").is_file()
+        assert (out / "covering_proof.json").is_file()
+        combined = proc.stderr + proc.stdout
+        run_log = out / "run.log"
+        if run_log.is_file():
+            combined += run_log.read_text(encoding="utf-8")
+        assert "facts not found" not in combined
+
+    def test_local_runner_rejects_signals_without_file_signatures(
+        self, tmp_path: Path
+    ) -> None:
+        signals = tmp_path / "spring_signals.json"
+        signals.write_text(
+            json.dumps(_minimal_signals(file_signatures={})), encoding="utf-8"
+        )
+        out = tmp_path / "out"
+        out.mkdir()
+        env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")}
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "doc_engine.pipeline.local_runner",
+                str(FIXTURE_DIR),
+                "--out-dir",
+                str(out),
+                "--deterministic-only",
+                "--signals-file",
+                str(signals),
+                "--skip-drift",
+            ],
+            cwd=str(REPO_ROOT),
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
         assert proc.returncode != 0
-        assert "facts.jsonl" in (proc.stderr + proc.stdout)
+        combined = proc.stderr + proc.stdout
+        assert "Stage-0 siblings" in combined or "file_signatures" in combined
 
 
 class TestRealRepoDeterministicEtlAdversarial:

@@ -505,6 +505,17 @@ def run_pipeline(args) -> int:
             return 2
         shutil.copy2(signals_src, signals_path)
         log(f"  reused signals: {signals_src} -> {signals_path}")
+        from doc_engine.scanning.stage0_siblings import (
+            Stage0SiblingError,
+            materialize_stage0_siblings,
+        )
+
+        try:
+            materialize_stage0_siblings(signals_src, out_dir)
+        except Stage0SiblingError as exc:
+            print(f"error: --signals-file reuse cannot prepare Stage-0 siblings: {exc}", file=sys.stderr)
+            return 2
+        log("  reused Path A siblings: facts.jsonl + covering_proof.json")
 
     log.rule("document-spring-repo — LOCAL END-TO-END RUN")
     log(f"  target repo   : {repo_path}")
