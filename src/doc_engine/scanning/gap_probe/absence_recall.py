@@ -13,6 +13,65 @@ from doc_engine.scanning.covering import (
 from .common import _load_json, _rate_block
 
 
+def _fact_qualifiers(fact: Mapping[str, Any]) -> Mapping[str, Any]:
+    qualifiers = fact.get("qualifiers")
+    return qualifiers if isinstance(qualifiers, Mapping) else {}
+
+
+def _callable_absence_failure(
+    fact: Mapping[str, Any],
+    *,
+    qualifiers: Mapping[str, Any],
+    trial: Any,
+) -> Dict[str, Any]:
+    return {
+        "layer": "absence",
+        "stratum": str(qualifiers.get("family") or fact.get("subject")),
+        "reason_class": "ABSENCE",
+        "subject": fact.get("subject"),
+        "file": fact.get("file"),
+        "trial": trial,
+    }
+
+
+def _tally_absence_and_unproven(
+    facts: Sequence[Mapping[str, Any]],
+) -> Tuple[int, int, List[Dict[str, Any]]]:
+    """Count callable ABSENCE failures and out-of-stratum UNPROVEN stamps."""
+    absence_count = 0
+    unproven_count = 0
+    failures: List[Dict[str, Any]] = []
+    for fact in facts:
+        predicate = fact.get("predicate")
+        if predicate == "ABSENCE":
+            qualifiers = _fact_qualifiers(fact)
+            trial = qualifiers.get("trial")
+            if trial != "callable":
+                continue
+            absence_count += 1
+            failures.append(
+                _callable_absence_failure(fact, qualifiers=qualifiers, trial=trial)
+            )
+        elif predicate == "UNPROVEN":
+            unproven_count += 1
+    return absence_count, unproven_count, failures
+
+
+def _absence_rate_block(
+    absence_count: int,
+    callable_trials: Optional[int],
+) -> Dict[str, Any]:
+    """Build the R_absence rate block using trials when supplied."""
+    if callable_trials is not None:
+        denominator = int(callable_trials)
+        if denominator > 0:
+            return _rate_block(absence_count, denominator)
+        return _rate_block(0, 0)
+    if absence_count:
+        return _rate_block(absence_count, absence_count)
+    return _rate_block(0, 0)
+
+
 def measure_r_absence(
     facts: Sequence[Mapping[str, Any]],
     *,
@@ -24,48 +83,8 @@ def measure_r_absence(
     (failure mass; ideal 0). Without ``callable_trials``, dens fall back to
     |ABSENCE| only for back-compat unit calls — prefer always passing trials.
     """
-    absence_count = 0
-    unproven_count = 0
-    failures: List[Dict[str, Any]] = []
-    for fact in facts:
-        predicate = fact.get("predicate")
-        qualifiers = (
-            fact.get("qualifiers")
-            if isinstance(fact.get("qualifiers"), Mapping)
-            else {}
-        )
-        trial = qualifiers.get("trial")
-        if predicate == "ABSENCE":
-            if trial != "callable":
-                continue
-            absence_count += 1
-            failures.append(
-                {
-                    "layer": "absence",
-                    "stratum": str(qualifiers.get("family") or fact.get("subject")),
-                    "reason_class": "ABSENCE",
-                    "subject": fact.get("subject"),
-                    "file": fact.get("file"),
-                    "trial": trial,
-                }
-            )
-        elif predicate == "UNPROVEN":
-            unproven_count += 1
-
-    if callable_trials is not None:
-        denominator = int(callable_trials)
-        block = (
-            _rate_block(absence_count, denominator)
-            if denominator > 0
-            else _rate_block(0, 0)
-        )
-    else:
-        denominator = absence_count
-        block = (
-            _rate_block(absence_count, denominator)
-            if denominator
-            else _rate_block(0, 0)
-        )
+    absence_count, unproven_count, failures = _tally_absence_and_unproven(facts)
+    block = _absence_rate_block(absence_count, callable_trials)
     block["callable_absence"] = absence_count
     block["callable_trials"] = callable_trials
     block["unproven"] = unproven_count
@@ -95,11 +114,7 @@ def measure_r_recall(
     evidentiary = 0
     failures: List[Dict[str, Any]] = []
     for fact in misses:
-        qualifiers = (
-            fact.get("qualifiers")
-            if isinstance(fact.get("qualifiers"), Mapping)
-            else {}
-        )
+        qualifiers = _fact_qualifiers(fact)
         verdict = str(qualifiers.get("verdict") or "STRUCTURAL")
         if verdict == "EVIDENTIARY":
             evidentiary += 1
@@ -163,11 +178,7 @@ def _planted_recall_failures(
     for fact in facts:
         if fact.get("predicate") != "RECALL_MISS":
             continue
-        qualifiers = (
-            fact.get("qualifiers")
-            if isinstance(fact.get("qualifiers"), Mapping)
-            else {}
-        )
+        qualifiers = _fact_qualifiers(fact)
         rows.append(
             {
                 "layer": "recall",

@@ -57,7 +57,7 @@ def measure_r_code_dep(signals: Mapping[str, Any]) -> Dict[str, Any]:
         deployment = []
 
     dep_counts = _count_deployment_families(deployment)
-    patterns = {family: pattern for family, pattern in _DEP_FAMILY_PATTERNS}
+    patterns = dict(_DEP_FAMILY_PATTERNS)
 
     code_hits = 0
     dep_total = 0
