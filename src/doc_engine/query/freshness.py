@@ -92,9 +92,12 @@ def label_item_path(policy: object, rel_path: str | None) -> str:
     if not callable(fn):
         raise QueryError("freshness policy missing freshness_for")
     label = fn(rel_path)
-    if label not in FreshnessLabel:
-        raise QueryError(f"illegal freshness label: {label!r}")
-    return label
+    # ``x in SomeEnum`` raises TypeError for non-members on 3.10/3.11 (fixed in 3.12).
+    # Validate via constructor so str values and StrEnum members both work.
+    try:
+        return FreshnessLabel(label)
+    except ValueError as exc:
+        raise QueryError(f"illegal freshness label: {label!r}") from exc
 
 
 def _add_list_paths(val: list[Any], out: set[str]) -> None:
