@@ -28,11 +28,12 @@ def phase_post_stage0(state: LocalRunState) -> Optional[int]:
     if state.profile != ComplianceProfile.SCAN_ONLY:
         pool = load_citations(ctx.signals, state.repo_path)
         ctx.pool = pool
-        resolvable = sum(len(v) for v in pool.values())
+        resolvable = sum(len(bucket) for bucket in pool.values())
+        non_empty_buckets = sum(1 for bucket in pool.values() if bucket)
         log("")
         log(
             f"  evidence pool: {resolvable} resolvable citation(s) across "
-            f"{sum(1 for v in pool.values() if v)} non-empty bucket(s)"
+            f"{non_empty_buckets} non-empty bucket(s)"
         )
         if ctx.groups:
             log(

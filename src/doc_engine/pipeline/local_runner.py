@@ -96,7 +96,7 @@ from doc_engine.pipeline.local_runner_phases.context import phase_build_context
 from doc_engine.pipeline.local_runner_phases.deterministic import phase_deterministic_only
 from doc_engine.pipeline.local_runner_phases.full_finish import phase_full_finish
 from doc_engine.pipeline.local_runner_phases.generative import phase_generative
-from doc_engine.pipeline.local_runner_phases.scan_only import phase_post_stage0
+from doc_engine.pipeline.local_runner_phases.post_stage0 import phase_post_stage0
 from doc_engine.pipeline.local_runner_phases.setup import phase_setup
 from doc_engine.pipeline.local_runner_phases.stage0 import phase_stage0
 
@@ -145,7 +145,7 @@ def add_run_arguments(ap: argparse.ArgumentParser) -> None:
                          "stopping")
     ap.add_argument(
         "--compliance-profile",
-        choices=[p.value for p in ComplianceProfile],
+        choices=[profile.value for profile in ComplianceProfile],
         default=None,
         help="compliance profile: scan_only, deterministic_only, or certified "
              "(default: certified, or value from .doc-engine.yml)",
