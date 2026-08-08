@@ -1,0 +1,18 @@
+# Dependency / coupling gate (tach 0.35.x, 2026). Hard-fails on import cycles.
+# Modules may import freely across packages; cycles are forbidden.
+source_roots = ["src"]
+forbid_circular_dependencies = true
+root_module = "ignore"
+ignore_type_checking_imports = true
+exclude = [
+    "**/__pycache__",
+    "tests/",
+    ".venv/",
+    "venv/",
+]
+
+[[modules]]
+path = "doc_engine"
+
+[[modules]]
+path = "stf"
