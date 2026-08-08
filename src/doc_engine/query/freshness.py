@@ -9,11 +9,16 @@ from doc_engine.core.walk import compute_file_signature, is_path_inside_root
 from doc_engine.query.load import QueryError
 
 
-class AssumeIndexed:
-    """Default when no repo path: treat indexed artifacts as fresh_indexed."""
+class UnknownFreshnessWhenNoRepo:
+    """Honest default when no repo path is supplied — never invent fresh_indexed."""
 
     def freshness_for(self, rel_path: str | None) -> str:
-        return "fresh_indexed"
+        return "unknown"
+
+
+# Historical name kept as alias so call sites and docs remain greppable.
+AssumeIndexed = UnknownFreshnessWhenNoRepo
+
 
 
 class SignatureFreshness:

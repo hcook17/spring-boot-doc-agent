@@ -1,19 +1,14 @@
-"""Deterministic ranking + token-budget trim for context packets.
+"""Deterministic ranking + honest token-budget trim for context packets.
 
-Ranking formula (E1-S2 — falsifiable)::
-
-    score = 0.50 * token_overlap(request, path∪text)
-          + 0.30 * bucket_priority(bucket)
-          + 0.20 * contested_boost
-
-Token proxy: ``chars // 4`` (same heuristic family as partition_repo).
+Token proxy (Option A ADR): ``chars // 4`` over the **full JSON of emitted
+items** (payload replaced by ``row_ref`` before costing).
 """
 
 from __future__ import annotations
 
 import json
 import re
-from typing import Any, Mapping, MutableMapping, Sequence
+from typing import Any, Mapping, Sequence
 
 _TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
 
@@ -30,24 +25,36 @@ _BUCKET_PRIORITY: dict[str, float] = {
     "references": 0.3,
 }
 
+DEFAULT_NESTED_LIST_CAP = 50
 
-def tokenize(text: str) -> set[str]:
+
+def extract_lowercase_tokens_from_text(text: str) -> set[str]:
     return {t.lower() for t in _TOKEN_RE.findall(text or "")}
 
 
-def bucket_priority(bucket: str | None) -> float:
+# Backward-compatible alias
+tokenize = extract_lowercase_tokens_from_text
+
+
+def lookup_bucket_priority_score(bucket: str | None) -> float:
     if not bucket:
         return 0.4
     return _BUCKET_PRIORITY.get(bucket, 0.4)
 
 
-def token_overlap(a: set[str], b: set[str]) -> float:
-    if not a:
+bucket_priority = lookup_bucket_priority_score
+
+
+def measure_token_overlap_ratio(request_tokens: set[str], item_tokens: set[str]) -> float:
+    if not request_tokens:
         return 0.0
-    return len(a & b) / max(1, len(a))
+    return len(request_tokens & item_tokens) / max(1, len(request_tokens))
 
 
-def score_item(
+token_overlap = measure_token_overlap_ratio
+
+
+def score_context_item_for_request(
     *,
     request: str,
     path: str | None,
@@ -55,52 +62,117 @@ def score_item(
     bucket: str | None,
     contested: bool,
 ) -> float:
-    req = tokenize(request)
-    blob = tokenize(f"{path or ''} {text or ''}")
+    request_tokens = extract_lowercase_tokens_from_text(request)
+    item_tokens = extract_lowercase_tokens_from_text(f"{path or ''} {text or ''}")
     contested_boost = 1.0 if contested else 0.0
     return (
-        0.50 * token_overlap(req, blob)
-        + 0.30 * bucket_priority(bucket)
+        0.50 * measure_token_overlap_ratio(request_tokens, item_tokens)
+        + 0.30 * lookup_bucket_priority_score(bucket)
         + 0.20 * contested_boost
     )
 
 
-def estimate_tokens(obj: Any) -> int:
-    """Chars/4 proxy. For context items, ignore bulky ``payload`` (DDIA budget)."""
-    if isinstance(obj, Mapping) and (
-        "provider" in obj or "score" in obj or "path" in obj
-    ):
-        slim = {
-            k: obj.get(k)
-            for k in (
-                "provider",
-                "path",
-                "line",
-                "match",
-                "bucket",
-                "reason",
-                "score",
-                "freshness",
-            )
-        }
-        raw = json.dumps(slim, ensure_ascii=False, default=str)
-    else:
-        raw = json.dumps(obj, ensure_ascii=False, default=str)
+score_item = score_context_item_for_request
+
+
+def estimate_tokens_from_serialized_json(obj: Any) -> int:
+    """Chars/4 proxy over full JSON of what agents actually receive."""
+    raw = json.dumps(obj, ensure_ascii=False, default=str)
     return max(0, len(raw) // 4)
 
 
-def trim_to_budget(
-    items: Sequence[Mapping[str, Any]],
-    budget_tokens: int,
-) -> tuple[list[dict[str, Any]], bool, int]:
-    """Keep highest-score items until budget exhausted.
+estimate_tokens = estimate_tokens_from_serialized_json
 
-    Returns (kept, truncated, tokens_used).
-    If the top item alone exceeds the budget, keep it and mark truncated
-    (agents still get one lead); ``tokens_used`` reports the item cost.
-    """
-    budget = max(0, int(budget_tokens))
-    ordered = sorted(
+
+def split_budget_into_primary_finding_and_risk_shares(budget: int) -> tuple[int, int, int]:
+    """Partition tokens so shares always sum to ``budget`` (never overshoot)."""
+    total = max(0, int(budget))
+    if total == 0:
+        return 0, 0, 0
+    primary = (total * 7) // 10
+    finding = (total * 2) // 10
+    risk = total - primary - finding
+    return primary, finding, risk
+
+
+partition_budget = split_budget_into_primary_finding_and_risk_shares
+
+
+def truncate_nested_lists_that_exceed_cap(
+    obj: Any,
+    *,
+    max_list_length: int = DEFAULT_NESTED_LIST_CAP,
+) -> tuple[Any, bool]:
+    """Return (possibly capped object, did_truncate). Caps guards/candidates/etc."""
+    truncated = False
+
+    def _walk(node: Any) -> Any:
+        nonlocal truncated
+        if isinstance(node, list):
+            children = [_walk(x) for x in node[:max_list_length]]
+            if len(node) > max_list_length:
+                truncated = True
+            return children
+        if isinstance(node, Mapping):
+            out: dict[str, Any] = {}
+            for key, value in node.items():
+                if isinstance(value, list) and len(value) > max_list_length:
+                    truncated = True
+                    out[key] = [_walk(x) for x in value[:max_list_length]]
+                else:
+                    out[key] = _walk(value)
+            return out
+        return node
+
+    return _walk(obj), truncated
+
+
+apply_nested_cap = truncate_nested_lists_that_exceed_cap  # returns tuple; see wrap below
+
+
+def apply_nested_cap_value(obj: Any, *, max_list: int = DEFAULT_NESTED_LIST_CAP) -> Any:
+    capped, _ = truncate_nested_lists_that_exceed_cap(obj, max_list_length=max_list)
+    return capped
+
+
+def replace_bulky_payload_with_row_ref_pointer(item: Mapping[str, Any]) -> dict[str, Any]:
+    """Option A emission shape: drop payload body; keep expandable row_ref."""
+    emission: dict[str, Any] = {
+        "provider": item.get("provider"),
+        "path": item.get("path"),
+        "line": item.get("line"),
+        "match": item.get("match"),
+        "bucket": item.get("bucket"),
+        "reason": item.get("reason"),
+        "score": item.get("score"),
+        "row_ref": {
+            "path": item.get("path"),
+            "line": item.get("line"),
+            "provider": item.get("provider"),
+            "bucket": item.get("bucket"),
+        },
+    }
+    if "freshness" in item:
+        emission["freshness"] = item.get("freshness")
+    if "contested" in item:
+        emission["contested"] = item.get("contested")
+    payload = item.get("payload")
+    if isinstance(payload, Mapping):
+        capped_payload, nested_truncated = truncate_nested_lists_that_exceed_cap(payload)
+        if nested_truncated:
+            emission["nested_truncated"] = True
+            # keep only capped nested lists under row_ref for traceability
+            for key in ("guards", "candidates"):
+                if key in capped_payload:
+                    emission["row_ref"][key] = capped_payload[key]
+    return {k: v for k, v in emission.items() if v is not None}
+
+
+to_emission_item = replace_bulky_payload_with_row_ref_pointer
+
+
+def sort_items_highest_score_first(items: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(
         (dict(i) for i in items),
         key=lambda i: (
             -float(i.get("score") or 0.0),
@@ -108,21 +180,34 @@ def trim_to_budget(
             str(i.get("provider") or ""),
         ),
     )
+
+
+def keep_highest_scoring_items_within_token_budget(
+    items: Sequence[Mapping[str, Any]],
+    budget_tokens: int,
+) -> tuple[list[dict[str, Any]], bool, int]:
+    """Trim to budget using emission-shaped costs. Returns (kept, truncated, tokens_used)."""
+    budget = max(0, int(budget_tokens))
+    ordered = sort_items_highest_score_first(items)
     kept: list[dict[str, Any]] = []
-    used = 0
+    tokens_used = 0
     truncated = False
     for item in ordered:
-        cost = estimate_tokens(item)
-        if used + cost > budget:
-            if not kept:
-                kept.append(item)
-                used = cost
+        emission = replace_bulky_payload_with_row_ref_pointer(item)
+        cost = estimate_tokens_from_serialized_json(emission)
+        if tokens_used + cost > budget:
+            if not kept and budget > 0:
+                kept.append(emission)
+                tokens_used = cost
                 truncated = True
             else:
                 truncated = True
             break
-        kept.append(item)
-        used += cost
+        kept.append(emission)
+        tokens_used += cost
     if len(kept) < len(ordered):
         truncated = True
-    return kept, truncated, used
+    return kept, truncated, tokens_used
+
+
+trim_to_budget = keep_highest_scoring_items_within_token_budget

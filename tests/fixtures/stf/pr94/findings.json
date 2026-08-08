@@ -1,0 +1,552 @@
+[
+  {
+    "schema_version": 1,
+    "id": "C1",
+    "severity": "critical",
+    "title": "Arbitrary file read: containment opt-in; nothing opts in",
+    "claim": "Severity: Critical (Information Disclosure / Confused Deputy)**",
+    "evidence": [
+      "### C1 \u2014 Arbitrary file read: containment opt-in; nothing opts in\n\n**Severity: Critical (Information Disclosure / Confused Deputy)**\n\n```24:38:src/doc_engine/query/load.py\ndef _resolve(path: Path, *, root: Path | None) -> Path:\n    ...\n    if root is not None:\n        ...\n        if not is_path_inside_root(...):\n            raise QueryPathError(...)\n```\n\n```47:57:src/doc_engine/query/mcp_tools.py\n    if name == \"query_evidence\":\n        return run_query(\n            \"evidence\",\n            signa"
+    ],
+    "evidence_paths": [
+      "src/doc_engine/query/load.py",
+      "src/doc_engine/query/mcp_tools.py",
+      "src/filesystem"
+    ],
+    "suggested_fix": null,
+    "links": [
+      {
+        "kind": "path",
+        "target": "src/doc_engine/query/load.py",
+        "note": null
+      },
+      {
+        "kind": "test",
+        "target": "tests/doc_engine/test_query_artifacts.py::load",
+        "note": "heuristic related test node"
+      },
+      {
+        "kind": "mutant",
+        "target": "scripts/ratchets/mutate.py::C1",
+        "note": "named mutant slot"
+      },
+      {
+        "kind": "path",
+        "target": "src/doc_engine/query/mcp_tools.py",
+        "note": null
+      },
+      {
+        "kind": "test",
+        "target": "tests/doc_engine/test_query_artifacts.py::mcp_tools",
+        "note": "heuristic related test node"
+      },
+      {
+        "kind": "mutant",
+        "target": "scripts/ratchets/mutate.py::C1",
+        "note": "named mutant slot"
+      },
+      {
+        "kind": "path",
+        "target": "src/filesystem",
+        "note": null
+      },
+      {
+        "kind": "test",
+        "target": "tests/doc_engine/test_query_artifacts.py::filesystem",
+        "note": "heuristic related test node"
+      },
+      {
+        "kind": "mutant",
+        "target": "scripts/ratchets/mutate.py::C1",
+        "note": "named mutant slot"
+      }
+    ],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "E-Q0",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "C2",
+    "severity": "critical",
+    "title": "`tokensUsed` under-reports; budget does not bound serialized output",
+    "claim": "Severity: Critical (Broken contract / DDIA backpressure failure)**",
+    "evidence": [
+      "### C2 \u2014 `tokensUsed` under-reports; budget does not bound serialized output\n\n**Severity: Critical (Broken contract / DDIA backpressure failure)**\n\nSpike decision ([`claude/research/context-packet-schema-spike-2026-08-07.md`](../../claude/research/context-packet-schema-spike-2026-08-07.md)):\n\n> Token proxy for budget: `chars // 4` over **JSON serialization of kept items**\n\nImplementation deliberately diverges:\n\n```68:89:src/doc_engine/query/rank.py\ndef estimate_tokens(obj: Any) -> int:\n    \"\"\"Ch"
+    ],
+    "evidence_paths": [
+      "claude/research/context-packet-schema-spike-2026-08-07.md",
+      "src/doc_engine/query/rank.py"
+    ],
+    "suggested_fix": null,
+    "links": [
+      {
+        "kind": "path",
+        "target": "claude/research/context-packet-schema-spike-2026-08-07.md",
+        "note": null
+      },
+      {
+        "kind": "path",
+        "target": "src/doc_engine/query/rank.py",
+        "note": null
+      },
+      {
+        "kind": "test",
+        "target": "tests/doc_engine/test_query_artifacts.py::rank",
+        "note": "heuristic related test node"
+      },
+      {
+        "kind": "mutant",
+        "target": "scripts/ratchets/mutate.py::C2",
+        "note": "named mutant slot"
+      }
+    ],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "E-Q0",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "H1",
+    "severity": "high",
+    "title": "Nested fan-out unbounded; `truncated` lies",
+    "claim": "`apply_limit` caps top-level rows only. `route_trace` embeds full `guards[]` per row. Probe: 1 row, 400 guards, `truncated=false`, ~37 KB.",
+    "evidence": [
+      "### H1 \u2014 Nested fan-out unbounded; `truncated` lies\n\n`apply_limit` caps top-level rows only. `route_trace` embeds full `guards[]` per row. Probe: 1 row, 400 guards, `truncated=false`, ~37 KB.\n\nSame class: `entity.candidates`, dependents payloads, evidence blobs.\n\n---\n\n"
+    ],
+    "evidence_paths": [],
+    "suggested_fix": null,
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "E-Q0",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "H2",
+    "severity": "high",
+    "title": "`RedactionProvider` dead on production shape",
+    "claim": "Emitter + schema: `redaction_zones` is **`{rel_path: [hits\u2026]}`** (`_scanner_filesystem.py`, `spring_signals.schema.json`).",
+    "evidence": [
+      "### H2 \u2014 `RedactionProvider` dead on production shape\n\nEmitter + schema: `redaction_zones` is **`{rel_path: [hits\u2026]}`** (`_scanner_filesystem.py`, `spring_signals.schema.json`).\n\nProvider assumes **list**; non-list \u2192 `[]`.\n\nTest fixture invents list shape \u2192 suite passes; production risks always empty \u2192 agents infer \u201cno secrets.\u201d\n\n---\n\n"
+    ],
+    "evidence_paths": [],
+    "suggested_fix": null,
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "E-Q0",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "H3",
+    "severity": "high",
+    "title": "Unknown filters \u2192 silent empty success",
+    "claim": "Violates the principle `QueryMissingError` established in `load.py`. Typo\u2019d bucket/predicate \u2192 exit 0, `count:0`. Prefer: unknown key \u2192 error; present-but-empty \u2192 success with `filters_matched:0`.",
+    "evidence": [
+      "### H3 \u2014 Unknown filters \u2192 silent empty success\n\nViolates the principle `QueryMissingError` established in `load.py`. Typo\u2019d bucket/predicate \u2192 exit 0, `count:0`. Prefer: unknown key \u2192 error; present-but-empty \u2192 success with `filters_matched:0`.\n\n---\n\n"
+    ],
+    "evidence_paths": [],
+    "suggested_fix": null,
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "E-Q1",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "H4",
+    "severity": "high",
+    "title": "MCP fault isolation missing",
+    "claim": "Narrow `except (QueryError, KeyError, TypeError, ValueError)`. `RecursionError` / OOM-class / unexpected \u2192 process exit. No line-size / artifact-size / JSON-depth gates.",
+    "evidence": [
+      "### H4 \u2014 MCP fault isolation missing\n\nNarrow `except (QueryError, KeyError, TypeError, ValueError)`. `RecursionError` / OOM-class / unexpected \u2192 process exit. No line-size / artifact-size / JSON-depth gates.\n\n---\n\n### N1 (new) \u2014 Budget *allocation* overshoots for tiny budgets\n\n```python\nprimary = max(1, int(budget * 0.7))\nfinding = max(1, int(budget * 0.2))\nrisk = max(1, budget - primary - finding)\n```\n\n| budget | sum of buckets | overshoot |\n|---:|---:|---|\n| 0\u20132 | 3 | **yes** |\n| \u22655 | = budget"
+    ],
+    "evidence_paths": [
+      "scripts/ratchets/mutate.py",
+      "src/doc_engine/query/",
+      "claude/research/"
+    ],
+    "suggested_fix": null,
+    "links": [
+      {
+        "kind": "path",
+        "target": "scripts/ratchets/mutate.py",
+        "note": null
+      },
+      {
+        "kind": "path",
+        "target": "src/doc_engine/query/",
+        "note": null
+      },
+      {
+        "kind": "test",
+        "target": "tests/doc_engine/test_query_artifacts.py::query",
+        "note": "heuristic related test node"
+      },
+      {
+        "kind": "mutant",
+        "target": "scripts/ratchets/mutate.py::H4",
+        "note": "named mutant slot"
+      },
+      {
+        "kind": "path",
+        "target": "claude/research/",
+        "note": null
+      }
+    ],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "E-Q1",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q0-1",
+    "severity": "info",
+    "title": "Mandatory server-derived root for MCP + `_resolve`",
+    "claim": "Probe C1 fails closed; env required at server start",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "Probe C1 fails closed; env required at server start",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q0",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q0-2",
+    "severity": "info",
+    "title": "Budget counts serialized emission **or** drop payload \u2192 `row_ref`",
+    "claim": "`len(json.dumps(pkt))//4 <= budgetTokens` **or** `truncated` with real sizes; spike ADR updated",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "`len(json.dumps(pkt))//4 <= budgetTokens` **or** `truncated` with real sizes; spike ADR updated",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q0",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q0-3",
+    "severity": "info",
+    "title": "Cap nested fan-out (`guards`, `candidates`); set `truncated`",
+    "claim": "H1 probe fails (truncated true or nested capped)",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "H1 probe fails (truncated true or nested capped)",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q0",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q0-4",
+    "severity": "info",
+    "title": "Fix `RedactionProvider` for dict zones + canonical fixture factory",
+    "claim": "Real emitter shape \u2192 non-empty risks when zones present; schema validate fixtures",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "Real emitter shape \u2192 non-empty risks when zones present; schema validate fixtures",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q0",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q0-5",
+    "severity": "info",
+    "title": "ruff F401 + extend lint to `adapters/`",
+    "claim": "`ruff check` green",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "`ruff check` green",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q0",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q1-1",
+    "severity": "info",
+    "title": "MCP bulkhead: catch-all at stdin loop; MAX_LINE / MAX_DEPTH / MAX_ARTIFACT_BYTES",
+    "claim": "Poison artifact does not kill process",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "Poison artifact does not kill process",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q1",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q1-2",
+    "severity": "info",
+    "title": "Filter validation: unknown bucket/predicate \u2192 `QueryError` with valid set",
+    "claim": "H3 probe raises",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "H3 probe raises",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q1",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q1-3",
+    "severity": "info",
+    "title": "`QueryKindSpec` single registry \u2192 CLI + MCP `inputSchema` + dispatch",
+    "claim": "Adding a kind = one spec entry; MCP schemas list real params",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "Adding a kind = one spec entry; MCP schemas list real params",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q1",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q1-4",
+    "severity": "info",
+    "title": "Freshness honesty: `AssumeIndexed` \u2192 `unknown`; document `live` vs `fresh_indexed`",
+    "claim": "M1 fixed; docs match",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "M1 fixed; docs match",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q1",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q1-5",
+    "severity": "info",
+    "title": "Enforce `PacketProvider` / `FreshnessPolicy` via `isinstance`",
+    "claim": "Malformed provider \u2192 TypeError",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "Malformed provider \u2192 TypeError",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q1",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q1-6",
+    "severity": "info",
+    "title": "Wire `validate_envelope` (+ optional jsonschema) on CLI `--validate` and tests",
+    "claim": "Emission path can fail closed on bad envelopes",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "Emission path can fail closed on bad envelopes",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q1",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q2-1",
+    "severity": "info",
+    "title": "Hypothesis properties: containment, limit boundaries, budget split algebra (incl. N1)",
+    "claim": "Properties in CI profile `ci` (derandomize)",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "Properties in CI profile `ci` (derandomize)",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q2",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q2-2",
+    "severity": "info",
+    "title": "Expand `mutate.py` mutants: RedactionProvider kill, nested cap, request-overlap isolation, missing-root",
+    "claim": "Named mutants killed",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "Named mutants killed",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q2",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q2-3",
+    "severity": "info",
+    "title": "mutmut incremental job on `src/doc_engine/query/` (nightly)",
+    "claim": "Mutation score ratchet documented",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "Mutation score ratchet documented",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q2",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q2-4",
+    "severity": "info",
+    "title": "MCP integration: `tools/call` success + error + missing root + huge line",
+    "claim": "Coverage on `server.py` > 80%",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "Coverage on `server.py` > 80%",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q2",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q2-5",
+    "severity": "info",
+    "title": "Poison/chaos suite (see \u00a75)",
+    "claim": "Process stays up; errors JSON-RPC shaped",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "Process stays up; errors JSON-RPC shaped",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q2",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q2-6",
+    "severity": "info",
+    "title": "Unskip or hermeticize one OCS fixture slice in CI",
+    "claim": "At least one real-artifact test runs without env",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "At least one real-artifact test runs without env",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q2",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "S3-1",
+    "severity": "info",
+    "title": "Spike (3d)",
+    "claim": "agentmako SQLite index; DDIA Ch.3/10; codebase-rag packing",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "agentmako SQLite index; DDIA Ch.3/10; codebase-rag packing",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "S3",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "S3-2",
+    "severity": "info",
+    "title": "Spike (2d)",
+    "claim": "[agentmako context tools](https://agentmako.drhalto.com/docs/tools/context.html)",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "[agentmako context tools](https://agentmako.drhalto.com/docs/tools/context.html)",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "S3",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "S3-3",
+    "severity": "info",
+    "title": "Spike (2d)",
+    "claim": "DRACO [arXiv:2405.19782](https://arxiv.org/pdf/2405.19782); partition_repo heuristics already in-repo",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "DRACO [arXiv:2405.19782](https://arxiv.org/pdf/2405.19782); partition_repo heuristics already in-repo",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "S3",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "S3-4",
+    "severity": "info",
+    "title": "Spike (2d)",
+    "claim": "[python-sdk DeepWiki](https://deepwiki.com/modelcontextprotocol/python-sdk); keep `dispatch_tool` as SoR",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "[python-sdk DeepWiki](https://deepwiki.com/modelcontextprotocol/python-sdk); keep `dispatch_tool` as SoR",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "S3",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "S3-5",
+    "severity": "info",
+    "title": "Spike (1d)",
+    "claim": "[Mako freshness](https://agentmako.drhalto.com/docs/concepts/freshness.html)",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "[Mako freshness](https://agentmako.drhalto.com/docs/concepts/freshness.html)",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "S3",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "S3-6",
+    "severity": "info",
+    "title": "Spike (2d)",
+    "claim": "[arXiv:2601.01241](https://arxiv.org/abs/2601.01241), Wassette threat model, [arXiv:2508.12538](https://arxiv.org/html/2508.12538v1)",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "[arXiv:2601.01241](https://arxiv.org/abs/2601.01241), Wassette threat model, [arXiv:2508.12538](https://arxiv.org/html/2508.12538v1)",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "S3",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q4-1",
+    "severity": "info",
+    "title": "SEARCH.md / product-architecture: remove \u201ccapped\u201d claims until Q0 done",
+    "claim": "SEARCH.md / product-architecture: remove \u201ccapped\u201d claims until Q0 done",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "SEARCH.md / product-architecture: remove \u201ccapped\u201d claims until Q0 done",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q4",
+    "extra": {}
+  },
+  {
+    "schema_version": 1,
+    "id": "Q4-3",
+    "severity": "info",
+    "title": "Commit message / PR body: \u201cOCS lane\u201d \u2192 \u201coptional local lane, skipped in CI\u201d",
+    "claim": "Commit message / PR body: \u201cOCS lane\u201d \u2192 \u201coptional local lane, skipped in CI\u201d",
+    "evidence": [],
+    "evidence_paths": [],
+    "suggested_fix": "Commit message / PR body: \u201cOCS lane\u201d \u2192 \u201coptional local lane, skipped in CI\u201d",
+    "links": [],
+    "source_doc": "docs/reviews/9bc7851_PR_94.md",
+    "epic_hint": "Q4",
+    "extra": {}
+  }
+]

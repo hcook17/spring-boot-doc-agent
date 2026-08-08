@@ -14,7 +14,7 @@ This repo **mandates structural search for code citations**. Text search (`grep`
 
 1. **Vague task / “what’s relevant?”** when a Stage-0 `--run-dir` exists → **`context-packet` first**:
    - `doc-engine query context-packet --run-dir <run> --request "…" --budget-tokens 4000`
-   - Or MCP tool `context_packet` (same library). Items may carry `freshness` (`fresh_indexed` / `stale` / `live` / `unknown`); **stale ≠ delete** — re-verify with ast-grep or re-scan.
+   - Or MCP tool `context_packet` (same library). **Containment:** set `DOC_ENGINE_ROOT` / `DOC_ENGINE_RUN_DIR`; MCP never accepts caller `root`. Items may carry `freshness` (`live` / `fresh_indexed` / `stale` / `unknown`); without a repo path the label is **`unknown`** (never a lying `fresh_indexed`). **stale ≠ delete** — re-verify with ast-grep or re-scan. Packet emission uses **row_ref** (Option A); `tokensUsed` is chars/4 over serialized emission.
 2. **Navigational / evidence assembly** → specialized query:
    - `doc-engine query evidence|routes|facts|entity|dependents|route-trace …`
    - Prefer query over `Read`-ing whole `spring_signals.json`. Output is capped (`truncated`).

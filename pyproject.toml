@@ -48,10 +48,11 @@ Repository = "https://github.com/example/doc-engine.git"
 
 [project.scripts]
 doc-engine = "doc_engine.cli:main"
+stf = "stf.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["doc_engine*"]
+include = ["doc_engine*", "stf*"]
 
 [tool.setuptools.package-data]
 doc_engine = ["scanning/resources/*.yml"]

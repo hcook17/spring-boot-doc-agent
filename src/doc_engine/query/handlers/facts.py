@@ -4,6 +4,21 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
+from doc_engine.query.load import QueryError
+
+KNOWN_PREDICATES = frozenset(
+    {
+        "MAPS_TO",
+        "UNPROVEN",
+        "REFERENCES",
+        "DECLARES",
+        "EXTENDS",
+        "IMPLEMENTS",
+        "ANNOTATED_WITH",
+        "X",
+    }
+)
+
 
 def query_facts(
     rows: Sequence[Mapping[str, Any]],
@@ -13,6 +28,11 @@ def query_facts(
     fqcn: str | None = None,
     subject_contains: str | None = None,
 ) -> list[dict[str, Any]]:
+    if predicate and predicate not in KNOWN_PREDICATES:
+        present = {str(r.get("predicate")) for r in rows if isinstance(r, Mapping)}
+        if predicate not in present:
+            valid = sorted(KNOWN_PREDICATES | present)
+            raise QueryError(f"unknown facts predicate {predicate!r}; valid={valid}")
     out: list[dict[str, Any]] = []
     for raw in rows:
         if not isinstance(raw, Mapping):

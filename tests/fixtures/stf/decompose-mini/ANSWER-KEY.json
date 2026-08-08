@@ -1,0 +1,1 @@
+{"required_task_titles_substrings": ["probe", "fix"], "required_inventory_ids": ["INV-C1"], "must_surface_conflict": null, "threshold": 0.8}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -21,20 +22,40 @@ class QueryPathError(QueryError):
     """Path escapes declared root or fails containment."""
 
 
+def require_server_root() -> Path:
+    """Return the MCP/server containment root from the process environment.
+
+    Requires ``DOC_ENGINE_ROOT`` or ``DOC_ENGINE_RUN_DIR``. Callers must never
+    accept a client-supplied root override for the MCP surface.
+    """
+    raw = os.environ.get("DOC_ENGINE_ROOT") or os.environ.get("DOC_ENGINE_RUN_DIR")
+    if not raw or not str(raw).strip():
+        raise QueryPathError(
+            "DOC_ENGINE_ROOT or DOC_ENGINE_RUN_DIR must be set for path-contained queries"
+        )
+    try:
+        return Path(str(raw)).resolve()
+    except OSError as exc:
+        raise QueryPathError(f"cannot resolve server root: {raw}") from exc
+
+
 def _resolve(path: Path, *, root: Path | None) -> Path:
+    if root is None:
+        raise QueryPathError(
+            "containment root is required; pass root= or set DOC_ENGINE_ROOT / DOC_ENGINE_RUN_DIR"
+        )
     try:
         resolved = path.resolve()
     except OSError as exc:
         raise QueryPathError(f"cannot resolve path: {path}") from exc
-    if root is not None:
-        try:
-            root_resolved = root.resolve()
-        except OSError as exc:
-            raise QueryPathError(f"cannot resolve root: {root}") from exc
-        if not is_path_inside_root(str(resolved), str(root_resolved)):
-            raise QueryPathError(
-                f"artifact path escapes root: {path} (resolved {resolved})"
-            )
+    try:
+        root_resolved = root.resolve()
+    except OSError as exc:
+        raise QueryPathError(f"cannot resolve root: {root}") from exc
+    if not is_path_inside_root(str(resolved), str(root_resolved)):
+        raise QueryPathError(
+            f"artifact path escapes root: {path} (resolved {resolved})"
+        )
     return resolved
 
 

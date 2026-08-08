@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from doc_engine.core.walk import is_path_inside_root
 from doc_engine.query.freshness import (
     AssumeIndexed,
     DriftReportFreshness,
@@ -12,9 +13,13 @@ from doc_engine.query.freshness import (
     label_item_path,
     stale_paths_from_drift_report,
 )
-from doc_engine.query.load import QueryMissingError, load_json, load_jsonl
+from doc_engine.query.load import QueryMissingError, QueryPathError, load_json, load_jsonl
 from doc_engine.query.providers import DEFAULT_PROVIDERS
-from doc_engine.query.rank import estimate_tokens, score_item, trim_to_budget
+from doc_engine.query.rank import (
+    keep_highest_scoring_items_within_token_budget,
+    score_context_item_for_request,
+    split_budget_into_primary_finding_and_risk_shares,
+)
 
 CONTEXT_PACKET_SCHEMA_VERSION = 1
 DEFAULT_BUDGET_TOKENS = 4000
@@ -51,7 +56,7 @@ def _score_raw(request: str, raw: Mapping[str, Any]) -> dict[str, Any]:
         "bucket": raw.get("bucket"),
         "reason": raw.get("reason"),
         "payload": raw.get("payload") or {},
-        "score": score_item(
+        "score": score_context_item_for_request(
             request=request,
             path=raw.get("path") if isinstance(raw.get("path"), str) else None,
             text=raw.get("match") if isinstance(raw.get("match"), str) else None,
@@ -73,11 +78,22 @@ def run_context_packet(
     providers: Sequence[Any] | None = None,
     limit_per_provider: int = 40,
 ) -> dict[str, Any]:
-    """Compose a Mako-class context packet from a Stage-0 run directory."""
+    """Compose a Mako-class context packet from a Stage-0 run directory.
+
+    ``root`` defaults to ``run_dir`` (library/CLI). MCP always passes the
+    server-derived root and pins ``run_dir`` under it before calling here.
+    """
     run = Path(run_dir)
-    root_path = Path(root) if root else None
     if not run.is_dir():
         raise QueryMissingError(f"missing run dir: {run}")
+    root_path = Path(root) if root is not None else run
+    try:
+        run_resolved = run.resolve()
+        root_resolved = root_path.resolve()
+    except OSError as exc:
+        raise QueryPathError(f"cannot resolve run_dir/root: {exc}") from exc
+    if not is_path_inside_root(str(run_resolved), str(root_resolved)):
+        raise QueryPathError(f"run_dir escapes root: {run}")
 
     signals_path = run / "spring_signals.json"
     facts_path = run / "facts.jsonl"
@@ -106,22 +122,26 @@ def run_context_packet(
         for row in batch:
             raw_items.append(_score_raw(request, row))
 
-    # Split findings / risks before budget on primary/related
     findings = [i for i in raw_items if i.get("provider") == "facts"]
     risks = [i for i in raw_items if i.get("provider") == "redaction"]
     rest = [i for i in raw_items if i.get("provider") not in ("facts", "redaction")]
 
     budget = _clamp_budget(budget_tokens)
-    # Reserve ~20% for findings+risks
-    primary_budget = max(1, int(budget * 0.7))
-    finding_budget = max(1, int(budget * 0.2))
-    risk_budget = max(1, budget - primary_budget - finding_budget)
+    primary_budget, finding_budget, risk_budget = split_budget_into_primary_finding_and_risk_shares(
+        budget
+    )
 
-    scored_rest, trunc_rest, used_rest = trim_to_budget(rest, primary_budget)
+    scored_rest, trunc_rest, used_rest = keep_highest_scoring_items_within_token_budget(
+        rest, primary_budget
+    )
     primary = scored_rest[:PRIMARY_COUNT]
     related = scored_rest[PRIMARY_COUNT:]
-    findings_kept, trunc_f, used_f = trim_to_budget(findings, finding_budget)
-    risks_kept, trunc_r, used_r = trim_to_budget(risks, risk_budget)
+    findings_kept, trunc_f, used_f = keep_highest_scoring_items_within_token_budget(
+        findings, finding_budget
+    )
+    risks_kept, trunc_r, used_r = keep_highest_scoring_items_within_token_budget(
+        risks, risk_budget
+    )
 
     policy: Any = AssumeIndexed()
     if repo_path is not None:
@@ -130,11 +150,9 @@ def run_context_packet(
         if not isinstance(sigs, Mapping):
             sigs = {}
         live = {str(i.get("path")) for i in primary if i.get("path")}
-        # live = optional re-hash of primary only (E2-S2): mark after verify
         sig_policy = SignatureFreshness(repo_root=repo, signatures=sigs, live_paths=set())
-        # promote primary paths that still match to live after re-hash check
         live_ok: set[str] = set()
-        from doc_engine.core.walk import compute_file_signature, is_path_inside_root
+        from doc_engine.core.walk import compute_file_signature
 
         for rel in live:
             full = (repo.resolve() / rel).resolve()
@@ -178,7 +196,7 @@ def run_context_packet(
     truncated = trunc_rest or trunc_f or trunc_r
     empty = not (primary_l or related_l or findings_l or risks_l)
 
-    return {
+    packet = {
         "schema_version": CONTEXT_PACKET_SCHEMA_VERSION,
         "kind": "context-packet",
         "request": request,
@@ -193,3 +211,7 @@ def run_context_packet(
         "providersUsed": used,
         "_hints": list(_DEFAULT_HINTS),
     }
+    from doc_engine.query.schema_check import validate_envelope
+
+    validate_envelope("context_packet", packet)
+    return packet

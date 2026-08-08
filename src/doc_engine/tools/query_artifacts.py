@@ -23,7 +23,12 @@ def _build_parser() -> argparse.ArgumentParser:
     common.add_argument(
         "--root",
         default=None,
-        help="optional containment root; artifact paths must resolve under it",
+        help="containment root (default: parent of artifact path, or DOC_ENGINE_ROOT)",
+    )
+    common.add_argument(
+        "--unsafe-no-root",
+        action="store_true",
+        help="CLI-only escape hatch — refuse on MCP; not recommended",
     )
     common.add_argument(
         "--limit",
@@ -110,7 +115,28 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
-    root = Path(args.root) if getattr(args, "root", None) else None
+    import os
+
+    from doc_engine.query.load import QueryPathError, require_server_root
+
+    if getattr(args, "unsafe_no_root", False):
+        # Explicit CLI-only; still need a root for _resolve — use artifact parent later
+        root = Path.cwd()
+    elif getattr(args, "root", None):
+        root = Path(args.root)
+    elif os.environ.get("DOC_ENGINE_ROOT") or os.environ.get("DOC_ENGINE_RUN_DIR"):
+        root = require_server_root()
+    else:
+        # Default: parent of primary artifact / run-dir
+        artifact = (
+            getattr(args, "signals", None)
+            or getattr(args, "facts", None)
+            or getattr(args, "run_dir", None)
+        )
+        if artifact:
+            root = Path(artifact).resolve().parent
+        else:
+            root = Path.cwd()
     try:
         if args.kind == "evidence":
             result = run_query(

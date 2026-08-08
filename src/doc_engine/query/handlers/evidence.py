@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
+from doc_engine.query.load import QueryError
+
 
 def _match_text(row: Mapping[str, Any], needle: str | None) -> bool:
     if not needle:
@@ -30,11 +32,14 @@ def query_evidence(
     evidence = signals.get("evidence") or {}
     if not isinstance(evidence, Mapping):
         return []
+    known = sorted(str(k) for k in evidence.keys())
     buckets: Sequence[str]
     if bucket:
+        if bucket not in evidence:
+            raise QueryError(f"unknown evidence bucket {bucket!r}; valid={known}")
         buckets = [bucket]
     else:
-        buckets = sorted(str(k) for k in evidence.keys())
+        buckets = known
 
     rows: list[dict[str, Any]] = []
     for name in buckets:

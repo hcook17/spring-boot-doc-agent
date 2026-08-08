@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping
 
-from doc_engine.query.handlers import dependents, entity, evidence, facts, route_trace
+from doc_engine.query.handlers import dependents, entity, evidence, route_trace
 
 
 def _item(
@@ -208,17 +208,33 @@ class RedactionProvider:
         del facts_rows, run_dir, request
         zones = signals.get("redaction_zones") or []
         out: list[dict[str, Any]] = []
-        if not isinstance(zones, list):
-            return out
-        for row in zones[:limit]:
-            if not isinstance(row, Mapping):
-                continue
+        # Production shape: {rel_path: [hits…]} ; also accept list fixtures.
+        rows: list[Mapping[str, Any]] = []
+        if isinstance(zones, Mapping):
+            for rel, hits in zones.items():
+                if isinstance(hits, list):
+                    for hit in hits:
+                        if isinstance(hit, Mapping):
+                            row = dict(hit)
+                            row.setdefault("file", rel)
+                            rows.append(row)
+                        else:
+                            rows.append({"file": rel, "reason": str(hit)})
+                else:
+                    rows.append({"file": str(rel), "reason": "redaction_zone"})
+        elif isinstance(zones, list):
+            for row in zones:
+                if isinstance(row, Mapping):
+                    rows.append(row)
+        for row in rows[:limit]:
             out.append(
                 _item(
                     provider=self.name,
                     path=row.get("file") if isinstance(row.get("file"), str) else None,
                     line=row.get("line"),
-                    match=str(row.get("reason") or "redaction_zone"),
+                    match=str(
+                        row.get("reason") or row.get("heuristic") or "redaction_zone"
+                    ),
                     bucket="redaction",
                     reason="redaction_zones risk",
                     payload=dict(row),

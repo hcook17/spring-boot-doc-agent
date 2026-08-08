@@ -135,6 +135,8 @@ def test_trim_to_budget_respects_token_proxy() -> None:
             "match": f"hit-{i}",
             "score": 1.0 - i * 0.01,
             "provider": "evidence",
+            "reason": "stage-0",
+            "bucket": "security",
             "payload": {"blob": "y" * 5000},
         }
         for i in range(20)
@@ -142,7 +144,10 @@ def test_trim_to_budget_respects_token_proxy() -> None:
     kept, truncated, used = trim_to_budget(items, budget_tokens=50)
     assert truncated is True
     assert len(kept) < 20
-    assert used <= 50
+    assert used <= 50 or (len(kept) == 1 and truncated)
+    # Emission must be row_ref-shaped (Option A), not fat payload.
+    assert all("row_ref" in k and "payload" not in k for k in kept)
+    assert used == sum(estimate_tokens(k) for k in kept)
 
 
 def test_context_packet_budget_trims_primary(tmp_path: Path) -> None:
@@ -215,7 +220,7 @@ def test_signature_freshness_stale_on_mismatch(tmp_path: Path) -> None:
 
 
 def test_assume_indexed_when_no_repo() -> None:
-    assert label_item_path(AssumeIndexed(), "src/X.java") == "fresh_indexed"
+    assert label_item_path(AssumeIndexed(), "src/X.java") == "unknown"
 
 
 def test_missing_signatures_unknown(tmp_path: Path) -> None:
@@ -228,10 +233,10 @@ def test_missing_signatures_unknown(tmp_path: Path) -> None:
         budget_tokens=4000,
         repo_path=None,
     )
-    # without repo_path, freshness defaults fresh_indexed via AssumeIndexed
+    # without repo_path, freshness defaults to unknown via AssumeIndexed
     assert pkt["primaryContext"]
     for item in pkt["primaryContext"]:
-        assert item.get("freshness") in ("fresh_indexed", "unknown", "stale", "live")
+        assert item.get("freshness") == "unknown"
 
 
 def test_packet_with_repo_marks_stale(tmp_path: Path) -> None:
@@ -255,10 +260,11 @@ def test_packet_with_repo_marks_stale(tmp_path: Path) -> None:
 # --- MCP ---
 
 
-def test_mcp_dispatch_context_packet(tmp_path: Path) -> None:
+def test_mcp_dispatch_context_packet(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from doc_engine.query.mcp_tools import dispatch_tool
 
     run = _write_run_dir(tmp_path)
+    monkeypatch.setenv("DOC_ENGINE_ROOT", str(tmp_path))
     out = dispatch_tool(
         "context_packet",
         {"request": "onboarding", "run_dir": str(run), "budget_tokens": 2000},
@@ -266,17 +272,18 @@ def test_mcp_dispatch_context_packet(tmp_path: Path) -> None:
     assert out["kind"] == "context-packet"
 
 
-def test_mcp_path_escape_refused(tmp_path: Path) -> None:
+def test_mcp_path_escape_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from doc_engine.query.mcp_tools import dispatch_tool
 
     root = tmp_path / "root"
     root.mkdir()
     outside = tmp_path / "outside.json"
     outside.write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("DOC_ENGINE_ROOT", str(root))
     with pytest.raises((QueryPathError, QueryMissingError, QueryError)):
         dispatch_tool(
             "query_evidence",
-            {"signals": str(outside), "root": str(root), "bucket": "security"},
+            {"signals": str(outside), "bucket": "security"},
         )
 
 

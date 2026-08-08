@@ -296,7 +296,15 @@ def test_route_trace_joins_api_surface_with_same_file_security() -> None:
 def test_load_json_missing_file_raises_not_empty_success(tmp_path: Path) -> None:
     """Deviation: missing artifact returns empty rows (false absence)."""
     with pytest.raises(QueryMissingError):
-        load_json(tmp_path / "nope.json")
+        load_json(tmp_path / "nope.json", root=tmp_path)
+
+
+def test_load_json_requires_root(tmp_path: Path) -> None:
+    """Deviation: C1 — opt-in containment (root=None allowed)."""
+    p = tmp_path / "x.json"
+    p.write_text("{}", encoding="utf-8")
+    with pytest.raises(QueryPathError):
+        load_json(p, root=None)
 
 
 def test_load_json_invalid_raises(tmp_path: Path) -> None:
@@ -304,7 +312,7 @@ def test_load_json_invalid_raises(tmp_path: Path) -> None:
     p = tmp_path / "bad.json"
     p.write_text("{not-json", encoding="utf-8")
     with pytest.raises(QueryError):
-        load_json(p)
+        load_json(p, root=tmp_path)
 
 
 def test_load_jsonl_skips_blank_but_rejects_truncated_line(tmp_path: Path) -> None:
@@ -312,7 +320,7 @@ def test_load_jsonl_skips_blank_but_rejects_truncated_line(tmp_path: Path) -> No
     p = tmp_path / "facts.jsonl"
     p.write_text('{"predicate":"X","subject":"a","object":"b","qualifiers":{},"file":"f","line":1,"rule_id":"r","scanner":"s"}\n{bad\n', encoding="utf-8")
     with pytest.raises(QueryError):
-        load_jsonl(p)
+        load_jsonl(p, root=tmp_path)
 
 
 def test_path_outside_root_refused(tmp_path: Path) -> None:
@@ -447,8 +455,97 @@ def test_real_artifacts_evidence_stays_capped() -> None:
     result = run_query(
         "evidence",
         signals_path=signals,
+        root=art,
         bucket="references",
         limit=25,
     )
     assert len(result["rows"]) <= 25
     assert result["truncated"] is True or len(result["rows"]) < 25
+
+# ---------------------------------------------------------------------------
+# E-Q0 / E-Q1 merge-gate falsifiers
+# ---------------------------------------------------------------------------
+
+
+def test_unknown_evidence_bucket_raises() -> None:
+    """Deviation: H3 - typo bucket returns empty success."""
+    with pytest.raises(QueryError, match="unknown evidence bucket"):
+        evidence.query_evidence(_signals_doc(), bucket="secuirty")
+
+
+def test_unknown_facts_predicate_raises() -> None:
+    """Deviation: H3 - typo predicate returns empty success."""
+    with pytest.raises(QueryError, match="unknown facts predicate"):
+        facts.query_facts(_facts_rows(), predicate="MAPS_TOO")
+
+
+def test_redaction_provider_dict_zones_produce_risks() -> None:
+    """Deviation: H2 - production {rel_path: [hits]} yields empty risks."""
+    from doc_engine.query.providers import RedactionProvider
+
+    signals = {
+        "redaction_zones": {
+            "application.yml": [
+                {"line": 12, "heuristic": "key-name:password"},
+                {"line": 40, "heuristic": "aws_access_key_id"},
+            ]
+        }
+    }
+    items = RedactionProvider().provide(
+        "secrets",
+        signals=signals,
+        facts_rows=[],
+        run_dir=Path("."),
+        limit=10,
+    )
+    assert len(items) == 2
+    assert items[0]["path"] == "application.yml"
+    assert "password" in (items[0]["match"] or "")
+
+
+def test_estimate_tokens_counts_full_emission() -> None:
+    """Deviation: C2 - estimate_tokens ignores payload while emission includes it."""
+    from doc_engine.query.rank import estimate_tokens, to_emission_item
+
+    fat = {
+        "provider": "evidence",
+        "path": "src/A.java",
+        "line": 1,
+        "match": "hit",
+        "bucket": "security",
+        "reason": "x",
+        "score": 1.0,
+        "payload": {"blob": "y" * 4000},
+    }
+    emission = to_emission_item(fat)
+    assert "payload" not in emission
+    assert "row_ref" in emission
+    assert estimate_tokens(emission) == len(json.dumps(emission, ensure_ascii=False)) // 4
+    assert estimate_tokens({**emission, "payload": fat["payload"]}) > estimate_tokens(emission)
+
+
+def test_assume_indexed_returns_unknown() -> None:
+    """Deviation: M1 - AssumeIndexed always claims fresh_indexed."""
+    from doc_engine.query.freshness import AssumeIndexed, label_item_path
+
+    assert label_item_path(AssumeIndexed(), "does/not/exist.java") == "unknown"
+
+
+def test_partition_budget_never_overshoots() -> None:
+    """Deviation: N1 - max(1,...) primary+finding+risk exceeds small budgets."""
+    from doc_engine.query.rank import partition_budget
+
+    for budget in range(0, 12):
+        primary, finding, risk = partition_budget(budget)
+        assert primary + finding + risk == budget
+        assert primary >= 0 and finding >= 0 and risk >= 0
+
+
+def test_apply_nested_cap_truncates_guards() -> None:
+    """Deviation: H1 - nested guards unbounded; truncated lies."""
+    from doc_engine.query.envelope import apply_nested_cap
+
+    row = {"file": "A.java", "guards": [{"i": i} for i in range(200)]}
+    capped, truncated = apply_nested_cap([row], max_list=50)
+    assert truncated is True
+    assert len(capped[0]["guards"]) == 50
