@@ -10,8 +10,7 @@ from doc_engine.query.load import QueryError
 def _match_text(row: Mapping[str, Any], needle: str | None) -> bool:
     if not needle:
         return True
-    hay = str(row.get("match") or "")
-    return needle in hay
+    return needle in str(row.get("match") or "")
 
 
 def _file_match(row: Mapping[str, Any], needle: str | None) -> bool:
@@ -22,7 +21,7 @@ def _file_match(row: Mapping[str, Any], needle: str | None) -> bool:
 
 
 def _resolve_buckets(evidence: Mapping[str, Any], bucket: str | None) -> Sequence[str]:
-    known = sorted(str(k) for k in evidence.keys())
+    known = sorted(str(bucket_name) for bucket_name in evidence.keys())
     if not bucket:
         return known
     if bucket not in evidence:
@@ -41,9 +40,34 @@ def _row_passes(
         return False
     if not _file_match(row, file_contains):
         return False
-    if not _match_text(row, match_contains):
-        return False
-    return True
+    return _match_text(row, match_contains)
+
+
+def _filter_bucket(
+    evidence: Mapping[str, Any],
+    name: str,
+    *,
+    rule_id: str | None,
+    file_contains: str | None,
+    match_contains: str | None,
+) -> list[dict[str, Any]]:
+    entries = evidence.get(name) or []
+    if not isinstance(entries, list):
+        return []
+    rows: list[dict[str, Any]] = []
+    for raw in entries:
+        if not isinstance(raw, Mapping):
+            continue
+        row = dict(raw)
+        row.setdefault("bucket", name)
+        if _row_passes(
+            row,
+            rule_id=rule_id,
+            file_contains=file_contains,
+            match_contains=match_contains,
+        ):
+            rows.append(row)
+    return rows
 
 
 def query_evidence(
@@ -57,24 +81,15 @@ def query_evidence(
     evidence = signals.get("evidence") or {}
     if not isinstance(evidence, Mapping):
         return []
-    buckets = _resolve_buckets(evidence, bucket)
-
     rows: list[dict[str, Any]] = []
-    for name in buckets:
-        entries = evidence.get(name) or []
-        if not isinstance(entries, list):
-            continue
-        for raw in entries:
-            if not isinstance(raw, Mapping):
-                continue
-            row = dict(raw)
-            row.setdefault("bucket", name)
-            if not _row_passes(
-                row,
+    for name in _resolve_buckets(evidence, bucket):
+        rows.extend(
+            _filter_bucket(
+                evidence,
+                name,
                 rule_id=rule_id,
                 file_contains=file_contains,
                 match_contains=match_contains,
-            ):
-                continue
-            rows.append(row)
+            )
+        )
     return rows

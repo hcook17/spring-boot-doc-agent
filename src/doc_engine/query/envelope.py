@@ -21,14 +21,8 @@ def apply_limit(
     ``limit is None`` uses DEFAULT_LIMIT. Negative or zero → empty + truncated
     if input non-empty. Values above ``max_limit`` are clamped.
     """
-    if limit is None:
-        cap = DEFAULT_LIMIT
-    else:
-        cap = int(limit)
-    if cap < 0:
-        cap = 0
-    if cap > max_limit:
-        cap = max_limit
+    cap = DEFAULT_LIMIT if limit is None else int(limit)
+    cap = max(0, min(cap, max_limit))
     material = list(rows)
     if len(material) > cap:
         return material[:cap], True
@@ -55,9 +49,7 @@ def apply_nested_cap(
 
 
 def _cap_mapping(
-    obj: Mapping[str, Any],
-    max_list: int,
-    depth: int,
+    obj: Mapping[str, Any], max_list: int, depth: int
 ) -> tuple[dict[str, Any], bool]:
     truncated = False
     out: dict[str, Any] = {}
@@ -70,18 +62,11 @@ def _cap_mapping(
 
 def _cap_list(obj: list[Any], max_list: int, depth: int) -> tuple[list[Any], bool]:
     truncated = False
-    if depth == 0:
-        items_out: list[Any] = []
-        for item in obj:
-            capped, hit = apply_nested_cap(item, max_list, _depth=depth + 1)
-            truncated = truncated or hit
-            items_out.append(capped)
-        return items_out, truncated
     material = list(obj)
-    if len(material) > max_list:
+    if depth > 0 and len(material) > max_list:
         material = material[:max_list]
         truncated = True
-    items_out = []
+    items_out: list[Any] = []
     for item in material:
         capped, hit = apply_nested_cap(item, max_list, _depth=depth + 1)
         truncated = truncated or hit

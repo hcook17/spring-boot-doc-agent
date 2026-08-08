@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Mapping
 
 from doc_engine.core.walk import compute_file_signature, is_path_inside_root
 from doc_engine.query.load import QueryError
@@ -12,13 +12,13 @@ from doc_engine.query.load import QueryError
 class UnknownFreshnessWhenNoRepo:
     """Honest default when no repo path is supplied — never invent fresh_indexed."""
 
-    def freshness_for(self, _rel_path: str | None) -> str:
+    def freshness_for(self, rel_path: str | None = None) -> str:
+        _ = rel_path
         return "unknown"
 
 
 # Historical name kept as alias so call sites and docs remain greppable.
 AssumeIndexed = UnknownFreshnessWhenNoRepo
-
 
 
 class SignatureFreshness:
@@ -32,8 +32,11 @@ class SignatureFreshness:
         live_paths: set[str] | None = None,
     ) -> None:
         self._root = repo_root.resolve()
-        self._sigs = {str(k).replace("\\", "/"): str(v) for k, v in signatures.items()}
-        self._live = {p.replace("\\", "/") for p in (live_paths or set())}
+        self._sigs = {
+            str(path).replace("\\", "/"): str(digest)
+            for path, digest in signatures.items()
+        }
+        self._live = {path.replace("\\", "/") for path in (live_paths or set())}
 
     def freshness_for(self, rel_path: str | None) -> str:
         if not rel_path:
@@ -41,6 +44,9 @@ class SignatureFreshness:
         rel = rel_path.replace("\\", "/")
         if rel in self._live:
             return "live"
+        return self._compare_on_disk(rel)
+
+    def _compare_on_disk(self, rel: str) -> str:
         full = (self._root / rel).resolve()
         if not is_path_inside_root(str(full), str(self._root)):
             return "unknown"
@@ -79,22 +85,12 @@ def label_item_path(policy: object, rel_path: str | None) -> str:
     return label
 
 
-def _add_path(out: set[str], path: str) -> None:
-    out.add(path.replace("\\", "/"))
-
-
-def _collect_from_list(val: list, out: set[str]) -> None:
+def _add_list_paths(val: list[Any], out: set[str]) -> None:
     for item in val:
         if isinstance(item, str):
-            _add_path(out, item)
+            out.add(item.replace("\\", "/"))
         elif isinstance(item, Mapping) and item.get("file"):
-            _add_path(out, str(item["file"]))
-
-
-def _collect_from_files_map(files: Mapping, out: set[str]) -> None:
-    for path, meta in files.items():
-        if isinstance(meta, Mapping) and meta.get("status") in ("changed", "stale", "drifted"):
-            _add_path(out, str(path))
+            out.add(str(item["file"]).replace("\\", "/"))
 
 
 def stale_paths_from_drift_report(report: Mapping) -> set[str]:
@@ -103,8 +99,10 @@ def stale_paths_from_drift_report(report: Mapping) -> set[str]:
     for key in ("changed_files", "stale_files", "drifted_files"):
         val = report.get(key)
         if isinstance(val, list):
-            _collect_from_list(val, out)
+            _add_list_paths(val, out)
     files = report.get("files")
     if isinstance(files, Mapping):
-        _collect_from_files_map(files, out)
+        for path, meta in files.items():
+            if isinstance(meta, Mapping) and meta.get("status") in ("changed", "stale", "drifted"):
+                out.add(str(path).replace("\\", "/"))
     return out

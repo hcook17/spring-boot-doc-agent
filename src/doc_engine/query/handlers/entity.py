@@ -11,9 +11,10 @@ def _candidate_field_matches(entry: Mapping[str, Any], field: str, want: str) ->
     cands = entry.get("candidates") or []
     if not isinstance(cands, list):
         return False
-    return any(
-        isinstance(c, Mapping) and str(c.get(field) or "") == want for c in cands
-    )
+    for candidate in cands:
+        if isinstance(candidate, Mapping) and str(candidate.get(field) or "") == want:
+            return True
+    return False
 
 
 def _row_matches(
@@ -33,14 +34,6 @@ def _row_matches(
     return True
 
 
-def _normalize_entry(name: str, raw: Mapping[str, Any]) -> dict[str, Any]:
-    entry = dict(raw)
-    entry["class_name"] = str(name)
-    if "candidates" not in entry:
-        entry["candidates"] = []
-    return entry
-
-
 def query_entity(
     signals: Mapping[str, Any],
     *,
@@ -55,10 +48,11 @@ def query_entity(
     for name, raw in etm.items():
         if not isinstance(raw, Mapping):
             continue
-        entry = _normalize_entry(str(name), raw)
-        if not _row_matches(
+        entry = dict(raw)
+        entry["class_name"] = str(name)
+        entry.setdefault("candidates", [])
+        if _row_matches(
             entry, str(name), class_name=class_name, table=table, fqcn=fqcn
         ):
-            continue
-        rows.append(entry)
+            rows.append(entry)
     return rows

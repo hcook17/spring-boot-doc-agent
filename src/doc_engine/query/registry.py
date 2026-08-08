@@ -14,7 +14,9 @@ from doc_engine.query.schema_check import validate_envelope
 Handler = Callable[..., list[dict[str, Any]]]
 
 # Backward-compatible handler map derived from single registry (OCP).
-_HANDLERS: dict[str, Handler] = {k: s.handler for k, s in QUERY_KIND_SPECS.items()}
+_HANDLERS: dict[str, Handler] = {
+    kind: spec.handler for kind, spec in QUERY_KIND_SPECS.items()
+}
 
 
 def get_query_handler(kind: str) -> Handler:

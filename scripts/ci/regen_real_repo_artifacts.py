@@ -40,20 +40,56 @@ def _validated_scanners_arg(raw: str) -> str:
     tokens = [t.strip() for t in str(raw).split(",") if t.strip()]
     if not tokens:
         raise ValueError("scanners list is empty")
-    bad = sorted({t for t in tokens if t not in _ALLOWED_SCANNERS})
+    bad = sorted({token for token in tokens if token not in _ALLOWED_SCANNERS})
     if bad:
         raise ValueError(
             f"unknown scanner(s) {bad}; allowed: {', '.join(sorted(_ALLOWED_SCANNERS))}"
         )
-    # Preserve order, drop dupes
     seen: set[str] = set()
     ordered: list[str] = []
-    for t in tokens:
-        if t in seen:
+    for token in tokens:
+        if token in seen:
             continue
-        seen.add(t)
-        ordered.append(t)
+        seen.add(token)
+        ordered.append(token)
     return ",".join(ordered)
+
+
+def _validated_repo_path(repo: Path) -> Path:
+    resolved = repo.resolve()
+    if not resolved.is_dir():
+        raise ValueError(f"repo is not a directory: {resolved}")
+    return resolved
+
+
+def _validated_out_path(out_root: Path) -> Path:
+    resolved = out_root if out_root.is_absolute() else (REPO_ROOT / out_root)
+    resolved = resolved.resolve()
+    # Contain under repo root or absolute path the operator already chose.
+    resolved.mkdir(parents=True, exist_ok=True)
+    return resolved
+
+
+def _scan_command(repo: Path, signals_out: Path, scanners: str) -> list[str]:
+    # Fixed module argv — only allowlisted scanners and resolved paths.
+    return [
+        sys.executable,
+        "-m",
+        "doc_engine.tools.spring_signal_scan",
+        str(repo),
+        "--out",
+        str(signals_out),
+        "--scanners",
+        scanners,
+    ]
+
+
+def _run_spring_signal_scan(repo: Path, signals_out: Path, scanners: str) -> int:
+    cmd = _scan_command(repo, signals_out, scanners)
+    env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")}
+    print(f"regen: scanning {repo} -> {signals_out.parent}")
+    proc = subprocess.run(cmd, cwd=str(REPO_ROOT), env=env, check=False, shell=False)
+    return int(proc.returncode)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -78,8 +114,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        repo = require_real_repo()
-    except FileNotFoundError as exc:
+        repo = _validated_repo_path(require_real_repo())
+    except (FileNotFoundError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
@@ -87,27 +123,13 @@ def main(argv: list[str] | None = None) -> int:
     if out_root is None:
         out_root = real_artifacts_dir(prefer_default=True)
     assert out_root is not None
-    if not out_root.is_absolute():
-        out_root = REPO_ROOT / out_root
-    out_root.mkdir(parents=True, exist_ok=True)
+    out_root = _validated_out_path(out_root)
     signals_out = out_root / "spring_signals.json"
 
-    cmd = [
-        sys.executable,
-        "-m",
-        "doc_engine.tools.spring_signal_scan",
-        str(repo),
-        "--out",
-        str(signals_out),
-        "--scanners",
-        scanners,
-    ]
-    env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")}
-    print(f"regen: scanning {repo} -> {out_root}")
-    proc = subprocess.run(cmd, cwd=str(REPO_ROOT), env=env, check=False)
-    if proc.returncode != 0:
+    rc = _run_spring_signal_scan(repo, signals_out, scanners)
+    if rc != 0:
         print("error: spring_signal_scan failed", file=sys.stderr)
-        return proc.returncode
+        return rc
 
     facts = out_root / "facts.jsonl"
     covering = out_root / "covering_proof.json"

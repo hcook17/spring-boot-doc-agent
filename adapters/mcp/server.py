@@ -118,31 +118,51 @@ def _emit(obj: dict[str, Any]) -> None:
     print(json.dumps(obj), flush=True)
 
 
-def _process_stdin_line(line: str) -> None:
-    # Size gate before strip/parse (H4 / Q1-1).
-    raw_len = len(line.encode("utf-8", errors="replace")) if isinstance(line, str) else len(line)
-    if raw_len > MAX_LINE_BYTES:
-        _emit(
-            _jsonrpc_error(
-                -32600,
-                f"line exceeds MAX_LINE_BYTES ({MAX_LINE_BYTES})",
-            )
+def _line_byte_len(line: str) -> int:
+    if isinstance(line, str):
+        return len(line.encode("utf-8", errors="replace"))
+    return len(line)
+
+
+def _reject_oversized(line: str) -> bool:
+    if _line_byte_len(line) <= MAX_LINE_BYTES:
+        return False
+    _emit(
+        _jsonrpc_error(
+            -32600,
+            f"line exceeds MAX_LINE_BYTES ({MAX_LINE_BYTES})",
         )
+    )
+    return True
+
+
+def _parse_message(line: str) -> dict[str, Any] | None:
+    try:
+        return json.loads(line)
+    except json.JSONDecodeError:
+        _emit(_jsonrpc_error(-32700, "parse error"))
+        return None
+
+
+def _handle_or_bulkhead(msg: dict[str, Any]) -> dict[str, Any] | None:
+    try:
+        return handle_message(msg)
+    except Exception as exc:  # noqa: BLE001 — bulkhead: keep stdin loop alive
+        msg_id = msg.get("id") if isinstance(msg, dict) else None
+        _emit(_jsonrpc_error(-32603, f"internal error: {exc}", msg_id=msg_id))
+        return None
+
+
+def _process_stdin_line(line: str) -> None:
+    if _reject_oversized(line):
         return
     line = line.strip()
     if not line:
         return
-    try:
-        msg = json.loads(line)
-    except json.JSONDecodeError:
-        _emit(_jsonrpc_error(-32700, "parse error"))
+    msg = _parse_message(line)
+    if msg is None:
         return
-    try:
-        resp = handle_message(msg)
-    except Exception as exc:  # noqa: BLE001 — bulkhead: keep stdin loop alive
-        msg_id = msg.get("id") if isinstance(msg, dict) else None
-        _emit(_jsonrpc_error(-32603, f"internal error: {exc}", msg_id=msg_id))
-        return
+    resp = _handle_or_bulkhead(msg)
     if resp is not None:
         _emit(resp)
 

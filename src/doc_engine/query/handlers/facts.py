@@ -23,10 +23,14 @@ KNOWN_PREDICATES = frozenset(
 def _validate_predicate(predicate: str | None, rows: Sequence[Mapping[str, Any]]) -> None:
     if not predicate or predicate in KNOWN_PREDICATES:
         return
-    present = {str(r.get("predicate")) for r in rows if isinstance(r, Mapping)}
+    present = set()
+    for row in rows:
+        if isinstance(row, Mapping):
+            present.add(str(row.get("predicate")))
     if predicate not in present:
-        valid = sorted(KNOWN_PREDICATES | present)
-        raise QueryError(f"unknown facts predicate {predicate!r}; valid={valid}")
+        raise QueryError(
+            f"unknown facts predicate {predicate!r}; valid={sorted(KNOWN_PREDICATES | present)}"
+        )
 
 
 def _fqcn_of(row: Mapping[str, Any]) -> str:
@@ -71,13 +75,12 @@ def query_facts(
         if not isinstance(raw, Mapping):
             continue
         row = dict(raw)
-        if not _fact_passes(
+        if _fact_passes(
             row,
             predicate=predicate,
             file_contains=file_contains,
             fqcn=fqcn,
             subject_contains=subject_contains,
         ):
-            continue
-        out.append(row)
+            out.append(row)
     return out

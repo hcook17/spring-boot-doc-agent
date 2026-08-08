@@ -8,20 +8,13 @@ from pathlib import Path
 from stf.schemas.findings import Finding, FindingLink, FindingSeverity
 from stf.schemas.spec import DataSourceRow, SpecDocument
 
-# Simple linear heading match; id validated separately (avoids backtracking).
-_HEADING = re.compile(
-    r"^###\s+(?P<id>\S+)\s*[—–-]\s*(?P<title>.+)$",
-    re.M,
-)
-_FINDING_ID = re.compile(
-    r"^(?:C\d+|H\d+|M\d+|N\d+|S\d+|Q\d+-\d+|E-[A-Z0-9]+)$"
-)
-_SEVERITY = re.compile(r"\*\*Severity:\s*(?P<sev>[^*]+)\*\*", re.I)
-_EPIC_ID = re.compile(r"^[A-Z0-9]+-\d+$")
-_PATH_REF = re.compile(
-    r"`((?:src|tests|adapters|scripts|docs|claude)/[^`]+)`|"
-    r"```\d+:\d+:([^\n`]+)"
-)
+# Linear patterns — no nested quantifiers / alternation traps.
+_HEADING = re.compile(r"^###\s+(\S+)\s*[—–-]\s*(.+)$", re.M)
+_FINDING_ID = re.compile(r"^(?:[CHMNS]\d+|Q\d+-\d+|E-[A-Z0-9]+)$")
+_SEVERITY_LINE = re.compile(r"\*\*Severity:\s*([^*]*)\*\*", re.I)
+_EPIC_ID = re.compile(r"^[A-Z][A-Z0-9]*-\d+$")
+_PATH_TICK = re.compile(r"`((?:src|tests|adapters|scripts|docs|claude)/[^`]+)`")
+_PATH_CITE = re.compile(r"```\d+:\d+:([^\n`]+)")
 
 _SEV_KEYWORDS: tuple[tuple[str, FindingSeverity], ...] = (
     ("critical", FindingSeverity.CRITICAL),
@@ -41,10 +34,13 @@ _SEV_BY_PREFIX: dict[str, FindingSeverity] = {
 
 
 def _sev_from_severity_line(text: str) -> FindingSeverity | None:
-    m = _SEVERITY.search(text)
+    m = _SEVERITY_LINE.search(text)
     if not m:
         return None
-    raw = m.group("sev").strip().lower()
+    return _sev_from_raw(m.group(1).strip().lower())
+
+
+def _sev_from_raw(raw: str) -> FindingSeverity | None:
     for needle, sev in _SEV_KEYWORDS:
         if needle in raw:
             return sev
@@ -60,44 +56,58 @@ def _sev_from_id(fid: str, text: str) -> FindingSeverity:
     return _SEV_BY_PREFIX.get(fid[0], FindingSeverity.INFO)
 
 
+def _paths_from_ticks(text: str) -> list[str]:
+    return [match.group(1).strip() for match in _PATH_TICK.finditer(text)]
+
+
+def _paths_from_cites(text: str) -> list[str]:
+    return [match.group(1).strip() for match in _PATH_CITE.finditer(text)]
+
+
 def _paths_in(text: str) -> list[str]:
-    out: list[str] = []
-    for m in _PATH_REF.finditer(text):
-        p = m.group(1) or m.group(2)
-        if p:
-            out.append(p.strip())
-    return list(dict.fromkeys(out))
+    return list(dict.fromkeys(_paths_from_ticks(text) + _paths_from_cites(text)))
+
+
+def _links_for_path(fid: str, path: str) -> list[FindingLink]:
+    links = [FindingLink(kind="path", target=path)]
+    if not path.startswith("src/"):
+        return links
+    stem = Path(path).stem
+    links.append(
+        FindingLink(
+            kind="test",
+            target=f"tests/doc_engine/test_query_artifacts.py::{stem}",
+            note="heuristic related test node",
+        )
+    )
+    links.append(
+        FindingLink(
+            kind="mutant",
+            target=f"scripts/ratchets/mutate.py::{fid}",
+            note="named mutant slot",
+        )
+    )
+    return links
 
 
 def _links_for(fid: str, paths: list[str]) -> list[FindingLink]:
     links: list[FindingLink] = []
-    for p in paths:
-        links.append(FindingLink(kind="path", target=p))
-        # TraceDev-style: related test / mutant heuristics
-        if p.startswith("src/"):
-            stem = Path(p).stem
-            links.append(
-                FindingLink(
-                    kind="test",
-                    target=f"tests/doc_engine/test_query_artifacts.py::{stem}",
-                    note="heuristic related test node",
-                )
-            )
-            links.append(
-                FindingLink(
-                    kind="mutant",
-                    target=f"scripts/ratchets/mutate.py::{fid}",
-                    note="named mutant slot",
-                )
-            )
+    for path in paths:
+        links.extend(_links_for_path(fid, path))
     return links
+
+
+def _is_claim_line(line: str) -> bool:
+    if not line:
+        return False
+    return not line.startswith(("#", "|", "```"))
 
 
 def _first_claim_line(body: str) -> str:
     for line in body.splitlines()[1:8]:
-        line = line.strip()
-        if line and not line.startswith(("#", "|", "```")):
-            return line.lstrip("*").strip()
+        stripped = line.strip()
+        if _is_claim_line(stripped):
+            return stripped.lstrip("*").strip()
     return ""
 
 
@@ -106,10 +116,10 @@ def _finding_from_heading_match(
     body: str,
     source_doc: str | None,
 ) -> Finding | None:
-    fid = m.group("id")
+    fid = m.group(1)
     if not _FINDING_ID.fullmatch(fid):
         return None
-    title = m.group("title").strip()
+    title = m.group(2).strip()
     paths = _paths_in(body)
     claim = _first_claim_line(body)
     return Finding(
@@ -126,16 +136,31 @@ def _finding_from_heading_match(
 
 
 def _parse_epic_row(line: str) -> tuple[str, str, str] | None:
-    """Split a markdown table row into id/title/ac without a backtracking regex."""
     if not line.startswith("|"):
         return None
-    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
     if len(cells) < 4:
         return None
     tid, title, _est, ac = cells[0], cells[1], cells[2], cells[3]
     if not _EPIC_ID.fullmatch(tid):
         return None
     return tid, title, ac
+
+
+def _epic_finding(
+    tid: str, title: str, ac: str, source_doc: str | None
+) -> Finding:
+    title = title or tid
+    ac = ac or title
+    return Finding(
+        id=tid,
+        severity=FindingSeverity.INFO,
+        title=title,
+        claim=ac,
+        source_doc=source_doc,
+        epic_hint=tid.split("-")[0],
+        suggested_fix=ac,
+    )
 
 
 def _findings_from_epic_rows(
@@ -151,44 +176,40 @@ def _findings_from_epic_rows(
         tid, title, ac = parsed
         if tid in existing_ids:
             continue
-        if not re.match(r"^[A-Z]+\d*-\d+$", tid):
-            continue
-        title = title or tid
-        ac = ac or title
-        findings.append(
-            Finding(
-                id=tid,
-                severity=FindingSeverity.INFO,
-                title=title,
-                claim=ac,
-                source_doc=source_doc,
-                epic_hint=tid.split("-")[0],
-                suggested_fix=ac,
-            )
-        )
+        findings.append(_epic_finding(tid, title, ac, source_doc))
         existing_ids.add(tid)
     return findings
+
+
+def _heading_window(text: str, matches: list[re.Match[str]], index: int) -> str:
+    start = matches[index].start()
+    if index + 1 < len(matches):
+        return text[start : matches[index + 1].start()]
+    return text[start:]
 
 
 def ingest_review_markdown(text: str, *, source_doc: str | None = None) -> list[Finding]:
     """Parse adversarial review headings into Finding inventory."""
     findings: list[Finding] = []
     matches = list(_HEADING.finditer(text))
-    for i, m in enumerate(matches):
-        start = m.start()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        body = text[start:end]
-        finding = _finding_from_heading_match(m, body, source_doc)
+    for index, match in enumerate(matches):
+        body = _heading_window(text, matches, index)
+        finding = _finding_from_heading_match(match, body, source_doc)
         if finding is not None:
             findings.append(finding)
-
     existing = {f.id for f in findings}
     findings.extend(_findings_from_epic_rows(text, source_doc, existing))
     return findings
 
 
+def _epic_hint_q0(fid: str) -> bool:
+    if fid.startswith("C"):
+        return True
+    return fid in ("H1", "H2")
+
+
 def _epic_hint(fid: str) -> str:
-    if fid.startswith("C") or (fid.startswith("H") and fid in ("H1", "H2")):
+    if _epic_hint_q0(fid):
         return "E-Q0"
     if fid.startswith(("H", "N", "M")):
         return "E-Q1"
@@ -202,6 +223,19 @@ def ingest_review_path(path: Path) -> list[Finding]:
     return ingest_review_markdown(text, source_doc=str(path).replace("\\", "/"))
 
 
+def _inventory_worthy(f: Finding) -> bool:
+    if f.id.startswith(("Q", "E")):
+        return False
+    if f.severity in (
+        FindingSeverity.CRITICAL,
+        FindingSeverity.HIGH,
+        FindingSeverity.MEDIUM,
+        FindingSeverity.SPIKE,
+    ):
+        return True
+    return f.id.startswith(("C", "H", "N", "M", "S"))
+
+
 def findings_to_spec_seed(
     findings: list[Finding],
     *,
@@ -210,21 +244,15 @@ def findings_to_spec_seed(
 ) -> SpecDocument:
     inventory = []
     for f in findings:
-        if f.severity in (
-            FindingSeverity.CRITICAL,
-            FindingSeverity.HIGH,
-            FindingSeverity.MEDIUM,
-            FindingSeverity.SPIKE,
-        ) or f.id.startswith(("C", "H", "N", "M", "S")):
-            if f.id.startswith(("Q", "E")):
-                continue
-            inventory.append(
-                DataSourceRow(
-                    id=f"INV-{f.id}",
-                    data_need=f.title,
-                    origin=f.evidence_paths[0] if f.evidence_paths else "new — to be built",
-                )
+        if not _inventory_worthy(f):
+            continue
+        inventory.append(
+            DataSourceRow(
+                id=f"INV-{f.id}",
+                data_need=f.title,
+                origin=f.evidence_paths[0] if f.evidence_paths else "new — to be built",
             )
+        )
     critical = [f for f in findings if f.severity == FindingSeverity.CRITICAL]
     return SpecDocument(
         target=target,

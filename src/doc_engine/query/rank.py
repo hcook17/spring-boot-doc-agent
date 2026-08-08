@@ -105,31 +105,41 @@ def truncate_nested_lists_that_exceed_cap(
 ) -> tuple[Any, bool]:
     """Return (possibly capped object, did_truncate). Caps guards/candidates/etc."""
     state = {"truncated": False}
+    return _walk_nested(obj, max_list_length, state), bool(state["truncated"])
 
-    def _walk_list(node: list[Any]) -> list[Any]:
-        children = [_walk(x) for x in node[:max_list_length]]
-        if len(node) > max_list_length:
-            state["truncated"] = True
-        return children
 
-    def _walk_mapping(node: Mapping[str, Any]) -> dict[str, Any]:
-        out: dict[str, Any] = {}
-        for key, value in node.items():
-            if isinstance(value, list) and len(value) > max_list_length:
-                state["truncated"] = True
-                out[key] = [_walk(x) for x in value[:max_list_length]]
-            else:
-                out[key] = _walk(value)
-        return out
+def _walk_nested(node: Any, max_list_length: int, state: dict[str, bool]) -> Any:
+    if isinstance(node, list):
+        return _walk_nested_list(node, max_list_length, state)
+    if isinstance(node, Mapping):
+        return _walk_nested_mapping(node, max_list_length, state)
+    return node
 
-    def _walk(node: Any) -> Any:
-        if isinstance(node, list):
-            return _walk_list(node)
-        if isinstance(node, Mapping):
-            return _walk_mapping(node)
-        return node
 
-    return _walk(obj), bool(state["truncated"])
+def _walk_nested_list(
+    node: list[Any], max_list_length: int, state: dict[str, bool]
+) -> list[Any]:
+    if len(node) > max_list_length:
+        state["truncated"] = True
+    return [_walk_nested(item, max_list_length, state) for item in node[:max_list_length]]
+
+
+def _map_value_capped(
+    value: Any, max_list_length: int, state: dict[str, bool]
+) -> Any:
+    if isinstance(value, list) and len(value) > max_list_length:
+        state["truncated"] = True
+        return [_walk_nested(item, max_list_length, state) for item in value[:max_list_length]]
+    return _walk_nested(value, max_list_length, state)
+
+
+def _walk_nested_mapping(
+    node: Mapping[str, Any], max_list_length: int, state: dict[str, bool]
+) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key, value in node.items():
+        out[key] = _map_value_capped(value, max_list_length, state)
+    return out
 
 
 apply_nested_cap = truncate_nested_lists_that_exceed_cap  # returns tuple; see wrap below
@@ -170,7 +180,7 @@ def replace_bulky_payload_with_row_ref_pointer(item: Mapping[str, Any]) -> dict[
             for key in ("guards", "candidates"):
                 if key in capped_payload:
                     emission["row_ref"][key] = capped_payload[key]
-    return {k: v for k, v in emission.items() if v is not None}
+    return {key: value for key, value in emission.items() if value is not None}
 
 
 to_emission_item = replace_bulky_payload_with_row_ref_pointer

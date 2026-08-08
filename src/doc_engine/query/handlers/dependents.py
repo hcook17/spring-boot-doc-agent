@@ -20,8 +20,11 @@ def _passes_target_filters(
 ) -> bool:
     if dst == src:
         return False
-    if want_file and dst.replace("\\", "/") != want_file and src.replace("\\", "/") != want_file:
-        return False
+    if want_file:
+        src_n = src.replace("\\", "/")
+        dst_n = dst.replace("\\", "/")
+        if dst_n != want_file and src_n != want_file:
+            return False
     if want_type:
         stem = qualified.rstrip(".*").rsplit(".", 1)[-1]
         if stem != want_type and want_type not in qualified:
@@ -30,13 +33,14 @@ def _passes_target_filters(
 
 
 def _arc_direction(src: str, dst: str, want_file: str | None) -> str:
-    direction = "inbound" if want_file and dst.replace("\\", "/") == want_file else "outbound"
     if want_file and src.replace("\\", "/") == want_file:
         return "outbound"
-    return direction
+    if want_file and dst.replace("\\", "/") == want_file:
+        return "inbound"
+    return "outbound"
 
 
-def _append_arc(
+def _append_import_arc(
     rows: list[dict[str, Any]],
     seen: set[tuple[str, str, str]],
     *,
@@ -63,6 +67,63 @@ def _append_arc(
     )
 
 
+def _collect_arcs_for_source(
+    rows: list[dict[str, Any]],
+    seen: set[tuple[str, str, str]],
+    *,
+    src: str,
+    entries: Any,
+    decl_files: Any,
+    stem_index: Any,
+    want_file: str | None,
+    want_type: str | None,
+) -> None:
+    for qualified, is_static in entries:
+        targets, confidence = resolve_targets(qualified, decl_files, stem_index)
+        if confidence == "unresolved":
+            continue
+        for dst in targets:
+            if not _passes_target_filters(src, dst, qualified, want_file, want_type):
+                continue
+            _append_import_arc(
+                rows,
+                seen,
+                src=src,
+                dst=dst,
+                qualified=qualified,
+                confidence=confidence,
+                is_static=is_static,
+                want_file=want_file,
+            )
+
+
+def _from_references(
+    signals: Mapping[str, Any],
+    *,
+    target_file: str | None,
+    target_type: str | None,
+) -> list[dict[str, Any]]:
+    references = (signals.get("evidence") or {}).get("references") or []
+    if not isinstance(references, list):
+        return []
+    decl_files, stem_index, imports = parse_references(references)
+    want_file = _normalize_want_file(target_file)
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for src, entries in imports.items():
+        _collect_arcs_for_source(
+            rows,
+            seen,
+            src=src,
+            entries=entries,
+            decl_files=decl_files,
+            stem_index=stem_index,
+            want_file=want_file,
+            want_type=target_type,
+        )
+    return rows
+
+
 def query_dependents(
     signals: Mapping[str, Any],
     *,
@@ -82,41 +143,13 @@ def query_dependents(
     """
     if edges is not None and group_id is not None:
         return _from_edges(edges, group_id, target_file=target_file)
-
-    references = (signals.get("evidence") or {}).get("references") or []
-    if not isinstance(references, list):
-        return []
-    decl_files, stem_index, imports = parse_references(references)
-
-    want_file = _normalize_want_file(target_file)
-    want_type = target_type
-
-    rows: list[dict[str, Any]] = []
-    seen: set[tuple[str, str, str]] = set()
-    for src, entries in imports.items():
-        for qualified, is_static in entries:
-            targets, confidence = resolve_targets(qualified, decl_files, stem_index)
-            if confidence == "unresolved":
-                continue
-            for dst in targets:
-                if not _passes_target_filters(src, dst, qualified, want_file, want_type):
-                    continue
-                _append_arc(
-                    rows,
-                    seen,
-                    src=src,
-                    dst=dst,
-                    qualified=qualified,
-                    confidence=confidence,
-                    is_static=is_static,
-                    want_file=want_file,
-                )
-    return rows
+    return _from_references(
+        signals, target_file=target_file, target_type=target_type
+    )
 
 
 def _resolve_group_entry(
-    edges: Mapping[str, Any],
-    group_id: str | int,
+    edges: Mapping[str, Any], group_id: str | int
 ) -> Mapping[str, Any] | None:
     groups = edges.get("groups") or edges.get("per_group") or edges
     gid = str(group_id)
@@ -125,15 +158,11 @@ def _resolve_group_entry(
         entry = groups[gid]
     elif isinstance(edges, Mapping) and gid in edges:
         entry = edges[gid]
-    if not isinstance(entry, Mapping):
-        return None
-    return entry
+    return entry if isinstance(entry, Mapping) else None
 
 
 def _arcs_for_direction(
-    entry: Mapping[str, Any],
-    direction: str,
-    want: str | None,
+    entry: Mapping[str, Any], direction: str, want: str | None
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for raw in entry.get(direction) or []:

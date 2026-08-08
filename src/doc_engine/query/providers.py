@@ -193,6 +193,67 @@ class RouteTraceProvider:
         return out
 
 
+def _hit_row(rel_path: str, hit: Any) -> Mapping[str, Any]:
+    if isinstance(hit, Mapping):
+        row = dict(hit)
+        row.setdefault("file", rel_path)
+        return row
+    return {"file": rel_path, "reason": str(hit)}
+
+
+def _rows_from_hit_list(rel_path: str, hits: list[Any]) -> list[Mapping[str, Any]]:
+    return [_hit_row(rel_path, hit) for hit in hits]
+
+
+def _rows_from_zone_hits(rel_path: str, hits: Any) -> list[Mapping[str, Any]]:
+    if isinstance(hits, list):
+        return _rows_from_hit_list(rel_path, hits)
+    return [{"file": rel_path, "reason": "redaction_zone"}]
+
+
+def _rows_from_zone_mapping(zones: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    rows: list[Mapping[str, Any]] = []
+    for rel_path, hits in zones.items():
+        rows.extend(_rows_from_zone_hits(str(rel_path), hits))
+    return rows
+
+
+def _rows_from_zone_list(zones: list[Any]) -> list[Mapping[str, Any]]:
+    return [row for row in zones if isinstance(row, Mapping)]
+
+
+def _normalize_redaction_zones(zones: Any) -> list[Mapping[str, Any]]:
+    """Production shape: {rel_path: [hits…]} ; also accept list fixtures."""
+    if isinstance(zones, Mapping):
+        return _rows_from_zone_mapping(zones)
+    if isinstance(zones, list):
+        return _rows_from_zone_list(zones)
+    return []
+
+
+def _redaction_match(row: Mapping[str, Any]) -> str:
+    return str(row.get("reason") or row.get("heuristic") or "redaction_zone")
+
+
+def _redaction_path(row: Mapping[str, Any]) -> str | None:
+    path = row.get("file")
+    if isinstance(path, str):
+        return path
+    return None
+
+
+def _redaction_item(row: Mapping[str, Any], provider: str) -> dict[str, Any]:
+    return _item(
+        provider=provider,
+        path=_redaction_path(row),
+        line=row.get("line"),
+        match=_redaction_match(row),
+        bucket="redaction",
+        reason="redaction_zones risk",
+        payload=dict(row),
+    )
+
+
 class RedactionProvider:
     name = "redaction"
 
@@ -206,51 +267,8 @@ class RedactionProvider:
         limit: int,
     ) -> list[dict[str, Any]]:
         del facts_rows, run_dir, request
-        zones = signals.get("redaction_zones") or []
-        rows = _normalize_redaction_zones(zones)
-        out: list[dict[str, Any]] = []
-        for row in rows[:limit]:
-            out.append(
-                _item(
-                    provider=self.name,
-                    path=row.get("file") if isinstance(row.get("file"), str) else None,
-                    line=row.get("line"),
-                    match=str(
-                        row.get("reason") or row.get("heuristic") or "redaction_zone"
-                    ),
-                    bucket="redaction",
-                    reason="redaction_zones risk",
-                    payload=dict(row),
-                )
-            )
-        return out
-
-
-def _normalize_redaction_zones(zones: Any) -> list[Mapping[str, Any]]:
-    """Production shape: {rel_path: [hits…]} ; also accept list fixtures."""
-    rows: list[Mapping[str, Any]] = []
-    if isinstance(zones, Mapping):
-        for rel, hits in zones.items():
-            rows.extend(_rows_from_zone_hits(str(rel), hits))
-    elif isinstance(zones, list):
-        for row in zones:
-            if isinstance(row, Mapping):
-                rows.append(row)
-    return rows
-
-
-def _rows_from_zone_hits(rel: str, hits: Any) -> list[Mapping[str, Any]]:
-    if isinstance(hits, list):
-        out: list[Mapping[str, Any]] = []
-        for hit in hits:
-            if isinstance(hit, Mapping):
-                row = dict(hit)
-                row.setdefault("file", rel)
-                out.append(row)
-            else:
-                out.append({"file": rel, "reason": str(hit)})
-        return out
-    return [{"file": rel, "reason": "redaction_zone"}]
+        rows = _normalize_redaction_zones(signals.get("redaction_zones") or [])
+        return [_redaction_item(row, self.name) for row in rows[:limit]]
 
 
 DEFAULT_PROVIDERS = (
