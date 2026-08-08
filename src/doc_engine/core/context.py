@@ -31,7 +31,7 @@ class FileEntry:
     ext: str
 
 
-def _record_file_signature(ctx: "ScanContext", rel: str, full: str) -> None:
+def _record_file_signature(ctx: ScanContext, rel: str, full: str) -> None:
     try:
         ctx.file_signatures[rel] = compute_file_signature(full)
     except OSError as exc:
@@ -41,14 +41,14 @@ def _record_file_signature(ctx: "ScanContext", rel: str, full: str) -> None:
         )
 
 
-def _bucket_file_entry(ctx: "ScanContext", entry: FileEntry) -> None:
+def _bucket_file_entry(ctx: ScanContext, entry: FileEntry) -> None:
     if entry.ext in JAVA_EXT:
         ctx.java_files.append(entry)
     else:
         ctx.non_java_files.append(entry)
 
 
-def _ingest_walked_file(ctx: "ScanContext", full: str, repo_path: str) -> None:
+def _ingest_walked_file(ctx: ScanContext, full: str, repo_path: str) -> None:
     rel = os.path.relpath(full, repo_path).replace("\\", "/")
     if not is_path_inside_root(full, repo_path):
         warn_skipped_escape(rel, full)
@@ -71,7 +71,7 @@ class ScanContext:
     gitignore_spec: Optional[Any] = None
 
     @classmethod
-    def build(cls, repo_path: str, respect_gitignore: bool = False) -> "ScanContext":
+    def build(cls, repo_path: str, respect_gitignore: bool = False) -> ScanContext:
         """Walk the repo once and collect signatures and file entries."""
         repo_path = os.path.abspath(repo_path)
         gitignore_spec = load_gitignore_spec(repo_path) if respect_gitignore else None
