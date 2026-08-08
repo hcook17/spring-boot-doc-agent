@@ -16,9 +16,12 @@ from tests.stf.conftest import build_minimal_valid_tasks, write_spec_and_tasks_i
 
 
 def test_poison_tasks_json_fails_closed(tmp_path: Path) -> None:
+    from pydantic import ValidationError
+
     (tmp_path / "TASKS.json").write_text("{not-json", encoding="utf-8")
-    with pytest.raises(Exception):
-        TasksStore(tmp_path).load_tasks()
+    store = TasksStore(tmp_path)
+    with pytest.raises(ValidationError):
+        store.load_tasks()
 
 
 def test_atomic_write_leaves_no_tmp_files(tmp_path: Path) -> None:

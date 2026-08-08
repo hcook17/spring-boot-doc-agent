@@ -106,6 +106,47 @@ def handle_message(msg: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _jsonrpc_error(code: int, message: str, *, msg_id: Any = None) -> dict[str, Any]:
+    return {
+        "jsonrpc": "2.0",
+        "id": msg_id,
+        "error": {"code": code, "message": message},
+    }
+
+
+def _emit(obj: dict[str, Any]) -> None:
+    print(json.dumps(obj), flush=True)
+
+
+def _process_stdin_line(line: str) -> None:
+    # Size gate before strip/parse (H4 / Q1-1).
+    raw_len = len(line.encode("utf-8", errors="replace")) if isinstance(line, str) else len(line)
+    if raw_len > MAX_LINE_BYTES:
+        _emit(
+            _jsonrpc_error(
+                -32600,
+                f"line exceeds MAX_LINE_BYTES ({MAX_LINE_BYTES})",
+            )
+        )
+        return
+    line = line.strip()
+    if not line:
+        return
+    try:
+        msg = json.loads(line)
+    except json.JSONDecodeError:
+        _emit(_jsonrpc_error(-32700, "parse error"))
+        return
+    try:
+        resp = handle_message(msg)
+    except Exception as exc:  # noqa: BLE001 — bulkhead: keep stdin loop alive
+        msg_id = msg.get("id") if isinstance(msg, dict) else None
+        _emit(_jsonrpc_error(-32603, f"internal error: {exc}", msg_id=msg_id))
+        return
+    if resp is not None:
+        _emit(resp)
+
+
 def main() -> int:
     try:
         require_server_root()
@@ -114,44 +155,7 @@ def main() -> int:
         return 1
 
     for line in sys.stdin:
-        # Size gate before strip/parse (H4 / Q1-1).
-        raw_len = len(line.encode("utf-8", errors="replace")) if isinstance(line, str) else len(line)
-        if raw_len > MAX_LINE_BYTES:
-            err = {
-                "jsonrpc": "2.0",
-                "id": None,
-                "error": {
-                    "code": -32600,
-                    "message": f"line exceeds MAX_LINE_BYTES ({MAX_LINE_BYTES})",
-                },
-            }
-            print(json.dumps(err), flush=True)
-            continue
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            msg = json.loads(line)
-        except json.JSONDecodeError:
-            err = {
-                "jsonrpc": "2.0",
-                "id": None,
-                "error": {"code": -32700, "message": "parse error"},
-            }
-            print(json.dumps(err), flush=True)
-            continue
-        try:
-            resp = handle_message(msg)
-        except Exception as exc:  # noqa: BLE001 — bulkhead: keep stdin loop alive
-            err = {
-                "jsonrpc": "2.0",
-                "id": msg.get("id") if isinstance(msg, dict) else None,
-                "error": {"code": -32603, "message": f"internal error: {exc}"},
-            }
-            print(json.dumps(err), flush=True)
-            continue
-        if resp is not None:
-            print(json.dumps(resp), flush=True)
+        _process_stdin_line(line)
     return 0
 
 

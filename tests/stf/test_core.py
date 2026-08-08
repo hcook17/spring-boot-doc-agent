@@ -132,7 +132,8 @@ Dict zones in `src/doc_engine/query/providers.py`.
 """
     findings = ingest_review_markdown(md, source_doc="docs/reviews/x.md")
     ids = {f.id for f in findings}
-    assert "C1" in ids and "H2" in ids
+    assert "C1" in ids
+    assert "H2" in ids
     assert findings[0].links
     seed = findings_to_spec_seed(findings, target="pr-94-query-surface")
     assert seed.input_kind == "review_remediation"

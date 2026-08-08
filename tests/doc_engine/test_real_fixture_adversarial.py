@@ -113,9 +113,10 @@ class TestCoveringVerifiedLie:
         assert report["s1_covering"]["inventory_root"] == root
 
     def test_covering_ok_false_still_refuses(self) -> None:
+        signals = _minimal_signals()
         with pytest.raises(CoveringPreconditionError):
             build_gap_report(
-                _minimal_signals(),
+                signals,
                 [],
                 covering_ok=False,
                 covering_why="adversarial",

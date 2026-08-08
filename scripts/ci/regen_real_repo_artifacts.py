@@ -32,6 +32,29 @@ from doc_engine.real_fixture import (
 
 REPO_ROOT = repo_root()
 
+_ALLOWED_SCANNERS = frozenset({"filesystem", "ast-grep", "codeql"})
+
+
+def _validated_scanners_arg(raw: str) -> str:
+    """Reject scanner tokens outside the Stage-0 allowlist before OS argv handoff."""
+    tokens = [t.strip() for t in str(raw).split(",") if t.strip()]
+    if not tokens:
+        raise ValueError("scanners list is empty")
+    bad = sorted({t for t in tokens if t not in _ALLOWED_SCANNERS})
+    if bad:
+        raise ValueError(
+            f"unknown scanner(s) {bad}; allowed: {', '.join(sorted(_ALLOWED_SCANNERS))}"
+        )
+    # Preserve order, drop dupes
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for t in tokens:
+        if t in seen:
+            continue
+        seen.add(t)
+        ordered.append(t)
+    return ",".join(ordered)
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -47,6 +70,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Scanner list passed to spring_signal_scan (default: filesystem,ast-grep)",
     )
     args = parser.parse_args(argv)
+
+    try:
+        scanners = _validated_scanners_arg(args.scanners)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
     try:
         repo = require_real_repo()
@@ -71,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
         "--out",
         str(signals_out),
         "--scanners",
-        args.scanners,
+        scanners,
     ]
     env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")}
     print(f"regen: scanning {repo} -> {out_root}")

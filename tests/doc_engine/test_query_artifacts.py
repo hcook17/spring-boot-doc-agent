@@ -469,14 +469,16 @@ def test_real_artifacts_evidence_stays_capped() -> None:
 
 def test_unknown_evidence_bucket_raises() -> None:
     """Deviation: H3 - typo bucket returns empty success."""
+    signals = _signals_doc()
     with pytest.raises(QueryError, match="unknown evidence bucket"):
-        evidence.query_evidence(_signals_doc(), bucket="secuirty")
+        evidence.query_evidence(signals, bucket="secuirty")
 
 
 def test_unknown_facts_predicate_raises() -> None:
     """Deviation: H3 - typo predicate returns empty success."""
+    rows = _facts_rows()
     with pytest.raises(QueryError, match="unknown facts predicate"):
-        facts.query_facts(_facts_rows(), predicate="MAPS_TOO")
+        facts.query_facts(rows, predicate="MAPS_TOO")
 
 
 def test_redaction_provider_dict_zones_produce_risks() -> None:
@@ -538,7 +540,9 @@ def test_partition_budget_never_overshoots() -> None:
     for budget in range(0, 12):
         primary, finding, risk = partition_budget(budget)
         assert primary + finding + risk == budget
-        assert primary >= 0 and finding >= 0 and risk >= 0
+        assert primary >= 0
+        assert finding >= 0
+        assert risk >= 0
 
 
 def test_apply_nested_cap_truncates_guards() -> None:

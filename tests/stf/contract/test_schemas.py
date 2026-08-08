@@ -32,6 +32,8 @@ def test_pr94_golden_findings_fixture_is_stable_json() -> None:
     path = Path("tests/fixtures/stf/pr94/findings.json")
     assert path.is_file()
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert isinstance(data, list) and len(data) >= 10
+    assert isinstance(data, list)
+    assert len(data) >= 10
     ids = {row["id"] for row in data}
-    assert "C1" in ids and "C2" in ids
+    assert "C1" in ids
+    assert "C2" in ids

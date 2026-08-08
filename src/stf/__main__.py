@@ -147,9 +147,9 @@ def _cmd_handoff(args: argparse.Namespace) -> int:
     if args.checklist:
         path = write_handoff_checklist(Path(args.checklist), tasks)
         print(json.dumps({"checklist": str(path)}))
-        return 0
-    created = handoff_gh(tasks, dry_run=not args.create)
-    print(json.dumps(created, indent=2))
+    else:
+        created = handoff_gh(tasks, dry_run=not args.create)
+        print(json.dumps(created, indent=2))
     return 0
 
 

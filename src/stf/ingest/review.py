@@ -8,44 +8,56 @@ from pathlib import Path
 from stf.schemas.findings import Finding, FindingLink, FindingSeverity
 from stf.schemas.spec import DataSourceRow, SpecDocument
 
+# Simple linear heading match; id validated separately (avoids backtracking).
 _HEADING = re.compile(
-    r"^###\s+(?P<id>C\d+|H\d+|M\d+|N\d+|S\d+|Q\d+-\d+|E-[A-Z0-9]+)\s*[—–-]\s*(?P<title>.+)$",
+    r"^###\s+(?P<id>\S+)\s*[—–-]\s*(?P<title>.+)$",
     re.M,
+)
+_FINDING_ID = re.compile(
+    r"^(?:C\d+|H\d+|M\d+|N\d+|S\d+|Q\d+-\d+|E-[A-Z0-9]+)$"
 )
 _SEVERITY = re.compile(r"\*\*Severity:\s*(?P<sev>[^*]+)\*\*", re.I)
-_EPIC_ROW = re.compile(
-    r"^\|\s*(?P<id>[A-Z0-9]+-\d+)\s*\|\s*(?P<title>[^|]+)\|\s*(?P<est>[^|]*)\|\s*(?P<ac>[^|]*)\|",
-    re.M,
-)
+_EPIC_ID = re.compile(r"^[A-Z0-9]+-\d+$")
 _PATH_REF = re.compile(
     r"`((?:src|tests|adapters|scripts|docs|claude)/[^`]+)`|"
     r"```\d+:\d+:([^\n`]+)"
 )
 
+_SEV_KEYWORDS: tuple[tuple[str, FindingSeverity], ...] = (
+    ("critical", FindingSeverity.CRITICAL),
+    ("high", FindingSeverity.HIGH),
+    ("medium", FindingSeverity.MEDIUM),
+    ("low", FindingSeverity.LOW),
+    ("spike", FindingSeverity.SPIKE),
+)
+
+_SEV_BY_PREFIX: dict[str, FindingSeverity] = {
+    "C": FindingSeverity.CRITICAL,
+    "H": FindingSeverity.HIGH,
+    "N": FindingSeverity.MEDIUM,
+    "M": FindingSeverity.MEDIUM,
+    "S": FindingSeverity.SPIKE,
+}
+
+
+def _sev_from_severity_line(text: str) -> FindingSeverity | None:
+    m = _SEVERITY.search(text)
+    if not m:
+        return None
+    raw = m.group("sev").strip().lower()
+    for needle, sev in _SEV_KEYWORDS:
+        if needle in raw:
+            return sev
+    return None
+
 
 def _sev_from_id(fid: str, text: str) -> FindingSeverity:
-    m = _SEVERITY.search(text)
-    if m:
-        raw = m.group("sev").strip().lower()
-        if "critical" in raw:
-            return FindingSeverity.CRITICAL
-        if "high" in raw:
-            return FindingSeverity.HIGH
-        if "medium" in raw:
-            return FindingSeverity.MEDIUM
-        if "low" in raw:
-            return FindingSeverity.LOW
-        if "spike" in raw:
-            return FindingSeverity.SPIKE
-    if fid.startswith("C"):
-        return FindingSeverity.CRITICAL
-    if fid.startswith("H"):
-        return FindingSeverity.HIGH
-    if fid.startswith("N") or fid.startswith("M"):
-        return FindingSeverity.MEDIUM
-    if fid.startswith("S"):
-        return FindingSeverity.SPIKE
-    return FindingSeverity.INFO
+    from_line = _sev_from_severity_line(text)
+    if from_line is not None:
+        return from_line
+    if not fid:
+        return FindingSeverity.INFO
+    return _SEV_BY_PREFIX.get(fid[0], FindingSeverity.INFO)
 
 
 def _paths_in(text: str) -> list[str]:
@@ -81,47 +93,68 @@ def _links_for(fid: str, paths: list[str]) -> list[FindingLink]:
     return links
 
 
-def ingest_review_markdown(text: str, *, source_doc: str | None = None) -> list[Finding]:
-    """Parse adversarial review headings into Finding inventory."""
-    findings: list[Finding] = []
-    matches = list(_HEADING.finditer(text))
-    for i, m in enumerate(matches):
-        start = m.start()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        body = text[start:end]
-        fid = m.group("id")
-        title = m.group("title").strip()
-        # skip epic section tickets that look like Q0-1 inside tables — headings only
-        paths = _paths_in(body)
-        claim = ""
-        for line in body.splitlines()[1:8]:
-            line = line.strip()
-            if line and not line.startswith("#") and not line.startswith("|") and not line.startswith("```"):
-                claim = line.lstrip("*").strip()
-                break
-        findings.append(
-            Finding(
-                id=fid,
-                severity=_sev_from_id(fid, body),
-                title=title,
-                claim=claim or title,
-                evidence=[body[:500]],
-                evidence_paths=paths,
-                links=_links_for(fid, paths),
-                source_doc=source_doc,
-                epic_hint=_epic_hint(fid),
-            )
-        )
+def _first_claim_line(body: str) -> str:
+    for line in body.splitlines()[1:8]:
+        line = line.strip()
+        if line and not line.startswith(("#", "|", "```")):
+            return line.lstrip("*").strip()
+    return ""
 
-    # Also pull ticket rows from epic tables
-    for m in _EPIC_ROW.finditer(text):
-        tid = m.group("id").strip()
-        if any(f.id == tid for f in findings):
+
+def _finding_from_heading_match(
+    m: re.Match[str],
+    body: str,
+    source_doc: str | None,
+) -> Finding | None:
+    fid = m.group("id")
+    if not _FINDING_ID.fullmatch(fid):
+        return None
+    title = m.group("title").strip()
+    paths = _paths_in(body)
+    claim = _first_claim_line(body)
+    return Finding(
+        id=fid,
+        severity=_sev_from_id(fid, body),
+        title=title,
+        claim=claim or title,
+        evidence=[body[:500]],
+        evidence_paths=paths,
+        links=_links_for(fid, paths),
+        source_doc=source_doc,
+        epic_hint=_epic_hint(fid),
+    )
+
+
+def _parse_epic_row(line: str) -> tuple[str, str, str] | None:
+    """Split a markdown table row into id/title/ac without a backtracking regex."""
+    if not line.startswith("|"):
+        return None
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    if len(cells) < 4:
+        return None
+    tid, title, _est, ac = cells[0], cells[1], cells[2], cells[3]
+    if not _EPIC_ID.fullmatch(tid):
+        return None
+    return tid, title, ac
+
+
+def _findings_from_epic_rows(
+    text: str,
+    source_doc: str | None,
+    existing_ids: set[str],
+) -> list[Finding]:
+    findings: list[Finding] = []
+    for line in text.splitlines():
+        parsed = _parse_epic_row(line)
+        if parsed is None:
+            continue
+        tid, title, ac = parsed
+        if tid in existing_ids:
             continue
         if not re.match(r"^[A-Z]+\d*-\d+$", tid):
             continue
-        title = m.group("title").strip() or tid
-        ac = m.group("ac").strip() or title
+        title = title or tid
+        ac = ac or title
         findings.append(
             Finding(
                 id=tid,
@@ -133,13 +166,31 @@ def ingest_review_markdown(text: str, *, source_doc: str | None = None) -> list[
                 suggested_fix=ac,
             )
         )
+        existing_ids.add(tid)
+    return findings
+
+
+def ingest_review_markdown(text: str, *, source_doc: str | None = None) -> list[Finding]:
+    """Parse adversarial review headings into Finding inventory."""
+    findings: list[Finding] = []
+    matches = list(_HEADING.finditer(text))
+    for i, m in enumerate(matches):
+        start = m.start()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        body = text[start:end]
+        finding = _finding_from_heading_match(m, body, source_doc)
+        if finding is not None:
+            findings.append(finding)
+
+    existing = {f.id for f in findings}
+    findings.extend(_findings_from_epic_rows(text, source_doc, existing))
     return findings
 
 
 def _epic_hint(fid: str) -> str:
-    if fid.startswith("C") or fid.startswith("H") and fid in ("H1", "H2"):
+    if fid.startswith("C") or (fid.startswith("H") and fid in ("H1", "H2")):
         return "E-Q0"
-    if fid.startswith("H") or fid.startswith("N") or fid.startswith("M"):
+    if fid.startswith(("H", "N", "M")):
         return "E-Q1"
     if fid.startswith("S"):
         return "E-Q3"

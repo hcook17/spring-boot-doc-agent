@@ -12,10 +12,12 @@ from stf.validators.lint_tasks import lint_summary, lint_tasks_document
 
 
 def test_poison_json_fails_closed(tmp_path: Path):
+    from pydantic import ValidationError
+
     p = tmp_path / "TASKS.json"
     p.write_text("{not json", encoding="utf-8")
     store = TasksStore(tmp_path)
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         store.load_tasks()
 
 

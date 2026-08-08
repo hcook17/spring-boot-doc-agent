@@ -113,7 +113,7 @@ def cmd_query(args: argparse.Namespace) -> int:
     from doc_engine.tools.query_artifacts import main as query_main
 
     argv = list(getattr(args, "query_argv", None) or [])
-    if argv and argv[0] == "--":
+    if argv[:1] == ["--"]:
         argv = argv[1:]
     return query_main(argv)
 

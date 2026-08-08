@@ -21,6 +21,31 @@ def _file_match(row: Mapping[str, Any], needle: str | None) -> bool:
     return needle.replace("\\", "/") in path
 
 
+def _resolve_buckets(evidence: Mapping[str, Any], bucket: str | None) -> Sequence[str]:
+    known = sorted(str(k) for k in evidence.keys())
+    if not bucket:
+        return known
+    if bucket not in evidence:
+        raise QueryError(f"unknown evidence bucket {bucket!r}; valid={known}")
+    return [bucket]
+
+
+def _row_passes(
+    row: Mapping[str, Any],
+    *,
+    rule_id: str | None,
+    file_contains: str | None,
+    match_contains: str | None,
+) -> bool:
+    if rule_id and row.get("rule_id") != rule_id:
+        return False
+    if not _file_match(row, file_contains):
+        return False
+    if not _match_text(row, match_contains):
+        return False
+    return True
+
+
 def query_evidence(
     signals: Mapping[str, Any],
     *,
@@ -32,14 +57,7 @@ def query_evidence(
     evidence = signals.get("evidence") or {}
     if not isinstance(evidence, Mapping):
         return []
-    known = sorted(str(k) for k in evidence.keys())
-    buckets: Sequence[str]
-    if bucket:
-        if bucket not in evidence:
-            raise QueryError(f"unknown evidence bucket {bucket!r}; valid={known}")
-        buckets = [bucket]
-    else:
-        buckets = known
+    buckets = _resolve_buckets(evidence, bucket)
 
     rows: list[dict[str, Any]] = []
     for name in buckets:
@@ -51,11 +69,12 @@ def query_evidence(
                 continue
             row = dict(raw)
             row.setdefault("bucket", name)
-            if rule_id and row.get("rule_id") != rule_id:
-                continue
-            if not _file_match(row, file_contains):
-                continue
-            if not _match_text(row, match_contains):
+            if not _row_passes(
+                row,
+                rule_id=rule_id,
+                file_contains=file_contains,
+                match_contains=match_contains,
+            ):
                 continue
             rows.append(row)
     return rows

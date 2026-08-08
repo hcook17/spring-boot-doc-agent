@@ -7,6 +7,62 @@ from typing import Any, Mapping
 from doc_engine.tools.build_cross_group_edges import parse_references, resolve_targets
 
 
+def _normalize_want_file(target_file: str | None) -> str | None:
+    return target_file.replace("\\", "/") if target_file else None
+
+
+def _passes_target_filters(
+    src: str,
+    dst: str,
+    qualified: str,
+    want_file: str | None,
+    want_type: str | None,
+) -> bool:
+    if dst == src:
+        return False
+    if want_file and dst.replace("\\", "/") != want_file and src.replace("\\", "/") != want_file:
+        return False
+    if want_type:
+        stem = qualified.rstrip(".*").rsplit(".", 1)[-1]
+        if stem != want_type and want_type not in qualified:
+            return False
+    return True
+
+
+def _arc_direction(src: str, dst: str, want_file: str | None) -> str:
+    direction = "inbound" if want_file and dst.replace("\\", "/") == want_file else "outbound"
+    if want_file and src.replace("\\", "/") == want_file:
+        return "outbound"
+    return direction
+
+
+def _append_arc(
+    rows: list[dict[str, Any]],
+    seen: set[tuple[str, str, str]],
+    *,
+    src: str,
+    dst: str,
+    qualified: str,
+    confidence: str,
+    is_static: bool,
+    want_file: str | None,
+) -> None:
+    key = (src, dst, qualified)
+    if key in seen:
+        return
+    seen.add(key)
+    rows.append(
+        {
+            "from": src,
+            "to": dst,
+            "via": qualified,
+            "confidence": confidence,
+            "static_import": bool(is_static),
+            "direction": _arc_direction(src, dst, want_file),
+        }
+    )
+
+
 def query_dependents(
     signals: Mapping[str, Any],
     *,
@@ -32,7 +88,7 @@ def query_dependents(
         return []
     decl_files, stem_index, imports = parse_references(references)
 
-    want_file = target_file.replace("\\", "/") if target_file else None
+    want_file = _normalize_want_file(target_file)
     want_type = target_type
 
     rows: list[dict[str, Any]] = []
@@ -43,32 +99,54 @@ def query_dependents(
             if confidence == "unresolved":
                 continue
             for dst in targets:
-                if dst == src:
+                if not _passes_target_filters(src, dst, qualified, want_file, want_type):
                     continue
-                if want_file and dst.replace("\\", "/") != want_file and src.replace("\\", "/") != want_file:
-                    continue
-                if want_type:
-                    # qualified ends with Type or Type.*
-                    stem = qualified.rstrip(".*").rsplit(".", 1)[-1]
-                    if stem != want_type and want_type not in qualified:
-                        continue
-                key = (src, dst, qualified)
-                if key in seen:
-                    continue
-                seen.add(key)
-                direction = "inbound" if want_file and dst.replace("\\", "/") == want_file else "outbound"
-                if want_file and src.replace("\\", "/") == want_file:
-                    direction = "outbound"
-                rows.append(
-                    {
-                        "from": src,
-                        "to": dst,
-                        "via": qualified,
-                        "confidence": confidence,
-                        "static_import": bool(is_static),
-                        "direction": direction,
-                    }
+                _append_arc(
+                    rows,
+                    seen,
+                    src=src,
+                    dst=dst,
+                    qualified=qualified,
+                    confidence=confidence,
+                    is_static=is_static,
+                    want_file=want_file,
                 )
+    return rows
+
+
+def _resolve_group_entry(
+    edges: Mapping[str, Any],
+    group_id: str | int,
+) -> Mapping[str, Any] | None:
+    groups = edges.get("groups") or edges.get("per_group") or edges
+    gid = str(group_id)
+    entry = None
+    if isinstance(groups, Mapping) and gid in groups:
+        entry = groups[gid]
+    elif isinstance(edges, Mapping) and gid in edges:
+        entry = edges[gid]
+    if not isinstance(entry, Mapping):
+        return None
+    return entry
+
+
+def _arcs_for_direction(
+    entry: Mapping[str, Any],
+    direction: str,
+    want: str | None,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for raw in entry.get(direction) or []:
+        if not isinstance(raw, Mapping):
+            continue
+        arc = dict(raw)
+        arc["direction"] = direction
+        if want:
+            fr = str(arc.get("from") or "").replace("\\", "/")
+            to = str(arc.get("to") or "").replace("\\", "/")
+            if fr != want and to != want:
+                continue
+        rows.append(arc)
     return rows
 
 
@@ -78,28 +156,11 @@ def _from_edges(
     *,
     target_file: str | None,
 ) -> list[dict[str, Any]]:
-    groups = edges.get("groups") or edges.get("per_group") or edges
-    # cross_group_edges schema: top-level keys are group id strings with outbound/inbound
-    gid = str(group_id)
-    entry = None
-    if isinstance(groups, Mapping) and gid in groups:
-        entry = groups[gid]
-    elif isinstance(edges, Mapping) and gid in edges:
-        entry = edges[gid]
-    if not isinstance(entry, Mapping):
+    entry = _resolve_group_entry(edges, group_id)
+    if entry is None:
         return []
-    want = target_file.replace("\\", "/") if target_file else None
+    want = _normalize_want_file(target_file)
     rows: list[dict[str, Any]] = []
     for direction in ("outbound", "inbound"):
-        for raw in entry.get(direction) or []:
-            if not isinstance(raw, Mapping):
-                continue
-            arc = dict(raw)
-            arc["direction"] = direction
-            if want:
-                fr = str(arc.get("from") or "").replace("\\", "/")
-                to = str(arc.get("to") or "").replace("\\", "/")
-                if fr != want and to != want:
-                    continue
-            rows.append(arc)
+        rows.extend(_arcs_for_direction(entry, direction, want))
     return rows

@@ -47,36 +47,49 @@ def apply_nested_cap(
     ``apply_limit`` owns that. Nested lists at depth ≥ 1 are capped to
     ``max_list`` and recurse into elements.
     """
-    truncated = False
     if isinstance(obj, Mapping):
-        out: dict[str, Any] = {}
-        for key, value in obj.items():
-            capped, hit = apply_nested_cap(value, max_list, _depth=_depth + 1)
-            truncated = truncated or hit
-            out[str(key)] = capped
-        return out, truncated
+        return _cap_mapping(obj, max_list, _depth)
     if isinstance(obj, list):
-        if _depth == 0:
-            items_out: list[Any] = []
-            for item in obj:
-                capped, hit = apply_nested_cap(item, max_list, _depth=_depth + 1)
-                truncated = truncated or hit
-                items_out.append(capped)
-            return items_out, truncated
-        material = list(obj)
-        if len(material) > max_list:
-            material = material[:max_list]
-            truncated = True
-        items_out = []
-        for item in material:
-            capped, hit = apply_nested_cap(item, max_list, _depth=_depth + 1)
-            truncated = truncated or hit
-            items_out.append(capped)
-        return items_out, truncated
+        return _cap_list(obj, max_list, _depth)
     return obj, False
 
 
-def QueryResult(
+def _cap_mapping(
+    obj: Mapping[str, Any],
+    max_list: int,
+    depth: int,
+) -> tuple[dict[str, Any], bool]:
+    truncated = False
+    out: dict[str, Any] = {}
+    for key, value in obj.items():
+        capped, hit = apply_nested_cap(value, max_list, _depth=depth + 1)
+        truncated = truncated or hit
+        out[str(key)] = capped
+    return out, truncated
+
+
+def _cap_list(obj: list[Any], max_list: int, depth: int) -> tuple[list[Any], bool]:
+    truncated = False
+    if depth == 0:
+        items_out: list[Any] = []
+        for item in obj:
+            capped, hit = apply_nested_cap(item, max_list, _depth=depth + 1)
+            truncated = truncated or hit
+            items_out.append(capped)
+        return items_out, truncated
+    material = list(obj)
+    if len(material) > max_list:
+        material = material[:max_list]
+        truncated = True
+    items_out = []
+    for item in material:
+        capped, hit = apply_nested_cap(item, max_list, _depth=depth + 1)
+        truncated = truncated or hit
+        items_out.append(capped)
+    return items_out, truncated
+
+
+def build_query_result(
     *,
     kind: str,
     rows: Sequence[Mapping[str, Any]],
@@ -94,3 +107,7 @@ def QueryResult(
     if extras:
         out.update(dict(extras))
     return dict(out)
+
+
+# Historical PascalCase name — prefer ``build_query_result``.
+QueryResult = build_query_result

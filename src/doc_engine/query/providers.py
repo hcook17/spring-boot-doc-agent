@@ -43,7 +43,7 @@ class EvidenceProvider:
         run_dir: Path,
         limit: int,
     ) -> list[dict[str, Any]]:
-        del facts_rows, run_dir
+        del facts_rows, run_dir, request
         rows = evidence.query_evidence(signals)
         # Prefer security / api when request mentions them; else all buckets capped
         out: list[dict[str, Any]] = []
@@ -175,7 +175,7 @@ class RouteTraceProvider:
         run_dir: Path,
         limit: int,
     ) -> list[dict[str, Any]]:
-        del facts_rows, run_dir
+        del facts_rows, run_dir, request
         rows = route_trace.query_route_trace(signals)
         out: list[dict[str, Any]] = []
         for row in rows[:limit]:
@@ -207,25 +207,8 @@ class RedactionProvider:
     ) -> list[dict[str, Any]]:
         del facts_rows, run_dir, request
         zones = signals.get("redaction_zones") or []
+        rows = _normalize_redaction_zones(zones)
         out: list[dict[str, Any]] = []
-        # Production shape: {rel_path: [hits…]} ; also accept list fixtures.
-        rows: list[Mapping[str, Any]] = []
-        if isinstance(zones, Mapping):
-            for rel, hits in zones.items():
-                if isinstance(hits, list):
-                    for hit in hits:
-                        if isinstance(hit, Mapping):
-                            row = dict(hit)
-                            row.setdefault("file", rel)
-                            rows.append(row)
-                        else:
-                            rows.append({"file": rel, "reason": str(hit)})
-                else:
-                    rows.append({"file": str(rel), "reason": "redaction_zone"})
-        elif isinstance(zones, list):
-            for row in zones:
-                if isinstance(row, Mapping):
-                    rows.append(row)
         for row in rows[:limit]:
             out.append(
                 _item(
@@ -241,6 +224,33 @@ class RedactionProvider:
                 )
             )
         return out
+
+
+def _normalize_redaction_zones(zones: Any) -> list[Mapping[str, Any]]:
+    """Production shape: {rel_path: [hits…]} ; also accept list fixtures."""
+    rows: list[Mapping[str, Any]] = []
+    if isinstance(zones, Mapping):
+        for rel, hits in zones.items():
+            rows.extend(_rows_from_zone_hits(str(rel), hits))
+    elif isinstance(zones, list):
+        for row in zones:
+            if isinstance(row, Mapping):
+                rows.append(row)
+    return rows
+
+
+def _rows_from_zone_hits(rel: str, hits: Any) -> list[Mapping[str, Any]]:
+    if isinstance(hits, list):
+        out: list[Mapping[str, Any]] = []
+        for hit in hits:
+            if isinstance(hit, Mapping):
+                row = dict(hit)
+                row.setdefault("file", rel)
+                out.append(row)
+            else:
+                out.append({"file": rel, "reason": str(hit)})
+        return out
+    return [{"file": rel, "reason": "redaction_zone"}]
 
 
 DEFAULT_PROVIDERS = (

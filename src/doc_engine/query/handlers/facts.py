@@ -20,6 +20,43 @@ KNOWN_PREDICATES = frozenset(
 )
 
 
+def _validate_predicate(predicate: str | None, rows: Sequence[Mapping[str, Any]]) -> None:
+    if not predicate or predicate in KNOWN_PREDICATES:
+        return
+    present = {str(r.get("predicate")) for r in rows if isinstance(r, Mapping)}
+    if predicate not in present:
+        valid = sorted(KNOWN_PREDICATES | present)
+        raise QueryError(f"unknown facts predicate {predicate!r}; valid={valid}")
+
+
+def _fqcn_of(row: Mapping[str, Any]) -> str:
+    quals = row.get("qualifiers") or {}
+    if isinstance(quals, Mapping):
+        return str(quals.get("fqcn") or "")
+    return ""
+
+
+def _fact_passes(
+    row: Mapping[str, Any],
+    *,
+    predicate: str | None,
+    file_contains: str | None,
+    fqcn: str | None,
+    subject_contains: str | None,
+) -> bool:
+    if predicate and row.get("predicate") != predicate:
+        return False
+    if file_contains:
+        path = str(row.get("file") or "").replace("\\", "/")
+        if file_contains.replace("\\", "/") not in path:
+            return False
+    if subject_contains and subject_contains not in str(row.get("subject") or ""):
+        return False
+    if fqcn and _fqcn_of(row) != fqcn:
+        return False
+    return True
+
+
 def query_facts(
     rows: Sequence[Mapping[str, Any]],
     *,
@@ -28,30 +65,19 @@ def query_facts(
     fqcn: str | None = None,
     subject_contains: str | None = None,
 ) -> list[dict[str, Any]]:
-    if predicate and predicate not in KNOWN_PREDICATES:
-        present = {str(r.get("predicate")) for r in rows if isinstance(r, Mapping)}
-        if predicate not in present:
-            valid = sorted(KNOWN_PREDICATES | present)
-            raise QueryError(f"unknown facts predicate {predicate!r}; valid={valid}")
+    _validate_predicate(predicate, rows)
     out: list[dict[str, Any]] = []
     for raw in rows:
         if not isinstance(raw, Mapping):
             continue
         row = dict(raw)
-        if predicate and row.get("predicate") != predicate:
+        if not _fact_passes(
+            row,
+            predicate=predicate,
+            file_contains=file_contains,
+            fqcn=fqcn,
+            subject_contains=subject_contains,
+        ):
             continue
-        if file_contains:
-            path = str(row.get("file") or "").replace("\\", "/")
-            if file_contains.replace("\\", "/") not in path:
-                continue
-        if subject_contains and subject_contains not in str(row.get("subject") or ""):
-            continue
-        if fqcn:
-            quals = row.get("qualifiers") or {}
-            row_fqcn = ""
-            if isinstance(quals, Mapping):
-                row_fqcn = str(quals.get("fqcn") or "")
-            if row_fqcn != fqcn:
-                continue
         out.append(row)
     return out

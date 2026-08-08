@@ -16,7 +16,9 @@ def test_budget_shares_always_sum_exactly_to_requested_budget() -> None:
     for budget in range(0, 64):
         primary, finding, risk = split_budget_into_primary_finding_and_risk_shares(budget)
         assert primary + finding + risk == budget
-        assert primary >= 0 and finding >= 0 and risk >= 0
+        assert primary >= 0
+        assert finding >= 0
+        assert risk >= 0
 
 
 def test_wave_partition_covers_every_task_exactly_once() -> None:

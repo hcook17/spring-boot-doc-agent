@@ -10,7 +10,7 @@ import json
 import re
 from typing import Any, Mapping, Sequence
 
-_TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
+_TOKEN_RE = re.compile(r"\w+", re.ASCII)
 
 _BUCKET_PRIORITY: dict[str, float] = {
     "security": 1.0,
@@ -104,27 +104,32 @@ def truncate_nested_lists_that_exceed_cap(
     max_list_length: int = DEFAULT_NESTED_LIST_CAP,
 ) -> tuple[Any, bool]:
     """Return (possibly capped object, did_truncate). Caps guards/candidates/etc."""
-    truncated = False
+    state = {"truncated": False}
+
+    def _walk_list(node: list[Any]) -> list[Any]:
+        children = [_walk(x) for x in node[:max_list_length]]
+        if len(node) > max_list_length:
+            state["truncated"] = True
+        return children
+
+    def _walk_mapping(node: Mapping[str, Any]) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for key, value in node.items():
+            if isinstance(value, list) and len(value) > max_list_length:
+                state["truncated"] = True
+                out[key] = [_walk(x) for x in value[:max_list_length]]
+            else:
+                out[key] = _walk(value)
+        return out
 
     def _walk(node: Any) -> Any:
-        nonlocal truncated
         if isinstance(node, list):
-            children = [_walk(x) for x in node[:max_list_length]]
-            if len(node) > max_list_length:
-                truncated = True
-            return children
+            return _walk_list(node)
         if isinstance(node, Mapping):
-            out: dict[str, Any] = {}
-            for key, value in node.items():
-                if isinstance(value, list) and len(value) > max_list_length:
-                    truncated = True
-                    out[key] = [_walk(x) for x in value[:max_list_length]]
-                else:
-                    out[key] = _walk(value)
-            return out
+            return _walk_mapping(node)
         return node
 
-    return _walk(obj), truncated
+    return _walk(obj), bool(state["truncated"])
 
 
 apply_nested_cap = truncate_nested_lists_that_exceed_cap  # returns tuple; see wrap below
