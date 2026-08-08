@@ -53,7 +53,6 @@ def phase_deterministic_only(state: LocalRunState) -> Optional[int]:
     _run_drift_check(
         log,
         runner,
-        state.py,
         state.repo_path,
         state.manifest,
         state.out_dir,

@@ -136,7 +136,7 @@ def phase_full_finish(state: LocalRunState) -> int:
     )
 
     _run_drift_check(
-        log, runner, py, repo_path, state.manifest, out_dir, args, state.signals_path
+        log, runner, repo_path, state.manifest, out_dir, args, state.signals_path
     )
 
     _artifact_inventory(log, out_dir)
