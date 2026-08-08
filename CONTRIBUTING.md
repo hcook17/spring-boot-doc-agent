@@ -127,6 +127,67 @@ rm -f .coverage .coverage.* coverage.xml
 pytest tests/ -q --cov=doc_engine --cov=stf --cov-branch --cov-report=term-missing
 ```
 
+CI also uploads `coverage.xml` from the Python 3.11 matrix cell and the
+`SonarCloud` job imports it via `sonar.python.coverage.reportPaths` in
+`sonar-project.properties`. That is separate from the local `fail_under`
+ratchet: Sonar gates **Coverage on New Code** (PR / new-code period), not the
+repo-wide 82% floor.
+
+## SonarCloud Quality Gate
+
+In-repo wiring alone does **not** set Quality Gate conditions. An admin must
+configure SonarCloud once (and keep the `SONAR_TOKEN` GitHub Actions secret
+present). Until then, the dashboard can still show “Quality Gate passed” with
+vacuous zeros under Automatic Analysis.
+
+### Required once in SonarCloud UI
+
+1. **Disable Automatic Analysis**  
+   Project → **Administration** → **Analysis Method** → turn **SonarQube Cloud
+   Automatic Analysis** **OFF**. CI analysis cannot run while Automatic
+   Analysis is on (scanner fails with a dual-method error). Coverage import is
+   unsupported under Automatic Analysis.
+
+2. **Confirm CI-based analysis**  
+   Same screen → follow the GitHub Actions tutorial if needed. This repo’s
+   scanner step lives in `.github/workflows/ci.yml` (`sonarcloud` job) and
+   uses `SonarSource/sonarqube-scan-action` with `SONAR_TOKEN`.
+
+3. **GitHub Actions secret**  
+   Repository → **Settings** → **Secrets and variables** → **Actions** →
+   create `SONAR_TOKEN` (SonarCloud user/organization token with analyze
+   permission on `huntyyyyyy_spring-boot-doc-agent`).
+
+4. **Quality Gate conditions** (create a project gate or replace the default):
+
+   | Metric | Operator | Value |
+   | --- | --- | --- |
+   | Coverage on New Code | is less than | **98.7%** |
+   | Duplicated Lines (%) on New Code | is greater than | **3%** |
+   | Security Hotspots Reviewed | is less than | **100%** |
+   | Maintainability Rating on New Code | is worse than | A *(optional)* |
+   | Reliability Rating on New Code | is worse than | A *(optional)* |
+   | Security Rating on New Code | is worse than | A *(optional)* |
+
+   Attach that gate to project `huntyyyyyy_spring-boot-doc-agent`. The CI job
+   sets `sonar.qualitygate.wait=true`, so a failed gate fails the workflow.
+
+5. **New Code period (residual risk)**  
+   For pull requests, “new code” is the PR diff vs the target branch (this is
+   what PR decoration uses). For the long-lived branch (`main`), set
+   **Administration** → **New Code** deliberately — e.g. **Reference branch**
+   `main`’s previous analysis, **Number of days**, or **Previous version**. A
+   mis-set period is the usual reason measures stay at 0.0% even after coverage
+   upload.
+
+### In-repo parameters (already committed)
+
+- `sonar.projectKey` / `sonar.organization` / `sonar.python.coverage.reportPaths`
+- `sonar.coverage.exclusions` for `adapters/**` and `scripts/**` (pytest-cov
+  only instruments `doc_engine` + `stf`)
+- `relative_files = true` under `[tool.coverage.run]` so GitHub Actions paths
+  resolve
+
 ## Current status and steering prompts
 
 See `STATUS.md` for a current-state snapshot of this plugin (what's done, what's pending, next concrete action) and `claude/session-log.md` for the append-only history of commits that affect the assumptions in `claude/steering-prompts/`. `CLAUDE.md` explains when a commit needs a session-log entry.

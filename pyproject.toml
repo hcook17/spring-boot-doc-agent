@@ -64,6 +64,9 @@ testpaths = ["tests"]
 [tool.coverage.run]
 source = ["doc_engine", "stf"]
 branch = true
+# Relative paths so SonarScanner on GitHub Actions can resolve coverage.xml
+# filenames against the checkout (absolute runner paths do not match).
+relative_files = true
 omit = ["*/tests/*", "*/__pycache__/*"]
 
 [tool.coverage.report]
