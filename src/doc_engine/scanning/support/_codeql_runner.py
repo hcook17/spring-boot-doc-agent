@@ -143,6 +143,25 @@ def _invoke_codeql(
         ) from exc
 
 
+def _version_token_from_line(line: str) -> Optional[str]:
+    """Return a dotted version token from one ``codeql --version`` line, if any."""
+    if "release" not in line:
+        return None
+    for part in line.split():
+        if part and part[0].isdigit():
+            return part.rstrip(".")
+    return None
+
+
+def _parse_codeql_version_stdout(stdout: str) -> str:
+    """Parse ``codeql --version`` stdout into a dotted version string."""
+    for line in stdout.splitlines():
+        token = _version_token_from_line(line)
+        if token is not None:
+            return token
+    raise CodeQLError(f"could not parse codeql version from: {stdout}")
+
+
 def codeql_version(codeql_path: Path) -> str:
     """Return the CodeQL CLI version string, e.g. '2.26.0'."""
     proc = _invoke_codeql(
@@ -152,14 +171,24 @@ def codeql_version(codeql_path: Path) -> str:
     )
     if proc.returncode != 0:
         raise CodeQLError(f"codeql --version failed: {proc.stderr}")
-    # Output is typically "CodeQL command-line toolchain release X.Y.Z."
-    for line in proc.stdout.splitlines():
-        if "release" in line:
-            parts = line.split()
-            for part in parts:
-                if part[0].isdigit():
-                    return part.rstrip(".")
-    raise CodeQLError(f"could not parse codeql version from: {proc.stdout}")
+    return _parse_codeql_version_stdout(proc.stdout)
+
+
+def _cache_base_dir() -> Path:
+    xdg = os.environ.get("XDG_CACHE_HOME")
+    if xdg and str(xdg).strip():
+        return Path(xdg)
+    if sys.platform == "win32":
+        local = os.environ.get("LOCALAPPDATA")
+        return Path(local) if local else Path.home() / "AppData" / "Local"
+    return Path.home() / ".cache"
+
+
+def _refuse_symlink_cache_path(path: Path) -> None:
+    if path.exists() and path.is_symlink():
+        raise CodeQLError(f"refusing CodeQL cache path that is a symlink: {path}")
+    if path.is_symlink():
+        raise CodeQLError(f"refusing CodeQL cache path that is a symlink: {path}")
 
 
 def _cache_dir() -> Path:
@@ -168,24 +197,14 @@ def _cache_dir() -> Path:
     Shared-host /tmp with exist_ok mkdir is a forgery vector for results JSON
     (CWE-377). Prefer XDG_CACHE_HOME / LOCALAPPDATA / ~/.cache under doc-engine.
     """
-    xdg = os.environ.get("XDG_CACHE_HOME")
-    if xdg and str(xdg).strip():
-        base = Path(xdg)
-    elif sys.platform == "win32":
-        local = os.environ.get("LOCALAPPDATA")
-        base = Path(local) if local else Path.home() / "AppData" / "Local"
-    else:
-        base = Path.home() / ".cache"
-    path = base / "doc-engine" / "codeql-cache"
-    if path.exists() and path.is_symlink():
-        raise CodeQLError(f"refusing CodeQL cache path that is a symlink: {path}")
+    path = _cache_base_dir() / "doc-engine" / "codeql-cache"
+    _refuse_symlink_cache_path(path)
     path.mkdir(parents=True, exist_ok=True)
     try:
         os.chmod(path, 0o700)
     except OSError:
         pass
-    if path.is_symlink():
-        raise CodeQLError(f"refusing CodeQL cache path that is a symlink: {path}")
+    _refuse_symlink_cache_path(path)
     return path
 
 
@@ -194,56 +213,88 @@ def _ensure_regular_file(path: Path) -> None:
         raise CodeQLError(f"refusing non-regular cache file: {path}")
 
 
+def _validate_one_cached_row(i: int, row: Any) -> Dict[str, Any]:
+    if not isinstance(row, dict):
+        raise CodeQLError(f"cached CodeQL row {i} is not an object")
+    if not isinstance(row.get("file"), str) or not row["file"]:
+        raise CodeQLError(f"cached CodeQL row {i} missing file")
+    return row
+
+
 def _validate_cached_evidence_rows(rows: Any) -> List[Dict[str, Any]]:
     """Treat cache JSON as untrusted input — shape-gate before returning as evidence."""
     if not isinstance(rows, list):
         raise CodeQLError("cached CodeQL results are not a list")
-    validated: List[Dict[str, Any]] = []
-    for i, row in enumerate(rows):
-        if not isinstance(row, dict):
-            raise CodeQLError(f"cached CodeQL row {i} is not an object")
-        if not isinstance(row.get("file"), str) or not row["file"]:
-            raise CodeQLError(f"cached CodeQL row {i} missing file")
-        validated.append(row)
-    return validated
+    return [_validate_one_cached_row(i, row) for i, row in enumerate(rows)]
+
+
+def _update_hash_pair(h: Any, key: str, value: bytes | str) -> None:
+    h.update(key.encode("utf-8"))
+    h.update(b"\0")
+    h.update(value if isinstance(value, bytes) else value.encode("utf-8"))
+    h.update(b"\0")
+
+
+def _hash_from_scan_context(scan_context: Any) -> str:
+    h = hashlib.sha256()
+    java_rels = {entry.rel_path for entry in scan_context.java_files}
+    for rel in sorted(scan_context.file_signatures):
+        if rel in java_rels or _is_codeql_hash_file(rel):
+            _update_hash_pair(h, rel, scan_context.file_signatures[rel])
+    return h.hexdigest()[:32]
+
+
+def _is_codeql_walk_filename(name: str) -> bool:
+    return name.endswith(".java") or _is_codeql_hash_file(name)
+
+
+def _prune_hash_walk_dirs(dirs: List[str]) -> None:
+    dirs[:] = [d for d in dirs if d not in _HASH_EXCLUDED_DIRS]
+
+
+def _matching_walk_paths(walk_root: str, files: List[str]):
+    for name in sorted(files):
+        if _is_codeql_walk_filename(name):
+            yield Path(walk_root) / name
+
+
+def _iter_codeql_hash_paths(repo_path: Path):
+    for walk_root, dirs, files in os.walk(repo_path):
+        _prune_hash_walk_dirs(dirs)
+        yield from _matching_walk_paths(walk_root, files)
+
+
+def _hash_one_walk_file(
+    h: Any,
+    repo_path: Path,
+    root: str,
+    path: Path,
+    is_path_inside_root: Any,
+) -> None:
+    if not is_path_inside_root(str(path), root):
+        return
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return
+    _update_hash_pair(h, str(path.relative_to(repo_path)), data)
+
+
+def _hash_from_repo_walk(repo_path: Path) -> str:
+    from doc_engine.core.walk import is_path_inside_root
+
+    h = hashlib.sha256()
+    root = str(repo_path.resolve())
+    for path in _iter_codeql_hash_paths(repo_path):
+        _hash_one_walk_file(h, repo_path, root, path, is_path_inside_root)
+    return h.hexdigest()[:32]
 
 
 def _repo_content_hash(repo_path: Path, scan_context: Any = None) -> str:
     """Return a deterministic hash of the source files that affect CodeQL extraction."""
-    from doc_engine.core.walk import is_path_inside_root
-
     if scan_context is not None:
-        h = hashlib.sha256()
-        java_rels = {entry.rel_path for entry in scan_context.java_files}
-        for rel in sorted(scan_context.file_signatures):
-            if rel in java_rels or _is_codeql_hash_file(rel):
-                h.update(rel.encode("utf-8"))
-                h.update(b"\0")
-                h.update(scan_context.file_signatures[rel].encode("utf-8"))
-                h.update(b"\0")
-        return h.hexdigest()[:32]
-
-    h = hashlib.sha256()
-    root = str(repo_path.resolve())
-    for walk_root, dirs, files in os.walk(repo_path):
-        dirs[:] = [d for d in dirs if d not in _HASH_EXCLUDED_DIRS]
-        for name in sorted(files):
-            if not (name.endswith(".java") or name.endswith(".gradle") or name.endswith(".gradle.kts")
-                    or name in {"pom.xml", "build.xml", "settings.gradle", "settings.gradle.kts"}
-                    or name.endswith(".properties") or name.endswith(".yml") or name.endswith(".yaml")):
-                continue
-            path = Path(walk_root) / name
-            if not is_path_inside_root(str(path), root):
-                continue
-            try:
-                data = path.read_bytes()
-            except OSError:
-                continue
-            h.update(str(path.relative_to(repo_path)).encode("utf-8"))
-            h.update(b"\0")
-            h.update(data)
-            h.update(b"\0")
-    return h.hexdigest()[:32]
+        return _hash_from_scan_context(scan_context)
+    return _hash_from_repo_walk(repo_path)
 
 
 def _query_pack_hash(pack_dir: Path) -> str:
@@ -518,23 +569,24 @@ def decode_bqrs(
             f"codeql bqrs decode failed for {bqrs_path} "
             f"(exit {proc.returncode}):\n{proc.stderr}\n{proc.stdout}"
         )
-    raw = json.loads(proc.stdout)
-    select = raw.get("#select", {})
-    columns = select.get("columns", [])
-    tuples = select.get("tuples", [])
+    return _rows_from_bqrs_json(json.loads(proc.stdout))
 
-    # Build name list. CodeQL columns have either a name or just a kind.
+
+def _column_names_from_bqrs(columns: List[Dict[str, Any]]) -> List[str]:
     names = []
     for i, col in enumerate(columns):
-        name = col.get("name")
-        if not name:
-            name = f"col_{i}"
+        name = col.get("name") or f"col_{i}"
         names.append(name)
+    return names
 
-    result = []
-    for row in tuples:
-        result.append({names[i]: value for i, value in enumerate(row)})
-    return result
+
+def _rows_from_bqrs_json(raw: Dict[str, Any]) -> List[Dict[str, Any]]:
+    select = raw.get("#select", {})
+    names = _column_names_from_bqrs(select.get("columns", []))
+    return [
+        {names[i]: value for i, value in enumerate(row)}
+        for row in select.get("tuples", [])
+    ]
 
 
 def run_all_queries(
@@ -559,6 +611,153 @@ def run_all_queries(
             row["_query_file"] = query.name
         all_rows.extend(rows)
     return all_rows
+
+
+def _prepare_scan_targets(
+    repo_path: Path,
+    build_command: str,
+    pack_dir: Optional[Path],
+    db_path: Optional[Path],
+    keep_database: bool,
+    scan_context: Any,
+    cli_version: str,
+) -> tuple[Path, Path, bool, bool]:
+    """Return ``(pack_dir, db_path, using_cache, keep_database)``."""
+    resolved_pack = pack_dir or DEFAULT_PACK_DIR
+    if not resolved_pack.is_dir():
+        raise CodeQLError(f"query pack not found: {resolved_pack}")
+    using_cache = db_path is None
+    if using_cache:
+        db_path = _cache_db_path(
+            repo_path, resolved_pack, build_command, scan_context=scan_context,
+            codeql_cli_version=cli_version,
+        )
+        keep_database = True
+    assert db_path is not None
+    return resolved_pack, db_path, using_cache, keep_database
+
+
+def _ensure_codeql_database(
+    *,
+    codeql_path: Path,
+    repo_path: Path,
+    db_path: Path,
+    pack_dir: Path,
+    build_command: str,
+    using_cache: bool,
+    keep_database: bool,
+    scan_context: Any,
+    cli_version: str,
+) -> None:
+    if db_path.exists() and keep_database:
+        _reuse_or_rebuild_cached_db(
+            codeql_path=codeql_path,
+            repo_path=repo_path,
+            db_path=db_path,
+            pack_dir=pack_dir,
+            build_command=build_command,
+            using_cache=using_cache,
+            scan_context=scan_context,
+            cli_version=cli_version,
+        )
+        return
+    create_database(codeql_path, repo_path, db_path, build_command, overwrite=True)
+    if using_cache:
+        _write_cache_metadata(
+            db_path, repo_path, pack_dir, build_command, scan_context=scan_context,
+            codeql_cli_version=cli_version,
+        )
+
+
+def _reuse_or_rebuild_cached_db(
+    *,
+    codeql_path: Path,
+    repo_path: Path,
+    db_path: Path,
+    pack_dir: Path,
+    build_command: str,
+    using_cache: bool,
+    scan_context: Any,
+    cli_version: str,
+) -> None:
+    if not using_cache:
+        # Caller-provided db_path with keep_database: trust it.
+        return
+    if _cache_is_valid(
+        db_path, repo_path, pack_dir, build_command, scan_context=scan_context,
+        codeql_cli_version=cli_version,
+    ):
+        return
+    # Cache is stale (source, build command, or queries changed): rebuild.
+    shutil.rmtree(db_path, ignore_errors=True)
+    create_database(codeql_path, repo_path, db_path, build_command, overwrite=True)
+    _write_cache_metadata(
+        db_path, repo_path, pack_dir, build_command, scan_context=scan_context,
+        codeql_cli_version=cli_version,
+    )
+
+
+def _validated_build_command(build_command: str) -> str:
+    try:
+        return validate_build_command(build_command)
+    except BuildCommandError as exc:
+        raise CodeQLError(str(exc)) from exc
+
+
+def _load_cached_scan_rows(
+    *,
+    using_cache: bool,
+    scanner_version: Optional[str],
+    repo_path: Path,
+    pack_dir: Path,
+    build_command: str,
+    scan_context: Any,
+    cli_version: str,
+) -> Optional[List[Dict[str, Any]]]:
+    """Return results-cache rows when cache+version allow a full skip."""
+    if not (using_cache and scanner_version):
+        return None
+    return _load_results_cache(
+        repo_path,
+        pack_dir,
+        build_command,
+        scanner_version,
+        scan_context=scan_context,
+        codeql_cli_version=cli_version,
+    )
+
+
+def _run_queries_and_maybe_cache(
+    *,
+    codeql_path: Path,
+    repo_path: Path,
+    db_path: Path,
+    pack_dir: Path,
+    build_command: str,
+    using_cache: bool,
+    scanner_version: Optional[str],
+    scan_context: Any,
+    cli_version: str,
+    tmp: Path,
+) -> List[Dict[str, Any]]:
+    rows = run_all_queries(codeql_path, db_path, pack_dir, tmp)
+    if using_cache and scanner_version:
+        _save_results_cache(
+            repo_path,
+            pack_dir,
+            build_command,
+            scanner_version,
+            rows,
+            scan_context=scan_context,
+            codeql_cli_version=cli_version,
+        )
+    return rows
+
+
+def _cleanup_scan_temps(db_path: Path, tmp: str, keep_database: bool) -> None:
+    if not keep_database:
+        shutil.rmtree(db_path, ignore_errors=True)
+    shutil.rmtree(tmp, ignore_errors=True)
 
 
 def scan_with_codeql(
@@ -591,75 +790,62 @@ def scan_with_codeql(
     Returns:
         A list of evidence dicts ready for spring_signal_scan.py to bucket.
     """
-    try:
-        build_command = validate_build_command(build_command)
-    except BuildCommandError as exc:
-        raise CodeQLError(str(exc)) from exc
+    build_command = _validated_build_command(build_command)
     codeql_path = find_codeql()
     cli_version = codeql_version(codeql_path)
-    pack_dir = pack_dir or DEFAULT_PACK_DIR
-    if not pack_dir.is_dir():
-        raise CodeQLError(f"query pack not found: {pack_dir}")
-
-    using_cache = db_path is None
-    if using_cache:
-        db_path = _cache_db_path(
-            repo_path, pack_dir, build_command, scan_context=scan_context,
-            codeql_cli_version=cli_version,
-        )
-        keep_database = True
+    pack_dir, db_path, using_cache, keep_database = _prepare_scan_targets(
+        repo_path,
+        build_command,
+        pack_dir,
+        db_path,
+        keep_database,
+        scan_context,
+        cli_version,
+    )
 
     # If we have a fully deterministic result cache, we can skip everything
     # (including the ~10s `codeql pack install` call).
-    if using_cache and scanner_version:
-        cached_rows = _load_results_cache(
-            repo_path, pack_dir, build_command, scanner_version, scan_context=scan_context,
-            codeql_cli_version=cli_version,
-        )
-        if cached_rows is not None:
-            return cached_rows
+    cached_rows = _load_cached_scan_rows(
+        using_cache=using_cache,
+        scanner_version=scanner_version,
+        repo_path=repo_path,
+        pack_dir=pack_dir,
+        build_command=build_command,
+        scan_context=scan_context,
+        cli_version=cli_version,
+    )
+    if cached_rows is not None:
+        return cached_rows
 
     install_pack(codeql_path, pack_dir)
 
     tmp = tempfile.mkdtemp(prefix="codeql_stage0_")
     try:
-        if db_path.exists() and keep_database:
-            if using_cache and _cache_is_valid(
-                db_path, repo_path, pack_dir, build_command, scan_context=scan_context,
-                codeql_cli_version=cli_version,
-            ):
-                # Reuse a valid cached database.
-                pass
-            elif using_cache:
-                # Cache is stale (source, build command, or queries changed): rebuild.
-                shutil.rmtree(db_path, ignore_errors=True)
-                create_database(codeql_path, repo_path, db_path, build_command, overwrite=True)
-                _write_cache_metadata(
-                    db_path, repo_path, pack_dir, build_command, scan_context=scan_context,
-                    codeql_cli_version=cli_version,
-                )
-            else:
-                # Caller-provided db_path with keep_database: trust it.
-                pass
-        else:
-            create_database(codeql_path, repo_path, db_path, build_command, overwrite=True)
-            if using_cache:
-                _write_cache_metadata(
-                    db_path, repo_path, pack_dir, build_command, scan_context=scan_context,
-                    codeql_cli_version=cli_version,
-                )
-        rows = run_all_queries(codeql_path, db_path, pack_dir, Path(tmp))
-        if using_cache and scanner_version:
-            _save_results_cache(
-                repo_path, pack_dir, build_command, scanner_version, rows,
-                scan_context=scan_context,
-                codeql_cli_version=cli_version,
-            )
-        return rows
+        _ensure_codeql_database(
+            codeql_path=codeql_path,
+            repo_path=repo_path,
+            db_path=db_path,
+            pack_dir=pack_dir,
+            build_command=build_command,
+            using_cache=using_cache,
+            keep_database=keep_database,
+            scan_context=scan_context,
+            cli_version=cli_version,
+        )
+        return _run_queries_and_maybe_cache(
+            codeql_path=codeql_path,
+            repo_path=repo_path,
+            db_path=db_path,
+            pack_dir=pack_dir,
+            build_command=build_command,
+            using_cache=using_cache,
+            scanner_version=scanner_version,
+            scan_context=scan_context,
+            cli_version=cli_version,
+            tmp=Path(tmp),
+        )
     finally:
-        if not keep_database:
-            shutil.rmtree(db_path, ignore_errors=True)
-        shutil.rmtree(tmp, ignore_errors=True)
+        _cleanup_scan_temps(db_path, tmp, keep_database)
 
 
 if __name__ == "__main__":
