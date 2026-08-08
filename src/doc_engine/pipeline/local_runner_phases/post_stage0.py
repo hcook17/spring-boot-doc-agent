@@ -15,35 +15,35 @@ from doc_engine.pipeline.local_runner_phases.support import (
 from doc_engine.pipeline.mock_stages import _read_json, load_citations
 
 
-def phase_post_stage0(state: LocalRunState) -> Optional[int]:
-    """Load evidence pool; finish early when profile is SCAN_ONLY."""
-    log = state.log
-    runner = state.runner
+def _load_signals_if_needed(state: LocalRunState) -> None:
     ctx = state.pipeline_ctx
     assert ctx is not None
-
     if ctx.signals is None and os.path.isfile(state.signals_path):
         ctx.signals = _read_json(state.signals_path)
 
-    if state.profile != ComplianceProfile.SCAN_ONLY:
-        pool = load_citations(ctx.signals, state.repo_path)
-        ctx.pool = pool
-        resolvable = sum(len(bucket) for bucket in pool.values())
-        non_empty_buckets = sum(1 for bucket in pool.values() if bucket)
-        log("")
-        log(
-            f"  evidence pool: {resolvable} resolvable citation(s) across "
-            f"{non_empty_buckets} non-empty bucket(s)"
+
+def _log_evidence_pool(state: LocalRunState) -> None:
+    ctx = state.pipeline_ctx
+    assert ctx is not None
+    pool = load_citations(ctx.signals, state.repo_path)
+    ctx.pool = pool
+    resolvable = sum(len(bucket) for bucket in pool.values())
+    non_empty_buckets = sum(1 for bucket in pool.values() if bucket)
+    state.log("")
+    state.log(
+        f"  evidence pool: {resolvable} resolvable citation(s) across "
+        f"{non_empty_buckets} non-empty bucket(s)"
+    )
+    if ctx.groups:
+        state.log(
+            f"  groups: {ctx.groups['num_groups']} covering "
+            f"{ctx.groups['total_files_considered']} file(s)"
         )
-        if ctx.groups:
-            log(
-                f"  groups: {ctx.groups['num_groups']} covering "
-                f"{ctx.groups['total_files_considered']} file(s)"
-            )
 
-    if state.profile != ComplianceProfile.SCAN_ONLY:
-        return None
 
+def _finish_scan_only(state: LocalRunState) -> int:
+    log = state.log
+    runner = state.runner
     log.rule("GATES (scan-only)")
     gates.run_gate_via_runner(
         runner,
@@ -63,3 +63,13 @@ def phase_post_stage0(state: LocalRunState) -> Optional[int]:
         allow_mock=state.allow_mock,
         success_lines=["RESULT: scan-only profile complete."],
     )
+
+
+def phase_post_stage0(state: LocalRunState) -> Optional[int]:
+    """Load evidence pool; finish early when profile is SCAN_ONLY."""
+    assert state.pipeline_ctx is not None
+    _load_signals_if_needed(state)
+    if state.profile != ComplianceProfile.SCAN_ONLY:
+        _log_evidence_pool(state)
+        return None
+    return _finish_scan_only(state)

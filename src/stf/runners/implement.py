@@ -24,6 +24,14 @@ class VerifyGateError(RuntimeError):
     pass
 
 
+def _finding_coverage(tasks: TasksDocument, spec: SpecDocument | None) -> bool:
+    if spec is None or not spec.finding_ids:
+        return True
+    inv_cited = {i.get("origin") for t in tasks.tasks for i in t.inputs}
+    critical = [fid for fid in spec.finding_ids if fid.startswith("C")]
+    return any(f"INV-{fid}" in inv_cited for fid in critical)
+
+
 def plan_gate(tasks: TasksDocument, spec: SpecDocument | None = None) -> dict:
     """Dual gate #1 — before Wave 1 execution."""
     results = lint_tasks_document(tasks, spec)
@@ -32,12 +40,19 @@ def plan_gate(tasks: TasksDocument, spec: SpecDocument | None = None) -> dict:
         raise PlanGateError(f"plan gate failed: {summary['fail']} FAIL(s)")
     depends = {t.id: t.depends for t in tasks.tasks}
     waves = compute_waves(depends)
-    finding_coverage = True
-    if spec and spec.finding_ids:
-        # At least one task should reference inventory for critical findings
-        inv_cited = {i.get("origin") for t in tasks.tasks for i in t.inputs}
-        finding_coverage = any(f"INV-{fid}" in inv_cited for fid in spec.finding_ids if fid.startswith("C"))
-    return {"ok": True, "waves": waves, "finding_coverage": finding_coverage, "lint": summary}
+    return {
+        "ok": True,
+        "waves": waves,
+        "finding_coverage": _finding_coverage(tasks, spec),
+        "lint": summary,
+    }
+
+
+def _dry_run_verify_results(verify_commands: list[str]) -> dict:
+    return {
+        "ok": True,
+        "results": [{"cmd": c, "rc": 0, "dry_run": True} for c in verify_commands],
+    }
 
 
 def verify_gate(
@@ -47,8 +62,7 @@ def verify_gate(
 ) -> dict:
     """Dual gate #2 — Verify cmds must exit 0 (or dry-run)."""
     if runner is None:
-        # dry-run acceptance when no runner provided
-        return {"ok": True, "results": [{"cmd": c, "rc": 0, "dry_run": True} for c in verify_commands]}
+        return _dry_run_verify_results(verify_commands)
     results = []
     for cmd in verify_commands:
         rc = runner(cmd)
@@ -56,6 +70,60 @@ def verify_gate(
         if rc != 0:
             raise VerifyGateError(f"verify failed: {cmd} rc={rc}")
     return {"ok": True, "results": results}
+
+
+def _assign_task_waves(tasks: TasksDocument) -> list[list[str]]:
+    depends = {t.id: t.depends for t in tasks.tasks}
+    waves = compute_waves(depends)
+    wave_map = assign_waves_to_tasks(depends)
+    for t in tasks.tasks:
+        t.wave = wave_map.get(t.id)
+    return waves
+
+
+def _run_wave_dry(wave: list[str], executed: list[str]) -> None:
+    executed.extend(wave)
+
+
+def _run_wave_concurrent(
+    wave: list[str],
+    *,
+    task_fn: Callable[[str], None],
+    max_concurrent: int,
+    executed: list[str],
+) -> None:
+    workers = min(max_concurrent, max(1, len(wave)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futs = {pool.submit(task_fn, tid): tid for tid in wave}
+        for fut in as_completed(futs):
+            tid = futs[fut]
+            fut.result()
+            executed.append(tid)
+
+
+def _execute_remaining_waves(
+    *,
+    store: TasksStore,
+    waves: list[list[str]],
+    resume: int,
+    task_fn: Callable[[str], None] | None,
+    max_concurrent: int,
+) -> list[str]:
+    executed: list[str] = []
+    for wi, wave in enumerate(waves):
+        if wi < resume:
+            continue
+        if task_fn is None:
+            _run_wave_dry(wave, executed)
+            continue
+        _run_wave_concurrent(
+            wave,
+            task_fn=task_fn,
+            max_concurrent=max_concurrent,
+            executed=executed,
+        )
+        store.set_ledger(LedgerState.PROGRESS, resume_wave=wi + 1)
+    return executed
 
 
 def run_waves(
@@ -68,31 +136,16 @@ def run_waves(
     """Execute topological waves with semaphore ≤4."""
     tasks = store.load_tasks()
     store.set_ledger(LedgerState.PROGRESS)
-    depends = {t.id: t.depends for t in tasks.tasks}
-    waves = compute_waves(depends)
-    wave_map = assign_waves_to_tasks(depends)
-    for t in tasks.tasks:
-        t.wave = wave_map.get(t.id)
+    waves = _assign_task_waves(tasks)
     store.write_tasks(tasks)
-
     resume = start_wave if start_wave is not None else tasks.resume_wave
-    executed: list[str] = []
-    for wi, wave in enumerate(waves):
-        if wi < resume:
-            continue
-        # T0 must be alone in wave 0 ideally — still run with concurrency cap
-        workers = min(max_concurrent, max(1, len(wave)))
-        if task_fn is None:
-            for tid in wave:
-                executed.append(tid)
-            continue
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            futs = {pool.submit(task_fn, tid): tid for tid in wave}
-            for fut in as_completed(futs):
-                tid = futs[fut]
-                fut.result()
-                executed.append(tid)
-        store.set_ledger(LedgerState.PROGRESS, resume_wave=wi + 1)
+    executed = _execute_remaining_waves(
+        store=store,
+        waves=waves,
+        resume=resume,
+        task_fn=task_fn,
+        max_concurrent=max_concurrent,
+    )
     return {"executed": executed, "waves": waves}
 
 

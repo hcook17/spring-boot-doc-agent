@@ -10,6 +10,43 @@ from stf.schemas.tasks import TasksDocument
 from stf.validators.lint_tasks import lint_summary, lint_tasks_document
 
 
+def _lint_and_t0_scores(tasks: TasksDocument, spec: Any) -> tuple[dict[str, Any], dict[str, float]]:
+    lint = lint_summary(lint_tasks_document(tasks, spec))
+    scores = {
+        "lint_pass": 1.0 if lint["ok"] else 0.0,
+        "T0": 1.0 if any(t.id == "T0" for t in tasks.tasks) else 0.0,
+    }
+    return lint, scores
+
+
+def _ratio_score(hits: int, required: set[Any]) -> float:
+    if not required:
+        return 1.0
+    return hits / max(1, len(required))
+
+
+def _g1_score(tasks: TasksDocument, answer_key: dict[str, Any]) -> float:
+    must_ids = set(answer_key.get("required_task_titles_substrings") or [])
+    titles = " ".join(t.title.lower() for t in tasks.tasks)
+    hits = sum(1 for s in must_ids if s.lower() in titles)
+    return _ratio_score(hits, must_ids)
+
+
+def _g2_score(tasks: TasksDocument, answer_key: dict[str, Any]) -> float:
+    must_inv = set(answer_key.get("required_inventory_ids") or [])
+    cited = {i.get("origin") for t in tasks.tasks for i in t.inputs}
+    hits = sum(1 for i in must_inv if i in cited)
+    return _ratio_score(hits, must_inv)
+
+
+def _c1_score(tasks: TasksDocument, answer_key: dict[str, Any]) -> float:
+    conflict = answer_key.get("must_surface_conflict")
+    if not conflict:
+        return 1.0
+    blob = json.dumps(tasks.model_dump()).lower()
+    return 1.0 if str(conflict).lower() in blob else 0.0
+
+
 def score_decompose(
     tasks: TasksDocument,
     answer_key: dict[str, Any],
@@ -17,28 +54,10 @@ def score_decompose(
     spec=None,
 ) -> dict[str, Any]:
     """Score against ANSWER-KEY dimensions (G1/G2/C1/T0/lint)."""
-    lint = lint_summary(lint_tasks_document(tasks, spec))
-    scores = {
-        "lint_pass": 1.0 if lint["ok"] else 0.0,
-        "T0": 1.0 if any(t.id == "T0" for t in tasks.tasks) else 0.0,
-    }
-    must_ids = set(answer_key.get("required_task_titles_substrings") or [])
-    titles = " ".join(t.title.lower() for t in tasks.tasks)
-    g1 = sum(1 for s in must_ids if s.lower() in titles)
-    scores["G1"] = g1 / max(1, len(must_ids)) if must_ids else 1.0
-
-    must_inv = set(answer_key.get("required_inventory_ids") or [])
-    cited = {i.get("origin") for t in tasks.tasks for i in t.inputs}
-    g2 = sum(1 for i in must_inv if i in cited)
-    scores["G2"] = g2 / max(1, len(must_inv)) if must_inv else 1.0
-
-    conflict = answer_key.get("must_surface_conflict")
-    if conflict:
-        blob = json.dumps(tasks.model_dump()).lower()
-        scores["C1"] = 1.0 if str(conflict).lower() in blob else 0.0
-    else:
-        scores["C1"] = 1.0
-
+    lint, scores = _lint_and_t0_scores(tasks, spec)
+    scores["G1"] = _g1_score(tasks, answer_key)
+    scores["G2"] = _g2_score(tasks, answer_key)
+    scores["C1"] = _c1_score(tasks, answer_key)
     total = sum(scores.values()) / len(scores)
     threshold = float(answer_key.get("threshold", 0.8))
     return {"scores": scores, "total": total, "pass": total >= threshold, "lint": lint}

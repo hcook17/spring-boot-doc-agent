@@ -150,9 +150,8 @@ def apply_nested_cap_value(obj: Any, *, max_list: int = DEFAULT_NESTED_LIST_CAP)
     return capped
 
 
-def replace_bulky_payload_with_row_ref_pointer(item: Mapping[str, Any]) -> dict[str, Any]:
-    """Option A emission shape: drop payload body; keep expandable row_ref."""
-    emission: dict[str, Any] = {
+def _emission_core(item: Mapping[str, Any]) -> dict[str, Any]:
+    return {
         "provider": item.get("provider"),
         "path": item.get("path"),
         "line": item.get("line"),
@@ -167,19 +166,33 @@ def replace_bulky_payload_with_row_ref_pointer(item: Mapping[str, Any]) -> dict[
             "bucket": item.get("bucket"),
         },
     }
+
+
+def _copy_optional_fields(item: Mapping[str, Any], emission: dict[str, Any]) -> None:
     if "freshness" in item:
         emission["freshness"] = item.get("freshness")
     if "contested" in item:
         emission["contested"] = item.get("contested")
+
+
+def _attach_capped_payload(item: Mapping[str, Any], emission: dict[str, Any]) -> None:
     payload = item.get("payload")
-    if isinstance(payload, Mapping):
-        capped_payload, nested_truncated = truncate_nested_lists_that_exceed_cap(payload)
-        if nested_truncated:
-            emission["nested_truncated"] = True
-            # keep only capped nested lists under row_ref for traceability
-            for key in ("guards", "candidates"):
-                if key in capped_payload:
-                    emission["row_ref"][key] = capped_payload[key]
+    if not isinstance(payload, Mapping):
+        return
+    capped_payload, nested_truncated = truncate_nested_lists_that_exceed_cap(payload)
+    if not nested_truncated:
+        return
+    emission["nested_truncated"] = True
+    for key in ("guards", "candidates"):
+        if key in capped_payload:
+            emission["row_ref"][key] = capped_payload[key]
+
+
+def replace_bulky_payload_with_row_ref_pointer(item: Mapping[str, Any]) -> dict[str, Any]:
+    """Option A emission shape: drop payload body; keep expandable row_ref."""
+    emission = _emission_core(item)
+    _copy_optional_fields(item, emission)
+    _attach_capped_payload(item, emission)
     return {key: value for key, value in emission.items() if value is not None}
 
 
@@ -197,6 +210,24 @@ def sort_items_highest_score_first(items: Sequence[Mapping[str, Any]]) -> list[d
     )
 
 
+def _try_keep_emission(
+    emission: dict[str, Any],
+    *,
+    cost: int,
+    budget: int,
+    kept: list[dict[str, Any]],
+    tokens_used: int,
+) -> tuple[bool, int, bool]:
+    """Return ``(stop, tokens_used, truncated)`` after considering one emission."""
+    if tokens_used + cost <= budget:
+        kept.append(emission)
+        return False, tokens_used + cost, False
+    if not kept and budget > 0:
+        kept.append(emission)
+        return True, cost, True
+    return True, tokens_used, True
+
+
 def keep_highest_scoring_items_within_token_budget(
     items: Sequence[Mapping[str, Any]],
     budget_tokens: int,
@@ -210,16 +241,16 @@ def keep_highest_scoring_items_within_token_budget(
     for item in ordered:
         emission = replace_bulky_payload_with_row_ref_pointer(item)
         cost = estimate_tokens_from_serialized_json(emission)
-        if tokens_used + cost > budget:
-            if not kept and budget > 0:
-                kept.append(emission)
-                tokens_used = cost
-                truncated = True
-            else:
-                truncated = True
+        stop, tokens_used, item_truncated = _try_keep_emission(
+            emission,
+            cost=cost,
+            budget=budget,
+            kept=kept,
+            tokens_used=tokens_used,
+        )
+        truncated = truncated or item_truncated
+        if stop:
             break
-        kept.append(emission)
-        tokens_used += cost
     if len(kept) < len(ordered):
         truncated = True
     return kept, truncated, tokens_used

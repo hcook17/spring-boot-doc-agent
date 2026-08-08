@@ -65,6 +65,29 @@ class EvidenceProvider:
 class FactsProvider:
     name = "facts"
 
+    @staticmethod
+    def _row_contested(row: Mapping[str, Any]) -> bool:
+        quals = row.get("qualifiers") or {}
+        if not isinstance(quals, Mapping):
+            return False
+        return str(quals.get("status") or "") == "contested"
+
+    @staticmethod
+    def _should_emit_fact(pred: str, contested: bool) -> bool:
+        return pred in ("MAPS_TO", "UNPROVEN") or contested
+
+    def _fact_item(self, row: Mapping[str, Any], pred: str, contested: bool) -> dict[str, Any]:
+        return _item(
+            provider=self.name,
+            path=row.get("file") if isinstance(row.get("file"), str) else None,
+            line=row.get("line"),
+            match=str(row.get("object") or pred),
+            bucket="facts",
+            reason=f"fact {pred}",
+            payload=dict(row),
+            contested=contested or pred == "MAPS_TO",
+        )
+
     def provide(
         self,
         request: str,
@@ -78,24 +101,10 @@ class FactsProvider:
         out: list[dict[str, Any]] = []
         for row in facts_rows:
             pred = str(row.get("predicate") or "")
-            quals = row.get("qualifiers") or {}
-            contested = False
-            if isinstance(quals, Mapping):
-                contested = str(quals.get("status") or "") == "contested"
-            if pred not in ("MAPS_TO", "UNPROVEN") and not contested:
+            contested = self._row_contested(row)
+            if not self._should_emit_fact(pred, contested):
                 continue
-            out.append(
-                _item(
-                    provider=self.name,
-                    path=row.get("file") if isinstance(row.get("file"), str) else None,
-                    line=row.get("line"),
-                    match=str(row.get("object") or pred),
-                    bucket="facts",
-                    reason=f"fact {pred}",
-                    payload=dict(row),
-                    contested=contested or pred == "MAPS_TO",
-                )
-            )
+            out.append(self._fact_item(row, pred, contested))
             if len(out) >= limit * 2:
                 break
         return out

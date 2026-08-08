@@ -30,8 +30,8 @@ class SpecDocument(BaseModel):
     def inventory_ids(self) -> set[str]:
         return {row.id for row in self.inventory}
 
-    def to_markdown(self) -> str:
-        lines = [
+    def _markdown_header(self) -> list[str]:
+        return [
             f"# SPEC — {self.target}",
             "",
             f"**schema_version:** {self.schema_version}",
@@ -44,28 +44,58 @@ class SpecDocument(BaseModel):
             "## Requirements",
             "",
         ]
-        for r in self.requirements:
-            lines.append(f"- {r}")
-        lines.extend(["", "## Data-source inventory", "", "| ID | Data need | Origin |", "|---|---|---|"])
+
+    def _markdown_requirements(self) -> list[str]:
+        return [f"- {r}" for r in self.requirements]
+
+    def _markdown_inventory(self) -> list[str]:
+        lines = ["", "## Data-source inventory", "", "| ID | Data need | Origin |", "|---|---|---|"]
         for row in self.inventory:
             lines.append(f"| {row.id} | {row.data_need} | {row.origin} |")
-        lines.extend(["", "## Critical assumptions", ""])
-        for a in self.critical_assumptions:
-            lines.append(f"- {a}")
-        if self.decisions:
-            lines.extend(["", "## Decisions", "", "| Decision | Blocks | Resolution |", "|---|---|---|"])
-            for d in self.decisions:
-                lines.append(
-                    f"| {d.get('decision', '')} | {d.get('blocks', '')} | {d.get('resolution', '')} |"
-                )
-        if self.out_of_scope:
-            lines.extend(["", "## Out of scope", ""])
-            for o in self.out_of_scope:
-                lines.append(f"- {o}")
-        if self.finding_ids:
-            lines.extend(["", "## Seeded findings", ""])
-            for fid in self.finding_ids:
-                lines.append(f"- `{fid}`")
-        if self.source_review:
-            lines.extend(["", f"**Source review:** `{self.source_review}`", ""])
+        return lines
+
+    def _markdown_assumptions(self) -> list[str]:
+        lines = ["", "## Critical assumptions", ""]
+        lines.extend(f"- {a}" for a in self.critical_assumptions)
+        return lines
+
+    def _markdown_decisions(self) -> list[str]:
+        if not self.decisions:
+            return []
+        lines = ["", "## Decisions", "", "| Decision | Blocks | Resolution |", "|---|---|---|"]
+        for d in self.decisions:
+            lines.append(
+                f"| {d.get('decision', '')} | {d.get('blocks', '')} | {d.get('resolution', '')} |"
+            )
+        return lines
+
+    def _markdown_out_of_scope(self) -> list[str]:
+        if not self.out_of_scope:
+            return []
+        return ["", "## Out of scope", ""] + [f"- {o}" for o in self.out_of_scope]
+
+    def _markdown_findings(self) -> list[str]:
+        if not self.finding_ids:
+            return []
+        return ["", "## Seeded findings", ""] + [f"- `{fid}`" for fid in self.finding_ids]
+
+    def _markdown_source_review(self) -> list[str]:
+        if not self.source_review:
+            return []
+        return ["", f"**Source review:** `{self.source_review}`", ""]
+
+    def _markdown_optional_sections(self) -> list[str]:
+        lines: list[str] = []
+        lines.extend(self._markdown_out_of_scope())
+        lines.extend(self._markdown_findings())
+        lines.extend(self._markdown_source_review())
+        return lines
+
+    def to_markdown(self) -> str:
+        lines = self._markdown_header()
+        lines.extend(self._markdown_requirements())
+        lines.extend(self._markdown_inventory())
+        lines.extend(self._markdown_assumptions())
+        lines.extend(self._markdown_decisions())
+        lines.extend(self._markdown_optional_sections())
         return "\n".join(lines) + "\n"

@@ -30,15 +30,26 @@ def _dfs_cycle(
         return None
     visiting.add(node)
     stack.append(node)
+    hit = _dfs_preds(node, deps, visiting, visited, stack)
+    stack.pop()
+    visiting.remove(node)
+    visited.add(node)
+    return hit
+
+
+def _dfs_preds(
+    node: str,
+    deps: dict[str, set[str]],
+    visiting: set[str],
+    visited: set[str],
+    stack: list[str],
+) -> list[str] | None:
     for pred in deps.get(node, ()):
         if pred not in deps:
             continue
         hit = _dfs_cycle(pred, deps, visiting, visited, stack)
         if hit:
             return hit
-    stack.pop()
-    visiting.remove(node)
-    visited.add(node)
     return None
 
 
@@ -55,6 +66,11 @@ def detect_cycle(tasks: dict[str, Iterable[str]]) -> list[str] | None:
     return None
 
 
+def _ready_wave(remaining: set[str], deps: dict[str, set[str]], placed: set[str]) -> list[str]:
+    ready = sorted(tid for tid in remaining if deps[tid].issubset(placed))
+    return ready if ready else sorted(remaining)
+
+
 def compute_waves(tasks: dict[str, Iterable[str]]) -> list[list[str]]:
     """Topological wave assignment: wave k = tasks whose deps are all in earlier waves."""
     deps = _normalize_deps(tasks)
@@ -66,11 +82,7 @@ def compute_waves(tasks: dict[str, Iterable[str]]) -> list[list[str]]:
     placed: set[str] = set()
     waves: list[list[str]] = []
     while remaining:
-        ready = sorted(
-            tid for tid in remaining if deps[tid].issubset(placed)
-        )
-        if not ready:
-            ready = sorted(remaining)
+        ready = _ready_wave(remaining, deps, placed)
         waves.append(ready)
         for tid in ready:
             remaining.discard(tid)
