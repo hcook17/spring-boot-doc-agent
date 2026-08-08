@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from doc_engine._compat import StrEnum
 
@@ -121,6 +121,24 @@ def _supported_uncertainty_block(
     }
 
 
+def _partition_axes(
+    axis_values: Dict[str, Optional[float]],
+) -> Tuple[List[str], List[str]]:
+    measured = [name for name, value in axis_values.items() if value is not None]
+    imputed = [name for name, value in axis_values.items() if value is None]
+    return measured, imputed
+
+
+def _vacuous_claim(unscored_s3: bool) -> UncertaintyClaim:
+    if unscored_s3:
+        return UncertaintyClaim.VACUOUS_NO_SUPPORT_WITH_S3
+    return UncertaintyClaim.VACUOUS_NO_SUPPORT
+
+
+def _imputed_or(value: Optional[float], default: float) -> float:
+    return default if value is None else value
+
+
 def compute_uncertainty(
     r_coll: Optional[float],
     r_join: Optional[float],
@@ -138,35 +156,30 @@ def compute_uncertainty(
     - ``comparison_index_partial_support`` — some dens measured, others imputed
     - ``comparison_index_full_support`` — all four dens measured
     """
-    axis_values = {
-        "coll": r_coll,
-        "join": r_join,
-        "lin": r_lin_mean,
-        "code": r_code_dep,
-    }
-    measured_axes = [name for name, value in axis_values.items() if value is not None]
-    imputed_axes = [name for name, value in axis_values.items() if value is None]
+    measured_axes, imputed_axes = _partition_axes(
+        {
+            "coll": r_coll,
+            "join": r_join,
+            "lin": r_lin_mean,
+            "code": r_code_dep,
+        }
+    )
     absence_count = int(callable_absence)
     unproven_count = int(unproven)
     unscored_s3 = absence_count > 0 or unproven_count > 0
 
     if not measured_axes:
-        claim = (
-            UncertaintyClaim.VACUOUS_NO_SUPPORT_WITH_S3
-            if unscored_s3
-            else UncertaintyClaim.VACUOUS_NO_SUPPORT
-        )
         return _vacuous_uncertainty_block(
-            claim=claim,
+            claim=_vacuous_claim(unscored_s3),
             callable_absence=absence_count,
             unproven=unproven_count,
         )
 
     return _supported_uncertainty_block(
-        collision_rate=r_coll if r_coll is not None else 0.0,
-        join_rate=r_join if r_join is not None else 1.0,
-        lineage_rate=r_lin_mean if r_lin_mean is not None else 1.0,
-        code_dep_rate=r_code_dep if r_code_dep is not None else 1.0,
+        collision_rate=_imputed_or(r_coll, 0.0),
+        join_rate=_imputed_or(r_join, 1.0),
+        lineage_rate=_imputed_or(r_lin_mean, 1.0),
+        code_dep_rate=_imputed_or(r_code_dep, 1.0),
         measured_axes=measured_axes,
         imputed_axes=imputed_axes,
         callable_absence=absence_count,

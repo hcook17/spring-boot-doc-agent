@@ -22,6 +22,15 @@ def get_scanner(name: str) -> Scanner:
     return SCANNERS[name]()
 
 
+def _append_unique_scanner(name: str, seen: set, result: list) -> None:
+    if name not in SCANNERS:
+        raise ValueError(f"unknown scanner '{name}'")
+    if name in seen:
+        return
+    seen.add(name)
+    result.append(name)
+
+
 def resolve_scanner_names(names: list) -> list:
     """Validate and return a list of scanner names, defaulting to filesystem+ast-grep.
 
@@ -30,13 +39,8 @@ def resolve_scanner_names(names: list) -> list:
     """
     if not names:
         return ["filesystem", "ast-grep"]
-    seen = set()
-    result = []
+    seen: set = set()
+    result: list = []
     for name in names:
-        if name not in SCANNERS:
-            raise ValueError(f"unknown scanner '{name}'")
-        if name in seen:
-            continue
-        seen.add(name)
-        result.append(name)
+        _append_unique_scanner(name, seen, result)
     return result

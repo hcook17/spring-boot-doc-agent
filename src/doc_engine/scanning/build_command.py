@@ -94,6 +94,46 @@ def _canonicalize_tokens(tokens: list[str]) -> str:
     return shlex.join(cleaned)
 
 
+def _require_nonempty_command(build_command: Optional[str]) -> str:
+    if build_command is None or not str(build_command).strip():
+        raise BuildCommandError("build command is empty")
+    return str(build_command).strip()
+
+
+def _reject_shell_metacharacters(command: str) -> None:
+    if _SHELL_METACHAR_RE.search(command):
+        raise BuildCommandError(
+            "build command contains disallowed shell metacharacters "
+            "(chaining, redirection, or substitution). "
+            "Pass a single build invocation only."
+        )
+
+
+def _accept_direct_tool(tokens: list[str], first: str) -> Optional[str]:
+    if first not in _ALLOWED_TOOLS:
+        return None
+    _reject_dangerous_flags(tokens)
+    return _canonicalize_tokens(tokens)
+
+
+def _accept_shell_wrapper(tokens: list[str], first: str) -> Optional[str]:
+    if first not in _SHELL_WRAPPERS:
+        return None
+    if len(tokens) < 2:
+        raise BuildCommandError(
+            f"shell wrapper {first!r} must be followed by a known build tool "
+            f"({', '.join(sorted(_ALLOWED_TOOLS))})"
+        )
+    second = _token_basename(tokens[1])
+    if second not in _ALLOWED_TOOLS:
+        raise BuildCommandError(
+            f"shell wrapper {first!r} must wrap a known build tool, "
+            f"got second token basename {second!r}"
+        )
+    _reject_dangerous_flags(tokens)
+    return _canonicalize_tokens(tokens)
+
+
 def validate_build_command(build_command: Optional[str]) -> str:
     """Reject shell chaining, unknown tools, and known arbitrary-code flags.
 
@@ -104,41 +144,15 @@ def validate_build_command(build_command: Optional[str]) -> str:
     Returns a canonical rejoined form of the validated tokens (not a blind
     echo of the input), so callers pass only the allowlisted parse forward.
     """
-    if build_command is None or not str(build_command).strip():
-        raise BuildCommandError("build command is empty")
-
-    command = str(build_command).strip()
-    if _SHELL_METACHAR_RE.search(command):
-        raise BuildCommandError(
-            "build command contains disallowed shell metacharacters "
-            "(chaining, redirection, or substitution). "
-            "Pass a single build invocation only."
-        )
-
+    command = _require_nonempty_command(build_command)
+    _reject_shell_metacharacters(command)
     tokens = shlex.split(command, posix=False)
     if not tokens:
         raise BuildCommandError("build command is empty")
-
     first = _token_basename(tokens[0])
-    if first in _ALLOWED_TOOLS:
-        _reject_dangerous_flags(tokens)
-        return _canonicalize_tokens(tokens)
-
-    if first in _SHELL_WRAPPERS:
-        if len(tokens) < 2:
-            raise BuildCommandError(
-                f"shell wrapper {first!r} must be followed by a known build tool "
-                f"({', '.join(sorted(_ALLOWED_TOOLS))})"
-            )
-        second = _token_basename(tokens[1])
-        if second not in _ALLOWED_TOOLS:
-            raise BuildCommandError(
-                f"shell wrapper {first!r} must wrap a known build tool, "
-                f"got second token basename {second!r}"
-            )
-        _reject_dangerous_flags(tokens)
-        return _canonicalize_tokens(tokens)
-
+    accepted = _accept_direct_tool(tokens, first) or _accept_shell_wrapper(tokens, first)
+    if accepted is not None:
+        return accepted
     raise BuildCommandError(
         f"build command must start with a known build tool "
         f"({', '.join(sorted(_ALLOWED_TOOLS))}), got: {first!r}"

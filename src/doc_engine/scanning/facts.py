@@ -108,6 +108,15 @@ def _maps_to_fact_from_source(
     )
 
 
+def _contested_table_name_source(
+    candidate: Mapping[str, Any],
+    entry: Mapping[str, Any],
+) -> Any:
+    if candidate.get("table_name_source") is not None:
+        return candidate.get("table_name_source")
+    return entry.get("table_name_source")
+
+
 def _maps_to_from_contested_entry(
     class_name: str,
     entry: Mapping[str, Any],
@@ -120,10 +129,9 @@ def _maps_to_from_contested_entry(
         if not isinstance(candidate, Mapping):
             continue
         quals: Dict[str, Any] = {"status": "contested"}
-        if candidate.get("table_name_source") is not None:
-            quals["table_name_source"] = candidate.get("table_name_source")
-        elif entry.get("table_name_source") is not None:
-            quals["table_name_source"] = entry.get("table_name_source")
+        table_name_source = _contested_table_name_source(candidate, entry)
+        if table_name_source is not None:
+            quals["table_name_source"] = table_name_source
         facts.append(
             _maps_to_fact_from_source(
                 class_name,
@@ -155,6 +163,25 @@ def _maps_to_from_settled_entry(
     )
 
 
+def _is_contested_entry(entry: Mapping[str, Any]) -> bool:
+    candidates = entry.get("candidates")
+    return entry.get("status") == "contested" and isinstance(candidates, list) and bool(candidates)
+
+
+def _maps_to_from_one_entry(
+    class_name: str,
+    entry: Any,
+    default_scanner: Optional[str],
+) -> List[Dict[str, Any]]:
+    if not isinstance(entry, Mapping):
+        return []
+    if _is_contested_entry(entry):
+        return _maps_to_from_contested_entry(
+            class_name, entry, entry.get("candidates"), default_scanner,
+        )
+    return [_maps_to_from_settled_entry(class_name, entry, default_scanner)]
+
+
 def _maps_to_from_entity_table_map(
     entity_table_map: Mapping[str, Any],
     default_scanner: Optional[str],
@@ -165,18 +192,59 @@ def _maps_to_from_entity_table_map(
     """
     facts: List[Dict[str, Any]] = []
     for class_name, entry in entity_table_map.items():
-        if not isinstance(entry, Mapping):
-            continue
-        status = entry.get("status")
-        candidates = entry.get("candidates")
-        if status == "contested" and isinstance(candidates, list) and candidates:
-            facts.extend(
-                _maps_to_from_contested_entry(
-                    class_name, entry, candidates, default_scanner,
-                )
-            )
-            continue
-        facts.append(_maps_to_from_settled_entry(class_name, entry, default_scanner))
+        facts.extend(_maps_to_from_one_entry(class_name, entry, default_scanner))
+    return facts
+
+
+def _evidence_hit_fact(
+    hit: Mapping[str, Any],
+    *,
+    bucket: Any,
+    default_scanner: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    file_path = hit.get("file")
+    if file_path is None:
+        return None
+    rule_id = hit.get("rule_id")
+    match = hit.get("match")
+    return _fact(
+        predicate=str(rule_id) if rule_id else "EVIDENCE",
+        subject=str(file_path),
+        object_=None if match is None else str(match),
+        qualifiers={"bucket": bucket} if bucket else {},
+        file=str(file_path),
+        line=hit.get("line") if isinstance(hit.get("line"), int) else None,
+        rule_id=None if rule_id is None else str(rule_id),
+        scanner=hit.get("scanner") or default_scanner,
+    )
+
+
+def _append_evidence_hit(
+    facts: List[Dict[str, Any]],
+    hit: Any,
+    *,
+    bucket: Any,
+    default_scanner: Optional[str],
+) -> None:
+    if not isinstance(hit, Mapping):
+        return
+    fact = _evidence_hit_fact(hit, bucket=bucket, default_scanner=default_scanner)
+    if fact is not None:
+        facts.append(fact)
+
+
+def _facts_from_bucket(
+    bucket: Any,
+    hits: Any,
+    default_scanner: Optional[str],
+) -> List[Dict[str, Any]]:
+    if not isinstance(hits, list):
+        return []
+    facts: List[Dict[str, Any]] = []
+    for hit in hits:
+        _append_evidence_hit(
+            facts, hit, bucket=bucket, default_scanner=default_scanner,
+        )
     return facts
 
 
@@ -185,31 +253,75 @@ def _facts_from_evidence(
     default_scanner: Optional[str],
 ) -> List[Dict[str, Any]]:
     facts: List[Dict[str, Any]] = []
-    for _bucket, hits in evidence.items():
-        if not isinstance(hits, list):
-            continue
-        for hit in hits:
-            if not isinstance(hit, Mapping):
-                continue
-            file_path = hit.get("file")
-            if file_path is None:
-                continue
-            rule_id = hit.get("rule_id")
-            predicate = str(rule_id) if rule_id else "EVIDENCE"
-            match = hit.get("match")
-            facts.append(
-                _fact(
-                    predicate=predicate,
-                    subject=str(file_path),
-                    object_=None if match is None else str(match),
-                    qualifiers={"bucket": _bucket} if _bucket else {},
-                    file=str(file_path),
-                    line=hit.get("line") if isinstance(hit.get("line"), int) else None,
-                    rule_id=None if rule_id is None else str(rule_id),
-                    scanner=hit.get("scanner") or default_scanner,
-                )
-            )
+    for bucket, hits in evidence.items():
+        facts.extend(_facts_from_bucket(bucket, hits, default_scanner))
     return facts
+
+
+def _astgrep_receipt_complete(proof: Mapping[str, Any]) -> bool:
+    for receipt in proof.get("receipts") or []:
+        if (
+            isinstance(receipt, Mapping)
+            and receipt.get("scanner") == "ast-grep"
+            and receipt.get("status") == "complete"
+        ):
+            return True
+    return False
+
+
+def _covering_state(signals: Mapping[str, Any]) -> tuple[bool, Optional[str], bool]:
+    """Return (covering_ok, covering_root, astgrep_receipt_complete)."""
+    from doc_engine.scanning.covering import verify_covering_proof
+
+    proof = signals.get("_covering_proof")
+    if not isinstance(proof, Mapping):
+        return False, None, False
+    covering_root = proof.get("inventory_root")
+    scanner_version = signals.get("scanner_version")
+    sigs = signals.get("file_signatures") or {}
+    covering_ok = False
+    if isinstance(sigs, Mapping) and scanner_version:
+        covering_ok, _ = verify_covering_proof(
+            proof,
+            file_signatures=sigs,
+            scanner_version=str(scanner_version),
+        )
+    return (
+        covering_ok,
+        covering_root if isinstance(covering_root, str) else None,
+        _astgrep_receipt_complete(proof),
+    )
+
+
+def _first_oracle_arm(
+    entity_keys: Mapping[str, Any],
+) -> Optional[tuple[str, set[str]]]:
+    for arm in ("codeql", "multipass", "metamodel"):
+        oracle = set(entity_keys.get(arm) or [])
+        if oracle:
+            return arm, oracle
+    return None
+
+
+def _recall_facts_from_meta(
+    signals: Mapping[str, Any],
+    meta: Mapping[str, Any],
+) -> List[Dict[str, Any]]:
+    from doc_engine.scanning.recall_delta import write_recall_miss_facts
+
+    entity_keys = meta.get("entity_keys_by_scanner") or {}
+    if not isinstance(entity_keys, Mapping):
+        return []
+    selected = _first_oracle_arm(entity_keys)
+    if selected is None:
+        return []
+    arm, oracle = selected
+    return write_recall_miss_facts(
+        signals,
+        native_entity_keys=set(entity_keys.get("ast-grep") or []),
+        oracle_entity_keys=oracle,
+        oracle_arm=arm,
+    )
 
 
 def covering_writer_facts(signals: Mapping[str, Any]) -> List[Dict[str, Any]]:
@@ -220,59 +332,19 @@ def covering_writer_facts(signals: Mapping[str, Any]) -> List[Dict[str, Any]]:
     recall is omitted.
     """
     from doc_engine.scanning.absence import write_absence_facts
-    from doc_engine.scanning.covering import verify_covering_proof
-    from doc_engine.scanning.recall_delta import write_recall_miss_facts
 
-    proof = signals.get("_covering_proof")
-    meta = signals.get("_scan_partials_meta") or {}
-    covering_ok = False
-    covering_root = None
+    covering_ok, covering_root, astgrep_ok = _covering_state(signals)
     scanner_version = signals.get("scanner_version")
-    astgrep_receipt_complete = False
-    if isinstance(proof, Mapping):
-        covering_root = proof.get("inventory_root")
-        # Re-verify against embedded file_signatures when present on signals.
-        sigs = signals.get("file_signatures") or {}
-        if isinstance(sigs, Mapping) and scanner_version:
-            covering_ok, _ = verify_covering_proof(
-                proof,
-                file_signatures=sigs,
-                scanner_version=str(scanner_version),
-            )
-        else:
-            covering_ok = False
-        for receipt in proof.get("receipts") or []:
-            if (
-                isinstance(receipt, Mapping)
-                and receipt.get("scanner") == "ast-grep"
-                and receipt.get("status") == "complete"
-            ):
-                astgrep_receipt_complete = True
-                break
-
     facts = write_absence_facts(
         signals,
         covering_ok=covering_ok,
-        covering_root=covering_root if isinstance(covering_root, str) else None,
+        covering_root=covering_root,
         scanner_version=str(scanner_version) if scanner_version else None,
-        astgrep_receipt_complete=astgrep_receipt_complete,
+        astgrep_receipt_complete=astgrep_ok,
     )
-
-    entity_keys = meta.get("entity_keys_by_scanner") or {}
-    if isinstance(entity_keys, Mapping):
-        native = set(entity_keys.get("ast-grep") or [])
-        for arm in ("codeql", "multipass", "metamodel"):
-            oracle = set(entity_keys.get(arm) or [])
-            if oracle:
-                facts.extend(
-                    write_recall_miss_facts(
-                        signals,
-                        native_entity_keys=native,
-                        oracle_entity_keys=oracle,
-                        oracle_arm=arm,
-                    )
-                )
-                break
+    meta = signals.get("_scan_partials_meta") or {}
+    if isinstance(meta, Mapping):
+        facts.extend(_recall_facts_from_meta(signals, meta))
     return facts
 
 
@@ -291,6 +363,22 @@ def facts_from_signals(signals: Mapping[str, Any]) -> List[Dict[str, Any]]:
     return facts
 
 
+def _require_maps_to_type_symbol(fact: Mapping[str, Any]) -> None:
+    if fact.get("predicate") != "MAPS_TO":
+        return
+    subject = fact.get("subject")
+    try:
+        parsed = parse(str(subject))
+    except SymbolError as exc:
+        raise SymbolError(
+            f"MAPS_TO subject is not a claim-symbol: {subject!r}"
+        ) from exc
+    if parsed.kind != "type":
+        raise SymbolError(
+            f"MAPS_TO subject must be a type symbol, got kind={parsed.kind!r}: {subject!r}"
+        )
+
+
 def write_facts_jsonl(path: PathLike, facts: List[Mapping[str, Any]]) -> None:
     """Write fact records as UTF-8 JSON Lines (one object per line).
 
@@ -306,52 +394,49 @@ def write_facts_jsonl(path: PathLike, facts: List[Mapping[str, Any]]) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding="utf-8", newline="\n") as fh:
         for fact in facts:
-            if fact.get("predicate") == "MAPS_TO":
-                subject = fact.get("subject")
-                try:
-                    parsed = parse(str(subject))
-                except SymbolError as exc:
-                    raise SymbolError(
-                        f"MAPS_TO subject is not a claim-symbol: {subject!r}"
-                    ) from exc
-                if parsed.kind != "type":
-                    raise SymbolError(
-                        f"MAPS_TO subject must be a type symbol, got kind={parsed.kind!r}: {subject!r}"
-                    )
+            _require_maps_to_type_symbol(fact)
             validated = Fact.model_validate(dict(fact)).model_dump()
             fh.write(json.dumps(validated, ensure_ascii=False, sort_keys=True))
             fh.write("\n")
 
 
+def _bump_maps_to_count(counts: Dict[str, int], fact: Mapping[str, Any]) -> None:
+    counts["facts_maps_to"] += 1
+    quals = fact.get("qualifiers") or {}
+    if isinstance(quals, Mapping) and quals.get("status") == "contested":
+        counts["facts_maps_to_contested"] += 1
+
+
+_EMIT_COUNT_KEYS = {
+    "ABSENCE": "facts_absence",
+    "UNPROVEN": "facts_unproven",
+    "RECALL_MISS": "facts_recall_miss",
+}
+
+
+def _bump_emit_count(counts: Dict[str, int], fact: Mapping[str, Any]) -> None:
+    predicate = fact.get("predicate")
+    if predicate == "MAPS_TO":
+        _bump_maps_to_count(counts, fact)
+        return
+    key = _EMIT_COUNT_KEYS.get(str(predicate) if predicate is not None else "")
+    if key is None:
+        counts["facts_evidence"] += 1
+        return
+    counts[key] += 1
+
+
 def fact_emit_counts(facts: List[Mapping[str, Any]]) -> Dict[str, int]:
     """Return counters for dual-emit observability (gap/error analysis)."""
-    maps_to = 0
-    maps_to_contested = 0
-    evidence = 0
-    absence = 0
-    unproven = 0
-    recall_miss = 0
-    for fact in facts:
-        predicate = fact.get("predicate")
-        if predicate == "MAPS_TO":
-            maps_to += 1
-            quals = fact.get("qualifiers") or {}
-            if isinstance(quals, Mapping) and quals.get("status") == "contested":
-                maps_to_contested += 1
-        elif predicate == "ABSENCE":
-            absence += 1
-        elif predicate == "UNPROVEN":
-            unproven += 1
-        elif predicate == "RECALL_MISS":
-            recall_miss += 1
-        else:
-            evidence += 1
-    return {
+    counts = {
         "facts_total": len(facts),
-        "facts_maps_to": maps_to,
-        "facts_maps_to_contested": maps_to_contested,
-        "facts_evidence": evidence,
-        "facts_absence": absence,
-        "facts_unproven": unproven,
-        "facts_recall_miss": recall_miss,
+        "facts_maps_to": 0,
+        "facts_maps_to_contested": 0,
+        "facts_evidence": 0,
+        "facts_absence": 0,
+        "facts_unproven": 0,
+        "facts_recall_miss": 0,
     }
+    for fact in facts:
+        _bump_emit_count(counts, fact)
+    return counts

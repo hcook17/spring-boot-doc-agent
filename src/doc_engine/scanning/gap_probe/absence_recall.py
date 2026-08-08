@@ -34,6 +34,19 @@ def _callable_absence_failure(
     }
 
 
+def _tally_callable_absence(
+    fact: Mapping[str, Any],
+) -> Optional[Dict[str, Any]]:
+    """Return an ABSENCE failure row for a callable trial, else None."""
+    if fact.get("predicate") != "ABSENCE":
+        return None
+    qualifiers = _fact_qualifiers(fact)
+    trial = qualifiers.get("trial")
+    if trial != "callable":
+        return None
+    return _callable_absence_failure(fact, qualifiers=qualifiers, trial=trial)
+
+
 def _tally_absence_and_unproven(
     facts: Sequence[Mapping[str, Any]],
 ) -> Tuple[int, int, List[Dict[str, Any]]]:
@@ -42,17 +55,12 @@ def _tally_absence_and_unproven(
     unproven_count = 0
     failures: List[Dict[str, Any]] = []
     for fact in facts:
-        predicate = fact.get("predicate")
-        if predicate == "ABSENCE":
-            qualifiers = _fact_qualifiers(fact)
-            trial = qualifiers.get("trial")
-            if trial != "callable":
-                continue
+        absence_failure = _tally_callable_absence(fact)
+        if absence_failure is not None:
             absence_count += 1
-            failures.append(
-                _callable_absence_failure(fact, qualifiers=qualifiers, trial=trial)
-            )
-        elif predicate == "UNPROVEN":
+            failures.append(absence_failure)
+            continue
+        if fact.get("predicate") == "UNPROVEN":
             unproven_count += 1
     return absence_count, unproven_count, failures
 
@@ -97,6 +105,45 @@ def measure_r_absence(
     return block
 
 
+def _recall_miss_failure(fact: Mapping[str, Any], verdict: str) -> Dict[str, Any]:
+    qualifiers = _fact_qualifiers(fact)
+    return {
+        "layer": "recall",
+        "stratum": verdict,
+        "reason_class": "RECALL_MISS",
+        "subject": fact.get("subject"),
+        "file": fact.get("file"),
+        "oracle_arm": qualifiers.get("oracle_arm"),
+    }
+
+
+def _classify_recall_miss(
+    fact: Mapping[str, Any],
+) -> Tuple[str, Dict[str, Any]]:
+    """Return (verdict, failure_row) for one RECALL_MISS fact."""
+    qualifiers = _fact_qualifiers(fact)
+    verdict = str(qualifiers.get("verdict") or "STRUCTURAL")
+    if verdict != "EVIDENTIARY":
+        verdict = "STRUCTURAL"
+    return verdict, _recall_miss_failure(fact, verdict)
+
+
+def _tally_recall_misses(
+    misses: Sequence[Mapping[str, Any]],
+) -> Tuple[int, int, List[Dict[str, Any]]]:
+    structural = 0
+    evidentiary = 0
+    failures: List[Dict[str, Any]] = []
+    for fact in misses:
+        verdict, failure = _classify_recall_miss(fact)
+        if verdict == "EVIDENTIARY":
+            evidentiary += 1
+        else:
+            structural += 1
+        failures.append(failure)
+    return structural, evidentiary, failures
+
+
 def measure_r_recall(
     facts: Sequence[Mapping[str, Any]],
     *,
@@ -110,26 +157,7 @@ def measure_r_recall(
     if not oracle_arm_present:
         return None
     misses = [fact for fact in facts if fact.get("predicate") == "RECALL_MISS"]
-    structural = 0
-    evidentiary = 0
-    failures: List[Dict[str, Any]] = []
-    for fact in misses:
-        qualifiers = _fact_qualifiers(fact)
-        verdict = str(qualifiers.get("verdict") or "STRUCTURAL")
-        if verdict == "EVIDENTIARY":
-            evidentiary += 1
-        else:
-            structural += 1
-        failures.append(
-            {
-                "layer": "recall",
-                "stratum": verdict,
-                "reason_class": "RECALL_MISS",
-                "subject": fact.get("subject"),
-                "file": fact.get("file"),
-                "oracle_arm": qualifiers.get("oracle_arm"),
-            }
-        )
+    structural, evidentiary, failures = _tally_recall_misses(misses)
     denominator = len(misses)
     block = (
         _rate_block(structural, denominator) if denominator else _rate_block(0, 0)
@@ -141,6 +169,23 @@ def measure_r_recall(
     return block
 
 
+def _receipt_roots_match(receipt: Mapping[str, Any]) -> bool:
+    expected_root = receipt.get("expected_subset_root")
+    acked_root = receipt.get("acked_subset_root")
+    return bool(expected_root and acked_root and expected_root == acked_root)
+
+
+def _receipt_complete_for_scanner(receipt: Any, scanner: str) -> bool:
+    """True when *receipt* is a complete receipt for *scanner* with matching roots."""
+    if not isinstance(receipt, Mapping):
+        return False
+    if receipt.get("scanner") != scanner:
+        return False
+    if receipt.get("status") != "complete":
+        return False
+    return _receipt_roots_match(receipt)
+
+
 def _complete_receipt_for_scanner(
     covering_proof: Optional[Mapping[str, Any]],
     *,
@@ -148,15 +193,7 @@ def _complete_receipt_for_scanner(
 ) -> bool:
     """True when a receipt for ``scanner`` is complete with matching subset roots."""
     for receipt in (covering_proof or {}).get("receipts") or []:
-        if not isinstance(receipt, Mapping):
-            continue
-        if receipt.get("scanner") != scanner:
-            continue
-        if receipt.get("status") != "complete":
-            continue
-        expected_root = receipt.get("expected_subset_root")
-        acked_root = receipt.get("acked_subset_root")
-        if expected_root and acked_root and expected_root == acked_root:
+        if _receipt_complete_for_scanner(receipt, scanner):
             return True
     return False
 
@@ -192,21 +229,22 @@ def _planted_recall_failures(
     return rows
 
 
-def load_and_verify_covering(
-    signals: Mapping[str, Any],
+def _resolve_covering_path(
     *,
-    signals_path: Optional[Path] = None,
-    covering_path: Optional[Path] = None,
+    signals_path: Optional[Path],
+    covering_path: Optional[Path],
+) -> Optional[Path]:
+    if covering_path is not None:
+        return covering_path
+    if signals_path is not None:
+        return covering_proof_path_for_signals_out(signals_path)
+    return None
+
+
+def _verify_covering_inputs(
+    proof: Mapping[str, Any],
+    signals: Mapping[str, Any],
 ) -> Tuple[Dict[str, Any], bool, str]:
-    """Load covering_proof sibling and verify against signals inventory."""
-    path = covering_path
-    if path is None and signals_path is not None:
-        path = covering_proof_path_for_signals_out(signals_path)
-    if path is None or not path.is_file():
-        return {}, False, f"covering_proof.json missing (expected {path})"
-    proof = _load_json(path)
-    if not isinstance(proof, Mapping):
-        return {}, False, "covering_proof root must be a JSON object"
     signatures = signals.get("file_signatures") or {}
     if not isinstance(signatures, Mapping):
         return dict(proof), False, "signals.file_signatures missing"
@@ -219,3 +257,21 @@ def load_and_verify_covering(
         scanner_version=str(scanner_version),
     )
     return dict(proof), verified, reason
+
+
+def load_and_verify_covering(
+    signals: Mapping[str, Any],
+    *,
+    signals_path: Optional[Path] = None,
+    covering_path: Optional[Path] = None,
+) -> Tuple[Dict[str, Any], bool, str]:
+    """Load covering_proof sibling and verify against signals inventory."""
+    path = _resolve_covering_path(
+        signals_path=signals_path, covering_path=covering_path,
+    )
+    if path is None or not path.is_file():
+        return {}, False, f"covering_proof.json missing (expected {path})"
+    proof = _load_json(path)
+    if not isinstance(proof, Mapping):
+        return {}, False, "covering_proof root must be a JSON object"
+    return _verify_covering_inputs(proof, signals)

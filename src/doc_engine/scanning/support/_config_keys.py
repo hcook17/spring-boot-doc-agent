@@ -49,6 +49,25 @@ def _strip_quotes(key):
     return key
 
 
+def _is_skippable_yaml_line(raw_line):
+    if not raw_line.strip() or raw_line.strip().startswith("#"):
+        return True
+    return raw_line.lstrip().startswith("-")  # list items: out of scope
+
+
+def _pop_yaml_stack(stack, indent):
+    while stack and stack[-1][0] >= indent:
+        stack.pop()
+
+
+def _record_yaml_key(keys, stack, indent, key, value):
+    path = ".".join(name for _, name in stack + [(indent, key)])
+    if value and not value.startswith("#"):
+        keys.append(path)
+        return
+    stack.append((indent, key))
+
+
 def _extract_yaml_keys(text):
     """Indentation-stack walk: a line's dotted path is the stack of every
     ancestor group key joined with ".". Only leaf lines (a key with a
@@ -59,41 +78,33 @@ def _extract_yaml_keys(text):
     stack = []  # list of (indent_width, key_name)
 
     for raw_line in text.splitlines():
-        if not raw_line.strip() or raw_line.strip().startswith("#"):
+        if _is_skippable_yaml_line(raw_line):
             continue
-        if raw_line.lstrip().startswith("-"):
-            continue  # list items: out of scope, see module docstring
-
-        m = _YAML_KEY_LINE_RE.match(raw_line)
-        if not m:
+        match = _YAML_KEY_LINE_RE.match(raw_line)
+        if not match:
             continue
-
-        indent = len(m.group("indent"))
-        key = _strip_quotes(m.group("key"))
-        value = m.group("value").strip()
-
-        while stack and stack[-1][0] >= indent:
-            stack.pop()
-
-        path = ".".join(k for _, k in stack + [(indent, key)])
-
-        if value and not value.startswith("#"):
-            keys.append(path)
-        else:
-            stack.append((indent, key))
+        indent = len(match.group("indent"))
+        key = _strip_quotes(match.group("key"))
+        value = match.group("value").strip()
+        _pop_yaml_stack(stack, indent)
+        _record_yaml_key(keys, stack, indent, key, value)
 
     return keys
+
+
+def _is_skippable_properties_line(stripped):
+    return not stripped or stripped.startswith("#") or stripped.startswith("!")
 
 
 def _extract_properties_keys(text):
     keys = []
     for raw_line in text.splitlines():
         stripped = raw_line.strip()
-        if not stripped or stripped.startswith("#") or stripped.startswith("!"):
+        if _is_skippable_properties_line(stripped):
             continue
-        m = _PROPERTIES_KEY_LINE_RE.match(raw_line)
-        if m:
-            keys.append(m.group(1))
+        match = _PROPERTIES_KEY_LINE_RE.match(raw_line)
+        if match:
+            keys.append(match.group(1))
     return keys
 
 

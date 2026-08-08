@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from doc_engine._compat import StrEnum
 from doc_engine.scanning.symbol import SymbolError, parse
@@ -16,25 +16,44 @@ class EntityMapStatus(StrEnum):
     CONTESTED = "contested"
 
 
+def _add_fqcn_key(keys: set[str], fqcn: Any) -> None:
+    if fqcn:
+        keys.add(f"fqcn:{fqcn}")
+
+
+def _add_display_keys(
+    keys: set[str],
+    display_name: Any,
+    package: Optional[str],
+) -> None:
+    if not display_name:
+        return
+    keys.add(f"simple:{display_name}")
+    if package:
+        keys.add(f"pkg_simple:{package}|{display_name}")
+
+
+def _subject_package(subject: Any) -> Optional[str]:
+    try:
+        parsed = parse(str(subject))
+    except SymbolError:
+        return None
+    if not parsed.namespaces:
+        return None
+    return ".".join(parsed.namespaces)
+
+
 def _fact_identity_keys(fact: Mapping[str, Any]) -> set[str]:
     keys: set[str] = set()
     qualifiers = fact.get("qualifiers") or {}
     if not isinstance(qualifiers, Mapping):
         return keys
-    fqcn = qualifiers.get("fqcn")
-    if fqcn:
-        keys.add(f"fqcn:{fqcn}")
-    display_name = qualifiers.get("display_name")
-    try:
-        parsed = parse(str(fact.get("subject")))
-        package = ".".join(parsed.namespaces) if parsed.namespaces else None
-        if display_name:
-            keys.add(f"simple:{display_name}")
-        if package and display_name:
-            keys.add(f"pkg_simple:{package}|{display_name}")
-    except SymbolError:
-        if display_name:
-            keys.add(f"simple:{display_name}")
+    _add_fqcn_key(keys, qualifiers.get("fqcn"))
+    _add_display_keys(
+        keys,
+        qualifiers.get("display_name"),
+        _subject_package(fact.get("subject")),
+    )
     return keys
 
 
@@ -45,15 +64,19 @@ def _collect_maps_to_identity_keys(facts: Sequence[Mapping[str, Any]]) -> set[st
     return fact_keys
 
 
-def _entity_join_sources(entry: Mapping[str, Any]) -> List[Mapping[str, Any]]:
-    """Settled entries join as themselves; contested entries expand candidates."""
-    if entry.get("status") != EntityMapStatus.CONTESTED:
-        return [entry]
+def _contested_candidate_sources(entry: Mapping[str, Any]) -> List[Mapping[str, Any]]:
     candidates = entry.get("candidates")
     if not isinstance(candidates, list) or not candidates:
         return [entry]
     typed = [candidate for candidate in candidates if isinstance(candidate, Mapping)]
     return typed or [entry]
+
+
+def _entity_join_sources(entry: Mapping[str, Any]) -> List[Mapping[str, Any]]:
+    """Settled entries join as themselves; contested entries expand candidates."""
+    if entry.get("status") != EntityMapStatus.CONTESTED:
+        return [entry]
+    return _contested_candidate_sources(entry)
 
 
 def _entity_identity_keys(
@@ -62,10 +85,8 @@ def _entity_identity_keys(
     source: Mapping[str, Any],
 ) -> set[str]:
     keys = {f"simple:{simple_name}"}
-    fqcn = source.get("fqcn") or entry.get("fqcn")
+    _add_fqcn_key(keys, source.get("fqcn") or entry.get("fqcn"))
     package = source.get("package") or entry.get("package")
-    if fqcn:
-        keys.add(f"fqcn:{fqcn}")
     if package:
         keys.add(f"pkg_simple:{package}|{simple_name}")
     return keys
@@ -95,6 +116,19 @@ def _unmatched_join_failure(
     }
 
 
+def _score_one_entity(
+    simple_name: str,
+    entry: Any,
+    fact_keys: set[str],
+) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    """Return (matched, failure_or_None) for one entity_map entry."""
+    if not isinstance(entry, Mapping):
+        return False, None
+    if _entity_matches_fact_keys(simple_name, entry, fact_keys):
+        return True, None
+    return False, _unmatched_join_failure(simple_name, entry)
+
+
 def _score_path_a_join(
     entity_map: Mapping[str, Any],
     fact_keys: set[str],
@@ -103,12 +137,11 @@ def _score_path_a_join(
     matched = 0
     failures: List[Dict[str, Any]] = []
     for simple_name, entry in entity_map.items():
-        if not isinstance(entry, Mapping):
-            continue
-        if _entity_matches_fact_keys(simple_name, entry, fact_keys):
+        is_match, failure = _score_one_entity(simple_name, entry, fact_keys)
+        if is_match:
             matched += 1
-        else:
-            failures.append(_unmatched_join_failure(simple_name, entry))
+        elif failure is not None:
+            failures.append(failure)
     return matched, failures
 
 

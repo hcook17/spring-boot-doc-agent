@@ -54,6 +54,41 @@ def _merge_evidence(partials: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, 
     return merged
 
 
+def _seed_entity_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
+    seeded = dict(entry)
+    if "candidates" in seeded:
+        seeded["candidates"] = list(seeded["candidates"])
+    return seeded
+
+
+def _entries_disagree(existing: Dict[str, Any], entry: Dict[str, Any]) -> bool:
+    return (
+        existing.get("table") != entry.get("table")
+        or existing.get("file") != entry.get("file")
+    )
+
+
+def _mark_contested(existing: Dict[str, Any], entry: Dict[str, Any]) -> None:
+    existing["status"] = "contested"
+    candidates = existing.setdefault("candidates", [dict(existing)])
+    candidate_copy = dict(entry)
+    if candidate_copy not in candidates:
+        candidates.append(candidate_copy)
+
+
+def _merge_one_entity_entry(
+    merged: Dict[str, Any],
+    class_name: str,
+    entry: Dict[str, Any],
+) -> None:
+    if class_name not in merged:
+        merged[class_name] = _seed_entity_entry(entry)
+        return
+    existing = merged[class_name]
+    if _entries_disagree(existing, entry):
+        _mark_contested(existing, entry)
+
+
 def _merge_entity_table_map(partials: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Merge entity_table_map entries.
 
@@ -64,23 +99,48 @@ def _merge_entity_table_map(partials: List[Dict[str, Any]]) -> Dict[str, Any]:
     merged: Dict[str, Any] = {}
     for partial in partials:
         for class_name, entry in partial.get("entity_table_map", {}).items():
-            if class_name not in merged:
-                merged[class_name] = dict(entry)
-                if "candidates" in merged[class_name]:
-                    merged[class_name]["candidates"] = list(merged[class_name]["candidates"])
-                continue
-            existing = merged[class_name]
-            # Mark contested if the new entry disagrees on table or file.
-            if (
-                existing.get("table") != entry.get("table")
-                or existing.get("file") != entry.get("file")
-            ):
-                existing["status"] = "contested"
-                candidates = existing.setdefault("candidates", [dict(existing)])
-                candidate_copy = dict(entry)
-                if candidate_copy not in candidates:
-                    candidates.append(candidate_copy)
+            _merge_one_entity_entry(merged, class_name, entry)
     return merged
+
+
+def _candidate_record(class_name: str, entry: Dict[str, Any]) -> Dict[str, Any]:
+    record = {
+        "file": entry["file"],
+        "table": entry["table"],
+        "table_name_source": entry["table_name_source"],
+        "fqcn": entry.get("fqcn") or class_name,
+    }
+    if entry.get("package") is not None:
+        record["package"] = entry["package"]
+    return record
+
+
+def _ordered_unique_by_file(candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    by_file: Dict[str, Dict[str, Any]] = {}
+    for cand in candidates:
+        by_file.setdefault(cand["file"], cand)
+    return sorted(by_file.values(), key=lambda entry: entry["file"])
+
+
+def _finalize_one_entity(
+    class_name: str,
+    candidates: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    ordered = _ordered_unique_by_file(candidates)
+    winner = dict(ordered[0])
+    if len(ordered) <= 1:
+        return winner
+    winner["status"] = "contested"
+    winner["candidates"] = [_candidate_record(class_name, entry) for entry in ordered]
+    _LOG.warning(
+        "entity_table_map key %r is contested — %d @Entity classes share "
+        "this simple name across packages; JPQL lineage for this name will "
+        "be unavailable rather than guessed. Files: %s",
+        class_name,
+        len(ordered),
+        ", ".join(entry["file"] for entry in ordered),
+    )
+    return winner
 
 
 def _finalize_entity_table_map(entity_candidates: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
@@ -91,40 +151,29 @@ def _finalize_entity_table_map(entity_candidates: Dict[str, List[Dict[str, Any]]
     drift-check stability; when more than one candidate exists the entry is
     status=contested with a candidates list.
     """
-    entity_table_map = {}
-    for class_name, candidates in entity_candidates.items():
-        by_file = {}
-        for cand in candidates:
-            by_file.setdefault(cand["file"], cand)
-        ordered = sorted(by_file.values(), key=lambda e: e["file"])
-        winner = dict(ordered[0])
-        if len(ordered) > 1:
-            winner["status"] = "contested"
-            winner["candidates"] = []
-            for c in ordered:
-                cand = {
-                    "file": c["file"],
-                    "table": c["table"],
-                    "table_name_source": c["table_name_source"],
-                    "fqcn": c.get("fqcn") or class_name,
-                }
-                if c.get("package") is not None:
-                    cand["package"] = c["package"]
-                winner["candidates"].append(cand)
-            _LOG.warning(
-                "entity_table_map key %r is contested — %d @Entity classes share "
-                "this simple name across packages; JPQL lineage for this name will "
-                "be unavailable rather than guessed. Files: %s",
-                class_name,
-                len(ordered),
-                ", ".join(c["file"] for c in ordered),
-            )
-        entity_table_map[class_name] = winner
-    return entity_table_map
+    return {
+        class_name: _finalize_one_entity(class_name, candidates)
+        for class_name, candidates in entity_candidates.items()
+    }
 
 
-def _build_entity_table_map_from_evidence(partial: Dict[str, Any]) -> Dict[str, Any]:
-    """Build entity_table_map from persistence__entity evidence rows."""
+def _entity_candidate_from_row(row: Dict[str, Any], class_name: str) -> Dict[str, Any]:
+    candidate = {
+        "file": row["file"],
+        "table": row.get("table", to_snake_case(class_name)),
+        "table_name_source": row.get("table_name_source", "inferred-default-naming"),
+        "rule_id": row.get("rule_id", "persistence__entity"),
+        "match": row.get("match", ""),
+        "fqcn": row.get("fqcn") or class_name,
+    }
+    if row.get("package") is not None:
+        candidate["package"] = row["package"]
+    return candidate
+
+
+def _collect_entity_candidates(
+    partial: Dict[str, Any],
+) -> Dict[str, List[Dict[str, Any]]]:
     candidates: Dict[str, List[Dict[str, Any]]] = {}
     for row in partial.get("evidence", {}).get("persistence", []):
         if row.get("rule_id") != "persistence__entity":
@@ -132,16 +181,15 @@ def _build_entity_table_map_from_evidence(partial: Dict[str, Any]) -> Dict[str, 
         class_name = row.get("class_name")
         if not class_name:
             continue
-        candidates.setdefault(class_name, []).append({
-            "file": row["file"],
-            "table": row.get("table", to_snake_case(class_name)),
-            "table_name_source": row.get("table_name_source", "inferred-default-naming"),
-            "rule_id": row.get("rule_id", "persistence__entity"),
-            "match": row.get("match", ""),
-            "fqcn": row.get("fqcn") or class_name,
-            **({"package": row["package"]} if row.get("package") is not None else {}),
-        })
-    return _finalize_entity_table_map(candidates)
+        candidates.setdefault(class_name, []).append(
+            _entity_candidate_from_row(row, class_name)
+        )
+    return candidates
+
+
+def _build_entity_table_map_from_evidence(partial: Dict[str, Any]) -> Dict[str, Any]:
+    """Build entity_table_map from persistence__entity evidence rows."""
+    return _finalize_entity_table_map(_collect_entity_candidates(partial))
 
 
 def _merge_redaction_zones(partials: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
@@ -164,6 +212,23 @@ def _merge_config_key_sets(partials: List[Dict[str, Any]]) -> Dict[str, List[str
     return merged
 
 
+def _record_file_signature(
+    merged: Dict[str, str],
+    file_path: str,
+    sig: str,
+) -> None:
+    if file_path in merged and merged[file_path] != sig:
+        _LOG.warning(
+            "file_signatures conflict for %s: keeping %s, ignoring %s "
+            "(covering proof uses walk SoR, not this Path A map)",
+            file_path,
+            merged[file_path],
+            sig,
+        )
+        return
+    merged[file_path] = sig
+
+
 def _merge_file_signatures(partials: List[Dict[str, Any]]) -> Dict[str, str]:
     """Merge Path A ``file_signatures`` maps (first-wins on conflict).
 
@@ -174,16 +239,7 @@ def _merge_file_signatures(partials: List[Dict[str, Any]]) -> Dict[str, str]:
     merged: Dict[str, str] = {}
     for partial in partials:
         for file_path, sig in partial.get("file_signatures", {}).items():
-            if file_path in merged and merged[file_path] != sig:
-                _LOG.warning(
-                    "file_signatures conflict for %s: keeping %s, ignoring %s "
-                    "(covering proof uses walk SoR, not this Path A map)",
-                    file_path,
-                    merged[file_path],
-                    sig,
-                )
-                continue
-            merged[file_path] = sig
+            _record_file_signature(merged, file_path, sig)
     return merged
 
 
@@ -205,6 +261,30 @@ def _sort_evidence(evidence: Dict[str, List[Dict[str, Any]]]) -> Dict[str, List[
             rows, key=lambda r: (r.get("file", ""), r.get("line", 0))
         )
     return sorted_evidence
+
+
+def _entity_maps_from_partials(partials: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    entity_maps: List[Dict[str, Any]] = []
+    for partial in partials:
+        if "entity_table_map_candidates" in partial:
+            entity_maps.append(
+                _finalize_entity_table_map(partial["entity_table_map_candidates"])
+            )
+        if "entity_table_map" in partial:
+            entity_maps.append(partial["entity_table_map"])
+    return entity_maps
+
+
+def _resolve_merged_entity_map(
+    partials: List[Dict[str, Any]],
+    result: Dict[str, Any],
+) -> Dict[str, Any]:
+    merged_map = _merge_entity_table_map(
+        [{"entity_table_map": em} for em in _entity_maps_from_partials(partials)]
+    )
+    if merged_map:
+        return merged_map
+    return _build_entity_table_map_from_evidence(result)
 
 
 def merge(
@@ -231,22 +311,9 @@ def merge(
 
     # Evidence first — entity_table_map derivation reads the merged bag.
     result["evidence"] = _sort_evidence(_merge_evidence(partials))
-
-    entity_maps: List[Dict[str, Any]] = []
-    for partial in partials:
-        if "entity_table_map_candidates" in partial:
-            entity_maps.append(
-                _finalize_entity_table_map(partial["entity_table_map_candidates"])
-            )
-        if "entity_table_map" in partial:
-            entity_maps.append(partial["entity_table_map"])
-    merged_map = _merge_entity_table_map(
-        [{"entity_table_map": em} for em in entity_maps]
+    result["entity_table_map"] = dict(
+        sorted(_resolve_merged_entity_map(partials, result).items())
     )
-    if not merged_map:
-        merged_map = _build_entity_table_map_from_evidence(result)
-
-    result["entity_table_map"] = dict(sorted(merged_map.items()))
     result["redaction_zones"] = _merge_redaction_zones(partials)
     result["config_key_sets"] = _merge_config_key_sets(partials)
     result["file_signatures"] = _merge_file_signatures(partials)

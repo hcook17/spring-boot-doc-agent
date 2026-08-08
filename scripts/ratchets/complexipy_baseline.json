@@ -5,6 +5,6 @@
     "src/doc_engine",
     "src/stf"
   ],
-  "offender_count": 110,
+  "offender_count": 62,
   "note": "Whole-repo complexipy \u22645 is the hard gate in run_quality_gates.py. This baseline additionally ratchets the interim offender count downward only \u2014 never raise it. Remeasure with: python3 scripts/ci/check_complexipy_ratchet.py --update"
 }

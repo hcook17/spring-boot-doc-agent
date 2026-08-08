@@ -412,18 +412,36 @@ def prepare_measure_context(
     )
 
 
+def _harvest_measure_failures(
+    measure: RegisteredMeasure,
+    block: Any,
+    ctx: MeasureContext,
+) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    if measure.collect_failures and block is not None:
+        harvest = measure.harvest_failures or _default_harvest
+        rows.extend(harvest(block, ctx))
+    if measure.extra_failures is not None:
+        rows.extend(measure.extra_failures(block, ctx))
+    return rows
+
+
+def _run_one_measure(
+    measure: RegisteredMeasure,
+    ctx: MeasureContext,
+    measured: MeasuredRates,
+) -> None:
+    block = measure.run(ctx)
+    measured.blocks[measure.key] = block
+    measured.rates[measure.key] = measure.project(block, ctx)
+    measured.failures.extend(_harvest_measure_failures(measure, block, ctx))
+
+
 def run_rate_registry(ctx: MeasureContext) -> MeasuredRates:
     """Execute every registered measure; harvest primary + extra failures."""
     measured = MeasuredRates()
     for measure in RATE_REGISTRY:
-        block = measure.run(ctx)
-        measured.blocks[measure.key] = block
-        measured.rates[measure.key] = measure.project(block, ctx)
-        if measure.collect_failures and block is not None:
-            harvest = measure.harvest_failures or _default_harvest
-            measured.failures.extend(harvest(block, ctx))
-        if measure.extra_failures is not None:
-            measured.failures.extend(measure.extra_failures(block, ctx))
+        _run_one_measure(measure, ctx, measured)
     return measured
 
 

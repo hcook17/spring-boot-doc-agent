@@ -28,39 +28,29 @@ class Stage0SiblingError(ValueError):
     """Raised when reused signals cannot produce Stage-0 sidecars."""
 
 
-def materialize_stage0_siblings(signals_path: PathLike, out_dir: PathLike) -> None:
-    """Write ``facts.jsonl`` and ``covering_proof.json`` under ``out_dir``.
-
-    Preference order for each artifact:
-    1. Copy a sibling file next to ``signals_path`` when present.
-    2. Else derive from the signals payload (facts projection / covering
-       receipt over ``file_signatures``).
-    """
-    signals_path = Path(signals_path).resolve()
-    out_dir = Path(out_dir).resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
+def _load_signals_mapping(signals_path: Path) -> Mapping:
     if not signals_path.is_file():
         raise Stage0SiblingError(f"signals not found: {signals_path}")
-
     signals = json.loads(signals_path.read_text(encoding="utf-8"))
     if not isinstance(signals, Mapping):
         raise Stage0SiblingError("signals root must be a JSON object")
+    return signals
 
-    src_dir = signals_path.parent
-    facts_dst = out_dir / "facts.jsonl"
-    covering_dst = out_dir / "covering_proof.json"
 
+def _materialize_facts(
+    *,
+    src_dir: Path,
+    facts_dst: Path,
+    signals: Mapping,
+) -> None:
     src_facts = src_dir / "facts.jsonl"
     if src_facts.is_file():
         shutil.copy2(src_facts, facts_dst)
-    else:
-        write_facts_jsonl(facts_dst, facts_from_signals(signals))
-
-    src_covering = src_dir / "covering_proof.json"
-    if src_covering.is_file():
-        shutil.copy2(src_covering, covering_dst)
         return
+    write_facts_jsonl(facts_dst, facts_from_signals(signals))
 
+
+def _synthesize_covering_proof(signals: Mapping, covering_dst: Path) -> None:
     sigs = signals.get("file_signatures") or {}
     if not isinstance(sigs, Mapping) or not sigs:
         raise Stage0SiblingError(
@@ -84,3 +74,39 @@ def materialize_stage0_siblings(signals_path: PathLike, out_dir: PathLike) -> No
         ],
     )
     write_covering_proof(covering_dst, proof)
+
+
+def _materialize_covering(
+    *,
+    src_dir: Path,
+    covering_dst: Path,
+    signals: Mapping,
+) -> None:
+    src_covering = src_dir / "covering_proof.json"
+    if src_covering.is_file():
+        shutil.copy2(src_covering, covering_dst)
+        return
+    _synthesize_covering_proof(signals, covering_dst)
+
+
+def materialize_stage0_siblings(signals_path: PathLike, out_dir: PathLike) -> None:
+    """Write ``facts.jsonl`` and ``covering_proof.json`` under ``out_dir``.
+
+    Preference order for each artifact:
+    1. Copy a sibling file next to ``signals_path`` when present.
+    2. Else derive from the signals payload (facts projection / covering
+       receipt over ``file_signatures``).
+    """
+    signals_path = Path(signals_path).resolve()
+    out_dir = Path(out_dir).resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    signals = _load_signals_mapping(signals_path)
+    src_dir = signals_path.parent
+    _materialize_facts(
+        src_dir=src_dir, facts_dst=out_dir / "facts.jsonl", signals=signals,
+    )
+    _materialize_covering(
+        src_dir=src_dir,
+        covering_dst=out_dir / "covering_proof.json",
+        signals=signals,
+    )

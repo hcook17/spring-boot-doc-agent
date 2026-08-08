@@ -14,14 +14,19 @@ from .common import (
 )
 
 
+def _reason_mentions(reason: str, *needles: str) -> bool:
+    lowered = reason.lower()
+    return any(needle in reason or needle in lowered for needle in needles)
+
+
 def _lineage_reason_class(reason: Optional[str]) -> str:
     if not reason:
         return "unavailable_unknown"
-    if "InvalidSyntaxException" in reason or "unparsable" in reason.lower():
+    if _reason_mentions(reason, "InvalidSyntaxException", "unparsable"):
         return "dialect_or_syntax"
-    if "contested" in reason.lower():
+    if _reason_mentions(reason, "contested"):
         return "contested_refuse"
-    if "not found" in reason.lower() or "no entity" in reason.lower():
+    if _reason_mentions(reason, "not found", "no entity"):
         return "entity_lookup"
     return "unavailable_other"
 
@@ -129,6 +134,26 @@ def _bump_stratum_counts(
         slot["available"] += 1
 
 
+def _apply_lineage_row(
+    row: Any,
+    *,
+    scoring_env: ScoringEnv | str,
+    strata: Dict[str, Dict[str, int]],
+    failures: List[Dict[str, Any]],
+    taxonomy: Counter[str],
+) -> None:
+    if not isinstance(row, Mapping):
+        return
+    stratum, available, failure, taxonomy_key = _lineage_row_outcome(
+        row, scoring_env=scoring_env,
+    )
+    _bump_stratum_counts(strata, stratum=stratum, available=available)
+    if taxonomy_key is not None:
+        taxonomy[taxonomy_key] += 1
+    if failure is not None:
+        failures.append(failure)
+
+
 def _accumulate_lineage_trials(
     rows: Sequence[Any],
     *,
@@ -138,16 +163,13 @@ def _accumulate_lineage_trials(
     failures: List[Dict[str, Any]] = []
     taxonomy: Counter[str] = Counter()
     for row in rows:
-        if not isinstance(row, Mapping):
-            continue
-        stratum, available, failure, taxonomy_key = _lineage_row_outcome(
-            row, scoring_env=scoring_env,
+        _apply_lineage_row(
+            row,
+            scoring_env=scoring_env,
+            strata=strata,
+            failures=failures,
+            taxonomy=taxonomy,
         )
-        _bump_stratum_counts(strata, stratum=stratum, available=available)
-        if taxonomy_key is not None:
-            taxonomy[taxonomy_key] += 1
-        if failure is not None:
-            failures.append(failure)
     return strata, failures, taxonomy
 
 
