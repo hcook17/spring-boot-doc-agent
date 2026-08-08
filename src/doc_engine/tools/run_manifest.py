@@ -295,13 +295,33 @@ def compute_evidence_tag_counts(docs_dir):
     return result
 
 
+def _empty_interview():
+    return {"asked": 0, "answered": 0, "skipped": 0, "questions": []}
+
+
+def _tally_interview_entry(entry, questions):
+    """Append one interview entry; return answered/skipped deltas (0 or 1 each)."""
+    if not isinstance(entry, dict) or "id" not in entry or "status" not in entry:
+        print(f"warning: interview file entry missing required 'id'/'status' keys, skipping: {entry!r}",
+              file=sys.stderr)
+        return 0, 0
+    status = entry["status"]
+    answered = 1 if status == "answered" else 0
+    skipped = 1 if status == "skipped" else 0
+    if status not in ("answered", "skipped"):
+        print(f"warning: interview entry {entry.get('id')!r} has unrecognized status {status!r}",
+              file=sys.stderr)
+    questions.append({"id": entry["id"], "status": status})
+    return answered, skipped
+
+
 def parse_interview_file(path):
     """interview_answers.json's documented shape (see SKILL.md Stage 3): a
     JSON list of {id, question, status, answer, date} objects, status one
     of "answered"/"skipped". Malformed input never crashes this tool — it's
     reported to stderr and recorded as all-zero counts, the same defensive
     posture spring_signal_scan.py uses for an unreadable file."""
-    empty = {"asked": 0, "answered": 0, "skipped": 0, "questions": []}
+    empty = _empty_interview()
     try:
         data = _read_json(path)
     except (OSError, json.JSONDecodeError) as e:
@@ -314,19 +334,9 @@ def parse_interview_file(path):
 
     questions, answered, skipped = [], 0, 0
     for entry in data:
-        if not isinstance(entry, dict) or "id" not in entry or "status" not in entry:
-            print(f"warning: interview file entry missing required 'id'/'status' keys, skipping: {entry!r}",
-                  file=sys.stderr)
-            continue
-        status = entry["status"]
-        if status == "answered":
-            answered += 1
-        elif status == "skipped":
-            skipped += 1
-        else:
-            print(f"warning: interview entry {entry.get('id')!r} has unrecognized status {status!r}",
-                  file=sys.stderr)
-        questions.append({"id": entry["id"], "status": status})
+        a, s = _tally_interview_entry(entry, questions)
+        answered += a
+        skipped += s
     return {"asked": len(questions), "answered": answered, "skipped": skipped, "questions": questions}
 
 
@@ -363,31 +373,38 @@ def compute_capacity_preflight_tie_in(preflight_path):
     }
 
 
-def finalize_manifest(manifest, status=None, file_signatures=None, evidence_tag_counts=None,
-                       interview=None, capacity_preflight=None, now_ms=None):
-    now_ms = _now_ms(now_ms)
+def _cancel_running_stages(manifest, now_ms):
+    """Mark still-running stages canceled; return human-readable warnings."""
     warnings = []
-
     for stage in manifest.get("stages", []):
-        if stage["status"] == "running":
-            stage["end_time_ms"] = now_ms
-            stage["duration_ms"] = now_ms - stage["start_time_ms"]
-            stage["status"] = "canceled"
-            stage["error"] = ("stage never ended before finalize — orchestrating session may have "
-                               "crashed or skipped end-stage")
-            warnings.append(f"stage '{stage['name']}' was still running at finalize; marked canceled")
+        if stage["status"] != "running":
+            continue
+        stage["end_time_ms"] = now_ms
+        stage["duration_ms"] = now_ms - stage["start_time_ms"]
+        stage["status"] = "canceled"
+        stage["error"] = ("stage never ended before finalize — orchestrating session may have "
+                           "crashed or skipped end-stage")
+        warnings.append(f"stage '{stage['name']}' was still running at finalize; marked canceled")
+    return warnings
 
-    if status is None:
-        statuses = {s["status"] for s in manifest.get("stages", [])}
-        if "failed" in statuses:
-            status = "failed"
-        elif "canceled" in statuses:
-            status = "partial"
-        else:
-            status = "complete"
 
-    manifest["timestamp_end"] = _iso8601(now_ms)
-    manifest["status"] = status
+def _infer_finalize_status(manifest):
+    statuses = {s["status"] for s in manifest.get("stages", [])}
+    if "failed" in statuses:
+        return "failed"
+    if "canceled" in statuses:
+        return "partial"
+    return "complete"
+
+
+def _apply_finalize_optional_fields(
+    manifest,
+    file_signatures,
+    evidence_tag_counts,
+    interview,
+    capacity_preflight,
+):
+    """Copy optional finalize payloads into the manifest when supplied."""
     if file_signatures is not None:
         manifest["file_signatures"] = file_signatures
     if evidence_tag_counts is not None:
@@ -397,52 +414,169 @@ def finalize_manifest(manifest, status=None, file_signatures=None, evidence_tag_
     if capacity_preflight is not None:
         manifest["capacity_preflight"] = capacity_preflight
 
+
+def finalize_manifest(manifest, status=None, file_signatures=None, evidence_tag_counts=None,
+                       interview=None, capacity_preflight=None, now_ms=None):
+    now_ms = _now_ms(now_ms)
+    warnings = _cancel_running_stages(manifest, now_ms)
+
+    if status is None:
+        status = _infer_finalize_status(manifest)
+
+    manifest["timestamp_end"] = _iso8601(now_ms)
+    manifest["status"] = status
+    _apply_finalize_optional_fields(
+        manifest, file_signatures, evidence_tag_counts, interview, capacity_preflight,
+    )
     return manifest, warnings
 
 
-def format_summary(manifest):
-    lines = [f"run_manifest: run_id={manifest.get('run_id')} status={manifest.get('status')}"]
+def _format_stage_line(stage):
+    dur = stage.get("duration_ms")
+    dur_str = f"{dur / 1000:.1f}s" if dur is not None else "?"
+    fanout_str = f", fanout={stage['actual_fanout']}" if stage.get("actual_fanout") is not None else ""
+    error_str = f" — {stage['error']}" if stage.get("error") else ""
+    return f"  - {stage['name']}: {stage['status']} ({dur_str}{fanout_str}){error_str}"
 
-    stages = manifest.get("stages", [])
-    for s in stages:
-        dur = s.get("duration_ms")
-        dur_str = f"{dur / 1000:.1f}s" if dur is not None else "?"
-        fanout_str = f", fanout={s['actual_fanout']}" if s.get("actual_fanout") is not None else ""
-        error_str = f" — {s['error']}" if s.get("error") else ""
-        lines.append(f"  - {s['name']}: {s['status']} ({dur_str}{fanout_str}){error_str}")
 
+def _format_tag_totals(tag_counts):
+    totals = {"Evidenced": 0, "Confirmed": 0, "Unknown": 0, "PerExistingDocs": 0}
+    for counts in tag_counts.values():
+        for key in totals:
+            totals[key] += counts.get(key, 0)
+    return (f"  evidence tags across {len(tag_counts)} file(s): "
+            f"Evidenced={totals['Evidenced']}, Confirmed={totals['Confirmed']}, "
+            f"Unknown={totals['Unknown']}, PerExistingDocs={totals['PerExistingDocs']}")
+
+
+def _format_preflight_lines(preflight, stages):
+    lines = []
+    unmapped = preflight["unmapped_preflight_keys"]
+    if unmapped:
+        lines.append(
+            f"  capacity_preflight: {len(unmapped)} unmapped stage key(s): {unmapped}"
+        )
+    predicted = preflight["predicted_fanout_by_manifest_stage"]
+    lines.extend(_fanout_compare_line(name, value, stages) for name, value in predicted.items())
+    return lines
+
+
+def _fanout_compare_line(stage_name, predicted, stages):
+    actual = sum(s.get("actual_fanout") or 0 for s in stages if s["name"] == stage_name)
+    return f"  fanout[{stage_name}]: predicted={predicted}, actual={actual}"
+
+
+def _summary_timestamp_line(manifest):
     ts_start, ts_end = manifest.get("timestamp_start"), manifest.get("timestamp_end")
-    if ts_start and ts_end:
-        lines.append(f"  total: {ts_start} -> {ts_end}")
+    if not (ts_start and ts_end):
+        return None
+    return f"  total: {ts_start} -> {ts_end}"
 
+
+def _summary_interview_line(interview):
+    if not interview:
+        return None
+    return (
+        f"  interview: asked={interview['asked']} answered={interview['answered']} "
+        f"skipped={interview['skipped']}"
+    )
+
+
+def _summary_optional_sections(manifest, stages):
+    """Build optional summary lines (timestamps, tags, interview, preflight)."""
+    lines = []
+    ts_line = _summary_timestamp_line(manifest)
+    if ts_line:
+        lines.append(ts_line)
     tag_counts = manifest.get("evidence_tag_counts") or {}
     if tag_counts:
-        totals = {"Evidenced": 0, "Confirmed": 0, "Unknown": 0, "PerExistingDocs": 0}
-        for counts in tag_counts.values():
-            for k in totals:
-                totals[k] += counts.get(k, 0)
-        lines.append(f"  evidence tags across {len(tag_counts)} file(s): "
-                     f"Evidenced={totals['Evidenced']}, Confirmed={totals['Confirmed']}, "
-                     f"Unknown={totals['Unknown']}, PerExistingDocs={totals['PerExistingDocs']}")
-
-    interview = manifest.get("interview")
-    if interview:
-        lines.append(f"  interview: asked={interview['asked']} answered={interview['answered']} "
-                     f"skipped={interview['skipped']}")
-
+        lines.append(_format_tag_totals(tag_counts))
+    interview_line = _summary_interview_line(manifest.get("interview"))
+    if interview_line:
+        lines.append(interview_line)
     preflight = manifest.get("capacity_preflight")
     if preflight:
-        if preflight["unmapped_preflight_keys"]:
-            lines.append(f"  capacity_preflight: {len(preflight['unmapped_preflight_keys'])} "
-                         f"unmapped stage key(s): {preflight['unmapped_preflight_keys']}")
-        for stage_name, predicted in preflight["predicted_fanout_by_manifest_stage"].items():
-            actual = sum(s.get("actual_fanout") or 0 for s in stages if s["name"] == stage_name)
-            lines.append(f"  fanout[{stage_name}]: predicted={predicted}, actual={actual}")
+        lines.extend(_format_preflight_lines(preflight, stages))
+    return lines
 
+
+def format_summary(manifest):
+    stages = manifest.get("stages", [])
+    lines = [f"run_manifest: run_id={manifest.get('run_id')} status={manifest.get('status')}"]
+    lines.extend(_format_stage_line(s) for s in stages)
+    lines.extend(_summary_optional_sections(manifest, stages))
     return "\n".join(lines)
 
 
-def main():
+def _cmd_init(args):
+    if not os.path.isdir(args.repo_path):
+        print(f"error: not a directory: {args.repo_path}", file=sys.stderr)
+        sys.exit(1)
+    manifest = build_init_manifest(args.repo_path, now_ms=args.now_ms)
+    _write_json_atomic(args.out, manifest)
+    tr = manifest["target_repo"]
+    print(f"Wrote {args.out}. run_id={manifest['run_id']} target_repo={tr['path']} "
+          f"commit_hash={tr['commit_hash']} dirty={tr['dirty']}")
+
+
+def _cmd_start_stage(args):
+    manifest = _read_json(args.manifest_path)
+    start_stage(manifest, args.stage_name, fanout=args.fanout, now_ms=args.now_ms)
+    _write_json_atomic(args.manifest_path, manifest)
+    print(f"stage '{args.stage_name}' started")
+
+
+def _cmd_end_stage(args):
+    manifest = _read_json(args.manifest_path)
+    try:
+        end_stage(manifest, args.stage_name, args.status, error=args.error, now_ms=args.now_ms)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(1)
+    _write_json_atomic(args.manifest_path, manifest)
+    print(f"stage '{args.stage_name}' ended: {args.status}")
+
+
+def _finalize_side_inputs(args, manifest):
+    if args.signals_file:
+        file_signatures = load_file_signatures(signals_file=args.signals_file)
+    else:
+        file_signatures = load_file_signatures(
+            repo_path=manifest.get("target_repo", {}).get("path"),
+        )
+    evidence_tag_counts = (
+        compute_evidence_tag_counts(args.docs_dir) if args.docs_dir else None
+    )
+    interview = parse_interview_file(args.interview_file) if args.interview_file else None
+    capacity_preflight = (
+        compute_capacity_preflight_tie_in(args.preflight_file)
+        if args.preflight_file else None
+    )
+    return file_signatures, evidence_tag_counts, interview, capacity_preflight
+
+
+def _cmd_finalize(args):
+    manifest = _read_json(args.manifest_path)
+    file_signatures, evidence_tag_counts, interview, capacity_preflight = (
+        _finalize_side_inputs(args, manifest)
+    )
+    manifest, warnings = finalize_manifest(
+        manifest, status=args.status, file_signatures=file_signatures,
+        evidence_tag_counts=evidence_tag_counts, interview=interview,
+        capacity_preflight=capacity_preflight, now_ms=args.now_ms,
+    )
+    _write_json_atomic(args.manifest_path, manifest)
+    for warning in warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+    print(format_summary(manifest))
+
+
+def _cmd_summary(args):
+    manifest = _read_json(args.manifest_path)
+    print(format_summary(manifest))
+
+
+def _build_arg_parser():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="command", required=True)
 
@@ -479,61 +613,21 @@ def main():
 
     p_sum = sub.add_parser("summary", help="Print a human-readable summary of an existing manifest")
     p_sum.add_argument("manifest_path")
+    return ap
 
-    args = ap.parse_args()
 
-    if args.command == "init":
-        if not os.path.isdir(args.repo_path):
-            print(f"error: not a directory: {args.repo_path}", file=sys.stderr)
-            sys.exit(1)
-        manifest = build_init_manifest(args.repo_path, now_ms=args.now_ms)
-        _write_json_atomic(args.out, manifest)
-        tr = manifest["target_repo"]
-        print(f"Wrote {args.out}. run_id={manifest['run_id']} target_repo={tr['path']} "
-              f"commit_hash={tr['commit_hash']} dirty={tr['dirty']}")
+_COMMAND_HANDLERS = {
+    "init": _cmd_init,
+    "start-stage": _cmd_start_stage,
+    "end-stage": _cmd_end_stage,
+    "finalize": _cmd_finalize,
+    "summary": _cmd_summary,
+}
 
-    elif args.command == "start-stage":
-        manifest = _read_json(args.manifest_path)
-        start_stage(manifest, args.stage_name, fanout=args.fanout, now_ms=args.now_ms)
-        _write_json_atomic(args.manifest_path, manifest)
-        print(f"stage '{args.stage_name}' started")
 
-    elif args.command == "end-stage":
-        manifest = _read_json(args.manifest_path)
-        try:
-            end_stage(manifest, args.stage_name, args.status, error=args.error, now_ms=args.now_ms)
-        except ValueError as e:
-            print(f"error: {e}", file=sys.stderr)
-            sys.exit(1)
-        _write_json_atomic(args.manifest_path, manifest)
-        print(f"stage '{args.stage_name}' ended: {args.status}")
-
-    elif args.command == "finalize":
-        manifest = _read_json(args.manifest_path)
-
-        if args.signals_file:
-            file_signatures = load_file_signatures(signals_file=args.signals_file)
-        else:
-            file_signatures = load_file_signatures(repo_path=manifest.get("target_repo", {}).get("path"))
-        evidence_tag_counts = compute_evidence_tag_counts(args.docs_dir) if args.docs_dir else None
-        interview = parse_interview_file(args.interview_file) if args.interview_file else None
-        capacity_preflight = (
-            compute_capacity_preflight_tie_in(args.preflight_file) if args.preflight_file else None
-        )
-
-        manifest, warnings = finalize_manifest(
-            manifest, status=args.status, file_signatures=file_signatures,
-            evidence_tag_counts=evidence_tag_counts, interview=interview,
-            capacity_preflight=capacity_preflight, now_ms=args.now_ms,
-        )
-        _write_json_atomic(args.manifest_path, manifest)
-        for w in warnings:
-            print(f"warning: {w}", file=sys.stderr)
-        print(format_summary(manifest))
-
-    elif args.command == "summary":
-        manifest = _read_json(args.manifest_path)
-        print(format_summary(manifest))
+def main():
+    args = _build_arg_parser().parse_args()
+    _COMMAND_HANDLERS[args.command](args)
 
 
 if __name__ == "__main__":

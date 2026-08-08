@@ -143,14 +143,8 @@ STAGE4_MEASURED_ALWAYS_OMITTED = (
 )
 
 
-def _load_or_build_groups(repo_path, max_tokens, overlap, groups_file):
-    """Read an existing groups.json if given, otherwise run
-    partition_repo.py's own dfs_file_list()/estimate_tokens()/build_groups()
-    against repo_path — never a re-implementation of that arithmetic."""
-    if groups_file:
-        with open(groups_file, encoding="utf-8") as f:
-            return json.load(f)
-
+def _estimate_file_token_pairs(repo_path):
+    """Walk repo_path via partition_repo helpers; return [(rel, tokens), ...]."""
     all_files = partition_repo.dfs_file_list(
         repo_path,
         partition_repo.DEFAULT_EXCLUDED_DIRS,
@@ -171,8 +165,11 @@ def _load_or_build_groups(repo_path, max_tokens, overlap, groups_file):
         if reason:
             continue
         file_tokens.append((rel, tokens))
+    return file_tokens
 
-    groups_raw = partition_repo.build_groups(file_tokens, max_tokens, overlap)
+
+def _groups_payload(repo_path, max_tokens, overlap, file_tokens, groups_raw):
+    """Shape the on-disk/groups.json-compatible partition payload."""
     return {
         "repo_path": os.path.abspath(repo_path),
         "max_tokens_per_group": max_tokens,
@@ -184,6 +181,19 @@ def _load_or_build_groups(repo_path, max_tokens, overlap, groups_file):
             for idx, g in enumerate(groups_raw)
         ],
     }
+
+
+def _load_or_build_groups(repo_path, max_tokens, overlap, groups_file):
+    """Read an existing groups.json if given, otherwise run
+    partition_repo.py's own dfs_file_list()/estimate_tokens()/build_groups()
+    against repo_path — never a re-implementation of that arithmetic."""
+    if groups_file:
+        with open(groups_file, encoding="utf-8") as f:
+            return json.load(f)
+
+    file_tokens = _estimate_file_token_pairs(repo_path)
+    groups_raw = partition_repo.build_groups(file_tokens, max_tokens, overlap)
+    return _groups_payload(repo_path, max_tokens, overlap, file_tokens, groups_raw)
 
 
 def _load_or_build_edges(repo_path, signals_file, groups_data, edges_file):
@@ -286,6 +296,42 @@ def estimate_stage4_shared_pool_tokens(groups_data, signals_data=None):
     }
 
 
+def _optional_json_est(obj):
+    """Return ``(est_tokens, omitted)`` for an optional on-disk JSON blob."""
+    if obj is None:
+        return 0, True
+    return _json_est_tokens(obj), False
+
+
+def _measured_included_omitted(interview_omitted, signals_omitted):
+    """Build included/omitted lists for measured Stage-4 pool accounting."""
+    included = ["summaries"]
+    omitted = []
+    if interview_omitted:
+        omitted.append("interview_answers")
+    else:
+        included.append("interview_answers")
+    if signals_omitted:
+        omitted.append("spring_signals")
+    else:
+        included.append("spring_signals")
+    omitted.extend(STAGE4_MEASURED_ALWAYS_OMITTED)
+    return included, omitted
+
+
+def _measured_stage4_note(interview_omitted, signals_omitted):
+    """Honesty note for measured_stage4_inputs metric_kind."""
+    return (
+        "measured_stage4_inputs: chars/N of on-disk summaries"
+        f"{'' if interview_omitted else ' + interview_answers'}"
+        f"{'' if signals_omitted else ' + spring_signals'}; "
+        "omitted stage4_return_payloads"
+        f"{' / interview_answers' if interview_omitted else ''}"
+        f"{' / spring_signals' if signals_omitted else ''}; "
+        "not a claim that Stage-4 capacity risk is closed"
+    )
+
+
 def measure_stage4_shared_pool_tokens(
     summaries_data, interview_answers=None, signals_data=None,
 ):
@@ -299,25 +345,10 @@ def measure_stage4_shared_pool_tokens(
     if summaries_data is None:
         raise ValueError("summaries_data is required for measured_stage4_inputs")
     summaries_est = _json_est_tokens(summaries_data)
-    interview_omitted = interview_answers is None
-    interview_est = (
-        0 if interview_omitted else _json_est_tokens(interview_answers)
-    )
-    signals_omitted = signals_data is None
-    signals_est = 0 if signals_omitted else _json_est_tokens(signals_data)
+    interview_est, interview_omitted = _optional_json_est(interview_answers)
+    signals_est, signals_omitted = _optional_json_est(signals_data)
     shared = summaries_est + interview_est + signals_est
-
-    included = ["summaries"]
-    omitted = []
-    if interview_omitted:
-        omitted.append("interview_answers")
-    else:
-        included.append("interview_answers")
-    if signals_omitted:
-        omitted.append("spring_signals")
-    else:
-        included.append("spring_signals")
-    omitted.extend(STAGE4_MEASURED_ALWAYS_OMITTED)
+    included, omitted = _measured_included_omitted(interview_omitted, signals_omitted)
 
     return {
         "metric_kind": "measured_stage4_inputs",
@@ -331,15 +362,7 @@ def measure_stage4_shared_pool_tokens(
         "shared_pool_upper_bound_est_tokens": shared,
         "aggregate_input_upper_bound_est_tokens": shared * STAGE4_FIXED_FANOUT,
         "return_payloads_estimated": False,
-        "note": (
-            "measured_stage4_inputs: chars/N of on-disk summaries"
-            f"{'' if interview_omitted else ' + interview_answers'}"
-            f"{'' if signals_omitted else ' + spring_signals'}; "
-            "omitted stage4_return_payloads"
-            f"{' / interview_answers' if interview_omitted else ''}"
-            f"{' / spring_signals' if signals_omitted else ''}; "
-            "not a claim that Stage-4 capacity risk is closed"
-        ),
+        "note": _measured_stage4_note(interview_omitted, signals_omitted),
     }
 
 
@@ -426,37 +449,17 @@ def _stage4_shared_pool_warning(stage4_pool, threshold):
     }
 
 
-def compute_preflight(repo_path, max_tokens=120000, overlap=0.10,
-                       groups_data=None, edges=None, signals_data=None,
-                       group_warn_threshold=15, fanout_warn_threshold=40,
-                       slice_tokens_warn_threshold=30_000,
-                       stage4_shared_tokens_warn_threshold=80_000):
-    """Pure function over already-loaded groups_data/edges (or repo_path to
-    derive them) — kept separate from CLI/file-IO so it's directly unit
-    testable against synthetic data without touching disk.
-
-    The two derivation branches below are order-dependent, unlike the pair
-    this replaced: the edge join consumes the partition."""
-    if groups_data is None:
-        groups_data = _load_or_build_groups(repo_path, max_tokens, overlap, None)
-    if edges is None:
-        edges = _load_or_build_edges(repo_path, None, groups_data, None)
-
-    num_groups = groups_data["num_groups"]
-    stage_fanout = {
-        "stage1_file_summarizer": num_groups,
-        "stage2_architect_segment": num_groups,
-        "stage2_architect_merge": 1,
-        "stage3_gap_analyzer": STAGE3_FIXED_FANOUT,
-        "stage3_software_architect_and_testing": STAGE3_ARCH_TEST_REVIEW_FANOUT,
-        "stage4_doc_writer": STAGE4_FIXED_FANOUT,
-    }
-    total_fanout = sum(stage_fanout.values())
-
-    slice_tokens = estimate_stage1_slice_tokens(edges)
-    stage4_pool = estimate_stage4_shared_pool_tokens(groups_data, signals_data)
-    edge_stats = edges.get("stats", {})
-
+def _preflight_threshold_warnings(
+    num_groups,
+    total_fanout,
+    slice_tokens,
+    groups_data,
+    max_tokens,
+    group_warn_threshold,
+    fanout_warn_threshold,
+    slice_tokens_warn_threshold,
+):
+    """Build Stage-0 warning entries for group/fanout/slice thresholds."""
     warnings = []
     if num_groups > group_warn_threshold:
         warnings.append({
@@ -498,13 +501,60 @@ def compute_preflight(repo_path, max_tokens=120000, overlap=0.10,
                 f"cut smaller groups, which shrinks each slice."
             ),
         })
+    return warnings
+
+
+def _stage_fanout_for_groups(num_groups):
+    """Per-stage subagent fan-out dict for a given group count."""
+    return {
+        "stage1_file_summarizer": num_groups,
+        "stage2_architect_segment": num_groups,
+        "stage2_architect_merge": 1,
+        "stage3_gap_analyzer": STAGE3_FIXED_FANOUT,
+        "stage3_software_architect_and_testing": STAGE3_ARCH_TEST_REVIEW_FANOUT,
+        "stage4_doc_writer": STAGE4_FIXED_FANOUT,
+    }
+
+
+def compute_preflight(repo_path, max_tokens=120000, overlap=0.10,
+                       groups_data=None, edges=None, signals_data=None,
+                       group_warn_threshold=15, fanout_warn_threshold=40,
+                       slice_tokens_warn_threshold=30_000,
+                       stage4_shared_tokens_warn_threshold=80_000):
+    """Pure function over already-loaded groups_data/edges (or repo_path to
+    derive them) — kept separate from CLI/file-IO so it's directly unit
+    testable against synthetic data without touching disk.
+
+    The two derivation branches below are order-dependent, unlike the pair
+    this replaced: the edge join consumes the partition."""
+    if groups_data is None:
+        groups_data = _load_or_build_groups(repo_path, max_tokens, overlap, None)
+    if edges is None:
+        edges = _load_or_build_edges(repo_path, None, groups_data, None)
+
+    num_groups = groups_data["num_groups"]
+    stage_fanout = _stage_fanout_for_groups(num_groups)
+    total_fanout = sum(stage_fanout.values())
+
+    slice_tokens = estimate_stage1_slice_tokens(edges)
+    stage4_pool = estimate_stage4_shared_pool_tokens(groups_data, signals_data)
+    warnings = _preflight_threshold_warnings(
+        num_groups,
+        total_fanout,
+        slice_tokens,
+        groups_data,
+        max_tokens,
+        group_warn_threshold,
+        fanout_warn_threshold,
+        slice_tokens_warn_threshold,
+    )
     stage4_warn = _stage4_shared_pool_warning(
         stage4_pool, stage4_shared_tokens_warn_threshold,
     )
     if stage4_warn:
         warnings.append(stage4_warn)
 
-    report = {
+    return {
         "schema_version": CAPACITY_PREFLIGHT_REPORT_SCHEMA_VERSION,
         "repo_path": groups_data.get("repo_path", repo_path),
         "num_groups": num_groups,
@@ -518,10 +568,56 @@ def compute_preflight(repo_path, max_tokens=120000, overlap=0.10,
         **_stage4_pool_fields(stage4_pool),
         # Reported straight from the join rather than re-derived here, so the
         # broadcast-vs-shipped comparison has exactly one implementation.
-        "edge_join_stats": edge_stats,
+        "edge_join_stats": edges.get("stats", {}),
         "warnings": warnings,
     }
-    return report
+
+
+def _proxy_pool_from_stage0_report(stage0_preflight_report):
+    """Rebuild a pool-shaped dict from a prior Stage-0 report's flat fields."""
+    return {
+        "metric_kind": stage0_preflight_report.get(
+            "stage4_metric_kind", "partial_proxy_pre_stage4"
+        ),
+        "summaries_est_tokens": stage0_preflight_report.get(
+            "stage4_summaries_est_tokens", 0
+        ),
+        "interview_answers_est_tokens": stage0_preflight_report.get(
+            "stage4_interview_answers_est_tokens", 0
+        ),
+        "signals_est_tokens": stage0_preflight_report.get(
+            "stage4_signals_est_tokens", 0
+        ),
+        "shared_pool_upper_bound_est_tokens": stage0_preflight_report.get(
+            "stage4_shared_pool_upper_bound_est_tokens", 0
+        ),
+    }
+
+
+def _resolve_stage4_proxy(stage0_preflight_report, groups_data, warnings):
+    """Pick proxy pool + source for measured/proxy comparison; may warn."""
+    both_proxy_sources = (
+        stage0_preflight_report is not None and groups_data is not None
+    )
+    if stage0_preflight_report is not None:
+        if both_proxy_sources:
+            warnings.append({
+                "dimension": "stage4_proxy_comparison_source",
+                "value": "stage0_preflight_report",
+                "threshold": "groups_file_ignored",
+                "message": (
+                    "Both a Stage-0 preflight report and groups_data were supplied "
+                    "for proxy comparison; using stage0_preflight_report "
+                    "(groups ignored for the measured/proxy ratio)."
+                ),
+            })
+        return _proxy_pool_from_stage0_report(stage0_preflight_report), "stage0_preflight_report"
+    if groups_data is not None:
+        # Compare against Stage-0 proxy recomputed from groups only (no signals)
+        # so the ratio highlights summary compression vs est_tokens, not a
+        # shared signals term on both sides.
+        return estimate_stage4_shared_pool_tokens(groups_data, None), "groups_est_tokens_proxy"
+    return None, None
 
 
 def compute_stage4_calibration(
@@ -553,50 +649,10 @@ def compute_stage4_calibration(
     if stage4_warn:
         warnings.append(stage4_warn)
 
-    proxy_comparison = None
-    proxy_pool = None
-    proxy_source = None
-    both_proxy_sources = (
-        stage0_preflight_report is not None and groups_data is not None
+    proxy_pool, proxy_source = _resolve_stage4_proxy(
+        stage0_preflight_report, groups_data, warnings,
     )
-    if stage0_preflight_report is not None:
-        if both_proxy_sources:
-            warnings.append({
-                "dimension": "stage4_proxy_comparison_source",
-                "value": "stage0_preflight_report",
-                "threshold": "groups_file_ignored",
-                "message": (
-                    "Both a Stage-0 preflight report and groups_data were supplied "
-                    "for proxy comparison; using stage0_preflight_report "
-                    "(groups ignored for the measured/proxy ratio)."
-                ),
-            })
-        # Rebuild a pool-shaped dict from a prior Stage-0 report's flat fields.
-        proxy_pool = {
-            "metric_kind": stage0_preflight_report.get(
-                "stage4_metric_kind", "partial_proxy_pre_stage4"
-            ),
-            "summaries_est_tokens": stage0_preflight_report.get(
-                "stage4_summaries_est_tokens", 0
-            ),
-            "interview_answers_est_tokens": stage0_preflight_report.get(
-                "stage4_interview_answers_est_tokens", 0
-            ),
-            "signals_est_tokens": stage0_preflight_report.get(
-                "stage4_signals_est_tokens", 0
-            ),
-            "shared_pool_upper_bound_est_tokens": stage0_preflight_report.get(
-                "stage4_shared_pool_upper_bound_est_tokens", 0
-            ),
-        }
-        proxy_source = "stage0_preflight_report"
-    elif groups_data is not None:
-        # Compare against Stage-0 proxy recomputed from groups only (no signals)
-        # so the ratio highlights summary compression vs est_tokens, not a
-        # shared signals term on both sides.
-        proxy_pool = estimate_stage4_shared_pool_tokens(groups_data, None)
-        proxy_source = "groups_est_tokens_proxy"
-
+    proxy_comparison = None
     if proxy_pool is not None:
         proxy_comparison = compare_stage4_proxy_to_measured(proxy_pool, measured)
         proxy_comparison["proxy_source"] = proxy_source
@@ -615,8 +671,11 @@ def compute_stage4_calibration(
     }
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+def _build_arg_parser():
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     ap.add_argument("repo_path", help="Path to the target repository root")
     ap.add_argument("--max-tokens", type=int, default=120000,
                      help="Same meaning as partition_repo.py's --max-tokens (default: 120000)")
@@ -658,79 +717,103 @@ def main():
                            "warns on on-disk input sizes. Interview/returns omitted at "
                            "Stage 0; returns still omitted when measuring)."))
     ap.add_argument("--out", default=None, help="Optional path to write the report as JSON")
-    args = ap.parse_args()
+    return ap
 
-    repo_path = os.path.abspath(args.repo_path)
-    if not os.path.isdir(repo_path):
-        print(f"error: not a directory: {repo_path}", file=sys.stderr)
-        sys.exit(1)
 
-    if args.summaries_file:
-        with open(args.summaries_file, encoding="utf-8") as f:
-            summaries_data = json.load(f)
-        interview_answers = None
-        if args.interview_answers_file:
-            with open(args.interview_answers_file, encoding="utf-8") as f:
-                interview_answers = json.load(f)
-        signals_data = None
-        if args.signals_file:
-            with open(args.signals_file, encoding="utf-8") as f:
-                signals_data = json.load(f)
-        groups_data = None
-        if args.groups_file:
-            groups_data = _load_or_build_groups(
-                repo_path, args.max_tokens, args.overlap, args.groups_file,
-            )
-        stage0_report = None
-        if args.stage0_preflight_report:
-            with open(args.stage0_preflight_report, encoding="utf-8") as f:
-                stage0_report = json.load(f)
-        report = compute_stage4_calibration(
-            repo_path,
-            summaries_data=summaries_data,
-            interview_answers=interview_answers,
-            signals_data=signals_data,
-            groups_data=groups_data,
-            stage0_preflight_report=stage0_report,
-            stage4_shared_tokens_warn_threshold=args.stage4_shared_tokens_warn_threshold,
-        )
-        if args.out:
-            with open(args.out, "w", encoding="utf-8") as f:
-                json.dump(report, f, indent=2)
-        cmp_ = report.get("stage4_proxy_comparison")
-        cmp_note = ""
-        if cmp_ and cmp_.get("measured_over_proxy_ratio") is not None:
-            cmp_note = (
-                f"; measured/proxy ratio≈{cmp_['measured_over_proxy_ratio']:.3f}"
-            )
-        print(
-            f"capacity-preflight (L2b measured_stage4_inputs): shared-pool ~"
-            f"{report['stage4_shared_pool_upper_bound_est_tokens']} est. tokens "
-            f"(summaries≈{report['stage4_summaries_est_tokens']}, "
-            f"interview≈{report['stage4_interview_answers_est_tokens']}"
-            f"{' omitted' if report['stage4_interview_answers_omitted'] else ''}, "
-            f"signals≈{report['stage4_signals_est_tokens']}"
-            f"{' omitted' if report['stage4_signals_omitted'] else ''}; "
-            f"omitted: {', '.join(report['stage4_omitted_not_estimated'])}"
-            f"{cmp_note})."
-        )
-        if report["warnings"]:
-            print(f"{len(report['warnings'])} warning(s):")
-            for w in report["warnings"]:
-                print(f"  - [{w['dimension']}] {w['message']}")
-        else:
-            print("No thresholds crossed.")
+def _maybe_write_report(path, report):
+    if path:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(report, f, indent=2)
+
+
+def _print_warnings(report):
+    if report["warnings"]:
+        print(f"{len(report['warnings'])} warning(s):")
+        for w in report["warnings"]:
+            print(f"  - [{w['dimension']}] {w['message']}")
         return
+    print("No thresholds crossed.")
 
-    groups_data = _load_or_build_groups(repo_path, args.max_tokens, args.overlap, args.groups_file)
-    signals_data = None
-    if args.signals_file:
-        with open(args.signals_file, encoding="utf-8") as f:
-            signals_data = json.load(f)
+
+def _load_optional_json(path):
+    if not path:
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _print_l2b_summary(report):
+    cmp_ = report.get("stage4_proxy_comparison")
+    cmp_note = ""
+    if cmp_ and cmp_.get("measured_over_proxy_ratio") is not None:
+        cmp_note = (
+            f"; measured/proxy ratio≈{cmp_['measured_over_proxy_ratio']:.3f}"
+        )
+    print(
+        f"capacity-preflight (L2b measured_stage4_inputs): shared-pool ~"
+        f"{report['stage4_shared_pool_upper_bound_est_tokens']} est. tokens "
+        f"(summaries≈{report['stage4_summaries_est_tokens']}, "
+        f"interview≈{report['stage4_interview_answers_est_tokens']}"
+        f"{' omitted' if report['stage4_interview_answers_omitted'] else ''}, "
+        f"signals≈{report['stage4_signals_est_tokens']}"
+        f"{' omitted' if report['stage4_signals_omitted'] else ''}; "
+        f"omitted: {', '.join(report['stage4_omitted_not_estimated'])}"
+        f"{cmp_note})."
+    )
+    _print_warnings(report)
+
+
+def _run_l2b_calibration(args, repo_path):
+    """L2b path: measure Stage-4 inputs from on-disk summaries (+ optional extras)."""
+    with open(args.summaries_file, encoding="utf-8") as f:
+        summaries_data = json.load(f)
+    interview_answers = _load_optional_json(args.interview_answers_file)
+    signals_data = _load_optional_json(args.signals_file)
+    groups_data = None
+    if args.groups_file:
+        groups_data = _load_or_build_groups(
+            repo_path, args.max_tokens, args.overlap, args.groups_file,
+        )
+    stage0_report = _load_optional_json(args.stage0_preflight_report)
+    report = compute_stage4_calibration(
+        repo_path,
+        summaries_data=summaries_data,
+        interview_answers=interview_answers,
+        signals_data=signals_data,
+        groups_data=groups_data,
+        stage0_preflight_report=stage0_report,
+        stage4_shared_tokens_warn_threshold=args.stage4_shared_tokens_warn_threshold,
+    )
+    _maybe_write_report(args.out, report)
+    _print_l2b_summary(report)
+
+
+def _print_stage0_summary(report):
+    reduction = report["edge_join_stats"].get("reduction_factor")
+    reduction_note = f", {reduction}x smaller than broadcasting" if reduction else ""
+    print(f"capacity-preflight: {report['num_groups']} groups, "
+          f"{report['total_fanout']} total subagent dispatches, "
+          f"largest Stage-1 edge slice ~{report['stage1_slice_est_tokens_max']} est. tokens "
+          f"(~{report['stage1_slice_est_tokens_total']} across all groups{reduction_note}); "
+          f"Stage-4 shared-pool partial_proxy_pre_stage4 ~"
+          f"{report['stage4_shared_pool_upper_bound_est_tokens']} "
+          f"(omitted: {', '.join(report['stage4_omitted_not_estimated'])}"
+          f"{'; signals_omitted' if report['stage4_signals_omitted'] else ''}).")
+    _print_warnings(report)
+
+
+def _run_stage0_preflight(args, repo_path):
+    """Stage-0 path: partition + edge join + partial Stage-4 proxy."""
+    groups_data = _load_or_build_groups(
+        repo_path, args.max_tokens, args.overlap, args.groups_file,
+    )
+    signals_data = _load_optional_json(args.signals_file)
     try:
         # Order matters here in a way it did not before: the join consumes
         # the partition, so groups_data must be built first.
-        edges = _load_or_build_edges(repo_path, args.signals_file, groups_data, args.edges_file)
+        edges = _load_or_build_edges(
+            repo_path, args.signals_file, groups_data, args.edges_file,
+        )
     except spring_signal_scan.AstGrepError as e:
         print(e, file=sys.stderr)
         sys.exit(1)
@@ -743,27 +826,21 @@ def main():
         slice_tokens_warn_threshold=args.slice_tokens_warn_threshold,
         stage4_shared_tokens_warn_threshold=args.stage4_shared_tokens_warn_threshold,
     )
+    _maybe_write_report(args.out, report)
+    _print_stage0_summary(report)
 
-    if args.out:
-        with open(args.out, "w", encoding="utf-8") as f:
-            json.dump(report, f, indent=2)
 
-    reduction = report["edge_join_stats"].get("reduction_factor")
-    reduction_note = f", {reduction}x smaller than broadcasting" if reduction else ""
-    print(f"capacity-preflight: {report['num_groups']} groups, "
-          f"{report['total_fanout']} total subagent dispatches, "
-          f"largest Stage-1 edge slice ~{report['stage1_slice_est_tokens_max']} est. tokens "
-          f"(~{report['stage1_slice_est_tokens_total']} across all groups{reduction_note}); "
-          f"Stage-4 shared-pool partial_proxy_pre_stage4 ~"
-          f"{report['stage4_shared_pool_upper_bound_est_tokens']} "
-          f"(omitted: {', '.join(report['stage4_omitted_not_estimated'])}"
-          f"{'; signals_omitted' if report['stage4_signals_omitted'] else ''}).")
-    if report["warnings"]:
-        print(f"{len(report['warnings'])} warning(s):")
-        for w in report["warnings"]:
-            print(f"  - [{w['dimension']}] {w['message']}")
-    else:
-        print("No thresholds crossed.")
+def main():
+    args = _build_arg_parser().parse_args()
+    repo_path = os.path.abspath(args.repo_path)
+    if not os.path.isdir(repo_path):
+        print(f"error: not a directory: {repo_path}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.summaries_file:
+        _run_l2b_calibration(args, repo_path)
+        return
+    _run_stage0_preflight(args, repo_path)
 
 
 if __name__ == "__main__":

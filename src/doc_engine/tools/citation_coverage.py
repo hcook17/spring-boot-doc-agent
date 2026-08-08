@@ -161,6 +161,38 @@ def _strip_inline_code(text):
     return text.replace("`", "")
 
 
+def _skip_claim_line(line):
+    """True when a stripped markdown line cannot carry a claim unit."""
+    if not line or HEADING_RE.match(line) or TABLE_RULE_RE.match(line):
+        return True
+    if line.startswith("<!--") or line.startswith(">"):
+        return True
+    return bool(EXEMPT_LINE_RE.match(BULLET_PREFIX_RE.sub("", line)))
+
+
+def _sentences_from_line(line):
+    body = BULLET_PREFIX_RE.sub("", line)
+    for sentence in SENTENCE_SPLIT_RE.split(body):
+        sentence = sentence.strip()
+        if sentence:
+            yield sentence
+
+
+def _advance_fence(raw, in_fence):
+    """Toggle fence state when ``raw`` is a fence marker; else return unchanged."""
+    if FENCE_RE.match(raw):
+        return (not in_fence), True
+    return in_fence, False
+
+
+def _claim_units_from_raw_line(lineno, raw, in_fence):
+    """Yield claim units from one raw line; return updated fence state."""
+    in_fence, is_fence = _advance_fence(raw, in_fence)
+    if is_fence or in_fence or _skip_claim_line(raw.strip()):
+        return in_fence, ()
+    return in_fence, tuple((lineno, sentence) for sentence in _sentences_from_line(raw.strip()))
+
+
 def iter_claim_units(text):
     """Yield (line_number, sentence) for every sentence in the document that
     could carry a claim.
@@ -173,24 +205,8 @@ def iter_claim_units(text):
     """
     in_fence = False
     for lineno, raw in enumerate(text.splitlines(), start=1):
-        if FENCE_RE.match(raw):
-            in_fence = not in_fence
-            continue
-        if in_fence:
-            continue
-        line = raw.strip()
-        if not line or HEADING_RE.match(line) or TABLE_RULE_RE.match(line):
-            continue
-        if line.startswith("<!--") or line.startswith(">"):
-            continue
-        if EXEMPT_LINE_RE.match(BULLET_PREFIX_RE.sub("", line)):
-            continue
-
-        body = BULLET_PREFIX_RE.sub("", line)
-        for sentence in SENTENCE_SPLIT_RE.split(body):
-            sentence = sentence.strip()
-            if sentence:
-                yield lineno, sentence
+        in_fence, units = _claim_units_from_raw_line(lineno, raw, in_fence)
+        yield from units
 
 
 # TAG_WORD_SPAN is case-sensitive, which leaves a documented hole: a tag
@@ -283,18 +299,93 @@ def claim_symbols(clause):
     """Identifiers from a claim that would plausibly appear verbatim in
     source. The cited file's own path is not one of them, which is why this
     uses CLAIM_SYMBOL_PATTERNS rather than ARTIFACT_PATTERNS."""
-    symbols = set()
     stripped = _strip_inline_code(clause)
-    for pattern in CLAIM_SYMBOL_PATTERNS:
-        for m in pattern.finditer(stripped):
-            # method-call pattern captures the bare name; others match whole
-            symbols.add(m.group(1) if m.re.groups else m.group(0))
-    return symbols
+    return {
+        (m.group(1) if m.re.groups else m.group(0))
+        for pattern in CLAIM_SYMBOL_PATTERNS
+        for m in pattern.finditer(stripped)
+    }
 
 
 def _read_lines(path):
     with open(path, encoding="utf-8", errors="replace") as f:
         return f.read().splitlines()
+
+
+def _weak_anchor_finding(kind, match, clause, symbols, in_file, reason):
+    return {
+        "kind": kind,
+        "citation": match.group(0),
+        "claim": clause.strip(),
+        "symbols": sorted(symbols),
+        "found_elsewhere_in_file": sorted(in_file),
+        "reason": reason,
+    }
+
+
+def _symbols_for_evidenced_match(text, match, relpath):
+    """Claim symbols for one Evidenced tag, minus the cited file's own stem."""
+    clause = _claim_clause(text, match.start())
+    symbols = claim_symbols(clause)
+    stem = os.path.splitext(os.path.basename(relpath))[0]
+    symbols.discard(stem)
+    return clause, symbols
+
+
+def _classify_weak_anchor(match, clause, symbols, lines, target, relpath, window):
+    """Return one weak-anchor finding dict, or None when the window is fine."""
+    lo = max(0, target - 1 - window)
+    hi = min(len(lines), target + window)
+    window_text = "\n".join(lines[lo:hi])
+    if any(symbol in window_text for symbol in symbols):
+        return None
+
+    file_text = "\n".join(lines)
+    in_file = {s for s in symbols if s in file_text}
+    if in_file:
+        return _weak_anchor_finding(
+            "symbol_outside_window",
+            match,
+            clause,
+            symbols,
+            in_file,
+            (
+                f"none of the claim's symbols appear within +/-{window} "
+                f"lines of {relpath}:{target}, though they exist elsewhere "
+                f"in the file — the line anchor looks imprecise"
+            ),
+        )
+    return _weak_anchor_finding(
+        "symbol_absent_from_file",
+        match,
+        clause,
+        symbols,
+        (),
+        (
+            f"none of the claim's symbols appear anywhere in "
+            f"{relpath} — candidate fabricated citation"
+        ),
+    )
+
+
+def _weak_anchor_for_match(text, match, repo_root, window):
+    """Evaluate one Evidenced match; return a finding or None."""
+    relpath, line = match.group(1), match.group(2)
+    if line is None:
+        return None
+    abspath = os.path.join(repo_root, relpath)
+    if not os.path.isfile(abspath):
+        return None
+
+    clause, symbols = _symbols_for_evidenced_match(text, match, relpath)
+    if not symbols:
+        return None
+
+    lines = _read_lines(abspath)
+    target = int(line)
+    if target > len(lines):
+        return None  # past end of file: resolve_evidenced_citations()'s report
+    return _classify_weak_anchor(match, clause, symbols, lines, target, relpath, window)
 
 
 def find_weak_anchors(text, repo_root, window=DEFAULT_ANCHOR_WINDOW):
@@ -308,60 +399,10 @@ def find_weak_anchors(text, repo_root, window=DEFAULT_ANCHOR_WINDOW):
     and duplicating it would file one defect twice.
     """
     findings = []
-    for m in TAG_PATTERNS["evidenced"].finditer(text):
-        relpath, line = m.group(1), m.group(2)
-        if line is None:
-            continue
-        abspath = os.path.join(repo_root, relpath)
-        if not os.path.isfile(abspath):
-            continue
-
-        clause = _claim_clause(text, m.start())
-        symbols = claim_symbols(clause)
-        # The cited file's own stem is not evidence of anything -- a claim
-        # about OwnerController citing OwnerController.java tells us nothing
-        # about whether *this line* supports it.
-        stem = os.path.splitext(os.path.basename(relpath))[0]
-        symbols.discard(stem)
-        if not symbols:
-            continue
-
-        lines = _read_lines(abspath)
-        target = int(line)
-        if target > len(lines):
-            continue  # past end of file: resolve_evidenced_citations()'s report
-
-        lo = max(0, target - 1 - window)
-        hi = min(len(lines), target + window)
-        window_text = "\n".join(lines[lo:hi])
-        file_text = "\n".join(lines)
-
-        near = {s for s in symbols if s in window_text}
-        if near:
-            continue
-
-        in_file = {s for s in symbols if s in file_text}
-        if in_file:
-            findings.append({
-                "kind": "symbol_outside_window",
-                "citation": m.group(0),
-                "claim": clause.strip(),
-                "symbols": sorted(symbols),
-                "found_elsewhere_in_file": sorted(in_file),
-                "reason": f"none of the claim's symbols appear within +/-{window} "
-                          f"lines of {relpath}:{target}, though they exist elsewhere "
-                          f"in the file — the line anchor looks imprecise",
-            })
-        else:
-            findings.append({
-                "kind": "symbol_absent_from_file",
-                "citation": m.group(0),
-                "claim": clause.strip(),
-                "symbols": sorted(symbols),
-                "found_elsewhere_in_file": [],
-                "reason": f"none of the claim's symbols appear anywhere in "
-                          f"{relpath} — candidate fabricated citation",
-            })
+    for match in TAG_PATTERNS["evidenced"].finditer(text):
+        finding = _weak_anchor_for_match(text, match, repo_root, window)
+        if finding:
+            findings.append(finding)
     return findings
 
 
@@ -389,24 +430,48 @@ def total_findings(report):
                for v in report.values())
 
 
+def _format_untagged_lines(findings):
+    lines = []
+    for finding in findings:
+        lines.append(f"  [untagged_claim] line {finding['line']}: {finding['claim'][:110]}")
+        lines.append(
+            f"      names {', '.join(finding['named_artifacts'][:5])} — no evidence tag"
+        )
+    return lines
+
+
+def _format_miscased_lines(findings):
+    lines = []
+    for finding in findings:
+        lines.append(f"  [miscased_tag] {finding['tag']}")
+        lines.append(f"      {finding['reason']}")
+    return lines
+
+
+def _format_weak_anchor_lines(findings):
+    lines = []
+    for finding in findings:
+        lines.append(f"  [{finding['kind']}] {finding['citation']}")
+        lines.append(f"      claim: {finding['claim'][:110]}")
+        lines.append(f"      {finding['reason']}")
+    return lines
+
+
+def _format_file_findings(name, entry):
+    items = entry["untagged_claims"] + entry["miscased_tags"] + entry["weak_anchors"]
+    if not items:
+        return []
+    lines = [f"{name}:"]
+    lines.extend(_format_untagged_lines(entry["untagged_claims"]))
+    lines.extend(_format_miscased_lines(entry["miscased_tags"]))
+    lines.extend(_format_weak_anchor_lines(entry["weak_anchors"]))
+    return lines
+
+
 def format_report(report, target_repo):
     lines = []
     for name in sorted(report):
-        entry = report[name]
-        items = entry["untagged_claims"] + entry["miscased_tags"] + entry["weak_anchors"]
-        if not items:
-            continue
-        lines.append(f"{name}:")
-        for f in entry["untagged_claims"]:
-            lines.append(f"  [untagged_claim] line {f['line']}: {f['claim'][:110]}")
-            lines.append(f"      names {', '.join(f['named_artifacts'][:5])} — no evidence tag")
-        for f in entry["miscased_tags"]:
-            lines.append(f"  [miscased_tag] {f['tag']}")
-            lines.append(f"      {f['reason']}")
-        for f in entry["weak_anchors"]:
-            lines.append(f"  [{f['kind']}] {f['citation']}")
-            lines.append(f"      claim: {f['claim'][:110]}")
-            lines.append(f"      {f['reason']}")
+        lines.extend(_format_file_findings(name, report[name]))
     if target_repo is None:
         lines.append(
             "NOTE: no --target-repo given, so the weak-anchor check did not run. "
