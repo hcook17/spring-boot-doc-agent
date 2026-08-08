@@ -44,17 +44,31 @@ from doc_engine.scanning.support._secret_heuristics import scan_text_for_secrets
 CHECKED_EXTENSIONS = {".json", ".md"}
 
 
+def _checked_names(names):
+    return [
+        name for name in names if os.path.splitext(name)[1] in CHECKED_EXTENSIONS
+    ]
+
+
+def _files_under_dir(directory: str):
+    for root, _, names in os.walk(directory):
+        for name in _checked_names(names):
+            yield os.path.join(root, name)
+
+
+def _iter_one_path(path: str):
+    if os.path.isdir(path):
+        yield from _files_under_dir(path)
+        return
+    if os.path.isfile(path):
+        yield path
+        return
+    print(f"warning: not a file or directory, skipping: {path}", file=sys.stderr)
+
+
 def iter_files(paths):
-    for p in paths:
-        if os.path.isdir(p):
-            for root, _, names in os.walk(p):
-                for name in names:
-                    if os.path.splitext(name)[1] in CHECKED_EXTENSIONS:
-                        yield os.path.join(root, name)
-        elif os.path.isfile(p):
-            yield p
-        else:
-            print(f"warning: not a file or directory, skipping: {p}", file=sys.stderr)
+    for path in paths:
+        yield from _iter_one_path(path)
 
 
 def check(paths):

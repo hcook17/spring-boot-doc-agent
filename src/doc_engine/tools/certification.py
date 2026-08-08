@@ -30,6 +30,14 @@ def load_certification(path: Path) -> dict[str, Any]:
     return data
 
 
+def _stage_gate_records(data: dict[str, Any]):
+    from doc_engine.pipeline.compliance import GateRecord, StageRecord
+
+    stages = [StageRecord.model_validate(row) for row in data.get("stages") or []]
+    gates = [GateRecord.model_validate(row) for row in data.get("gates") or []]
+    return stages, gates
+
+
 def _refold_certification(
     data: dict[str, Any],
     *,
@@ -38,14 +46,11 @@ def _refold_certification(
     """Recompute certified/failures from stamped stage/gate facts."""
     from doc_engine.pipeline.compliance import (
         ComplianceProfile,
-        GateRecord,
-        StageRecord,
         build_certification_report,
     )
 
     profile = ComplianceProfile(data["compliance_profile"])
-    stages = [StageRecord.model_validate(row) for row in data.get("stages") or []]
-    gates = [GateRecord.model_validate(row) for row in data.get("gates") or []]
+    stages, gates = _stage_gate_records(data)
     executor = data.get("generative_executor", "none")
     return build_certification_report(
         profile,
@@ -55,6 +60,72 @@ def _refold_certification(
         gates,
         generative_executor=executor,
         allow_mock=allow_mock,
+    )
+
+
+def _incoherent_stamp_error(stamped_certified, stamped_failures) -> str | None:
+    if stamped_certified is True and stamped_failures:
+        return (
+            "error: certified=true with non-empty failures "
+            f"(incoherent stamp; failures={stamped_failures})"
+        )
+    return None
+
+
+def _refold_mismatch_error(stamped_certified, stamped_failures, refold) -> str | None:
+    if stamped_certified != refold.certified:
+        return (
+            f"error: certified bit {stamped_certified!r} ≠ refold "
+            f"{refold.certified!r} (refold_failures={refold.failures})"
+        )
+    if sorted(stamped_failures) != sorted(refold.failures):
+        return (
+            "error: failures list ≠ refold "
+            f"(stamped={stamped_failures}, refold={refold.failures})"
+        )
+    return None
+
+
+def _executor_policy_error(executor: str, allow_mock: bool) -> str | None:
+    if executor in ("none", "mock") and not allow_mock:
+        return (
+            f"error: generative_executor={executor!r} is not accepted "
+            f"(use --allow-mock for mock/none certificates, or re-run "
+            f"`doc-engine pipeline gates` to write generative_executor=live)"
+        )
+    return None
+
+
+def _verify_loaded(
+    path: Path,
+    data: dict[str, Any],
+    *,
+    allow_mock: bool,
+) -> tuple[bool, str]:
+    stamped_certified = data.get("certified")
+    stamped_failures = list(data.get("failures") or [])
+    incoherent = _incoherent_stamp_error(stamped_certified, stamped_failures)
+    if incoherent is not None:
+        return False, incoherent
+
+    refold = _refold_certification(data, allow_mock=allow_mock)
+    mismatch = _refold_mismatch_error(stamped_certified, stamped_failures, refold)
+    if mismatch is not None:
+        return False, mismatch
+
+    policy = _executor_policy_error(
+        data.get("generative_executor", "none"),
+        allow_mock,
+    )
+    if policy is not None:
+        return False, policy
+
+    if stamped_certified is True:
+        return True, f"OK: certified ({path})"
+
+    profile = data.get("compliance_profile", "unknown")
+    return False, (
+        f"error: not certified (profile={profile}, failures={stamped_failures})"
     )
 
 
@@ -75,42 +146,7 @@ def verify_certification(
         data = load_certification(path)
     except (ValueError, json.JSONDecodeError) as exc:
         return False, f"error: {exc}"
-
-    stamped_certified = data.get("certified")
-    stamped_failures = list(data.get("failures") or [])
-    if stamped_certified is True and stamped_failures:
-        return False, (
-            "error: certified=true with non-empty failures "
-            f"(incoherent stamp; failures={stamped_failures})"
-        )
-
-    refold = _refold_certification(data, allow_mock=allow_mock)
-    if stamped_certified != refold.certified:
-        return False, (
-            f"error: certified bit {stamped_certified!r} ≠ refold "
-            f"{refold.certified!r} (refold_failures={refold.failures})"
-        )
-    if sorted(stamped_failures) != sorted(refold.failures):
-        return False, (
-            "error: failures list ≠ refold "
-            f"(stamped={stamped_failures}, refold={refold.failures})"
-        )
-
-    executor = data.get("generative_executor", "none")
-    if executor in ("none", "mock") and not allow_mock:
-        return False, (
-            f"error: generative_executor={executor!r} is not accepted "
-            f"(use --allow-mock for mock/none certificates, or re-run "
-            f"`doc-engine pipeline gates` to write generative_executor=live)"
-        )
-
-    if stamped_certified is True:
-        return True, f"OK: certified ({path})"
-
-    profile = data.get("compliance_profile", "unknown")
-    return False, (
-        f"error: not certified (profile={profile}, failures={stamped_failures})"
-    )
+    return _verify_loaded(path, data, allow_mock=allow_mock)
 
 
 def main(argv: list[str] | None = None) -> int:
