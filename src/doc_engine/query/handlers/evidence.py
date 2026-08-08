@@ -43,6 +43,33 @@ def _row_passes(
     return _match_text(row, match_contains)
 
 
+def _normalize_bucket_row(raw: Mapping[str, Any], name: str) -> dict[str, Any]:
+    row = dict(raw)
+    row.setdefault("bucket", name)
+    return row
+
+
+def _maybe_bucket_row(
+    raw: Any,
+    name: str,
+    *,
+    rule_id: str | None,
+    file_contains: str | None,
+    match_contains: str | None,
+) -> dict[str, Any] | None:
+    if not isinstance(raw, Mapping):
+        return None
+    row = _normalize_bucket_row(raw, name)
+    if not _row_passes(
+        row,
+        rule_id=rule_id,
+        file_contains=file_contains,
+        match_contains=match_contains,
+    ):
+        return None
+    return row
+
+
 def _filter_bucket(
     evidence: Mapping[str, Any],
     name: str,
@@ -56,16 +83,14 @@ def _filter_bucket(
         return []
     rows: list[dict[str, Any]] = []
     for raw in entries:
-        if not isinstance(raw, Mapping):
-            continue
-        row = dict(raw)
-        row.setdefault("bucket", name)
-        if _row_passes(
-            row,
+        row = _maybe_bucket_row(
+            raw,
+            name,
             rule_id=rule_id,
             file_contains=file_contains,
             match_contains=match_contains,
-        ):
+        )
+        if row is not None:
             rows.append(row)
     return rows
 

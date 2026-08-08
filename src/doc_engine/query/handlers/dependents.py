@@ -11,6 +11,21 @@ def _normalize_want_file(target_file: str | None) -> str | None:
     return target_file.replace("\\", "/") if target_file else None
 
 
+def _matches_want_file(src: str, dst: str, want_file: str | None) -> bool:
+    if not want_file:
+        return True
+    src_n = src.replace("\\", "/")
+    dst_n = dst.replace("\\", "/")
+    return dst_n == want_file or src_n == want_file
+
+
+def _matches_want_type(qualified: str, want_type: str | None) -> bool:
+    if not want_type:
+        return True
+    stem = qualified.rstrip(".*").rsplit(".", 1)[-1]
+    return stem == want_type or want_type in qualified
+
+
 def _passes_target_filters(
     src: str,
     dst: str,
@@ -20,16 +35,9 @@ def _passes_target_filters(
 ) -> bool:
     if dst == src:
         return False
-    if want_file:
-        src_n = src.replace("\\", "/")
-        dst_n = dst.replace("\\", "/")
-        if dst_n != want_file and src_n != want_file:
-            return False
-    if want_type:
-        stem = qualified.rstrip(".*").rsplit(".", 1)[-1]
-        if stem != want_type and want_type not in qualified:
-            return False
-    return True
+    return _matches_want_file(src, dst, want_file) and _matches_want_type(
+        qualified, want_type
+    )
 
 
 def _arc_direction(src: str, dst: str, want_file: str | None) -> str:
@@ -67,6 +75,33 @@ def _append_import_arc(
     )
 
 
+def _append_resolved_targets(
+    rows: list[dict[str, Any]],
+    seen: set[tuple[str, str, str]],
+    *,
+    src: str,
+    qualified: str,
+    is_static: bool,
+    targets: Any,
+    confidence: str,
+    want_file: str | None,
+    want_type: str | None,
+) -> None:
+    for dst in targets:
+        if not _passes_target_filters(src, dst, qualified, want_file, want_type):
+            continue
+        _append_import_arc(
+            rows,
+            seen,
+            src=src,
+            dst=dst,
+            qualified=qualified,
+            confidence=confidence,
+            is_static=is_static,
+            want_file=want_file,
+        )
+
+
 def _collect_arcs_for_source(
     rows: list[dict[str, Any]],
     seen: set[tuple[str, str, str]],
@@ -82,19 +117,17 @@ def _collect_arcs_for_source(
         targets, confidence = resolve_targets(qualified, decl_files, stem_index)
         if confidence == "unresolved":
             continue
-        for dst in targets:
-            if not _passes_target_filters(src, dst, qualified, want_file, want_type):
-                continue
-            _append_import_arc(
-                rows,
-                seen,
-                src=src,
-                dst=dst,
-                qualified=qualified,
-                confidence=confidence,
-                is_static=is_static,
-                want_file=want_file,
-            )
+        _append_resolved_targets(
+            rows,
+            seen,
+            src=src,
+            qualified=qualified,
+            is_static=is_static,
+            targets=targets,
+            confidence=confidence,
+            want_file=want_file,
+            want_type=want_type,
+        )
 
 
 def _from_references(
@@ -148,17 +181,46 @@ def query_dependents(
     )
 
 
+def _lookup_mapping_entry(mapping: Any, gid: str) -> Mapping[str, Any] | None:
+    if isinstance(mapping, Mapping) and gid in mapping:
+        entry = mapping[gid]
+        if isinstance(entry, Mapping):
+            return entry
+    return None
+
+
 def _resolve_group_entry(
     edges: Mapping[str, Any], group_id: str | int
 ) -> Mapping[str, Any] | None:
     groups = edges.get("groups") or edges.get("per_group") or edges
     gid = str(group_id)
-    entry = None
-    if isinstance(groups, Mapping) and gid in groups:
-        entry = groups[gid]
-    elif isinstance(edges, Mapping) and gid in edges:
-        entry = edges[gid]
-    return entry if isinstance(entry, Mapping) else None
+    return _lookup_mapping_entry(groups, gid) or _lookup_mapping_entry(edges, gid)
+
+
+def _arc_matches_want(arc: Mapping[str, Any], want: str | None) -> bool:
+    if not want:
+        return True
+    fr = str(arc.get("from") or "").replace("\\", "/")
+    to = str(arc.get("to") or "").replace("\\", "/")
+    return fr == want or to == want
+
+
+def _normalize_direction_arc(
+    raw: Mapping[str, Any], direction: str, want: str | None
+) -> dict[str, Any] | None:
+    arc = dict(raw)
+    arc["direction"] = direction
+    if not _arc_matches_want(arc, want):
+        return None
+    return arc
+
+
+def _maybe_direction_arc(
+    raw: Any, direction: str, want: str | None
+) -> dict[str, Any] | None:
+    if not isinstance(raw, Mapping):
+        return None
+    return _normalize_direction_arc(raw, direction, want)
 
 
 def _arcs_for_direction(
@@ -166,16 +228,9 @@ def _arcs_for_direction(
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for raw in entry.get(direction) or []:
-        if not isinstance(raw, Mapping):
-            continue
-        arc = dict(raw)
-        arc["direction"] = direction
-        if want:
-            fr = str(arc.get("from") or "").replace("\\", "/")
-            to = str(arc.get("to") or "").replace("\\", "/")
-            if fr != want and to != want:
-                continue
-        rows.append(arc)
+        arc = _maybe_direction_arc(raw, direction, want)
+        if arc is not None:
+            rows.append(arc)
     return rows
 
 

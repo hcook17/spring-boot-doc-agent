@@ -20,13 +20,18 @@ KNOWN_PREDICATES = frozenset(
 )
 
 
-def _validate_predicate(predicate: str | None, rows: Sequence[Mapping[str, Any]]) -> None:
-    if not predicate or predicate in KNOWN_PREDICATES:
-        return
-    present = set()
+def _predicates_present(rows: Sequence[Mapping[str, Any]]) -> set[str]:
+    present: set[str] = set()
     for row in rows:
         if isinstance(row, Mapping):
             present.add(str(row.get("predicate")))
+    return present
+
+
+def _validate_predicate(predicate: str | None, rows: Sequence[Mapping[str, Any]]) -> None:
+    if not predicate or predicate in KNOWN_PREDICATES:
+        return
+    present = _predicates_present(rows)
     if predicate not in present:
         raise QueryError(
             f"unknown facts predicate {predicate!r}; valid={sorted(KNOWN_PREDICATES | present)}"
@@ -40,6 +45,31 @@ def _fqcn_of(row: Mapping[str, Any]) -> str:
     return ""
 
 
+def _file_contains_ok(row: Mapping[str, Any], file_contains: str | None) -> bool:
+    if not file_contains:
+        return True
+    path = str(row.get("file") or "").replace("\\", "/")
+    return file_contains.replace("\\", "/") in path
+
+
+def _subject_contains_ok(row: Mapping[str, Any], subject_contains: str | None) -> bool:
+    if not subject_contains:
+        return True
+    return subject_contains in str(row.get("subject") or "")
+
+
+def _fqcn_matches(row: Mapping[str, Any], fqcn: str | None) -> bool:
+    if not fqcn:
+        return True
+    return _fqcn_of(row) == fqcn
+
+
+def _predicate_matches(row: Mapping[str, Any], predicate: str | None) -> bool:
+    if not predicate:
+        return True
+    return row.get("predicate") == predicate
+
+
 def _fact_passes(
     row: Mapping[str, Any],
     *,
@@ -48,17 +78,12 @@ def _fact_passes(
     fqcn: str | None,
     subject_contains: str | None,
 ) -> bool:
-    if predicate and row.get("predicate") != predicate:
-        return False
-    if file_contains:
-        path = str(row.get("file") or "").replace("\\", "/")
-        if file_contains.replace("\\", "/") not in path:
-            return False
-    if subject_contains and subject_contains not in str(row.get("subject") or ""):
-        return False
-    if fqcn and _fqcn_of(row) != fqcn:
-        return False
-    return True
+    return (
+        _predicate_matches(row, predicate)
+        and _file_contains_ok(row, file_contains)
+        and _subject_contains_ok(row, subject_contains)
+        and _fqcn_matches(row, fqcn)
+    )
 
 
 def query_facts(

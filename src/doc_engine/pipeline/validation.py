@@ -134,6 +134,44 @@ def require_stage0_siblings(directory: Path) -> None:
             )
 
 
+def _load_gap_report_object(path: Path) -> dict[str, Any]:
+    try:
+        data = load_json(path)
+    except json.JSONDecodeError as exc:
+        raise ArtifactValidationError("gap_report", path, exc) from exc
+    if not isinstance(data, dict):
+        raise ArtifactValidationError("gap_report", path, "root must be a JSON object")
+    return data
+
+
+def _require_gap_schema_version(path: Path, data: dict[str, Any], expected: Any) -> None:
+    if data.get("schema_version") != expected:
+        raise ArtifactValidationError(
+            "gap_report",
+            path,
+            f"schema_version={data.get('schema_version')!r} (expected {expected})",
+        )
+
+
+def _require_gap_covering_verified(path: Path, data: dict[str, Any]) -> None:
+    covering = data.get("s1_covering")
+    if not isinstance(covering, dict) or covering.get("verified") is not True:
+        raise ArtifactValidationError(
+            "gap_report",
+            path,
+            "s1_covering.verified must be true",
+        )
+
+
+def _require_gap_uncertainty(path: Path, data: dict[str, Any]) -> None:
+    if "uncertainty" not in data or not isinstance(data.get("uncertainty"), dict):
+        raise ArtifactValidationError(
+            "gap_report",
+            path,
+            "uncertainty object required",
+        )
+
+
 def require_gap_probe_artifact(directory: Path) -> None:
     """Fail closed when spring_signals.json is present without a verified gap_report.
 
@@ -153,29 +191,7 @@ def require_gap_probe_artifact(directory: Path) -> None:
             signals,
             f"missing gap probe report at {_GAP_REPORT_REL.as_posix()}",
         )
-    try:
-        data = load_json(path)
-    except json.JSONDecodeError as exc:
-        raise ArtifactValidationError("gap_report", path, exc) from exc
-    if not isinstance(data, dict):
-        raise ArtifactValidationError("gap_report", path, "root must be a JSON object")
-    if data.get("schema_version") != GAP_PROBE_SCHEMA_VERSION:
-        raise ArtifactValidationError(
-            "gap_report",
-            path,
-            f"schema_version={data.get('schema_version')!r} "
-            f"(expected {GAP_PROBE_SCHEMA_VERSION})",
-        )
-    covering = data.get("s1_covering")
-    if not isinstance(covering, dict) or covering.get("verified") is not True:
-        raise ArtifactValidationError(
-            "gap_report",
-            path,
-            "s1_covering.verified must be true",
-        )
-    if "uncertainty" not in data or not isinstance(data.get("uncertainty"), dict):
-        raise ArtifactValidationError(
-            "gap_report",
-            path,
-            "uncertainty object required",
-        )
+    data = _load_gap_report_object(path)
+    _require_gap_schema_version(path, data, GAP_PROBE_SCHEMA_VERSION)
+    _require_gap_covering_verified(path, data)
+    _require_gap_uncertainty(path, data)

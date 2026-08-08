@@ -125,12 +125,23 @@ def _collect_scored_items(
     return raw_items, used
 
 
+def _provider_section(provider: Any) -> str:
+    if provider == "facts":
+        return "findings"
+    if provider == "redaction":
+        return "risks"
+    return "rest"
+
+
 def _partition_by_provider(
     raw_items: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    findings = [i for i in raw_items if i.get("provider") == "facts"]
-    risks = [i for i in raw_items if i.get("provider") == "redaction"]
-    rest = [i for i in raw_items if i.get("provider") not in ("facts", "redaction")]
+    findings: list[dict[str, Any]] = []
+    risks: list[dict[str, Any]] = []
+    rest: list[dict[str, Any]] = []
+    buckets = {"findings": findings, "risks": risks, "rest": rest}
+    for item in raw_items:
+        buckets[_provider_section(item.get("provider"))].append(item)
     return findings, risks, rest
 
 
@@ -166,6 +177,31 @@ def _trim_packet_sections(
     return primary, related, findings_kept, risks_kept, truncated, tokens_used
 
 
+def _normalized_rel_path(rel: str) -> str:
+    return rel.replace("\\", "/")
+
+
+def _file_signature_matches(full: Path, expected: Any) -> bool:
+    if expected is None:
+        return False
+    try:
+        actual = compute_file_signature(str(full))
+    except OSError:
+        return False
+    return actual == expected
+
+
+def _rel_path_is_live(
+    repo_resolved: Path, sigs: Mapping[str, Any], rel: str
+) -> bool:
+    full = (repo_resolved / rel).resolve()
+    if not is_path_inside_root(str(full), str(repo_resolved)):
+        return False
+    if not full.is_file():
+        return False
+    return _file_signature_matches(full, sigs.get(_normalized_rel_path(rel)))
+
+
 def _live_paths_matching_signatures(
     repo: Path,
     sigs: Mapping[str, Any],
@@ -174,19 +210,25 @@ def _live_paths_matching_signatures(
     live_ok: set[str] = set()
     repo_resolved = repo.resolve()
     for rel in candidate_paths:
-        full = (repo_resolved / rel).resolve()
-        if not is_path_inside_root(str(full), str(repo_resolved)):
-            continue
-        if not full.is_file():
-            continue
-        expected = sigs.get(rel.replace("\\", "/"))
-        try:
-            actual = compute_file_signature(str(full))
-        except OSError:
-            continue
-        if expected is not None and actual == expected:
-            live_ok.add(rel.replace("\\", "/"))
+        if _rel_path_is_live(repo_resolved, sigs, rel):
+            live_ok.add(_normalized_rel_path(rel))
     return live_ok
+
+
+def _wrap_freshness_with_drift_report(
+    sig_policy: SignatureFreshness,
+    drift_report_path: Path | str | None,
+    root_path: Path,
+) -> Any:
+    if drift_report_path is None:
+        return sig_policy
+    report = load_json(drift_report_path, root=root_path)
+    if not isinstance(report, Mapping):
+        return sig_policy
+    return DriftReportFreshness(
+        stale_paths=stale_paths_from_drift_report(report),
+        inner=sig_policy,
+    )
 
 
 def _build_freshness_policy(
@@ -206,15 +248,7 @@ def _build_freshness_policy(
     live = {str(i.get("path")) for i in primary if i.get("path")}
     live_ok = _live_paths_matching_signatures(repo, sigs, live)
     sig_policy = SignatureFreshness(repo_root=repo, signatures=sigs, live_paths=live_ok)
-    if drift_report_path is None:
-        return sig_policy
-    report = load_json(drift_report_path, root=root_path)
-    if not isinstance(report, Mapping):
-        return sig_policy
-    return DriftReportFreshness(
-        stale_paths=stale_paths_from_drift_report(report),
-        inner=sig_policy,
-    )
+    return _wrap_freshness_with_drift_report(sig_policy, drift_report_path, root_path)
 
 
 def _label_items(policy: Any, items: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -100,6 +100,10 @@ def label_item_path(policy: object, rel_path: str | None) -> str:
         raise QueryError(f"illegal freshness label: {label!r}") from exc
 
 
+_STALE_STATUSES = frozenset({"changed", "stale", "drifted"})
+_DRIFT_LIST_KEYS = ("changed_files", "stale_files", "drifted_files")
+
+
 def _add_list_paths(val: list[Any], out: set[str]) -> None:
     for item in val:
         if isinstance(item, str):
@@ -108,16 +112,24 @@ def _add_list_paths(val: list[Any], out: set[str]) -> None:
             out.add(str(item["file"]).replace("\\", "/"))
 
 
-def stale_paths_from_drift_report(report: Mapping) -> set[str]:
-    """Best-effort extract of changed file paths from drift_report shape."""
-    out: set[str] = set()
-    for key in ("changed_files", "stale_files", "drifted_files"):
+def _add_status_paths_from_files_map(files: Any, out: set[str]) -> None:
+    if not isinstance(files, Mapping):
+        return
+    for path, meta in files.items():
+        if isinstance(meta, Mapping) and meta.get("status") in _STALE_STATUSES:
+            out.add(str(path).replace("\\", "/"))
+
+
+def _add_paths_from_drift_list_keys(report: Mapping, out: set[str]) -> None:
+    for key in _DRIFT_LIST_KEYS:
         val = report.get(key)
         if isinstance(val, list):
             _add_list_paths(val, out)
-    files = report.get("files")
-    if isinstance(files, Mapping):
-        for path, meta in files.items():
-            if isinstance(meta, Mapping) and meta.get("status") in ("changed", "stale", "drifted"):
-                out.add(str(path).replace("\\", "/"))
+
+
+def stale_paths_from_drift_report(report: Mapping) -> set[str]:
+    """Best-effort extract of changed file paths from drift_report shape."""
+    out: set[str] = set()
+    _add_paths_from_drift_list_keys(report, out)
+    _add_status_paths_from_files_map(report.get("files"), out)
     return out

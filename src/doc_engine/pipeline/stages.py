@@ -211,11 +211,20 @@ def generative_choreography() -> list[dict[str, object]]:
     return rows
 
 
-def manifest_fanout(spec: StageSpec, context: PipelineContext) -> int | None:
-    if spec.manifest_stage == STAGE_FILE_SUMMARIZE and context.groups:
+def _fanout_from_groups(spec: StageSpec, context: PipelineContext) -> int | None:
+    if not context.groups:
+        return None
+    if spec.manifest_stage == STAGE_FILE_SUMMARIZE:
         return context.groups.get("num_groups")
-    if spec.manifest_stage == STAGE_ARCHITECT and context.groups:
+    if spec.manifest_stage == STAGE_ARCHITECT:
         return context.groups.get("num_groups", 0) + 1
+    return None
+
+
+def manifest_fanout(spec: StageSpec, context: PipelineContext) -> int | None:
+    grouped = _fanout_from_groups(spec, context)
+    if grouped is not None:
+        return grouped
     if spec.manifest_stage == STAGE_GAP_INTERVIEW:
         return 1
     if spec.manifest_stage == STAGE_DOC_WRITER:

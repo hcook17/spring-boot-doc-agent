@@ -88,6 +88,17 @@ class FactsProvider:
             contested=contested or pred == "MAPS_TO",
         )
 
+    def _maybe_append_fact(
+        self, out: list[dict[str, Any]], row: Mapping[str, Any], limit: int
+    ) -> bool:
+        """Append one fact item when eligible. Return True once the cap is hit."""
+        pred = str(row.get("predicate") or "")
+        contested = self._row_contested(row)
+        if not self._should_emit_fact(pred, contested):
+            return False
+        out.append(self._fact_item(row, pred, contested))
+        return len(out) >= limit * 2
+
     def provide(
         self,
         request: str,
@@ -100,12 +111,7 @@ class FactsProvider:
         del signals, run_dir, request
         out: list[dict[str, Any]] = []
         for row in facts_rows:
-            pred = str(row.get("predicate") or "")
-            contested = self._row_contested(row)
-            if not self._should_emit_fact(pred, contested):
-                continue
-            out.append(self._fact_item(row, pred, contested))
-            if len(out) >= limit * 2:
+            if self._maybe_append_fact(out, row, limit):
                 break
         return out
 

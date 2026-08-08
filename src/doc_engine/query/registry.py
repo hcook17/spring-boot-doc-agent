@@ -69,6 +69,31 @@ def _load_edges(
     return edges
 
 
+def _invoke_signals_handler(
+    handler: Handler,
+    *,
+    accepts_edges: bool,
+    sig: Mapping[str, Any] | None,
+    ed: Mapping[str, Any] | None,
+    filters: dict[str, Any],
+) -> list[dict[str, Any]]:
+    if sig is None:
+        raise QueryMissingError("signals required for this query kind")
+    if accepts_edges:
+        return handler(sig, edges=ed, **filters)
+    return handler(sig, **filters)
+
+
+def _invoke_facts_handler(
+    handler: Handler,
+    fr: list[Mapping[str, Any]] | None,
+    filters: dict[str, Any],
+) -> list[dict[str, Any]]:
+    if fr is None:
+        raise QueryMissingError("facts required for facts query")
+    return handler(fr, **filters)
+
+
 def _invoke_handler(
     spec: Any,
     *,
@@ -79,15 +104,15 @@ def _invoke_handler(
 ) -> list[dict[str, Any]]:
     handler = spec.handler
     if spec.requires_signals:
-        if sig is None:
-            raise QueryMissingError("signals required for this query kind")
-        if spec.accepts_edges:
-            return handler(sig, edges=ed, **filters)
-        return handler(sig, **filters)
+        return _invoke_signals_handler(
+            handler,
+            accepts_edges=spec.accepts_edges,
+            sig=sig,
+            ed=ed,
+            filters=filters,
+        )
     if spec.requires_facts:
-        if fr is None:
-            raise QueryMissingError("facts required for facts query")
-        return handler(fr, **filters)
+        return _invoke_facts_handler(handler, fr, filters)
     return handler(**filters)
 
 
