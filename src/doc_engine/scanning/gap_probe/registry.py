@@ -2,7 +2,8 @@
 
 Add a new rate by appending a ``RegisteredMeasure`` here and implementing the
 callable in its domain module — ``report.build_gap_report`` stays closed to
-unrelated churn. Schema keys (``R_sym``, …) remain the encoding SoR.
+unrelated churn. Schema keys (``R_sym``, …) remain the encoding SoR via
+``RateKey``.
 
 Optional hooks let a measure contribute uncertainty inputs, ``design_reopen``
 flags, and post-harvest failures without teaching ``build_gap_report`` each
@@ -12,6 +13,7 @@ flags, and post-harvest failures without teaching ``build_gap_report`` each
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
 from .absence_recall import (
@@ -22,11 +24,19 @@ from .absence_recall import (
     measure_r_recall,
 )
 from .code_dep import measure_r_code_dep
-from .common import SCORING_ENV_CALLABLE, SCORING_ENV_POOLED
+from .common import RateKey, ScoringEnv
 from .join import measure_r_join
 from .lineage import _dominant_failure_stratum, measure_r_lin
 from .symbol_collision import measure_r_coll, measure_r_sym
-from .uncertainty import compute_uncertainty
+from .uncertainty import UncertaintyClaim, compute_uncertainty
+
+
+class RecallClaim(StrEnum):
+    """Closed claim stamps for the R_recall projection."""
+
+    MEASURED = "measured"
+    UNTRUSTED_PLANTED = "untrusted_planted"
+    OMITTED_WITHOUT_ORACLE = "omitted_without_oracle"
 
 
 @dataclass
@@ -55,7 +65,7 @@ FailureHook = Callable[[Any, MeasureContext], Sequence[Mapping[str, Any]]]
 class RegisteredMeasure:
     """One gap-probe rate: run → project + optional assembly hooks."""
 
-    key: str
+    key: RateKey
     run: MeasureRunner
     project: RateProjector
     collect_failures: bool = True
@@ -65,7 +75,9 @@ class RegisteredMeasure:
     extra_failures: Optional[FailureHook] = None
 
 
-def _project_rate_block(block: Mapping[str, Any], *_a: Any) -> Dict[str, Any]:
+def _project_rate_block(
+    block: Mapping[str, Any], _ctx: MeasureContext
+) -> Dict[str, Any]:
     return {
         "numerator": block["numerator"],
         "denominator": block["denominator"],
@@ -74,7 +86,9 @@ def _project_rate_block(block: Mapping[str, Any], *_a: Any) -> Dict[str, Any]:
     }
 
 
-def _default_harvest(block: Any, *_a: Any) -> List[Dict[str, Any]]:
+def _default_harvest(
+    block: Any, _ctx: MeasureContext
+) -> List[Dict[str, Any]]:
     if isinstance(block, Mapping):
         return list(block.get("failures") or [])
     return []
@@ -88,11 +102,15 @@ def _run_coll(ctx: MeasureContext) -> Dict[str, Any]:
     return measure_r_coll(ctx.signals)
 
 
-def _uncertainty_coll(block: Mapping[str, Any], *_a: Any) -> Mapping[str, Any]:
+def _uncertainty_coll(
+    block: Mapping[str, Any], _ctx: MeasureContext
+) -> Mapping[str, Any]:
     return {"r_coll": block["rate"]}
 
 
-def _reopen_coll(block: Mapping[str, Any], *_a: Any) -> Mapping[str, Any]:
+def _reopen_coll(
+    block: Mapping[str, Any], _ctx: MeasureContext
+) -> Mapping[str, Any]:
     return {"path_a_to_symbols": (block["rate"] or 0) > 0}
 
 
@@ -100,67 +118,87 @@ def _run_join(ctx: MeasureContext) -> Dict[str, Any]:
     return measure_r_join(ctx.signals, ctx.facts)
 
 
-def _uncertainty_join(block: Mapping[str, Any], *_a: Any) -> Mapping[str, Any]:
+def _uncertainty_join(
+    block: Mapping[str, Any], _ctx: MeasureContext
+) -> Mapping[str, Any]:
     return {"r_join": block["rate"]}
 
 
-def _reopen_join(block: Mapping[str, Any], *_a: Any) -> Mapping[str, Any]:
+def _reopen_join(
+    block: Mapping[str, Any], _ctx: MeasureContext
+) -> Mapping[str, Any]:
     return {"join_incomplete": block["rate"] is None or block["rate"] < 1.0}
 
 
 def _run_lin(ctx: MeasureContext) -> Dict[str, Any]:
     return {
-        "callable": measure_r_lin(ctx.signals, scoring_env=SCORING_ENV_CALLABLE),
-        "pooled": measure_r_lin(ctx.signals, scoring_env=SCORING_ENV_POOLED),
+        "callable": measure_r_lin(ctx.signals, scoring_env=ScoringEnv.CALLABLE),
+        "pooled": measure_r_lin(ctx.signals, scoring_env=ScoringEnv.POOLED),
     }
 
 
-def _project_lin(bundle: Mapping[str, Any], *_a: Any) -> Dict[str, Any]:
-    lin = bundle["callable"]
-    lin_pooled = bundle["pooled"]
+def _lineage_core_fields(lineage_block: Mapping[str, Any]) -> Dict[str, Any]:
     return {
-        "scoring_env": SCORING_ENV_CALLABLE,
-        "mean_rate": lin["mean_rate"],
-        "numerator": lin["numerator"],
-        "denominator": lin["denominator"],
-        "callable_denominator": lin["callable_denominator"],
-        "strata": lin["strata"],
-        "failure_taxonomy": lin["failure_taxonomy"],
+        "mean_rate": lineage_block["mean_rate"],
+        "numerator": lineage_block["numerator"],
+        "denominator": lineage_block["denominator"],
+        "callable_denominator": lineage_block["callable_denominator"],
+        "strata": lineage_block["strata"],
+    }
+
+
+def _project_lin(
+    bundle: Mapping[str, Any], _ctx: MeasureContext
+) -> Dict[str, Any]:
+    callable_lineage = bundle["callable"]
+    pooled_lineage = bundle["pooled"]
+    return {
+        "scoring_env": ScoringEnv.CALLABLE,
+        **_lineage_core_fields(callable_lineage),
+        "failure_taxonomy": callable_lineage["failure_taxonomy"],
         "pooled_contrast": {
-            "scoring_env": SCORING_ENV_POOLED,
-            "mean_rate": lin_pooled["mean_rate"],
-            "numerator": lin_pooled["numerator"],
-            "denominator": lin_pooled["denominator"],
-            "callable_denominator": lin_pooled["callable_denominator"],
-            "strata": lin_pooled["strata"],
+            "scoring_env": ScoringEnv.POOLED,
+            **_lineage_core_fields(pooled_lineage),
         },
     }
 
 
-def _harvest_lin(bundle: Mapping[str, Any], *_a: Any) -> List[Dict[str, Any]]:
+def _harvest_lin(
+    bundle: Mapping[str, Any], _ctx: MeasureContext
+) -> List[Dict[str, Any]]:
     # Failures live on the normative callable stratum only.
     return list((bundle.get("callable") or {}).get("failures") or [])
 
 
-def _uncertainty_lin(bundle: Mapping[str, Any], *_a: Any) -> Mapping[str, Any]:
+def _uncertainty_lin(
+    bundle: Mapping[str, Any], _ctx: MeasureContext
+) -> Mapping[str, Any]:
     return {"r_lin_mean": bundle["callable"]["mean_rate"]}
 
 
-def _reopen_lin(bundle: Mapping[str, Any], *_a: Any) -> Mapping[str, Any]:
-    return {"lineage_dominant_stratum": _dominant_failure_stratum(bundle["callable"])}
+def _reopen_lin(
+    bundle: Mapping[str, Any], _ctx: MeasureContext
+) -> Mapping[str, Any]:
+    return {
+        "lineage_dominant_stratum": _dominant_failure_stratum(bundle["callable"]),
+    }
 
 
 def _run_code_dep(ctx: MeasureContext) -> Dict[str, Any]:
     return measure_r_code_dep(ctx.signals)
 
 
-def _project_code_dep(block: Mapping[str, Any], *_a: Any) -> Dict[str, Any]:
-    out = _project_rate_block(block)
-    out["per_family"] = block["per_family"]
-    return out
+def _project_code_dep(
+    block: Mapping[str, Any], ctx: MeasureContext
+) -> Dict[str, Any]:
+    projected = _project_rate_block(block, ctx)
+    projected["per_family"] = block["per_family"]
+    return projected
 
 
-def _uncertainty_code_dep(block: Mapping[str, Any], *_a: Any) -> Mapping[str, Any]:
+def _uncertainty_code_dep(
+    block: Mapping[str, Any], _ctx: MeasureContext
+) -> Mapping[str, Any]:
     return {"r_code_dep": block["rate"]}
 
 
@@ -168,7 +206,9 @@ def _run_absence(ctx: MeasureContext) -> Dict[str, Any]:
     return measure_r_absence(ctx.facts, callable_trials=ctx.callable_trials)
 
 
-def _project_absence(block: Mapping[str, Any], ctx: MeasureContext) -> Dict[str, Any]:
+def _project_absence(
+    block: Mapping[str, Any], ctx: MeasureContext
+) -> Dict[str, Any]:
     return {
         "numerator": block["numerator"],
         "denominator": block["denominator"],
@@ -183,14 +223,18 @@ def _project_absence(block: Mapping[str, Any], ctx: MeasureContext) -> Dict[str,
     }
 
 
-def _uncertainty_absence(block: Mapping[str, Any], *_a: Any) -> Mapping[str, Any]:
+def _uncertainty_absence(
+    block: Mapping[str, Any], _ctx: MeasureContext
+) -> Mapping[str, Any]:
     return {
         "callable_absence": int(block["callable_absence"]),
         "unproven": int(block["unproven"]),
     }
 
 
-def _reopen_absence(block: Mapping[str, Any], *_a: Any) -> Mapping[str, Any]:
+def _reopen_absence(
+    block: Mapping[str, Any], _ctx: MeasureContext
+) -> Mapping[str, Any]:
     return {
         "unproven_present": bool(block["unproven"]),
         "absence_present": bool(block["callable_absence"]),
@@ -202,42 +246,48 @@ def _run_recall(ctx: MeasureContext) -> Optional[Dict[str, Any]]:
     return measure_r_recall(ctx.facts, oracle_arm_present=ctx.oracle_arm)
 
 
-def _project_recall(
-    block: Optional[Mapping[str, Any]], ctx: MeasureContext
-) -> Dict[str, Any]:
-    if block is not None:
-        return {
-            "numerator": block["numerator"],
-            "denominator": block["denominator"],
-            "callable_denominator": block["callable_denominator"],
-            "rate": block["rate"],
-            "structural": block["structural"],
-            "evidentiary": block["evidentiary"],
-            "omitted": False,
-            "claim": "measured",
-        }
-    if ctx.planted_misses > 0:
-        return {
-            "numerator": 0,
-            "denominator": 0,
-            "callable_denominator": 0,
-            "rate": None,
-            "omitted": True,
-            "claim": "untrusted_planted",
-            "note": (
-                "Planted RECALL_MISS stamps are not an oracle. "
-                "R_recall stays omitted until a trusted CodeQL receipt is present."
-            ),
-        }
+def _measured_recall_projection(block: Mapping[str, Any]) -> Dict[str, Any]:
+    return {
+        "numerator": block["numerator"],
+        "denominator": block["denominator"],
+        "callable_denominator": block["callable_denominator"],
+        "rate": block["rate"],
+        "structural": block["structural"],
+        "evidentiary": block["evidentiary"],
+        "omitted": False,
+        "claim": RecallClaim.MEASURED,
+    }
+
+
+def _omitted_recall_projection(*, claim: RecallClaim, note: str) -> Dict[str, Any]:
     return {
         "numerator": 0,
         "denominator": 0,
         "callable_denominator": 0,
         "rate": None,
         "omitted": True,
-        "claim": "omitted_without_oracle",
-        "note": "R_recall requires a trusted CodeQL covering receipt",
+        "claim": claim,
+        "note": note,
     }
+
+
+def _project_recall(
+    block: Optional[Mapping[str, Any]], ctx: MeasureContext
+) -> Dict[str, Any]:
+    if block is not None:
+        return _measured_recall_projection(block)
+    if ctx.planted_misses > 0:
+        return _omitted_recall_projection(
+            claim=RecallClaim.UNTRUSTED_PLANTED,
+            note=(
+                "Planted RECALL_MISS stamps are not an oracle. "
+                "R_recall stays omitted until a trusted CodeQL receipt is present."
+            ),
+        )
+    return _omitted_recall_projection(
+        claim=RecallClaim.OMITTED_WITHOUT_ORACLE,
+        note="R_recall requires a trusted CodeQL covering receipt",
+    )
 
 
 def _reopen_recall(
@@ -259,23 +309,23 @@ def _extra_recall(
 
 # Extension point: append a RegisteredMeasure for a new R_* family.
 RATE_REGISTRY: tuple[RegisteredMeasure, ...] = (
-    RegisteredMeasure("R_sym", _run_sym, _project_rate_block),
+    RegisteredMeasure(RateKey.SYM, _run_sym, _project_rate_block),
     RegisteredMeasure(
-        "R_coll",
+        RateKey.COLL,
         _run_coll,
         _project_rate_block,
         uncertainty_inputs=_uncertainty_coll,
         design_reopen=_reopen_coll,
     ),
     RegisteredMeasure(
-        "R_join",
+        RateKey.JOIN,
         _run_join,
         _project_rate_block,
         uncertainty_inputs=_uncertainty_join,
         design_reopen=_reopen_join,
     ),
     RegisteredMeasure(
-        "R_lin",
+        RateKey.LIN,
         _run_lin,
         _project_lin,
         harvest_failures=_harvest_lin,
@@ -283,20 +333,20 @@ RATE_REGISTRY: tuple[RegisteredMeasure, ...] = (
         design_reopen=_reopen_lin,
     ),
     RegisteredMeasure(
-        "R_code_dep",
+        RateKey.CODE_DEP,
         _run_code_dep,
         _project_code_dep,
         uncertainty_inputs=_uncertainty_code_dep,
     ),
     RegisteredMeasure(
-        "R_absence",
+        RateKey.ABSENCE,
         _run_absence,
         _project_absence,
         uncertainty_inputs=_uncertainty_absence,
         design_reopen=_reopen_absence,
     ),
     RegisteredMeasure(
-        "R_recall",
+        RateKey.RECALL,
         _run_recall,
         _project_recall,
         design_reopen=_reopen_recall,
@@ -327,7 +377,7 @@ class GapViews:
     design_reopen: Dict[str, Any]
 
 
-_U_DEFAULTS: Dict[str, Any] = {
+_UNCERTAINTY_DEFAULTS: Dict[str, Any] = {
     "r_coll": None,
     "r_join": None,
     "r_lin_mean": None,
@@ -346,7 +396,9 @@ def prepare_measure_context(
     callable_trials: int,
 ) -> MeasureContext:
     """Fill covering/oracle fields shared by registered measures."""
-    planted = sum(1 for fact in facts if fact.get("predicate") == "RECALL_MISS")
+    planted_misses = sum(
+        1 for fact in facts if fact.get("predicate") == "RECALL_MISS"
+    )
     return MeasureContext(
         signals=signals,
         facts=facts,
@@ -355,30 +407,30 @@ def prepare_measure_context(
         astgrep_ok=_astgrep_receipt_complete(covering_proof),
         callable_trials=callable_trials,
         oracle_arm=_trusted_codeql_oracle_arm(covering_proof),
-        planted_misses=planted,
+        planted_misses=planted_misses,
     )
 
 
 def run_rate_registry(ctx: MeasureContext) -> MeasuredRates:
     """Execute every registered measure; harvest primary + extra failures."""
-    out = MeasuredRates()
-    for spec in RATE_REGISTRY:
-        block = spec.run(ctx)
-        out.blocks[spec.key] = block
-        out.rates[spec.key] = spec.project(block, ctx)
-        if spec.collect_failures and block is not None:
-            harvest = spec.harvest_failures or _default_harvest
-            out.failures.extend(harvest(block, ctx))
-        if spec.extra_failures is not None:
-            out.failures.extend(spec.extra_failures(block, ctx))
-    return out
+    measured = MeasuredRates()
+    for measure in RATE_REGISTRY:
+        block = measure.run(ctx)
+        measured.blocks[measure.key] = block
+        measured.rates[measure.key] = measure.project(block, ctx)
+        if measure.collect_failures and block is not None:
+            harvest = measure.harvest_failures or _default_harvest
+            measured.failures.extend(harvest(block, ctx))
+        if measure.extra_failures is not None:
+            measured.failures.extend(measure.extra_failures(block, ctx))
+    return measured
 
 
 def _fold_uncertainty(fragments: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
     """Merge measure fragments into the closed U_w kwarg surface (formula SoR)."""
-    merged = dict(_U_DEFAULTS)
-    for frag in fragments:
-        merged.update(frag)
+    merged = dict(_UNCERTAINTY_DEFAULTS)
+    for fragment in fragments:
+        merged.update(fragment)
     return compute_uncertainty(
         merged["r_coll"],
         merged["r_join"],
@@ -392,14 +444,20 @@ def _fold_uncertainty(fragments: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
 def assemble_gap_views(ctx: MeasureContext) -> GapViews:
     """Run registry then fold uncertainty / design_reopen via measure hooks."""
     measured = run_rate_registry(ctx)
-    u_frags: List[Mapping[str, Any]] = []
-    reopen: Dict[str, Any] = {}
-    for spec in RATE_REGISTRY:
-        block = measured.blocks[spec.key]
-        if spec.uncertainty_inputs is not None:
-            u_frags.append(spec.uncertainty_inputs(block, ctx))
-        if spec.design_reopen is not None:
-            reopen.update(spec.design_reopen(block, ctx))
-    uncertainty = _fold_uncertainty(u_frags)
-    reopen["vacuous_uncertainty"] = uncertainty.get("claim") == "vacuous_no_support"
-    return GapViews(measured=measured, uncertainty=uncertainty, design_reopen=reopen)
+    uncertainty_fragments: List[Mapping[str, Any]] = []
+    design_reopen: Dict[str, Any] = {}
+    for measure in RATE_REGISTRY:
+        block = measured.blocks[measure.key]
+        if measure.uncertainty_inputs is not None:
+            uncertainty_fragments.append(measure.uncertainty_inputs(block, ctx))
+        if measure.design_reopen is not None:
+            design_reopen.update(measure.design_reopen(block, ctx))
+    uncertainty = _fold_uncertainty(uncertainty_fragments)
+    design_reopen["vacuous_uncertainty"] = (
+        uncertainty.get("claim") == UncertaintyClaim.VACUOUS_NO_SUPPORT
+    )
+    return GapViews(
+        measured=measured,
+        uncertainty=uncertainty,
+        design_reopen=design_reopen,
+    )

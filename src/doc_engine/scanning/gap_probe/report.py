@@ -13,90 +13,92 @@ from doc_engine.scanning.covering import COVERING_PROOF_SCHEMA_VERSION
 from .absence_recall import _astgrep_receipt_complete, load_and_verify_covering
 from .common import (
     GAP_PROBE_SCHEMA_VERSION,
-    SCORING_ENV_CALLABLE,
-    SCORING_ENV_POOLED,
     CoveringPreconditionError,
+    RateKey,
+    ScoringEnv,
     _load_facts_jsonl,
     _load_json,
     _maps_to,
 )
 from .failures import apply_failure_budget, sort_failures
-from .registry import assemble_gap_views, prepare_measure_context
+from .registry import GapViews, assemble_gap_views, prepare_measure_context
 
 
-def _delta_rate(a: Optional[float], b: Optional[float]) -> Optional[float]:
-    if a is None or b is None:
+def _delta_rate(left: Optional[float], right: Optional[float]) -> Optional[float]:
+    if left is None or right is None:
         return None
-    return a - b
+    return left - right
 
 
-def build_gap_report(
-    signals: Mapping[str, Any],
-    facts: Sequence[Mapping[str, Any]],
-    *,
-    signals_path: Optional[str] = None,
-    facts_path: Optional[str] = None,
-    failure_budget: Optional[int] = None,
-    must_keep: Optional[Sequence[str]] = None,
-    covering_proof: Optional[Mapping[str, Any]] = None,
-    covering_ok: bool = False,
-    covering_why: str = "",
-) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+def _require_covering_ok(*, covering_ok: bool, covering_why: str) -> None:
     if not covering_ok:
         raise CoveringPreconditionError(
             f"S1 covering proof failed; refusing S2 rates: {covering_why or 'unknown'}"
         )
 
-    # Pre-compute callable trial mass for R_absence (needs covering receipts).
-    astgrep_ok = _astgrep_receipt_complete(covering_proof)
-    callable_trials = count_callable_trials(
-        signals,
-        covering_ok=covering_ok,
-        astgrep_receipt_complete=astgrep_ok,
-    )
-    ctx = prepare_measure_context(
-        signals,
-        facts,
-        covering_proof=covering_proof,
-        covering_ok=covering_ok,
-        callable_trials=callable_trials,
-    )
 
-    views = assemble_gap_views(ctx)
-    rates_proj = views.measured.rates
-    uncertainty = views.uncertainty
-    failures = sort_failures(list(views.measured.failures))
-    kept, truncation = apply_failure_budget(failures, failure_budget, must_keep)
-
-    # Scoring-env contrast is R_lin-specific (identity rates invariant elsewhere).
-    lin = rates_proj["R_lin"]
-    lin_pooled = lin["pooled_contrast"]
-    delta_r = {
-        "scoring_env_from": SCORING_ENV_POOLED,
-        "scoring_env_to": SCORING_ENV_CALLABLE,
-        "R_lin_mean": _delta_rate(lin["mean_rate"], lin_pooled["mean_rate"]),
-        "R_lin_denominator_callable": lin["denominator"],
-        "R_lin_denominator_pooled": lin_pooled["denominator"],
-        "R_sym": 0.0,
-        "R_coll": 0.0,
-        "R_join": 0.0,
-        "note": "Identity rates invariant under scoring-env; only lineage mean/denom move.",
+def _scoring_env_delta(lineage_rate: Mapping[str, Any]) -> Dict[str, Any]:
+    """Contrast callable vs pooled R_lin; identity rates stay invariant."""
+    pooled = lineage_rate["pooled_contrast"]
+    return {
+        "scoring_env_from": ScoringEnv.POOLED,
+        "scoring_env_to": ScoringEnv.CALLABLE,
+        "R_lin_mean": _delta_rate(lineage_rate["mean_rate"], pooled["mean_rate"]),
+        "R_lin_denominator_callable": lineage_rate["denominator"],
+        "R_lin_denominator_pooled": pooled["denominator"],
+        RateKey.SYM: 0.0,
+        RateKey.COLL: 0.0,
+        RateKey.JOIN: 0.0,
+        "note": (
+            "Identity rates invariant under scoring-env; only lineage mean/denom move."
+        ),
     }
 
+
+def _report_counts(
+    signals: Mapping[str, Any],
+    facts: Sequence[Mapping[str, Any]],
+    *,
+    absence_rate: Mapping[str, Any],
+    recall_rate: Mapping[str, Any],
+) -> Dict[str, Any]:
     entity_map = signals.get("entity_table_map") or {}
-    absence = rates_proj["R_absence"]
-    recall = rates_proj["R_recall"]
-    rates: Dict[str, Any] = dict(rates_proj)
-    rates["oracle"] = {
-        "trusted_codeql_arm": ctx.oracle_arm,
-        "planted_recall_miss_count": ctx.planted_misses,
-        "astgrep_receipt_complete": ctx.astgrep_ok,
+    evidence = signals.get("evidence")
+    raw_queries = (
+        (evidence or {}).get("raw_queries") or []
+        if isinstance(evidence, Mapping)
+        else []
+    )
+    recall_miss = (
+        0 if recall_rate.get("omitted") else recall_rate.get("denominator", 0)
+    )
+    return {
+        "entity_table_map": (
+            len(entity_map) if isinstance(entity_map, Mapping) else 0
+        ),
+        "maps_to": len(_maps_to(facts)),
+        "raw_queries": len(raw_queries),
+        "absence": absence_rate["callable_absence"],
+        "unproven": absence_rate["unproven"],
+        "recall_miss": recall_miss,
     }
 
-    design_reopen = dict(views.design_reopen)
-    design_reopen["truncation_alarm"] = truncation["truncation_alarm"]
 
-    report = {
+def _assemble_report_document(
+    *,
+    signals: Mapping[str, Any],
+    facts: Sequence[Mapping[str, Any]],
+    views: GapViews,
+    kept_rates: Dict[str, Any],
+    design_reopen: Dict[str, Any],
+    truncation: Mapping[str, Any],
+    signals_path: Optional[str],
+    facts_path: Optional[str],
+    covering_proof: Optional[Mapping[str, Any]],
+    covering_ok: bool,
+) -> Dict[str, Any]:
+    uncertainty = views.uncertainty
+    return {
         "schema_version": GAP_PROBE_SCHEMA_VERSION,
         "gap_probe_schema_version": GAP_PROBE_SCHEMA_VERSION,
         "facts_ledger_schema_version": FACTS_LEDGER_SCHEMA_VERSION,
@@ -114,17 +116,13 @@ def build_gap_report(
             "signals_path": signals_path,
             "facts_path": facts_path,
         },
-        "counts": {
-            "entity_table_map": len(entity_map) if isinstance(entity_map, Mapping) else 0,
-            "maps_to": len(_maps_to(facts)),
-            "raw_queries": len((signals.get("evidence") or {}).get("raw_queries") or [])
-            if isinstance(signals.get("evidence"), Mapping)
-            else 0,
-            "absence": absence["callable_absence"],
-            "unproven": absence["unproven"],
-            "recall_miss": 0 if recall.get("omitted") else recall.get("denominator", 0),
-        },
-        "rates": rates,
+        "counts": _report_counts(
+            signals,
+            facts,
+            absence_rate=kept_rates[RateKey.ABSENCE],
+            recall_rate=kept_rates[RateKey.RECALL],
+        ),
+        "rates": kept_rates,
         "uncertainty": uncertainty,
         "measurement": {
             "residuals": uncertainty["residuals"],
@@ -133,7 +131,7 @@ def build_gap_report(
                 "claim": uncertainty.get("claim"),
                 "slot": "comparison_index",
             },
-            "delta_r_scoring_env": delta_r,
+            "delta_r_scoring_env": _scoring_env_delta(kept_rates[RateKey.LIN]),
             "truncation": truncation,
             "note_U": (
                 "U_w is a comparison index over Path A residuals — not Stage-0 "
@@ -147,6 +145,62 @@ def build_gap_report(
         "memo_rates": "claude/research/gap-probe-measurement-design-2026-07-30.md",
         "memo_covering": "claude/research/stage0-covering-absence-recall-2026-07-30.md",
     }
+
+
+def build_gap_report(
+    signals: Mapping[str, Any],
+    facts: Sequence[Mapping[str, Any]],
+    *,
+    signals_path: Optional[str] = None,
+    facts_path: Optional[str] = None,
+    failure_budget: Optional[int] = None,
+    must_keep: Optional[Sequence[str]] = None,
+    covering_proof: Optional[Mapping[str, Any]] = None,
+    covering_ok: bool = False,
+    covering_why: str = "",
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    _require_covering_ok(covering_ok=covering_ok, covering_why=covering_why)
+
+    # Pre-compute callable trial mass for R_absence (needs covering receipts).
+    astgrep_ok = _astgrep_receipt_complete(covering_proof)
+    callable_trials = count_callable_trials(
+        signals,
+        covering_ok=covering_ok,
+        astgrep_receipt_complete=astgrep_ok,
+    )
+    ctx = prepare_measure_context(
+        signals,
+        facts,
+        covering_proof=covering_proof,
+        covering_ok=covering_ok,
+        callable_trials=callable_trials,
+    )
+
+    views = assemble_gap_views(ctx)
+    failures = sort_failures(list(views.measured.failures))
+    kept, truncation = apply_failure_budget(failures, failure_budget, must_keep)
+
+    rates: Dict[str, Any] = dict(views.measured.rates)
+    rates["oracle"] = {
+        "trusted_codeql_arm": ctx.oracle_arm,
+        "planted_recall_miss_count": ctx.planted_misses,
+        "astgrep_receipt_complete": ctx.astgrep_ok,
+    }
+    design_reopen = dict(views.design_reopen)
+    design_reopen["truncation_alarm"] = truncation["truncation_alarm"]
+
+    report = _assemble_report_document(
+        signals=signals,
+        facts=facts,
+        views=views,
+        kept_rates=rates,
+        design_reopen=design_reopen,
+        truncation=truncation,
+        signals_path=signals_path,
+        facts_path=facts_path,
+        covering_proof=covering_proof,
+        covering_ok=covering_ok,
+    )
     return report, kept
 
 
@@ -160,10 +214,10 @@ def write_gap_report(
         json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    with failures_path.open("w", encoding="utf-8", newline="\n") as fh:
+    with failures_path.open("w", encoding="utf-8", newline="\n") as handle:
         for row in failures:
-            fh.write(json.dumps(dict(row), ensure_ascii=False, sort_keys=True))
-            fh.write("\n")
+            handle.write(json.dumps(dict(row), ensure_ascii=False, sort_keys=True))
+            handle.write("\n")
 
 
 def run_gap_probe(
@@ -179,7 +233,7 @@ def run_gap_probe(
     facts = _load_facts_jsonl(facts_path)
     if not isinstance(signals, Mapping):
         raise ValueError("signals root must be a JSON object")
-    proof, ok, why = load_and_verify_covering(
+    proof, covering_ok, covering_why = load_and_verify_covering(
         signals,
         signals_path=signals_path,
         covering_path=covering_path,
@@ -192,8 +246,8 @@ def run_gap_probe(
         failure_budget=failure_budget,
         must_keep=must_keep,
         covering_proof=proof,
-        covering_ok=ok,
-        covering_why=why,
+        covering_ok=covering_ok,
+        covering_why=covering_why,
     )
     write_gap_report(out_dir, report, failures)
     return report

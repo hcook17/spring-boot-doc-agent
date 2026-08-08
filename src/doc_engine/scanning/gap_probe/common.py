@@ -4,12 +4,33 @@ from __future__ import annotations
 
 import json
 import re
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 
 class CoveringPreconditionError(RuntimeError):
     """Raised when gap_probe cannot verify S1 covering before scoring S2."""
+
+
+class ScoringEnv(StrEnum):
+    """Closed scoring environments for R_lin (and delta_r contrast)."""
+
+    CALLABLE = "callable"
+    POOLED = "pooled"
+
+
+class RateKey(StrEnum):
+    """Closed R_* schema keys owned by the rate registry."""
+
+    SYM = "R_sym"
+    COLL = "R_coll"
+    JOIN = "R_join"
+    LIN = "R_lin"
+    CODE_DEP = "R_code_dep"
+    ABSENCE = "R_absence"
+    RECALL = "R_recall"
+
 
 GAP_PROBE_SCHEMA_VERSION = 3
 
@@ -19,8 +40,9 @@ WEIGHT_JOIN = 0.25
 WEIGHT_LINEAGE = 0.30
 WEIGHT_CODE_DEP = 0.15
 
-SCORING_ENV_CALLABLE = "callable"
-SCORING_ENV_POOLED = "pooled"
+# Public aliases — StrEnum members are str, so wire format stays unchanged.
+SCORING_ENV_CALLABLE = ScoringEnv.CALLABLE
+SCORING_ENV_POOLED = ScoringEnv.POOLED
 
 # Deployment / outbound match text → family for R_code|dep.
 _DEP_FAMILY_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = (
@@ -40,10 +62,10 @@ _CODE_BUCKET_BY_FAMILY: Dict[str, Tuple[str, ...]] = {
 }
 
 
-def _rate(num: int, den: int) -> Optional[float]:
-    if den <= 0:
+def _rate(numerator: int, denominator: int) -> Optional[float]:
+    if denominator <= 0:
         return None
-    return num / den
+    return numerator / denominator
 
 
 def _load_json(path: Path) -> Any:
@@ -60,15 +82,15 @@ def _load_facts_jsonl(path: Path) -> List[Dict[str, Any]]:
 
 
 def _maps_to(facts: Sequence[Mapping[str, Any]]) -> List[Mapping[str, Any]]:
-    return [f for f in facts if f.get("predicate") == "MAPS_TO"]
+    return [fact for fact in facts if fact.get("predicate") == "MAPS_TO"]
 
 
-def _rate_block(num: int, den: int, **extra: Any) -> Dict[str, Any]:
+def _rate_block(numerator: int, denominator: int, **extra: Any) -> Dict[str, Any]:
     block: Dict[str, Any] = {
-        "numerator": num,
-        "denominator": den,
-        "callable_denominator": den,
-        "rate": _rate(num, den),
+        "numerator": numerator,
+        "denominator": denominator,
+        "callable_denominator": denominator,
+        "rate": _rate(numerator, denominator),
     }
     block.update(extra)
     return block

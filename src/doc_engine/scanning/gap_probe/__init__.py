@@ -33,6 +33,8 @@ from .common import (
     WEIGHT_JOIN,
     WEIGHT_LINEAGE,
     CoveringPreconditionError,
+    RateKey,
+    ScoringEnv,
     _load_facts_jsonl,
     _load_json,
     _maps_to,
@@ -47,6 +49,7 @@ from .registry import (
     GapViews,
     MeasureContext,
     MeasuredRates,
+    RecallClaim,
     RegisteredMeasure,
     assemble_gap_views,
     prepare_measure_context,
@@ -59,7 +62,7 @@ from .report import (
     write_gap_report,
 )
 from .symbol_collision import measure_r_coll, measure_r_sym
-from .uncertainty import compute_uncertainty
+from .uncertainty import UncertaintyClaim, compute_uncertainty
 
 __all__ = [
     "CoveringPreconditionError",
@@ -68,9 +71,13 @@ __all__ = [
     "MeasuredRates",
     "MeasureContext",
     "RATE_REGISTRY",
+    "RateKey",
+    "RecallClaim",
     "RegisteredMeasure",
     "SCORING_ENV_CALLABLE",
     "SCORING_ENV_POOLED",
+    "ScoringEnv",
+    "UncertaintyClaim",
     "WEIGHT_CODE_DEP",
     "WEIGHT_COLLISION",
     "WEIGHT_JOIN",

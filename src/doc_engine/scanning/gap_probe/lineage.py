@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Mapping, Optional
 from .common import (
     SCORING_ENV_CALLABLE,
     SCORING_ENV_POOLED,
+    ScoringEnv,
     _rate,
     _rate_block,
 )
@@ -32,14 +33,14 @@ def _dominant_failure_stratum(lin: Mapping[str, Any]) -> Optional[Dict[str, Any]
         tax = lin.get("failure_taxonomy") or {}
     if not tax:
         return None
-    reason, count = max(tax.items(), key=lambda kv: kv[1])
+    reason, count = max(tax.items(), key=lambda item: item[1])
     return {"reason_class": reason, "count": count}
 
 
 def _lineage_row_outcome(
     row: Mapping[str, Any],
     *,
-    scoring_env: str,
+    scoring_env: ScoringEnv | str,
 ) -> tuple[str, bool, Optional[Dict[str, Any]], Optional[str]]:
     """Classify one raw_queries row for R_lin.
 
@@ -84,10 +85,10 @@ def _lineage_row_outcome(
 def measure_r_lin(
     signals: Mapping[str, Any],
     *,
-    scoring_env: str = SCORING_ENV_CALLABLE,
+    scoring_env: ScoringEnv | str = SCORING_ENV_CALLABLE,
 ) -> Dict[str, Any]:
     """Lineage rates under scoring environment `callable` (normative) or `pooled`."""
-    if scoring_env not in {SCORING_ENV_CALLABLE, SCORING_ENV_POOLED}:
+    if scoring_env not in {ScoringEnv.CALLABLE, ScoringEnv.POOLED}:
         raise ValueError(f"unknown scoring_env: {scoring_env}")
 
     evidence = signals.get("evidence") or {}

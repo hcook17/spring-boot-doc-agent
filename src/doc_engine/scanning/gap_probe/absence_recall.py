@@ -24,45 +24,58 @@ def measure_r_absence(
     (failure mass; ideal 0). Without ``callable_trials``, dens fall back to
     |ABSENCE| only for back-compat unit calls — prefer always passing trials.
     """
-    absence = 0
-    unproven = 0
+    absence_count = 0
+    unproven_count = 0
     failures: List[Dict[str, Any]] = []
-    for f in facts:
-        pred = f.get("predicate")
-        quals = f.get("qualifiers") if isinstance(f.get("qualifiers"), Mapping) else {}
-        trial = quals.get("trial")
-        if pred == "ABSENCE":
+    for fact in facts:
+        predicate = fact.get("predicate")
+        qualifiers = (
+            fact.get("qualifiers")
+            if isinstance(fact.get("qualifiers"), Mapping)
+            else {}
+        )
+        trial = qualifiers.get("trial")
+        if predicate == "ABSENCE":
             if trial != "callable":
                 continue
-            absence += 1
+            absence_count += 1
             failures.append(
                 {
                     "layer": "absence",
-                    "stratum": str(quals.get("family") or f.get("subject")),
+                    "stratum": str(qualifiers.get("family") or fact.get("subject")),
                     "reason_class": "ABSENCE",
-                    "subject": f.get("subject"),
-                    "file": f.get("file"),
+                    "subject": fact.get("subject"),
+                    "file": fact.get("file"),
                     "trial": trial,
                 }
             )
-        elif pred == "UNPROVEN":
-            unproven += 1
+        elif predicate == "UNPROVEN":
+            unproven_count += 1
+
     if callable_trials is not None:
-        den = int(callable_trials)
-        out = _rate_block(absence, den) if den > 0 else _rate_block(0, 0)
+        denominator = int(callable_trials)
+        block = (
+            _rate_block(absence_count, denominator)
+            if denominator > 0
+            else _rate_block(0, 0)
+        )
     else:
-        den = absence
-        out = _rate_block(absence, den) if den else _rate_block(0, 0)
-    out["callable_absence"] = absence
-    out["callable_trials"] = callable_trials
-    out["unproven"] = unproven
-    out["polarity"] = "failure_mass"
-    out["note"] = (
+        denominator = absence_count
+        block = (
+            _rate_block(absence_count, denominator)
+            if denominator
+            else _rate_block(0, 0)
+        )
+    block["callable_absence"] = absence_count
+    block["callable_trials"] = callable_trials
+    block["unproven"] = unproven_count
+    block["polarity"] = "failure_mass"
+    block["note"] = (
         "R_absence is failure mass |ABSENCE|/callable_trials (ideal 0). "
         "UNPROVEN is reported but excluded from the denominator."
     )
-    out["failures"] = failures
-    return out
+    block["failures"] = failures
+    return block
 
 
 def measure_r_recall(
@@ -77,13 +90,17 @@ def measure_r_recall(
     """
     if not oracle_arm_present:
         return None
-    misses = [f for f in facts if f.get("predicate") == "RECALL_MISS"]
+    misses = [fact for fact in facts if fact.get("predicate") == "RECALL_MISS"]
     structural = 0
     evidentiary = 0
     failures: List[Dict[str, Any]] = []
-    for f in misses:
-        quals = f.get("qualifiers") if isinstance(f.get("qualifiers"), Mapping) else {}
-        verdict = str(quals.get("verdict") or "STRUCTURAL")
+    for fact in misses:
+        qualifiers = (
+            fact.get("qualifiers")
+            if isinstance(fact.get("qualifiers"), Mapping)
+            else {}
+        )
+        verdict = str(qualifiers.get("verdict") or "STRUCTURAL")
         if verdict == "EVIDENTIARY":
             evidentiary += 1
         else:
@@ -93,49 +110,49 @@ def measure_r_recall(
                 "layer": "recall",
                 "stratum": verdict,
                 "reason_class": "RECALL_MISS",
-                "subject": f.get("subject"),
-                "file": f.get("file"),
-                "oracle_arm": quals.get("oracle_arm"),
+                "subject": fact.get("subject"),
+                "file": fact.get("file"),
+                "oracle_arm": qualifiers.get("oracle_arm"),
             }
         )
-    den = len(misses)
-    out = _rate_block(structural, den) if den else _rate_block(0, 0)
-    out["structural"] = structural
-    out["evidentiary"] = evidentiary
-    out["oracle_arm_present"] = True
-    out["failures"] = failures
-    return out
+    denominator = len(misses)
+    block = (
+        _rate_block(structural, denominator) if denominator else _rate_block(0, 0)
+    )
+    block["structural"] = structural
+    block["evidentiary"] = evidentiary
+    block["oracle_arm_present"] = True
+    block["failures"] = failures
+    return block
+
+
+def _complete_receipt_for_scanner(
+    covering_proof: Optional[Mapping[str, Any]],
+    *,
+    scanner: str,
+) -> bool:
+    """True when a receipt for ``scanner`` is complete with matching subset roots."""
+    for receipt in (covering_proof or {}).get("receipts") or []:
+        if not isinstance(receipt, Mapping):
+            continue
+        if receipt.get("scanner") != scanner:
+            continue
+        if receipt.get("status") != "complete":
+            continue
+        expected_root = receipt.get("expected_subset_root")
+        acked_root = receipt.get("acked_subset_root")
+        if expected_root and acked_root and expected_root == acked_root:
+            return True
+    return False
 
 
 def _trusted_codeql_oracle_arm(covering_proof: Optional[Mapping[str, Any]]) -> bool:
     """True only for a complete CodeQL receipt with matching subset roots."""
-    for receipt in (covering_proof or {}).get("receipts") or []:
-        if not isinstance(receipt, Mapping):
-            continue
-        if receipt.get("scanner") != "codeql":
-            continue
-        if receipt.get("status") != "complete":
-            continue
-        expected = receipt.get("expected_subset_root")
-        acked = receipt.get("acked_subset_root")
-        if expected and acked and expected == acked:
-            return True
-    return False
+    return _complete_receipt_for_scanner(covering_proof, scanner="codeql")
 
 
 def _astgrep_receipt_complete(covering_proof: Optional[Mapping[str, Any]]) -> bool:
-    for receipt in (covering_proof or {}).get("receipts") or []:
-        if not isinstance(receipt, Mapping):
-            continue
-        if receipt.get("scanner") != "ast-grep":
-            continue
-        if receipt.get("status") != "complete":
-            continue
-        expected = receipt.get("expected_subset_root")
-        acked = receipt.get("acked_subset_root")
-        if expected and acked and expected == acked:
-            return True
-    return False
+    return _complete_receipt_for_scanner(covering_proof, scanner="ast-grep")
 
 
 def _planted_recall_failures(
@@ -146,7 +163,11 @@ def _planted_recall_failures(
     for fact in facts:
         if fact.get("predicate") != "RECALL_MISS":
             continue
-        quals = fact.get("qualifiers") if isinstance(fact.get("qualifiers"), Mapping) else {}
+        qualifiers = (
+            fact.get("qualifiers")
+            if isinstance(fact.get("qualifiers"), Mapping)
+            else {}
+        )
         rows.append(
             {
                 "layer": "recall",
@@ -154,7 +175,7 @@ def _planted_recall_failures(
                 "reason_class": "RECALL_MISS_WITHOUT_ORACLE",
                 "subject": fact.get("subject"),
                 "file": fact.get("file"),
-                "oracle_arm": quals.get("oracle_arm"),
+                "oracle_arm": qualifiers.get("oracle_arm"),
             }
         )
     return rows
@@ -175,15 +196,15 @@ def load_and_verify_covering(
     proof = _load_json(path)
     if not isinstance(proof, Mapping):
         return {}, False, "covering_proof root must be a JSON object"
-    sigs = signals.get("file_signatures") or {}
-    if not isinstance(sigs, Mapping):
+    signatures = signals.get("file_signatures") or {}
+    if not isinstance(signatures, Mapping):
         return dict(proof), False, "signals.file_signatures missing"
     scanner_version = signals.get("scanner_version")
     if not scanner_version:
         return dict(proof), False, "signals.scanner_version missing"
-    ok, why = verify_covering_proof(
+    verified, reason = verify_covering_proof(
         proof,
-        file_signatures=sigs,
+        file_signatures=signatures,
         scanner_version=str(scanner_version),
     )
-    return dict(proof), ok, why
+    return dict(proof), verified, reason
