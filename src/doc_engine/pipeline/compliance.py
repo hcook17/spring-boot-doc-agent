@@ -307,6 +307,6 @@ def stage_records_from_runner_results(
 
 # Late import: fold module depends on types/helpers above; re-export keeps
 # `from doc_engine.pipeline.compliance import build_certification_report` stable.
-from doc_engine.pipeline.certification_fold import (  # noqa: E402
+from doc_engine.pipeline.certification_fold import (  # noqa: E402, F401
     build_certification_report,
 )
