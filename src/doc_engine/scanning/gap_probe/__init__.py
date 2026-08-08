@@ -23,6 +23,8 @@ from .code_dep import (
     measure_r_code_dep,
 )
 from .common import (
+    _CODE_BUCKET_BY_FAMILY,
+    _DEP_FAMILY_PATTERNS,
     GAP_PROBE_SCHEMA_VERSION,
     SCORING_ENV_CALLABLE,
     SCORING_ENV_POOLED,
@@ -31,8 +33,6 @@ from .common import (
     WEIGHT_JOIN,
     WEIGHT_LINEAGE,
     CoveringPreconditionError,
-    _CODE_BUCKET_BY_FAMILY,
-    _DEP_FAMILY_PATTERNS,
     _load_facts_jsonl,
     _load_json,
     _maps_to,
@@ -45,8 +45,8 @@ from .lineage import _dominant_failure_stratum, _lineage_reason_class, _lineage_
 from .registry import (
     RATE_REGISTRY,
     GapViews,
-    MeasuredRates,
     MeasureContext,
+    MeasuredRates,
     RegisteredMeasure,
     assemble_gap_views,
     prepare_measure_context,
