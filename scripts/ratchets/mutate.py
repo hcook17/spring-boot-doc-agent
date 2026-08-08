@@ -140,15 +140,15 @@ MUTATORS: List[Mutator] = [
     Mutator(
         "query-limit-ceiling-removed",
         "src/doc_engine/query/envelope.py", "python",
-        "cap = max_limit",
-        "pass",
+        "cap = max(0, min(cap, max_limit))",
+        "cap = max(0, cap)",
         "test_query_artifacts.py",
         "agents rely on hard --limit clamp; removing it dumps unbounded "
         "evidence into context (DDIA backpressure)"),
     Mutator(
         "context-packet-budget-trim-disabled",
         "src/doc_engine/query/rank.py", "python",
-        "used + cost > budget",
+        "tokens_used + cost > budget",
         "False",
         "test_context_packet.py",
         "context_packet budgetTokens must trim primaryContext; disabling "
