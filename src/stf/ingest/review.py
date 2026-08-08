@@ -8,10 +8,10 @@ from pathlib import Path
 from stf.schemas.findings import Finding, FindingLink, FindingSeverity
 from stf.schemas.spec import DataSourceRow, SpecDocument
 
-# Linear patterns — no nested quantifiers / alternation traps.
-_HEADING = re.compile(r"^###\s+(\S+)\s*[—–-]\s*(.+)$", re.M)
+# Keep patterns linear: fixed markers, no overlapping \\s*/.+ backtracking.
+_HEADING = re.compile(r"^###\s+(\S+)\s+[—–-]\s+([^\n]+)$", re.M)
 _FINDING_ID = re.compile(r"^(?:[CHMNS]\d+|Q\d+-\d+|E-[A-Z0-9]+)$")
-_SEVERITY_LINE = re.compile(r"\*\*Severity:\s*([^*]*)\*\*", re.I)
+_SEVERITY_MARK = "**severity:"
 _EPIC_ID = re.compile(r"^[A-Z][A-Z0-9]*-\d+$")
 _PATH_TICK = re.compile(r"`((?:src|tests|adapters|scripts|docs|claude)/[^`]+)`")
 _PATH_CITE = re.compile(r"```\d+:\d+:([^\n`]+)")
@@ -34,10 +34,16 @@ _SEV_BY_PREFIX: dict[str, FindingSeverity] = {
 
 
 def _sev_from_severity_line(text: str) -> FindingSeverity | None:
-    m = _SEVERITY_LINE.search(text)
-    if not m:
+    """Parse ``**Severity: …**`` without a backtracking regex."""
+    lower = text.lower()
+    start = lower.find(_SEVERITY_MARK)
+    if start < 0:
         return None
-    return _sev_from_raw(m.group(1).strip().lower())
+    after = text[start + len(_SEVERITY_MARK) :]
+    end = after.find("**")
+    if end < 0:
+        return None
+    return _sev_from_raw(after[:end].strip().lower())
 
 
 def _sev_from_raw(raw: str) -> FindingSeverity | None:
