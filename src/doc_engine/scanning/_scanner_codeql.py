@@ -91,74 +91,27 @@ class CodeQLBackend(ScannerBackend):
             bucket, _, _ = rule_id.partition("__")
 
             if rule_id == "persistence__entity":
-                header = read_source_lines(repo_path, rel, 1, max_lines=40)
-                extracted = extract_entity(rel, match_text, package_source=header or None)
-                if extracted is None:
-                    class_name = row.get("class_name")
-                    if not class_name:
-                        continue
-                    map_entry = {
-                        "file": rel,
-                        "table": to_snake_case(class_name),
-                        "table_name_source": "inferred-default-naming",
-                        "fqcn": class_name,
-                    }
-                else:
-                    class_name, map_entry = extracted
-
-                codeql_table = row.get("table_name")
-                if codeql_table:
-                    preserved_pkg = map_entry.get("package")
-                    preserved_fqcn = map_entry.get("fqcn")
-                    map_entry = {
-                        "file": rel,
-                        "table": codeql_table,
-                        "table_name_source": "explicit",
-                        "fqcn": preserved_fqcn or class_name,
-                    }
-                    if preserved_pkg is not None:
-                        map_entry["package"] = preserved_pkg
-                elif extracted is None:
-                    map_entry = {
-                        "file": rel,
-                        "table": to_snake_case(class_name),
-                        "table_name_source": "inferred-default-naming",
-                        "fqcn": class_name,
-                    }
-
-                map_entry["rule_id"] = rule_id
-                map_entry["match"] = first_line_match(match_text)
-                entity_candidates.setdefault(class_name, []).append(map_entry)
-                evidence.setdefault("persistence", []).append({
-                    "file": rel,
-                    "line": row.get("line"),
-                    "match": first_line_match(match_text),
-                    "rule_id": rule_id,
-                    "class_name": class_name,
-                })
+                self._ingest_entity_row(
+                    repo_path=repo_path,
+                    rel=rel,
+                    row=row,
+                    match_text=match_text,
+                    rule_id=rule_id,
+                    entity_candidates=entity_candidates,
+                    evidence=evidence,
+                )
                 continue
 
-            entry: Dict[str, Any] = {
-                "file": rel,
-                "line": row.get("line"),
-                "match": first_line_match(match_text),
-                "rule_id": rule_id,
-            }
-            if rule_id == "raw_queries__query":
-                query_kind = row.get("query_kind", "jpql")
-                query_text = row.get("query_text") or row.get("query")
-                entry["query_kind"] = query_kind
-                if query_text:
-                    entry["query"] = query_text
-            elif rule_id == "persistence__repository":
-                entry.update(extract_repository(match_text))
-                if not entry.get("entity") and row.get("entity_name"):
-                    entry["entity"] = row.get("entity_name")
-
+            entry = self._evidence_entry_from_codeql_row(
+                rel=rel,
+                row=row,
+                match_text=match_text,
+                rule_id=rule_id,
+            )
             evidence.setdefault(bucket, []).append(entry)
 
-        for bucket in evidence.values():
-            bucket.sort(key=lambda e: (e["file"], e.get("line", 0)))
+        for bucket_rows in evidence.values():
+            bucket_rows.sort(key=lambda item: (item["file"], item.get("line", 0)))
 
         from doc_engine.scanning.covering import (
             COVERING_RECEIPT_KEY,
@@ -195,3 +148,120 @@ class CodeQLBackend(ScannerBackend):
             "entity_table_map_candidates": entity_candidates,
             COVERING_RECEIPT_KEY: receipt,
         }
+
+    @staticmethod
+    def _entity_map_entry(
+        *,
+        rel: str,
+        class_name: str,
+        match_text: str,
+        rule_id: str,
+        extracted: Optional[tuple],
+        codeql_table: Optional[str],
+    ) -> Optional[tuple[str, Dict[str, Any]]]:
+        """Build (class_name, map_entry) for a persistence__entity CodeQL row.
+
+        SoR: CodeQL result row. Derived: entity_table_map candidate entry.
+        """
+        if extracted is None:
+            if not class_name:
+                return None
+            map_entry: Dict[str, Any] = {
+                "file": rel,
+                "table": to_snake_case(class_name),
+                "table_name_source": "inferred-default-naming",
+                "fqcn": class_name,
+            }
+        else:
+            class_name, map_entry = extracted
+
+        if codeql_table:
+            preserved_package = map_entry.get("package")
+            preserved_fqcn = map_entry.get("fqcn")
+            map_entry = {
+                "file": rel,
+                "table": codeql_table,
+                "table_name_source": "explicit",
+                "fqcn": preserved_fqcn or class_name,
+            }
+            if preserved_package is not None:
+                map_entry["package"] = preserved_package
+        elif extracted is None:
+            map_entry = {
+                "file": rel,
+                "table": to_snake_case(class_name),
+                "table_name_source": "inferred-default-naming",
+                "fqcn": class_name,
+            }
+
+        map_entry["rule_id"] = rule_id
+        map_entry["match"] = first_line_match(match_text)
+        return class_name, map_entry
+
+    def _ingest_entity_row(
+        self,
+        *,
+        repo_path: str,
+        rel: str,
+        row: Dict[str, Any],
+        match_text: str,
+        rule_id: str,
+        entity_candidates: Dict[str, List[Dict[str, Any]]],
+        evidence: Dict[str, List[Dict[str, Any]]],
+    ) -> None:
+        """Record entity_table_map candidate + persistence evidence for one entity hit.
+
+        SoR: CodeQL entity row. Derived: map candidate + evidence bucket entry.
+        """
+        header = read_source_lines(repo_path, rel, 1, max_lines=40)
+        extracted = extract_entity(rel, match_text, package_source=header or None)
+        class_name = row.get("class_name") if extracted is None else None
+        built = self._entity_map_entry(
+            rel=rel,
+            class_name=class_name or "",
+            match_text=match_text,
+            rule_id=rule_id,
+            extracted=extracted,
+            codeql_table=row.get("table_name"),
+        )
+        if built is None:
+            return
+        class_name, map_entry = built
+        entity_candidates.setdefault(class_name, []).append(map_entry)
+        evidence.setdefault("persistence", []).append({
+            "file": rel,
+            "line": row.get("line"),
+            "match": first_line_match(match_text),
+            "rule_id": rule_id,
+            "class_name": class_name,
+        })
+
+    @staticmethod
+    def _evidence_entry_from_codeql_row(
+        *,
+        rel: str,
+        row: Dict[str, Any],
+        match_text: str,
+        rule_id: str,
+    ) -> Dict[str, Any]:
+        """Build a non-entity evidence entry from one CodeQL result row.
+
+        SoR: CodeQL result row. Derived: evidence-map entry (not entity map).
+        """
+        entry: Dict[str, Any] = {
+            "file": rel,
+            "line": row.get("line"),
+            "match": first_line_match(match_text),
+            "rule_id": rule_id,
+        }
+        if rule_id == "raw_queries__query":
+            query_kind = row.get("query_kind", "jpql")
+            query_text = row.get("query_text") or row.get("query")
+            entry["query_kind"] = query_kind
+            if query_text:
+                entry["query"] = query_text
+        elif rule_id == "persistence__repository":
+            entry.update(extract_repository(match_text))
+            if not entry.get("entity") and row.get("entity_name"):
+                entry["entity"] = row.get("entity_name")
+        return entry

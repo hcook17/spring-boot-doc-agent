@@ -86,6 +86,75 @@ def _type_symbol_quals(
     return subject, quals
 
 
+def _maps_to_fact_from_source(
+    class_name: str,
+    source: Mapping[str, Any],
+    *,
+    base_quals: Dict[str, Any],
+    default_scanner: Optional[str],
+    fallback_rule_id: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Build one MAPS_TO fact from a contested candidate or settled map entry."""
+    subject, quals = _type_symbol_quals(str(class_name), source, base_quals=base_quals)
+    return _fact(
+        predicate="MAPS_TO",
+        subject=subject,
+        object_=None if source.get("table") is None else str(source.get("table")),
+        qualifiers=quals,
+        file=None if source.get("file") is None else str(source.get("file")),
+        line=source.get("line") if isinstance(source.get("line"), int) else None,
+        rule_id=source.get("rule_id") or fallback_rule_id,
+        scanner=source.get("scanner") or default_scanner,
+    )
+
+
+def _maps_to_from_contested_entry(
+    class_name: str,
+    entry: Mapping[str, Any],
+    candidates: list,
+    default_scanner: Optional[str],
+) -> List[Dict[str, Any]]:
+    """One MAPS_TO per contested table candidate."""
+    facts: List[Dict[str, Any]] = []
+    for candidate in candidates:
+        if not isinstance(candidate, Mapping):
+            continue
+        quals: Dict[str, Any] = {"status": "contested"}
+        if candidate.get("table_name_source") is not None:
+            quals["table_name_source"] = candidate.get("table_name_source")
+        elif entry.get("table_name_source") is not None:
+            quals["table_name_source"] = entry.get("table_name_source")
+        facts.append(
+            _maps_to_fact_from_source(
+                class_name,
+                candidate,
+                base_quals=quals,
+                default_scanner=default_scanner,
+                fallback_rule_id=entry.get("rule_id"),
+            )
+        )
+    return facts
+
+
+def _maps_to_from_settled_entry(
+    class_name: str,
+    entry: Mapping[str, Any],
+    default_scanner: Optional[str],
+) -> Dict[str, Any]:
+    """One MAPS_TO for a non-contested entity_table_map entry."""
+    quals: Dict[str, Any] = {}
+    if entry.get("status") is not None:
+        quals["status"] = entry.get("status")
+    if entry.get("table_name_source") is not None:
+        quals["table_name_source"] = entry.get("table_name_source")
+    return _maps_to_fact_from_source(
+        class_name,
+        entry,
+        base_quals=quals,
+        default_scanner=default_scanner,
+    )
+
+
 def _maps_to_from_entity_table_map(
     entity_table_map: Mapping[str, Any],
     default_scanner: Optional[str],
@@ -101,47 +170,13 @@ def _maps_to_from_entity_table_map(
         status = entry.get("status")
         candidates = entry.get("candidates")
         if status == "contested" and isinstance(candidates, list) and candidates:
-            for cand in candidates:
-                if not isinstance(cand, Mapping):
-                    continue
-                quals: Dict[str, Any] = {"status": "contested"}
-                if cand.get("table_name_source") is not None:
-                    quals["table_name_source"] = cand.get("table_name_source")
-                elif entry.get("table_name_source") is not None:
-                    quals["table_name_source"] = entry.get("table_name_source")
-                subject, quals = _type_symbol_quals(str(class_name), cand, base_quals=quals)
-                facts.append(
-                    _fact(
-                        predicate="MAPS_TO",
-                        subject=subject,
-                        object_=None if cand.get("table") is None else str(cand.get("table")),
-                        qualifiers=quals,
-                        file=None if cand.get("file") is None else str(cand.get("file")),
-                        line=cand.get("line") if isinstance(cand.get("line"), int) else None,
-                        rule_id=cand.get("rule_id") or entry.get("rule_id"),
-                        scanner=cand.get("scanner") or default_scanner,
-                    )
+            facts.extend(
+                _maps_to_from_contested_entry(
+                    class_name, entry, candidates, default_scanner,
                 )
-            continue
-
-        quals: Dict[str, Any] = {}
-        if entry.get("status") is not None:
-            quals["status"] = entry.get("status")
-        if entry.get("table_name_source") is not None:
-            quals["table_name_source"] = entry.get("table_name_source")
-        subject, quals = _type_symbol_quals(str(class_name), entry, base_quals=quals)
-        facts.append(
-            _fact(
-                predicate="MAPS_TO",
-                subject=subject,
-                object_=None if entry.get("table") is None else str(entry.get("table")),
-                qualifiers=quals,
-                file=None if entry.get("file") is None else str(entry.get("file")),
-                line=entry.get("line") if isinstance(entry.get("line"), int) else None,
-                rule_id=entry.get("rule_id"),
-                scanner=entry.get("scanner") or default_scanner,
             )
-        )
+            continue
+        facts.append(_maps_to_from_settled_entry(class_name, entry, default_scanner))
     return facts
 
 

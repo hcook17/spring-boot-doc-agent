@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -9,12 +10,19 @@ from doc_engine.core.walk import compute_file_signature, is_path_inside_root
 from doc_engine.query.load import QueryError
 
 
+class FreshnessLabel(StrEnum):
+    LIVE = "live"
+    FRESH_INDEXED = "fresh_indexed"
+    STALE = "stale"
+    UNKNOWN = "unknown"
+
+
 class UnknownFreshnessWhenNoRepo:
     """Honest default when no repo path is supplied — never invent fresh_indexed."""
 
     def freshness_for(self, rel_path: str | None = None) -> str:
         _ = rel_path
-        return "unknown"
+        return FreshnessLabel.UNKNOWN
 
 
 # Historical name kept as alias so call sites and docs remain greppable.
@@ -40,26 +48,30 @@ class SignatureFreshness:
 
     def freshness_for(self, rel_path: str | None) -> str:
         if not rel_path:
-            return "unknown"
+            return FreshnessLabel.UNKNOWN
         rel = rel_path.replace("\\", "/")
         if rel in self._live:
-            return "live"
+            return FreshnessLabel.LIVE
         return self._compare_on_disk(rel)
 
     def _compare_on_disk(self, rel: str) -> str:
         full = (self._root / rel).resolve()
         if not is_path_inside_root(str(full), str(self._root)):
-            return "unknown"
+            return FreshnessLabel.UNKNOWN
         if not full.is_file():
-            return "stale"
+            return FreshnessLabel.STALE
         expected = self._sigs.get(rel)
         if expected is None:
-            return "unknown"
+            return FreshnessLabel.UNKNOWN
         try:
             actual = compute_file_signature(str(full))
         except OSError:
-            return "unknown"
-        return "fresh_indexed" if actual == expected else "stale"
+            return FreshnessLabel.UNKNOWN
+        return (
+            FreshnessLabel.FRESH_INDEXED
+            if actual == expected
+            else FreshnessLabel.STALE
+        )
 
 
 class DriftReportFreshness:
@@ -71,7 +83,7 @@ class DriftReportFreshness:
 
     def freshness_for(self, rel_path: str | None) -> str:
         if rel_path and rel_path.replace("\\", "/") in self._stale:
-            return "stale"
+            return FreshnessLabel.STALE
         return self._inner.freshness_for(rel_path)
 
 
@@ -80,7 +92,7 @@ def label_item_path(policy: object, rel_path: str | None) -> str:
     if not callable(fn):
         raise QueryError("freshness policy missing freshness_for")
     label = fn(rel_path)
-    if label not in ("live", "fresh_indexed", "stale", "unknown"):
+    if label not in FreshnessLabel:
         raise QueryError(f"illegal freshness label: {label!r}")
     return label
 

@@ -1,16 +1,21 @@
 """Compliance profiles, gate checklists, and certification.json emission.
 
 ``certification.json`` is a **derived view** over stage/gate facts: only
-``build_certification_report`` computes ``certified`` / ``failures``.
-``completeness_claim`` is always ``fold_of_recorded_rows`` — the bit is not
-Stage-0 covering / gap measurement / doc quality. See
-``claude/research/certification-derived-view-2026-07-30.md``.
+``build_certification_report`` (in ``certification_fold``) computes
+``certified`` / ``failures``. ``completeness_claim`` is always
+``fold_of_recorded_rows`` — the bit is not Stage-0 covering / gap
+measurement / doc quality. See
+``claude/research/certification-derived-view-2026-07-30.md`` and
+``docs/design/ddia-north-star/deviations/dev-certification-derived-view.md``.
+
+This module owns the SoR-ish profile/config surface (enums, record models,
+required-stage/gate helpers, writers). The fold assembler lives in
+``certification_fold`` and is re-exported here for a stable import path.
 """
 
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
@@ -54,21 +59,42 @@ def gates_required_for_profile(profile: ComplianceProfile) -> frozenset[str]:
     return CERTIFIED_GATE_IDS
 
 
-GenerativeExecutor = Literal["none", "mock", "live"]
-StageExecutor = Literal["deterministic", "none", "mock", "live"]
+class GenerativeExecutor(StrEnum):
+    """How generative stages were executed for this certification fold."""
+
+    NONE = "none"
+    MOCK = "mock"
+    LIVE = "live"
+
+
+class StageExecutorKind(StrEnum):
+    """Per-stage executor stamp on StageRecord (not the StageExecutor Protocol)."""
+
+    DETERMINISTIC = "deterministic"
+    NONE = "none"
+    MOCK = "mock"
+    LIVE = "live"
+
+
+class RecordStatus(StrEnum):
+    """Normalized ok/fail/skipped on certification stage and gate rows."""
+
+    OK = "ok"
+    FAIL = "fail"
+    SKIPPED = "skipped"
 
 
 class StageRecord(BaseModel):
     name: str
-    status: Literal["ok", "fail", "skipped"]
+    status: RecordStatus
     detail: str = ""
-    executor: StageExecutor = "deterministic"
+    executor: StageExecutorKind = StageExecutorKind.DETERMINISTIC
 
 
 class GateRecord(BaseModel):
     id: str
     label: str
-    status: Literal["ok", "fail", "skipped"]
+    status: RecordStatus
     required: bool = True
     detail: str = ""
 
@@ -80,7 +106,7 @@ class CertificationReport(BaseModel):
     repo_path: str
     out_dir: str
     timestamp: str
-    generative_executor: GenerativeExecutor = "none"
+    generative_executor: GenerativeExecutor = GenerativeExecutor.NONE
     # Bare-minimum honesty: certified is a fold over recorded stage/gate rows,
     # not Stage-0 covering / gap_probe / doc-quality completeness.
     completeness_claim: Literal["fold_of_recorded_rows"] = "fold_of_recorded_rows"
@@ -184,124 +210,32 @@ def required_stage_names_for_profile(profile: ComplianceProfile) -> frozenset[st
     return frozenset(s.name for s in stages_for_profile(profile, build_stage_specs()))
 
 
-def _stage_status_from_runner(status: str) -> Literal["ok", "fail", "skipped"]:
+def _stage_status_from_runner(status: str) -> RecordStatus:
     if status in ("OK", "MOCK"):
-        return "ok"
+        return RecordStatus.OK
     if status == "SKIPPED":
-        return "skipped"
-    return "fail"
+        return RecordStatus.SKIPPED
+    return RecordStatus.FAIL
 
 
 def _stage_executor_from_runner(
     status: str,
     stage_name: str,
-) -> StageExecutor:
+) -> StageExecutorKind:
     """Preserve mock-ness; classify OK stages by graph kind."""
     if status == "MOCK":
-        return "mock"
+        return StageExecutorKind.MOCK
     if status == "SKIPPED":
         if stage_name in generative_stage_names():
-            return "none"
-        return "deterministic"
+            return StageExecutorKind.NONE
+        return StageExecutorKind.DETERMINISTIC
     if stage_name in generative_stage_names():
         # OK without MOCK ⇒ non-mock generative adapter (live-in-runner).
         # Fail/error must not be labelled live.
         if status == "OK":
-            return "live"
-        return "none"
-    return "deterministic"
-
-
-def build_certification_report(
-    profile: ComplianceProfile,
-    repo_path: str,
-    out_dir: str,
-    stages: list[StageRecord],
-    gates: list[GateRecord],
-    generative_executor: GenerativeExecutor = "none",
-    *,
-    allow_mock: bool = False,
-) -> CertificationReport:
-    """Assemble certification.json from stage and gate audit records.
-
-    ``certified`` is true only when the fold rules pass over **recorded**
-    stage/gate rows (fails, required skips, gate failures/missings,
-    mock-under-live, CERTIFIED+mock/none without ``allow_mock``). It is
-    **not** Stage-0 covering / gap_probe / doc-quality completeness — see
-    ``completeness_claim: fold_of_recorded_rows``.
-    An empty gate list cannot certify when the profile lists required gates.
-    """
-    failures: list[str] = []
-    required_stages = required_stage_names_for_profile(profile)
-
-    for stage in stages:
-        if stage.status == "fail":
-            failures.append(f"stage:{stage.name}:{stage.status}")
-        elif stage.status == "skipped" and stage.name in required_stages:
-            failures.append(f"stage:{stage.name}:skipped")
-        if generative_executor == "live" and stage.executor == "mock":
-            failures.append(f"stage:{stage.name}:mock_under_live")
-
-    by_id = {gate.id: gate for gate in gates}
-    for gate in gates:
-        if gate.required and gate.status != "ok":
-            failures.append(f"gate:{gate.id}:{gate.status}")
-    required_ids = gates_required_for_profile(profile)
-    for gate_id in sorted(required_ids):
-        # Live gates intentionally do not rerun pytest; the skipped gate is
-        # recorded separately with required=False. Treating it as a missing or
-        # not-required profile gate would make the live path self-fail.
-        if generative_executor == "live" and gate_id == "test_pipeline_stages":
-            continue
-        gate = by_id.get(gate_id)
-        if gate is None:
-            failures.append(f"gate:{gate_id}:missing")
-        elif not gate.required:
-            # Presence alone is not enough — required=False forges the fold.
-            failures.append(f"gate:{gate_id}:not_required")
-        elif gate.status != "ok":
-            # Already recorded above when required=True; keep explicit for
-            # profile-required ids so the failure list is complete if the
-            # earlier loop is ever narrowed.
-            if f"gate:{gate_id}:{gate.status}" not in failures:
-                failures.append(f"gate:{gate_id}:{gate.status}")
-
-    # Omission ≠ success: required stages never recorded must fail the fold.
-    # Live rewrite may substitute generative_external for all generative stages.
-    recorded = {stage.name for stage in stages}
-    gen_names = generative_stage_names()
-    live_external_ok = generative_executor == "live" and any(
-        s.name == GENERATIVE_EXTERNAL_STAGE and s.status == "ok" for s in stages
-    )
-    for name in sorted(required_stages):
-        if name in recorded:
-            continue
-        if live_external_ok and name in gen_names:
-            continue
-        failures.append(f"stage:{name}:missing")
-
-    # CERTIFIED + mock/none is not a live adoption fold unless allow_mock.
-    if (
-        profile == ComplianceProfile.CERTIFIED
-        and generative_executor in ("none", "mock")
-        and not allow_mock
-    ):
-        failures.append(f"generative_executor:{generative_executor}:allow_mock_required")
-
-    return CertificationReport(
-        schema_version=CERTIFICATION_SCHEMA_VERSION,
-        compliance_profile=profile.value,
-        certified=len(failures) == 0,
-        repo_path=repo_path,
-        out_dir=out_dir,
-        timestamp=datetime.now(timezone.utc).isoformat(),
-        generative_executor=generative_executor,
-        completeness_claim="fold_of_recorded_rows",
-        profile_gate_ids=sorted(required_ids),
-        stages=stages,
-        gates=gates,
-        failures=failures,
-    )
+            return StageExecutorKind.LIVE
+        return StageExecutorKind.NONE
+    return StageExecutorKind.DETERMINISTIC
 
 
 def write_certification_json(out_dir: str | Path, report: CertificationReport) -> Path:
@@ -369,3 +303,10 @@ def stage_records_from_runner_results(
             )
         )
     return records
+
+
+# Late import: fold module depends on types/helpers above; re-export keeps
+# `from doc_engine.pipeline.compliance import build_certification_report` stable.
+from doc_engine.pipeline.certification_fold import (  # noqa: E402
+    build_certification_report,
+)
