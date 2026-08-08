@@ -111,6 +111,22 @@ PY
 Look for the gap; put the threshold inside it. If the distribution stops being bimodal, this check
 has stopped measuring something real and should be reconsidered rather than retuned.
 
+## Line coverage ratchet
+
+CI measures statement+branch coverage for the installable packages `doc_engine`
+and `stf` (not `scripts/` or `adapters/`) and fails if the combined total drops
+below `[tool.coverage.report] fail_under` in `pyproject.toml`. Ratchet upward by
+editing that one number after a deliberate coverage gain. Delete local
+`.coverage*` files before measuring if you previously collected statement-only
+data — mixing them with `branch = true` makes coverage refuse to combine.
+
+Locally (after `pip install -r requirements-dev.txt` and `pip install -e .`):
+
+```bash
+rm -f .coverage .coverage.* coverage.xml
+pytest tests/ -q --cov=doc_engine --cov=stf --cov-branch --cov-report=term-missing
+```
+
 ## Current status and steering prompts
 
 See `STATUS.md` for a current-state snapshot of this plugin (what's done, what's pending, next concrete action) and `claude/session-log.md` for the append-only history of commits that affect the assumptions in `claude/steering-prompts/`. `CLAUDE.md` explains when a commit needs a session-log entry.

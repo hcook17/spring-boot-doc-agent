@@ -15,6 +15,7 @@
 # which owns the committed per-function baseline ruff has no equivalent for.
 ruff~=0.16.0
 pytest~=8.3.0
+pytest-cov~=6.0
 
 # Workflow YAML parse gate (scripts/ci/check_workflow_yaml.py). Catches the PR #57
 # class: unquoted colons in step names that make Actions reject the file.

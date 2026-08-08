@@ -12,9 +12,9 @@ Customer Spring trees are untrusted by default. Two independent gates:
 
 from __future__ import annotations
 
-from enum import StrEnum
 from typing import Optional
 
+from doc_engine._compat import StrEnum
 from doc_engine.config.settings import Settings
 from doc_engine.pipeline.compliance import ComplianceProfile
 
