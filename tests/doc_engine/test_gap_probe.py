@@ -409,3 +409,66 @@ def test_write_gap_report_roundtrip(tmp_path) -> None:
     lines = (tmp_path / "gap_failures.jsonl").read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 1
     assert '"subject": "User"' in lines[0]
+
+
+def test_rate_registry_keys_match_schema_rates() -> None:
+    """OCP registry must expose exactly the closed R_* schema keys."""
+    from doc_engine.scanning.gap_probe import RATE_REGISTRY
+
+    assert tuple(spec.key for spec in RATE_REGISTRY) == (
+        "R_sym",
+        "R_coll",
+        "R_join",
+        "R_lin",
+        "R_code_dep",
+        "R_absence",
+        "R_recall",
+    )
+
+
+def test_registry_hooks_drive_uncertainty_and_design_reopen() -> None:
+    """Assembly hooks are registry-owned; report only adds truncation_alarm."""
+    from doc_engine.scanning.gap_probe import RATE_REGISTRY
+
+    u_keys = tuple(s.key for s in RATE_REGISTRY if s.uncertainty_inputs is not None)
+    reopen_keys = tuple(s.key for s in RATE_REGISTRY if s.design_reopen is not None)
+    extra_keys = tuple(s.key for s in RATE_REGISTRY if s.extra_failures is not None)
+    assert u_keys == ("R_coll", "R_join", "R_lin", "R_code_dep", "R_absence")
+    assert reopen_keys == ("R_coll", "R_join", "R_lin", "R_absence", "R_recall")
+    assert extra_keys == ("R_recall",)
+
+    signals = {
+        "schema_version": 7,
+        "scanner_version": "test",
+        "entity_table_map": {
+            "Order": {
+                "file": "Order.java",
+                "table": "orders",
+                "package": "com.acme",
+                "fqcn": "com.acme.Order",
+            }
+        },
+        "evidence": {"raw_queries": [], "deployment": []},
+    }
+    facts = facts_from_signals(signals)
+    report, _ = _report(signals, facts)
+    assert set(report["design_reopen"]) == {
+        "path_a_to_symbols",
+        "join_incomplete",
+        "lineage_dominant_stratum",
+        "truncation_alarm",
+        "structural_recall_misses",
+        "unproven_present",
+        "absence_present",
+        "vacuous_uncertainty",
+        "untrusted_planted_recall",
+        "r_absence_failure_mass",
+    }
+    assert set(report["uncertainty"]["residuals"]) == {
+        "R_coll",
+        "join_gap",
+        "lineage_gap",
+        "code_dep_gap",
+    }
+    assert report["uncertainty"]["slot"] == "comparison_index"
+    assert "U" in report["uncertainty"]
