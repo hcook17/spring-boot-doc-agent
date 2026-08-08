@@ -162,18 +162,18 @@ def stages_for_profile(
     if profile == ComplianceProfile.CERTIFIED:
         specs = list(all_specs)
     elif profile == ComplianceProfile.DETERMINISTIC_ONLY:
-        specs = [s for s in all_specs if s.kind == StageKind.DETERMINISTIC]
+        specs = [spec for spec in all_specs if spec.kind == StageKind.DETERMINISTIC]
     else:
         allowed = {"init_manifest", "signal_scan"}
-        specs = [s for s in all_specs if s.name in allowed]
+        specs = [spec for spec in all_specs if spec.name in allowed]
 
     if skip_signal_scan:
-        specs = [s for s in specs if s.name != "signal_scan"]
+        specs = [spec for spec in specs if spec.name != "signal_scan"]
 
     if until_stage:
-        names = [s.name for s in specs]
+        names = [spec.name for spec in specs]
         if until_stage not in names:
-            known = ", ".join(s.name for s in all_specs)
+            known = ", ".join(spec.name for spec in all_specs)
             raise ValueError(
                 f"unknown --until stage {until_stage!r}; "
                 f"known stage names: {known}"
@@ -189,7 +189,9 @@ def deterministic_stage_names() -> frozenset[str]:
     from doc_engine.pipeline.stages import build_stage_specs
 
     return frozenset(
-        s.name for s in build_stage_specs() if s.kind == StageKind.DETERMINISTIC
+        spec.name
+        for spec in build_stage_specs()
+        if spec.kind == StageKind.DETERMINISTIC
     )
 
 
@@ -199,7 +201,7 @@ def generative_stage_names() -> frozenset[str]:
     from doc_engine.pipeline.stages import build_stage_specs
 
     return frozenset(
-        s.name for s in build_stage_specs() if s.kind == StageKind.GENERATIVE
+        spec.name for spec in build_stage_specs() if spec.kind == StageKind.GENERATIVE
     )
 
 
@@ -207,7 +209,9 @@ def required_stage_names_for_profile(profile: ComplianceProfile) -> frozenset[st
     """Stage names the profile expects to have run (skips of these fail cert)."""
     from doc_engine.pipeline.stages import build_stage_specs
 
-    return frozenset(s.name for s in stages_for_profile(profile, build_stage_specs()))
+    return frozenset(
+        spec.name for spec in stages_for_profile(profile, build_stage_specs())
+    )
 
 
 def _stage_status_from_runner(status: str) -> RecordStatus:
@@ -254,30 +258,33 @@ def stages_for_live_certification(prior: list[StageRecord]) -> list[StageRecord]
     Keep deterministic prior rows; drop generative history (including legacy v1
     rows that default ``executor=deterministic``); append ``generative_external``.
     """
-    det = deterministic_stage_names()
-    gen = generative_stage_names()
+    deterministic_names = deterministic_stage_names()
+    generative_names = generative_stage_names()
     kept: list[StageRecord] = []
     for stage in prior:
-        if stage.name in gen or stage.name == GENERATIVE_EXTERNAL_STAGE:
+        if stage.name in generative_names or stage.name == GENERATIVE_EXTERNAL_STAGE:
             continue
-        if stage.executor in ("mock", "live"):
+        if stage.executor in (StageExecutorKind.MOCK, StageExecutorKind.LIVE):
             continue
-        if stage.name not in det and stage.executor != "deterministic":
+        if (
+            stage.name not in deterministic_names
+            and stage.executor != StageExecutorKind.DETERMINISTIC
+        ):
             continue
-        if stage.name in det:
+        if stage.name in deterministic_names:
             kept.append(
-                stage.model_copy(update={"executor": "deterministic"})
-                if stage.executor != "deterministic"
+                stage.model_copy(update={"executor": StageExecutorKind.DETERMINISTIC})
+                if stage.executor != StageExecutorKind.DETERMINISTIC
                 else stage
             )
-        elif stage.executor == "deterministic":
+        elif stage.executor == StageExecutorKind.DETERMINISTIC:
             # Non-graph deterministic-labelled row (unusual); keep as-is.
             kept.append(stage)
     kept.append(
         StageRecord(
             name=GENERATIVE_EXTERNAL_STAGE,
-            status="ok",
-            executor="live",
+            status=RecordStatus.OK,
+            executor=StageExecutorKind.LIVE,
             detail="docs produced outside PipelineRunner; proven by live gates",
         )
     )
