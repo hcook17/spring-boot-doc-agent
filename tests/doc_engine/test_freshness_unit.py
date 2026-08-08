@@ -9,7 +9,6 @@ import pytest
 from doc_engine.core.walk import compute_file_signature
 from doc_engine.query.freshness import (
     DriftReportFreshness,
-    FreshnessLabel,
     SignatureFreshness,
     UnknownFreshnessWhenNoRepo,
     label_item_path,
@@ -20,8 +19,8 @@ from doc_engine.query.load import QueryError
 
 def test_unknown_policy_and_empty_rel() -> None:
     policy = UnknownFreshnessWhenNoRepo()
-    assert policy.freshness_for(None) == FreshnessLabel.UNKNOWN
-    assert policy.freshness_for("") == FreshnessLabel.UNKNOWN
+    assert policy.freshness_for(None) == "unknown"
+    assert policy.freshness_for("") == "unknown"
 
 
 def test_signature_freshness_matrix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -38,11 +37,11 @@ def test_signature_freshness_matrix(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         signatures={"a.java": digest, "missing.java": "deadbeef"},
         live_paths={"live.java"},
     )
-    assert policy.freshness_for(None) == FreshnessLabel.UNKNOWN
-    assert policy.freshness_for("live.java") == FreshnessLabel.LIVE
-    assert policy.freshness_for("a.java") == FreshnessLabel.FRESH_INDEXED
-    assert policy.freshness_for("missing.java") == FreshnessLabel.STALE
-    assert policy.freshness_for("nosig.java") == FreshnessLabel.UNKNOWN
+    assert policy.freshness_for(None) == "unknown"
+    assert policy.freshness_for("live.java") == "live"
+    assert policy.freshness_for("a.java") == "fresh_indexed"
+    assert policy.freshness_for("missing.java") == "stale"
+    assert policy.freshness_for("nosig.java") == "unknown"
 
     def boom(_path: str) -> str:
         raise OSError("io")
@@ -51,13 +50,13 @@ def test_signature_freshness_matrix(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         "doc_engine.query.freshness.compute_file_signature",
         boom,
     )
-    assert policy.freshness_for("a.java") == FreshnessLabel.UNKNOWN
+    assert policy.freshness_for("a.java") == "unknown"
 
     monkeypatch.setattr(
         "doc_engine.query.freshness.is_path_inside_root",
         lambda *_a, **_k: False,
     )
-    assert policy.freshness_for("a.java") == FreshnessLabel.UNKNOWN
+    assert policy.freshness_for("a.java") == "unknown"
 
 
 def test_drift_overlay_and_label_item_path(tmp_path: Path) -> None:
@@ -67,8 +66,8 @@ def test_drift_overlay_and_label_item_path(tmp_path: Path) -> None:
     digest = compute_file_signature(str(repo / "a.java"))
     inner = SignatureFreshness(repo_root=repo, signatures={"a.java": digest})
     policy = DriftReportFreshness(stale_paths={"a.java"}, inner=inner)
-    assert policy.freshness_for("a.java") == FreshnessLabel.STALE
-    assert label_item_path(policy, "a.java") == FreshnessLabel.STALE
+    assert policy.freshness_for("a.java") == "stale"
+    assert label_item_path(policy, "a.java") == "stale"
 
     with pytest.raises(QueryError, match="missing freshness_for"):
         label_item_path(object(), "a.java")
