@@ -1,6 +1,6 @@
 """Wire vocabulary (StrEnums) for inter-stage artifact DTOs."""
 
-from enum import StrEnum
+from doc_engine._compat import StrEnum
 
 
 class InterviewStatus(StrEnum):

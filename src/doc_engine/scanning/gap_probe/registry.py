@@ -13,7 +13,7 @@ flags, and post-harvest failures without teaching ``build_gap_report`` each
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import StrEnum
+from doc_engine._compat import StrEnum
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
 from .absence_recall import (

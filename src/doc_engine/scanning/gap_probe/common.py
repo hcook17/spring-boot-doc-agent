@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from enum import StrEnum
+from doc_engine._compat import StrEnum
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 

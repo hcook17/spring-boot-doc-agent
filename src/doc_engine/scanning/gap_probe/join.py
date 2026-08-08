@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
+from doc_engine._compat import StrEnum
 from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
 from doc_engine.scanning.symbol import SymbolError, parse
