@@ -42,6 +42,8 @@ def test_envelope_ok_and_non_object(
         }),
         encoding="utf-8",
     )
+    # Minimal envelope may still fail schema/containment depending on installed
+    # schema pack; accept either clean pass or a reported validation failure.
     rc = va.main(["--envelope", "query_result", str(path)])
     assert rc in (0, 1)
 

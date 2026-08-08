@@ -13,7 +13,7 @@ from tests.stf.conftest import write_spec_and_tasks_into
 def test_plan_gate_exception_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     write_spec_and_tasks_into(tmp_path)
 
-    def boom(*_a, **_k):
+    def boom(*_args, **_kwargs):
         raise RuntimeError("plan exploded")
 
     monkeypatch.setattr("stf.__main__.plan_gate", boom)
@@ -97,7 +97,7 @@ def test_implement_with_mocked_waves(tmp_path: Path, monkeypatch: pytest.MonkeyP
         "stf.__main__.run_waves",
         lambda store, start_wave=0: {"waves": 1, "start_wave": start_wave},
     )
-    monkeypatch.setattr("stf.__main__.plan_gate", lambda *_a, **_k: {"waves": []})
+    monkeypatch.setattr("stf.__main__.plan_gate", lambda *_args, **_kwargs: {"waves": []})
     assert (
         stf_main(
             [

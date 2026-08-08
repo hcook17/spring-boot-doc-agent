@@ -1,4 +1,9 @@
-"""Unit coverage for query freshness policies."""
+"""Unit coverage for query freshness policies.
+
+Policies return wire-string labels (``live`` / ``fresh_indexed`` / ``stale`` /
+``unknown``). ``FreshnessLabel`` is an internal StrEnum used by the
+implementation; these tests assert the public string contract.
+"""
 
 from __future__ import annotations
 
@@ -54,7 +59,7 @@ def test_signature_freshness_matrix(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
     monkeypatch.setattr(
         "doc_engine.query.freshness.is_path_inside_root",
-        lambda *_a, **_k: False,
+        lambda *_args, **_kwargs: False,
     )
     assert policy.freshness_for("a.java") == "unknown"
 
@@ -72,12 +77,12 @@ def test_drift_overlay_and_label_item_path(tmp_path: Path) -> None:
     with pytest.raises(QueryError, match="missing freshness_for"):
         label_item_path(object(), "a.java")
 
-    class Bad:
+    class BadPolicy:
         def freshness_for(self, rel_path: str | None) -> str:
             return "weird"
 
     with pytest.raises(QueryError, match="illegal freshness"):
-        label_item_path(Bad(), "a.java")
+        label_item_path(BadPolicy(), "a.java")
 
 
 def test_stale_paths_from_drift_report() -> None:

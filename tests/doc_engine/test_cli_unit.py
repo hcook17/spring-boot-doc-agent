@@ -12,6 +12,18 @@ import pytest
 from doc_engine import cli
 
 
+def _capture_main(monkeypatch: pytest.MonkeyPatch, target: str) -> list[list[str]]:
+    """Patch ``target`` main() and return the list of argv lists it receives."""
+    captured: list[list[str]] = []
+
+    def fake_main(argv: list[str] | None = None) -> int:
+        captured.append(list(argv or []))
+        return 0
+
+    monkeypatch.setattr(target, fake_main)
+    return captured
+
+
 def test_without_argparse_separator() -> None:
     assert cli._without_argparse_separator([]) == []
     assert cli._without_argparse_separator(["--", "a", "b"]) == ["a", "b"]
@@ -75,11 +87,11 @@ def test_cmd_scan_codeql_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
         def __init__(self, _config):
             pass
 
-        def scan(self, *_a, **_k):
+        def scan(self, *_args, **_kwargs):
             raise CodeQLScannerError("need build")
 
     monkeypatch.setattr(cli, "Engine", BoomEngine)
-    monkeypatch.setattr(cli, "_scan_config", lambda *_a, **_k: object())
+    monkeypatch.setattr(cli, "_scan_config", lambda *_args, **_kwargs: object())
     rc = cli.cmd_scan(SimpleNamespace(
         repo=str(tmp_path),
         out=str(tmp_path / "out.json"),
@@ -89,13 +101,7 @@ def test_cmd_scan_codeql_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
 
 
 def test_cmd_pipeline_gates_assembles_argv(monkeypatch: pytest.MonkeyPatch) -> None:
-    captured: list[list[str]] = []
-
-    def fake_main(argv):
-        captured.append(list(argv))
-        return 0
-
-    monkeypatch.setattr("doc_engine.pipeline.live_gates.main", fake_main)
+    captured = _capture_main(monkeypatch, "doc_engine.pipeline.live_gates.main")
     args = SimpleNamespace(
         out_dir="/run",
         target_repo="/repo",
@@ -115,13 +121,7 @@ def test_cmd_pipeline_gates_assembles_argv(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_cmd_certification_verify_allow_mock(monkeypatch: pytest.MonkeyPatch) -> None:
-    captured: list[list[str]] = []
-
-    def fake_main(argv):
-        captured.append(list(argv))
-        return 0
-
-    monkeypatch.setattr("doc_engine.tools.certification.main", fake_main)
+    captured = _capture_main(monkeypatch, "doc_engine.tools.certification.main")
     assert cli.cmd_certification_verify(SimpleNamespace(
         path="/c.json", allow_mock=True,
     )) == 0
@@ -129,13 +129,7 @@ def test_cmd_certification_verify_allow_mock(monkeypatch: pytest.MonkeyPatch) ->
 
 
 def test_cmd_query_strips_separator(monkeypatch: pytest.MonkeyPatch) -> None:
-    captured: list[list[str]] = []
-
-    def fake_main(argv):
-        captured.append(list(argv))
-        return 0
-
-    monkeypatch.setattr("doc_engine.tools.query_artifacts.main", fake_main)
+    captured = _capture_main(monkeypatch, "doc_engine.tools.query_artifacts.main")
     assert cli.cmd_query(SimpleNamespace(query_argv=["--", "context-packet", "--run-dir", "r"])) == 0
     assert captured[0][0] != "--"
     assert "context-packet" in captured[0]

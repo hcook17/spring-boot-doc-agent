@@ -11,11 +11,13 @@ from doc_engine.pipeline import gates
 
 
 class FakeRunner:
+    """Minimal stand-in for local_runner.Runner used by gate helpers."""
+
     def __init__(self, *, aborted: bool = False, keep_going: bool = False) -> None:
         self.aborted = aborted
         self.keep_going = keep_going
-        self.records: list[tuple] = []
-        self.gate_records: list[tuple] = []
+        self.records: list[tuple[str, str, float, str]] = []
+        self.gate_records: list[tuple[str, str, str, str]] = []
         self.logs: list[str] = []
 
     def log(self, message: str) -> None:
@@ -29,19 +31,19 @@ class FakeRunner:
 
 
 def test_run_pipeline_validators_joins_failures(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(gates, "run_stage5_gate", lambda *_a, **_k: ["a", "b"])
+    monkeypatch.setattr(gates, "run_stage5_gate", lambda *_args, **_kwargs: ["a", "b"])
     code, body = gates.run_pipeline_validators("arts", "repo")
     assert code == 1
     assert body == "a\nb"
 
 
 def test_run_pipeline_validators_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(gates, "run_stage5_gate", lambda *_a, **_k: [])
+    monkeypatch.setattr(gates, "run_stage5_gate", lambda *_args, **_kwargs: [])
     assert gates.run_pipeline_validators("arts", "repo") == (0, "OK")
 
 
 def test_run_subprocess_gate_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
-    def boom(*_a, **_k):
+    def boom(*_args, **_kwargs):
         raise subprocess.TimeoutExpired(cmd=["x"], timeout=1)
 
     monkeypatch.setattr(gates.subprocess, "run", boom)
@@ -81,14 +83,16 @@ def test_run_gate_via_runner_fail_vs_nonzero() -> None:
     assert runner.records[0][1] == "FAIL"
     assert runner.gate_records[0][2] == "FAIL"
 
-    runner2 = FakeRunner()
-    gates.run_gate_via_runner(runner2, "soft", lambda: (3, "bad"), gate=False)
-    assert runner2.records[0][1] == "NONZERO"
-    assert runner2.gate_records == []
+    soft_runner = FakeRunner()
+    gates.run_gate_via_runner(soft_runner, "soft", lambda: (3, "bad"), gate=False)
+    assert soft_runner.records[0][1] == "NONZERO"
+    assert soft_runner.gate_records == []
 
 
 def test_run_gate_via_runner_ok_path() -> None:
     runner = FakeRunner()
-    gates.run_gate_via_runner(runner, "okgate", lambda: (0, "line1\nline2"), gate=True, gate_id="id")
+    gates.run_gate_via_runner(
+        runner, "okgate", lambda: (0, "line1\nline2"), gate=True, gate_id="id",
+    )
     assert runner.records[0][1] == "OK"
     assert any("| line1" in line for line in runner.logs)
