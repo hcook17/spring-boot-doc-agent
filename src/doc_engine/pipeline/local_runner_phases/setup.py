@@ -17,25 +17,28 @@ from doc_engine.pipeline.local_runner_phases.state import LocalRunState
 from doc_engine.pipeline.local_runner_phases.support import Log, Runner
 
 
-def phase_setup(args) -> LocalRunState | int:
-    """Prepare run directories and logging. Returns exit code 2 on hard errors."""
-    repo_path = os.path.abspath(args.repo_path)
-    if not os.path.isdir(repo_path):
-        print(f"error: {repo_path} is not a directory", file=sys.stderr)
-        return 2
+def _require_repo_dir(repo_path: str) -> int | None:
+    if os.path.isdir(repo_path):
+        return None
+    print(f"error: {repo_path} is not a directory", file=sys.stderr)
+    return 2
 
-    repo_config = load_repo_config(repo_path)
+
+def _resolve_run_policy(args, repo_path: str):
     from doc_engine.config.repo_trust import sanitize_repo_settings, trust_from_flag
 
     trust = trust_from_flag(bool(getattr(args, "trust_repo_config", False)))
-    repo_config = sanitize_repo_settings(repo_config, trust)
+    repo_config = sanitize_repo_settings(load_repo_config(repo_path), trust)
     profile = resolve_compliance_profile(repo_config, args)
     allow_mock = bool(getattr(args, "allow_mock", False))
     skip_signal_scan = bool(args.signals_file)
     strict_citations_effective = citations_are_strict(
         profile, force_strict=args.strict_citations
     )
+    return profile, allow_mock, skip_signal_scan, strict_citations_effective
 
+
+def _resolve_out_paths(args, repo_path: str) -> tuple[str, str, str]:
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     out_dir = args.out_dir or os.path.join(
         os.getcwd(),
@@ -44,17 +47,28 @@ def phase_setup(args) -> LocalRunState | int:
     )
     out_dir = os.path.abspath(out_dir)
     os.makedirs(out_dir, exist_ok=True)
-
     docs_dir = (
         os.path.join(repo_path, "docs")
         if args.docs_in_target_repo
         else os.path.join(out_dir, "docs")
     )
     today = datetime.date.today().isoformat()
+    return out_dir, docs_dir, today
+
+
+def phase_setup(args) -> LocalRunState | int:
+    """Prepare run directories and logging. Returns exit code 2 on hard errors."""
+    repo_path = os.path.abspath(args.repo_path)
+    if (err := _require_repo_dir(repo_path)) is not None:
+        return err
+
+    profile, allow_mock, skip_signal_scan, strict_citations_effective = (
+        _resolve_run_policy(args, repo_path)
+    )
+    out_dir, docs_dir, today = _resolve_out_paths(args, repo_path)
 
     log = Log(os.path.join(out_dir, "run.log"))
     runner = Runner(log, args.keep_going)
-
     py = sys.executable
     manifest = os.path.join(out_dir, "run_manifest.json")
     signals_path = os.path.join(out_dir, "spring_signals.json")

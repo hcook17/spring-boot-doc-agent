@@ -17,6 +17,41 @@ from doc_engine.pipeline.compliance import (
 _RUNNER_FAIL_STATUSES = frozenset({"FAIL", "ERROR"})
 
 
+def _reconfigure_stdio_utf8() -> None:
+    """Prefer UTF-8 on console streams so tag grammar em dashes do not crash."""
+    for stream in (sys.stdout, sys.stderr):
+        if not hasattr(stream, "reconfigure"):
+            continue
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass
+
+
+def _stage_result_detail(stage_result) -> str:
+    return stage_result.detail or stage_result.error or ""
+
+
+def _record_one_pipeline_stage(runner, stage_name, stage_result, *, ok_status: str) -> None:
+    status = ok_status if stage_result.success else "FAIL"
+    runner.record(
+        f"pipeline:{stage_name}",
+        status,
+        0.0,
+        _stage_result_detail(stage_result),
+    )
+    if not stage_result.success:
+        runner.aborted = True
+
+
+def _record_pipeline_stage_results(runner, results, *, ok_status: str) -> None:
+    """Fold PipelineRunner results into the local Runner table + abort flag."""
+    for stage_name, stage_result in results:
+        _record_one_pipeline_stage(
+            runner, stage_name, stage_result, ok_status=ok_status
+        )
+
+
 def _gate_status_from_runner_status(status: str) -> str:
     """Map Runner table status to certification gate status vocabulary."""
     if status == "OK":
@@ -49,12 +84,7 @@ class Log:
         # Console encoding on Windows is frequently cp1252, which cannot
         # represent the em dash the tag grammar requires. Replace on the
         # console rather than crash; the log file is UTF-8 and keeps it.
-        for stream in (sys.stdout, sys.stderr):
-            if hasattr(stream, "reconfigure"):
-                try:
-                    stream.reconfigure(encoding="utf-8", errors="replace")
-                except (ValueError, OSError):
-                    pass
+        _reconfigure_stdio_utf8()
 
     def __call__(self, msg=""):
         text = str(msg)
@@ -314,16 +344,22 @@ def _artifact_inventory(log, out_dir):
             log(f"  {os.path.getsize(abspath):>9,} B  {rel}")
 
 
-def _certification_failure_summary(runner, report) -> str:
-    failed_gates = [
+def _failed_required_gate_ids(runner) -> list[str]:
+    return [
         gate.id
         for gate in runner.gate_records
         if gate.required and gate.status != "ok"
     ]
-    failed_stages = [
-        stage.name for stage in report.stages if stage.status != "ok"
-    ]
+
+
+def _failed_stage_names(report) -> list[str]:
+    return [stage.name for stage in report.stages if stage.status != "ok"]
+
+
+def _certification_failure_summary(runner, report) -> str:
     parts = []
+    failed_stages = _failed_stage_names(report)
+    failed_gates = _failed_required_gate_ids(runner)
     if failed_stages:
         parts.append(f"stages: {', '.join(failed_stages)}")
     if failed_gates:

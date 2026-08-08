@@ -127,19 +127,26 @@ def gate_duplication(compare_ref: str) -> int:
 
 
 def gate_cognitive_complexity() -> int:
-    """Fail when the count of >COMPLEXITY_MAX functions rises vs baseline.
+    """Fail when any function in package roots exceeds COMPLEXITY_MAX."""
+    from gate_tools import require_on_path
 
-    Policy target remains <=COMPLEXITY_MAX per function. While
-    ``scripts/ratchets/complexipy_baseline.json`` still lists offenders,
-    whole-repo ``complexipy --failed`` cannot green CI — the ratchet is the
-    hard gate. When the baseline reaches 0, ``--failed`` becomes free.
-    """
+    complexipy = require_on_path("complexipy")
+    return _run(
+        [
+            complexipy,
+            *PACKAGE_ROOTS,
+            f"--max-complexity-allowed={COMPLEXITY_MAX}",
+            "--failed",
+        ],
+        label=f"complexipy cognitive complexity <= {COMPLEXITY_MAX} (whole-repo)",
+    )
+
+
+def gate_complexity_ratchet() -> int:
+    """Fail when the count of >COMPLEXITY_MAX functions rises vs baseline."""
     return _run(
         [sys.executable, "scripts/ci/check_complexipy_ratchet.py"],
-        label=(
-            f"complexipy offender-count ratchet "
-            f"(must not rise; target <={COMPLEXITY_MAX}/fn)"
-        ),
+        label="complexipy offender-count ratchet (must not rise; target 0)",
     )
 
 
@@ -185,6 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     results.append(("duplication", gate_duplication(compare_ref)))
     results.append(("cognitive-complexity", gate_cognitive_complexity()))
+    results.append(("complexity-ratchet", gate_complexity_ratchet()))
     results.append(("import-cycles", gate_import_cycles()))
 
     print("\n=== quality-gates summary ===", flush=True)

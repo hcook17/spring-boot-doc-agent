@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 
 from doc_engine.paths import repo_root
 
@@ -88,6 +88,16 @@ def _first_env(*names: str) -> Optional[str]:
     return None
 
 
+def _first_content_line(text: str) -> Optional[str]:
+    """First non-empty, non-comment line (BOM-tolerant)."""
+    for line in text.splitlines():
+        stripped = line.strip().lstrip("\ufeff")
+        if not stripped or stripped.startswith("#"):
+            continue
+        return stripped
+    return None
+
+
 def _read_path_file() -> Optional[Path]:
     """Return path from ``local-runs/real-repo.path`` when present and non-empty."""
     path_file = repo_root() / REAL_REPO_PATH_FILE
@@ -97,12 +107,8 @@ def _read_path_file() -> Optional[Path]:
         text = path_file.read_text(encoding="utf-8")
     except OSError:
         return None
-    for line in text.splitlines():
-        stripped = line.strip().lstrip("\ufeff")
-        if not stripped or stripped.startswith("#"):
-            continue
-        return Path(stripped)
-    return None
+    line = _first_content_line(text)
+    return Path(line) if line else None
 
 
 def real_repo_path() -> Optional[Path]:
@@ -154,16 +160,35 @@ def live_scan_enabled() -> bool:
         return True
     return any(_truthy(os.environ.get(name)) for name in _LEGACY_LIVE_VARS)
 
+
+def _normalize_changed_path(raw: str) -> str:
+    norm = raw.replace("\\", "/")
+    while norm.startswith("./"):
+        norm = norm[2:]
+    return norm
+
+
+def _path_matches_prefix(norm: str, prefix: str) -> bool:
+    return norm == prefix.rstrip("/") or norm.startswith(prefix)
+
+
+def _path_matches_any_prefix(norm: str, prefixes: Iterable[str]) -> bool:
+    return any(_path_matches_prefix(norm, prefix) for prefix in prefixes)
+
+
+def _any_path_matches_prefixes(
+    paths: list[str] | tuple[str, ...],
+    prefixes: Iterable[str],
+) -> bool:
+    return any(
+        _path_matches_any_prefix(_normalize_changed_path(raw), prefixes)
+        for raw in paths
+    )
+
+
 def stage0_paths_require_real_repo(paths: list[str] | tuple[str, ...]) -> bool:
     """True when any changed path should force the pre_pr real_repo lane."""
-    for raw in paths:
-        norm = raw.replace("\\", "/")
-        while norm.startswith("./"):
-            norm = norm[2:]
-        for prefix in REAL_REPO_PATH_PREFIXES:
-            if norm == prefix.rstrip("/") or norm.startswith(prefix):
-                return True
-    return False
+    return _any_path_matches_prefixes(paths, REAL_REPO_PATH_PREFIXES)
 
 
 # Generative / pipeline-stage paths that require PIPELINE_ARTIFACTS_DIR under --full.
@@ -176,11 +201,4 @@ GENERATIVE_PATH_PREFIXES: tuple[str, ...] = (
 
 def generative_paths_require_artifacts(paths: list[str] | tuple[str, ...]) -> bool:
     """True when --full should require PIPELINE_ARTIFACTS_DIR for real artifact bite."""
-    for raw in paths:
-        norm = raw.replace("\\", "/")
-        while norm.startswith("./"):
-            norm = norm[2:]
-        for prefix in GENERATIVE_PATH_PREFIXES:
-            if norm == prefix.rstrip("/") or norm.startswith(prefix):
-                return True
-    return False
+    return _any_path_matches_prefixes(paths, GENERATIVE_PATH_PREFIXES)
