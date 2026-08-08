@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
-from typing import Mapping, Union
+from typing import Mapping
 
 from doc_engine.scanning.covering import (
     build_covering_proof,
@@ -21,7 +21,7 @@ from doc_engine.scanning.covering import (
 )
 from doc_engine.scanning.facts import facts_from_signals, write_facts_jsonl
 
-PathLike = Union[str, Path]
+PathLike = str | Path
 
 
 class Stage0SiblingError(ValueError):

@@ -117,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     import os
 
-    from doc_engine.query.load import QueryPathError, require_server_root
+    from doc_engine.query.load import require_server_root
 
     if getattr(args, "unsafe_no_root", False):
         # Explicit CLI-only; still need a root for _resolve — use artifact parent later
