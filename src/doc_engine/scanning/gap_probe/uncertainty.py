@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from doc_engine._compat import StrEnum
 from typing import Any, Dict, List, Optional
+
+from doc_engine._compat import StrEnum
 
 from .common import (
     WEIGHT_CODE_DEP,

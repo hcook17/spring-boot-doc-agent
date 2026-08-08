@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import re
-from doc_engine._compat import StrEnum
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+
+from doc_engine._compat import StrEnum
 
 
 class CoveringPreconditionError(RuntimeError):

@@ -13,8 +13,9 @@ flags, and post-harvest failures without teaching ``build_gap_report`` each
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from doc_engine._compat import StrEnum
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
+
+from doc_engine._compat import StrEnum
 
 from .absence_recall import (
     _astgrep_receipt_complete,

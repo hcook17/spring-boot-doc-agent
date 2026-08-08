@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from doc_engine._compat import StrEnum
 from pathlib import Path
 from typing import Any, Mapping
 
+from doc_engine._compat import StrEnum
 from doc_engine.core.walk import compute_file_signature, is_path_inside_root
 from doc_engine.query.load import QueryError
 

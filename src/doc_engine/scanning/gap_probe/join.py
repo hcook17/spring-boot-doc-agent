@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from doc_engine._compat import StrEnum
 from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
+from doc_engine._compat import StrEnum
 from doc_engine.scanning.symbol import SymbolError, parse
 
 from .common import _maps_to, _rate_block
