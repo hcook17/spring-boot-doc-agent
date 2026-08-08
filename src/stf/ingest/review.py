@@ -8,8 +8,8 @@ from pathlib import Path
 from stf.schemas.findings import Finding, FindingLink, FindingSeverity
 from stf.schemas.spec import DataSourceRow, SpecDocument
 
-# Keep patterns linear: fixed markers, no overlapping \\s*/.+ backtracking.
-_HEADING = re.compile(r"^###\s+(\S+)\s+[—–-]\s+([^\n]+)$", re.M)
+# Prefer plain-string parsing for markdown headings (readable; no regex backtracking).
+_HEADING_DASHES = ("—", "–", "-")
 _FINDING_ID = re.compile(r"^(?:[CHMNS]\d+|Q\d+-\d+|E-[A-Z0-9]+)$")
 _SEVERITY_MARK = "**severity:"
 _EPIC_ID = re.compile(r"^[A-Z][A-Z0-9]*-\d+$")
@@ -117,27 +117,62 @@ def _first_claim_line(body: str) -> str:
     return ""
 
 
-def _finding_from_heading_match(
-    m: re.Match[str],
+def _parse_heading_line(line: str) -> tuple[str, str] | None:
+    """Parse ``### ID — title`` (em dash, en dash, or hyphen)."""
+    stripped = line.strip()
+    if not stripped.startswith("###"):
+        return None
+    rest = stripped[3:].strip()
+    for dash in _HEADING_DASHES:
+        if dash not in rest:
+            continue
+        finding_id, _sep, title = rest.partition(dash)
+        finding_id = finding_id.strip()
+        title = title.strip()
+        if finding_id and title:
+            return finding_id, title
+    return None
+
+
+def _heading_sections(text: str) -> list[tuple[str, str, str]]:
+    """Return (finding_id, title, body) for each ``###`` finding heading."""
+    lines = text.splitlines()
+    starts: list[tuple[int, str, str]] = []
+    for line_no, line in enumerate(lines):
+        parsed = _parse_heading_line(line)
+        if parsed is None:
+            continue
+        finding_id, title = parsed
+        starts.append((line_no, finding_id, title))
+
+    sections: list[tuple[str, str, str]] = []
+    for index, (line_no, finding_id, title) in enumerate(starts):
+        end_line = starts[index + 1][0] if index + 1 < len(starts) else len(lines)
+        body = "\n".join(lines[line_no:end_line])
+        sections.append((finding_id, title, body))
+    return sections
+
+
+def _finding_from_heading(
+    finding_id: str,
+    title: str,
     body: str,
     source_doc: str | None,
 ) -> Finding | None:
-    fid = m.group(1)
-    if not _FINDING_ID.fullmatch(fid):
+    if not _FINDING_ID.fullmatch(finding_id):
         return None
-    title = m.group(2).strip()
     paths = _paths_in(body)
     claim = _first_claim_line(body)
     return Finding(
-        id=fid,
-        severity=_sev_from_id(fid, body),
+        id=finding_id,
+        severity=_sev_from_id(finding_id, body),
         title=title,
         claim=claim or title,
         evidence=[body[:500]],
         evidence_paths=paths,
-        links=_links_for(fid, paths),
+        links=_links_for(finding_id, paths),
         source_doc=source_doc,
-        epic_hint=_epic_hint(fid),
+        epic_hint=_epic_hint(finding_id),
     )
 
 
@@ -187,20 +222,11 @@ def _findings_from_epic_rows(
     return findings
 
 
-def _heading_window(text: str, matches: list[re.Match[str]], index: int) -> str:
-    start = matches[index].start()
-    if index + 1 < len(matches):
-        return text[start : matches[index + 1].start()]
-    return text[start:]
-
-
 def ingest_review_markdown(text: str, *, source_doc: str | None = None) -> list[Finding]:
     """Parse adversarial review headings into Finding inventory."""
     findings: list[Finding] = []
-    matches = list(_HEADING.finditer(text))
-    for index, match in enumerate(matches):
-        body = _heading_window(text, matches, index)
-        finding = _finding_from_heading_match(match, body, source_doc)
+    for finding_id, title, body in _heading_sections(text):
+        finding = _finding_from_heading(finding_id, title, body, source_doc)
         if finding is not None:
             findings.append(finding)
     existing = {f.id for f in findings}

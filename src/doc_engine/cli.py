@@ -113,11 +113,18 @@ def cmd_query(args: argparse.Namespace) -> int:
     from doc_engine.tools.query_artifacts import main as query_main
 
     argv = list(getattr(args, "query_argv", None) or [])
-    # Compare a slice — never subscript argv[0] on a possibly-empty list.
-    head = argv[0:1]
-    if head == ["--"]:
-        argv = argv[1:]
-    return query_main(argv)
+    return query_main(_without_argparse_separator(argv))
+
+
+def _without_argparse_separator(argv: list[str]) -> list[str]:
+    """Drop a leading ``--`` left over from argparse ``REMAINDER``."""
+    parts = iter(argv)
+    first = next(parts, None)
+    if first is None:
+        return []
+    if first == "--":
+        return list(parts)
+    return [first, *parts]
 
 
 def main() -> int:
