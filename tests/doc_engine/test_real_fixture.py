@@ -127,9 +127,18 @@ class AnonymizedGapBaselineTest(unittest.TestCase):
         self.assertGreater(data["bands"]["R_lin_mean_min"], 0.0)
         self.assertLess(data["bands"]["R_lin_mean_max"], 1.0)
         self.assertLess(data["bands"]["U_max"], 1.0)
-        # Confidentiality: never a denylist client dirname.
+        # Confidentiality: baseline must not contain denylist tokens.
+        # Load from the denylist SoT — never embed forbidden strings here.
+        denylist_path = REPO_ROOT / "scripts" / "ci" / "client_identifier_denylist.txt"
+        tokens = [
+            line.strip()
+            for line in denylist_path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        self.assertTrue(tokens, "denylist must have at least one token")
         blob = BASELINE.read_text(encoding="utf-8")
-        self.assertNotIn("ocs-api-service-develop", blob)
+        for token in tokens:
+            self.assertNotIn(token, blob)
 
     def test_hermetic_shapes_exist(self):
         shapes = sorted(SHAPES_DIR.glob("*.json"))
