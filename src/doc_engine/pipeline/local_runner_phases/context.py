@@ -63,10 +63,10 @@ def phase_build_context(state: LocalRunState) -> Optional[int]:
 
     state.selected_specs = selected_specs
     state.deterministic_specs = [
-        s for s in selected_specs if s.kind == StageKind.DETERMINISTIC
+        spec for spec in selected_specs if spec.kind == StageKind.DETERMINISTIC
     ]
     state.generative_specs = [
-        s for s in selected_specs if s.kind == StageKind.GENERATIVE
+        spec for spec in selected_specs if spec.kind == StageKind.GENERATIVE
     ]
 
     # Reused Path A is not an omitted required stage — record it as ok for the fold.

@@ -10,7 +10,7 @@ from doc_engine.pipeline.local_runner_phases.context import phase_build_context
 from doc_engine.pipeline.local_runner_phases.deterministic import phase_deterministic_only
 from doc_engine.pipeline.local_runner_phases.full_finish import phase_full_finish
 from doc_engine.pipeline.local_runner_phases.generative import phase_generative
-from doc_engine.pipeline.local_runner_phases.scan_only import phase_post_stage0
+from doc_engine.pipeline.local_runner_phases.post_stage0 import phase_post_stage0
 from doc_engine.pipeline.local_runner_phases.setup import phase_setup
 from doc_engine.pipeline.local_runner_phases.stage0 import phase_stage0
 from doc_engine.pipeline.local_runner_phases.state import LocalRunState

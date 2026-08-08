@@ -14,6 +14,17 @@ from doc_engine.pipeline.compliance import (
     write_certification_json,
 )
 
+_RUNNER_FAIL_STATUSES = frozenset({"FAIL", "ERROR"})
+
+
+def _gate_record_status(runner_status: str) -> str:
+    """Map Runner table status to certification gate status vocabulary."""
+    if runner_status == "OK":
+        return "ok"
+    if runner_status == "SKIPPED":
+        return "skipped"
+    return "fail"
+
 
 class Log:
     """Tee to stdout and run.log.
@@ -68,16 +79,25 @@ class Runner:
     def _record_gate(self, gate_id, label, status, detail="", required=True):
         from doc_engine.pipeline.compliance import GateRecord
 
-        gate_status = "ok" if status == "OK" else "skipped" if status == "SKIPPED" else "fail"
         self.gate_records.append(
             GateRecord(
                 id=gate_id,
                 label=label,
-                status=gate_status,
+                status=_gate_record_status(status),
                 required=required,
                 detail=detail,
             )
         )
+
+    def _mark_critical_abort(self, label: str) -> None:
+        if self.keep_going:
+            return
+        self.log("")
+        self.log(
+            f"  !! {label} is a prerequisite for every later stage "
+            f"— stopping. Re-run with --keep-going to push past it."
+        )
+        self.aborted = True
 
     def run(self, label, argv, gate=False, gate_id=None, critical=False, cwd=None, env=None,
             quiet=False):
@@ -95,7 +115,7 @@ class Runner:
             self.record(label, "SKIPPED", 0.0, "aborted earlier")
             return None
 
-        printable = " ".join(_quote(a) for a in argv)
+        printable = " ".join(_quote(arg) for arg in argv)
         if quiet:
             self.log(f"  $ {printable}")
         else:
@@ -147,11 +167,8 @@ class Runner:
         if gate and gate_id:
             self._record_gate(gate_id, label, status, f"exit {proc.returncode}")
 
-        if proc.returncode != 0 and critical and not self.keep_going:
-            self.log("")
-            self.log(f"  !! {label} is a prerequisite for every later stage "
-                     f"— stopping. Re-run with --keep-going to push past it.")
-            self.aborted = True
+        if proc.returncode != 0 and critical:
+            self._mark_critical_abort(label)
         return proc
 
     def mock(self, label, fn):
@@ -178,11 +195,13 @@ class Runner:
         return detail
 
     def gates_failed(self):
-        return [r for r in self.results if r[1] in ("FAIL", "ERROR")]
+        return [
+            result for result in self.results if result[1] in _RUNNER_FAIL_STATUSES
+        ]
 
     def table(self):
         self.log.rule("STEP RESULTS")
-        width = max(len(r[0]) for r in self.results)
+        width = max(len(result[0]) for result in self.results)
         for label, status, seconds, detail in self.results:
             self.log(f"  {status:<8} {label:<{width}}  {seconds:6.2f}s  {detail}")
 
@@ -203,6 +222,23 @@ def _artifact_inventory(log, out_dir):
             abspath = os.path.join(root, name)
             rel = os.path.relpath(abspath, out_dir).replace(os.sep, "/")
             log(f"  {os.path.getsize(abspath):>9,} B  {rel}")
+
+
+def _certification_failure_summary(runner, report) -> str:
+    failed_gates = [
+        gate.id
+        for gate in runner.gate_records
+        if gate.required and gate.status != "ok"
+    ]
+    failed_stages = [
+        stage.name for stage in report.stages if stage.status != "ok"
+    ]
+    parts = []
+    if failed_stages:
+        parts.append(f"stages: {', '.join(failed_stages)}")
+    if failed_gates:
+        parts.append(f"gates: {', '.join(failed_gates)}")
+    return f"RESULT: certification failed — {'; '.join(parts)}"
 
 
 def _write_certification_and_finish(
@@ -240,14 +276,7 @@ def _write_certification_and_finish(
         for line in success_lines:
             log(line)
     elif not report.certified and not notice_lines:
-        failed_gates = [g.id for g in runner.gate_records if g.required and g.status != "ok"]
-        failed_stages = [s.name for s in report.stages if s.status != "ok"]
-        parts = []
-        if failed_stages:
-            parts.append(f"stages: {', '.join(failed_stages)}")
-        if failed_gates:
-            parts.append(f"gates: {', '.join(failed_gates)}")
-        log(f"RESULT: certification failed — {'; '.join(parts)}")
+        log(_certification_failure_summary(runner, report))
     log(f"  certification: {report.certified} -> {cert_path}")
     log(f"Full transcript: {os.path.join(out_dir, 'run.log')}")
     log.close()
