@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
+from typing import Any
 
 from doc_engine.query.envelope import DEFAULT_LIMIT
-from doc_engine.query.load import QueryError
+from doc_engine.query.load import QueryError, require_server_root
 from doc_engine.query.registry import run_query
 
 
@@ -112,108 +114,110 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _resolve_cli_root(args: argparse.Namespace) -> Path:
+    """Pick containment root for a CLI invocation."""
+    if getattr(args, "unsafe_no_root", False):
+        # Explicit CLI-only; still need a root for _resolve — use artifact parent later
+        return Path.cwd()
+    if getattr(args, "root", None):
+        return Path(args.root)
+    if os.environ.get("DOC_ENGINE_ROOT") or os.environ.get("DOC_ENGINE_RUN_DIR"):
+        return require_server_root()
+    # Default: parent of primary artifact / run-dir
+    artifact = (
+        getattr(args, "signals", None)
+        or getattr(args, "facts", None)
+        or getattr(args, "run_dir", None)
+    )
+    if artifact:
+        return Path(artifact).resolve().parent
+    return Path.cwd()
+
+
+def _execute_kind(args: argparse.Namespace, root: Path) -> dict[str, Any]:
+    """Dispatch a parsed CLI kind to the matching query handler."""
+    if args.kind == "evidence":
+        return run_query(
+            "evidence",
+            signals_path=args.signals,
+            root=root,
+            limit=args.limit,
+            bucket=args.bucket,
+            rule_id=args.rule_id,
+            file_contains=args.file_contains,
+            match_contains=args.match_contains,
+        )
+    if args.kind == "routes":
+        return run_query(
+            "routes",
+            signals_path=args.signals,
+            root=root,
+            limit=args.limit,
+            path_contains=args.path_contains,
+            rule_id=args.rule_id,
+            file_contains=args.file_contains,
+        )
+    if args.kind == "facts":
+        return run_query(
+            "facts",
+            facts_path=args.facts,
+            root=root,
+            limit=args.limit,
+            predicate=args.predicate,
+            file_contains=args.file_contains,
+            fqcn=args.fqcn,
+            subject_contains=args.subject_contains,
+        )
+    if args.kind == "entity":
+        return run_query(
+            "entity",
+            signals_path=args.signals,
+            root=root,
+            limit=args.limit,
+            class_name=args.class_name,
+            table=args.table,
+            fqcn=args.fqcn,
+        )
+    if args.kind == "dependents":
+        return run_query(
+            "dependents",
+            signals_path=args.signals,
+            edges_path=args.edges,
+            root=root,
+            limit=args.limit,
+            target_file=args.target_file,
+            target_type=args.target_type,
+            group_id=args.group_id,
+        )
+    if args.kind == "route-trace":
+        return run_query(
+            "route-trace",
+            signals_path=args.signals,
+            root=root,
+            limit=args.limit,
+            path_contains=args.path_contains,
+            file_contains=args.file_contains,
+        )
+    if args.kind == "context-packet":
+        from doc_engine.query.packet import run_context_packet
+
+        return run_context_packet(
+            args.request,
+            run_dir=args.run_dir,
+            budget_tokens=args.budget_tokens,
+            root=root,
+            repo_path=args.repo_path,
+            drift_report_path=args.drift_report,
+        )
+    raise QueryError(f"unknown kind {args.kind}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
-    import os
-
-    from doc_engine.query.load import require_server_root
-
-    if getattr(args, "unsafe_no_root", False):
-        # Explicit CLI-only; still need a root for _resolve — use artifact parent later
-        root = Path.cwd()
-    elif getattr(args, "root", None):
-        root = Path(args.root)
-    elif os.environ.get("DOC_ENGINE_ROOT") or os.environ.get("DOC_ENGINE_RUN_DIR"):
-        root = require_server_root()
-    else:
-        # Default: parent of primary artifact / run-dir
-        artifact = (
-            getattr(args, "signals", None)
-            or getattr(args, "facts", None)
-            or getattr(args, "run_dir", None)
-        )
-        if artifact:
-            root = Path(artifact).resolve().parent
-        else:
-            root = Path.cwd()
+    root = _resolve_cli_root(args)
     try:
-        if args.kind == "evidence":
-            result = run_query(
-                "evidence",
-                signals_path=args.signals,
-                root=root,
-                limit=args.limit,
-                bucket=args.bucket,
-                rule_id=args.rule_id,
-                file_contains=args.file_contains,
-                match_contains=args.match_contains,
-            )
-        elif args.kind == "routes":
-            result = run_query(
-                "routes",
-                signals_path=args.signals,
-                root=root,
-                limit=args.limit,
-                path_contains=args.path_contains,
-                rule_id=args.rule_id,
-                file_contains=args.file_contains,
-            )
-        elif args.kind == "facts":
-            result = run_query(
-                "facts",
-                facts_path=args.facts,
-                root=root,
-                limit=args.limit,
-                predicate=args.predicate,
-                file_contains=args.file_contains,
-                fqcn=args.fqcn,
-                subject_contains=args.subject_contains,
-            )
-        elif args.kind == "entity":
-            result = run_query(
-                "entity",
-                signals_path=args.signals,
-                root=root,
-                limit=args.limit,
-                class_name=args.class_name,
-                table=args.table,
-                fqcn=args.fqcn,
-            )
-        elif args.kind == "dependents":
-            result = run_query(
-                "dependents",
-                signals_path=args.signals,
-                edges_path=args.edges,
-                root=root,
-                limit=args.limit,
-                target_file=args.target_file,
-                target_type=args.target_type,
-                group_id=args.group_id,
-            )
-        elif args.kind == "route-trace":
-            result = run_query(
-                "route-trace",
-                signals_path=args.signals,
-                root=root,
-                limit=args.limit,
-                path_contains=args.path_contains,
-                file_contains=args.file_contains,
-            )
-        elif args.kind == "context-packet":
-            from doc_engine.query.packet import run_context_packet
-
-            result = run_context_packet(
-                args.request,
-                run_dir=args.run_dir,
-                budget_tokens=args.budget_tokens,
-                root=root,
-                repo_path=args.repo_path,
-                drift_report_path=args.drift_report,
-            )
-        else:
-            parser.error(f"unknown kind {args.kind}")
-            return 2
+        result = _execute_kind(args, root)
     except QueryError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
