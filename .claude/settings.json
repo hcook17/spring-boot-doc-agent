@@ -43,7 +43,11 @@
     "git, since git status/diff/log/ls-files above are already legitimately",
     "allowed. check_repo_claims.py's check F fails the build if an agent",
     "declares Bash without these three denies present, the same as it",
-    "already does for the grep/rg denies."
+    "already does for the grep/rg denies.",
+    "",
+    "doc-engine query / query_artifacts entries are read-only Stage-0 artifact",
+    "lookups (capped typed views). Prefer them over Read-ing whole",
+    "spring_signals.json when a run dir exists — see adapters/claude/SEARCH.md."
   ],
   "hooks": {
     "PreToolUse": [
@@ -100,6 +104,11 @@
       "Bash(ast-grep --version)",
       "Bash(semgrep scan:*)",
       "Bash(semgrep --version)",
+      "Bash(doc-engine query:*)",
+      "Bash(python -m doc_engine.tools.query_artifacts:*)",
+      "Bash(python -m doc_engine.cli query:*)",
+      "Bash(python adapters/mcp/server.py:*)",
+      "Bash(python -m adapters.mcp.server:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",

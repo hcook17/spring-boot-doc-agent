@@ -108,6 +108,16 @@ def cmd_certification_verify(args: argparse.Namespace) -> int:
     return cert_main(argv)
 
 
+def cmd_query(args: argparse.Namespace) -> int:
+    """Facade: ``doc-engine query <kind> …`` → tools.query_artifacts."""
+    from doc_engine.tools.query_artifacts import main as query_main
+
+    argv = list(getattr(args, "query_argv", None) or [])
+    if argv and argv[0] == "--":
+        argv = argv[1:]
+    return query_main(argv)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(prog="doc-engine", description=__doc__)
     sub = ap.add_subparsers(dest="command", required=True)
@@ -219,6 +229,20 @@ def main() -> int:
         help="accept generative_executor none/mock (default: require live)",
     )
     verify_ap.set_defaults(func=cmd_certification_verify)
+
+    query_ap = sub.add_parser(
+        "query",
+        help=(
+            "Typed read views over Stage-0 artifacts "
+            "(evidence|routes|facts|entity|dependents|route-trace)"
+        ),
+    )
+    query_ap.add_argument(
+        "query_argv",
+        nargs=argparse.REMAINDER,
+        help="kind and flags — see: python -m doc_engine.tools.query_artifacts -h",
+    )
+    query_ap.set_defaults(func=cmd_query)
 
     args = ap.parse_args()
     return args.func(args)

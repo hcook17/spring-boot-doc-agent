@@ -1,0 +1,93 @@
+"""Freshness policies — label currency without a second store."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Mapping
+
+from doc_engine.core.walk import compute_file_signature, is_path_inside_root
+from doc_engine.query.load import QueryError
+
+
+class AssumeIndexed:
+    """Default when no repo path: treat indexed artifacts as fresh_indexed."""
+
+    def freshness_for(self, rel_path: str | None) -> str:
+        return "fresh_indexed"
+
+
+class SignatureFreshness:
+    """Compare on-disk hashes to spring_signals.file_signatures."""
+
+    def __init__(
+        self,
+        *,
+        repo_root: Path,
+        signatures: Mapping[str, str],
+        live_paths: set[str] | None = None,
+    ) -> None:
+        self._root = repo_root.resolve()
+        self._sigs = {str(k).replace("\\", "/"): str(v) for k, v in signatures.items()}
+        self._live = {p.replace("\\", "/") for p in (live_paths or set())}
+
+    def freshness_for(self, rel_path: str | None) -> str:
+        if not rel_path:
+            return "unknown"
+        rel = rel_path.replace("\\", "/")
+        if rel in self._live:
+            return "live"
+        full = (self._root / rel).resolve()
+        if not is_path_inside_root(str(full), str(self._root)):
+            return "unknown"
+        if not full.is_file():
+            return "stale"
+        expected = self._sigs.get(rel)
+        if expected is None:
+            return "unknown"
+        try:
+            actual = compute_file_signature(str(full))
+        except OSError:
+            return "unknown"
+        return "fresh_indexed" if actual == expected else "stale"
+
+
+class DriftReportFreshness:
+    """Mark paths listed as changed/stale in a prior drift_report.json."""
+
+    def __init__(self, *, stale_paths: set[str], inner: SignatureFreshness | AssumeIndexed) -> None:
+        self._stale = {p.replace("\\", "/") for p in stale_paths}
+        self._inner = inner
+
+    def freshness_for(self, rel_path: str | None) -> str:
+        if rel_path and rel_path.replace("\\", "/") in self._stale:
+            return "stale"
+        return self._inner.freshness_for(rel_path)
+
+
+def label_item_path(policy: object, rel_path: str | None) -> str:
+    fn = getattr(policy, "freshness_for", None)
+    if not callable(fn):
+        raise QueryError("freshness policy missing freshness_for")
+    label = fn(rel_path)
+    if label not in ("live", "fresh_indexed", "stale", "unknown"):
+        raise QueryError(f"illegal freshness label: {label!r}")
+    return label
+
+
+def stale_paths_from_drift_report(report: Mapping) -> set[str]:
+    """Best-effort extract of changed file paths from drift_report shape."""
+    out: set[str] = set()
+    for key in ("changed_files", "stale_files", "drifted_files"):
+        val = report.get(key)
+        if isinstance(val, list):
+            for item in val:
+                if isinstance(item, str):
+                    out.add(item.replace("\\", "/"))
+                elif isinstance(item, Mapping) and item.get("file"):
+                    out.add(str(item["file"]).replace("\\", "/"))
+    files = report.get("files")
+    if isinstance(files, Mapping):
+        for path, meta in files.items():
+            if isinstance(meta, Mapping) and meta.get("status") in ("changed", "stale", "drifted"):
+                out.add(str(path).replace("\\", "/"))
+    return out

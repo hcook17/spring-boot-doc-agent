@@ -133,7 +133,12 @@ Legacy `Engine.generate_docs()` / `build_site()` are placeholders — use `doc-e
 
 ## Agent search policy
 
-Claude agents must not use text search for code citations. See [`adapters/claude/SEARCH.md`](../adapters/claude/SEARCH.md) and [`docs/search-methodology-benchmark.md`](search-methodology-benchmark.md).
+Claude agents must not use text search for code citations. Prefer
+`doc-engine query context-packet` for vague tasks when a run dir exists, then
+specialized `doc-engine query` kinds, then `ast-grep` for live structural gaps.
+Optional MCP: [`adapters/mcp/`](../adapters/mcp/). See
+[`adapters/claude/SEARCH.md`](../adapters/claude/SEARCH.md) and
+[`docs/search-methodology-benchmark.md`](search-methodology-benchmark.md).
 
 ## Design north star (DDIA)
 

@@ -25,6 +25,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--list", action="store_true", help="list known artifact names")
     parser.add_argument("--all", metavar="DIR", help="validate every known artifact in DIR")
     parser.add_argument(
+        "--envelope",
+        nargs=2,
+        metavar=("KIND", "PATH"),
+        help="validate query_result|context_packet envelope JSON at PATH",
+    )
+    parser.add_argument(
         "--require",
         metavar="NAMES",
         help=(
@@ -35,6 +41,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("artifact", nargs="?", help="artifact name")
     parser.add_argument("path", nargs="?", help="path to JSON file")
     args = parser.parse_args(argv)
+
+    if args.envelope:
+        from doc_engine.query.load import QueryError, load_json
+        from doc_engine.query.schema_check import validate_envelope
+
+        kind, path_s = args.envelope
+        try:
+            data = load_json(path_s)
+            if not isinstance(data, dict):
+                print("error: envelope must be a JSON object", file=sys.stderr)
+                return 1
+            validate_envelope(kind, data)
+        except QueryError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(f"ok: {kind} {path_s}")
+        return 0
 
     if args.list:
         for name, filename in sorted(ARTIFACT_FILENAMES.items()):

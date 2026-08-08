@@ -1,0 +1,105 @@
+"""Import dependents — reuse build_cross_group_edges join helpers."""
+
+from __future__ import annotations
+
+from typing import Any, Mapping
+
+from doc_engine.tools.build_cross_group_edges import parse_references, resolve_targets
+
+
+def query_dependents(
+    signals: Mapping[str, Any],
+    *,
+    target_file: str | None = None,
+    target_type: str | None = None,
+    edges: Mapping[str, Any] | None = None,
+    group_id: str | int | None = None,
+) -> list[dict[str, Any]]:
+    """Return inbound/outbound import arcs.
+
+    Hard stops (documented): import/package text only — no @Autowired
+    interface→implementer resolution; wildcards may be ``package-fanout``.
+
+    When ``edges`` + ``group_id`` are set, return that group's cut arcs only
+    (filtered by target if provided). Otherwise compute whole-repo arcs from
+    ``evidence.references``.
+    """
+    if edges is not None and group_id is not None:
+        return _from_edges(edges, group_id, target_file=target_file)
+
+    references = (signals.get("evidence") or {}).get("references") or []
+    if not isinstance(references, list):
+        return []
+    decl_files, stem_index, imports = parse_references(references)
+
+    want_file = target_file.replace("\\", "/") if target_file else None
+    want_type = target_type
+
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for src, entries in imports.items():
+        for qualified, is_static in entries:
+            targets, confidence = resolve_targets(qualified, decl_files, stem_index)
+            if confidence == "unresolved":
+                continue
+            for dst in targets:
+                if dst == src:
+                    continue
+                if want_file and dst.replace("\\", "/") != want_file and src.replace("\\", "/") != want_file:
+                    continue
+                if want_type:
+                    # qualified ends with Type or Type.*
+                    stem = qualified.rstrip(".*").rsplit(".", 1)[-1]
+                    if stem != want_type and want_type not in qualified:
+                        continue
+                key = (src, dst, qualified)
+                if key in seen:
+                    continue
+                seen.add(key)
+                direction = "inbound" if want_file and dst.replace("\\", "/") == want_file else "outbound"
+                if want_file and src.replace("\\", "/") == want_file:
+                    direction = "outbound"
+                rows.append(
+                    {
+                        "from": src,
+                        "to": dst,
+                        "via": qualified,
+                        "confidence": confidence,
+                        "static_import": bool(is_static),
+                        "direction": direction,
+                    }
+                )
+    return rows
+
+
+def _from_edges(
+    edges: Mapping[str, Any],
+    group_id: str | int,
+    *,
+    target_file: str | None,
+) -> list[dict[str, Any]]:
+    groups = edges.get("groups") or edges.get("per_group") or edges
+    # cross_group_edges schema: top-level keys are group id strings with outbound/inbound
+    gid = str(group_id)
+    entry = None
+    if isinstance(groups, Mapping) and gid in groups:
+        entry = groups[gid]
+    elif isinstance(edges, Mapping) and gid in edges:
+        entry = edges[gid]
+    if not isinstance(entry, Mapping):
+        return []
+    want = target_file.replace("\\", "/") if target_file else None
+    rows: list[dict[str, Any]] = []
+    for direction in ("outbound", "inbound"):
+        for raw in entry.get(direction) or []:
+            if not isinstance(raw, Mapping):
+                continue
+            arc = dict(raw)
+            arc["direction"] = direction
+            if want:
+                fr = str(arc.get("from") or "").replace("\\", "/")
+                to = str(arc.get("to") or "").replace("\\", "/")
+                if fr != want and to != want:
+                    continue
+            rows.append(arc)
+    return rows

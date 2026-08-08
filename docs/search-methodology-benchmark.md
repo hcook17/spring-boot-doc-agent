@@ -18,7 +18,7 @@ Recorded expectations for `tests/doc_engine/test_search_methodology.py`. The goa
 
 ## Agent playbook
 
-See [`adapters/claude/SEARCH.md`](adapters/claude/SEARCH.md).
+See [`adapters/claude/SEARCH.md`](../adapters/claude/SEARCH.md) — artifact query first when Stage-0 outputs exist, then ast-grep for live structural claims.
 
 ## Why not grep
 

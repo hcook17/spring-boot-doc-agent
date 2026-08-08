@@ -54,6 +54,8 @@ REAL_REPO_PATH_PREFIXES: tuple[str, ...] = (
     "src/doc_engine/tools/spring_drift_check.py",
     "src/doc_engine/tools/gap_probe.py",
     "src/doc_engine/tools/partition_repo.py",
+    "src/doc_engine/tools/query_artifacts.py",
+    "src/doc_engine/query/",
     "src/doc_engine/real_fixture.py",
     "scripts/ci/regen_real_repo_artifacts.py",
     "scripts/coverage/real_repo_gap_baseline.json",
@@ -66,6 +68,9 @@ REAL_REPO_PATH_PREFIXES: tuple[str, ...] = (
     "tests/doc_engine/test_spring_drift_check",
     "tests/doc_engine/test_drift_report",
     "tests/doc_engine/test_etl_adversarial.py",
+    "tests/doc_engine/test_query_artifacts.py",
+    "tests/doc_engine/test_query_ocs_real_world.py",
+    "tests/doc_engine/test_context_packet.py",
 )
 
 

@@ -166,7 +166,11 @@ def build_stage_specs() -> list[StageSpec]:
             generative_key="gap_analysis_interview",
             agent_names=("gap-analyzer", "software-architect-and-testing"),
             requires_human_interview=True,
-            input_artifacts=(ARTIFACT_FILENAMES["summaries"],),
+            input_artifacts=(
+                ARTIFACT_FILENAMES["summaries"],
+                ARTIFACT_FILENAMES["spring_signals"],
+                ARTIFACT_FILENAMES["facts"],
+            ),
         ),
         StageSpec(
             name="doc_writer",
@@ -178,6 +182,7 @@ def build_stage_specs() -> list[StageSpec]:
                 ARTIFACT_FILENAMES["summaries"],
                 ARTIFACT_FILENAMES["interview_answers"],
                 ARTIFACT_FILENAMES["spring_signals"],
+                ARTIFACT_FILENAMES["facts"],
             ),
         ),
     ]
