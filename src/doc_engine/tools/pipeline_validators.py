@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 
+from doc_engine.pipeline.artifacts.signals import VALID_SPRING_ROLES
 from doc_engine.pipeline.artifacts.vocab import (
     ResearchTiers,
     ResearchVerdict,
@@ -18,12 +19,6 @@ from doc_engine.pipeline.artifacts.vocab import (
     ReviewSeverity,
 )
 from doc_engine.tools.doc_tag_utils import VALID_DOC_FILES
-
-# agents/file-summarizer.md step 4's exact enumerated list.
-VALID_SPRING_ROLES = frozenset({
-    "controller", "service", "repository", "entity", "config", "security",
-    "messaging-producer", "messaging-consumer", "test", "other",
-})
 
 FILE_SUMMARY_REQUIRED_KEYS = frozenset({
     "file", "cluster", "summary", "relationships",
@@ -45,37 +40,53 @@ NODE_LABEL_PATTERN = re.compile(r'\[["\']?([^\]"\']+)["\']?\]')
 def validate_file_summarizer_entries(entries):
     """agents/file-summarizer.md output shape. Returns (index, reason) problems."""
     problems = []
-    for i, entry in enumerate(entries):
+    for index, entry in enumerate(entries):
         missing = FILE_SUMMARY_REQUIRED_KEYS - entry.keys()
         if missing:
-            problems.append((i, f"missing keys: {sorted(missing)}"))
+            problems.append((index, f"missing keys: {sorted(missing)}"))
             continue
         if entry["spring_role"] not in VALID_SPRING_ROLES:
-            problems.append((i, f"spring_role {entry['spring_role']!r} not in {sorted(VALID_SPRING_ROLES)}"))
+            problems.append(
+                (index, f"spring_role {entry['spring_role']!r} not in {sorted(VALID_SPRING_ROLES)}"),
+            )
         for list_field in ("cluster", "relationships", "cross_group_relationships", "evidence"):
             if not isinstance(entry[list_field], list):
-                problems.append((i, f"{list_field} must be a list, got {type(entry[list_field]).__name__}"))
+                problems.append(
+                    (
+                        index,
+                        f"{list_field} must be a list, got {type(entry[list_field]).__name__}",
+                    ),
+                )
         if isinstance(entry.get("evidence"), list):
-            problems.extend((i, r) for r in _evidence_problems(entry["evidence"]))
+            problems.extend(
+                (index, reason) for reason in _evidence_problems(entry["evidence"])
+            )
     return problems
 
 
 def _evidence_problems(evidence):
     reasons = []
-    for j, item in enumerate(evidence):
+    for evidence_index, item in enumerate(evidence):
         if not isinstance(item, dict):
-            reasons.append(f"evidence[{j}] must be an object, got {type(item).__name__}")
+            reasons.append(
+                f"evidence[{evidence_index}] must be an object, got {type(item).__name__}",
+            )
             continue
         missing = {"line", "what"} - item.keys()
         if missing:
-            reasons.append(f"evidence[{j}] missing keys: {sorted(missing)}")
+            reasons.append(f"evidence[{evidence_index}] missing keys: {sorted(missing)}")
             continue
         if not isinstance(item["line"], int) or isinstance(item["line"], bool):
-            reasons.append(f"evidence[{j}].line must be an int, got {type(item['line']).__name__}")
+            reasons.append(
+                f"evidence[{evidence_index}].line must be an int, "
+                f"got {type(item['line']).__name__}",
+            )
         elif item["line"] < 1:
-            reasons.append(f"evidence[{j}].line must be >= 1, got {item['line']}")
+            reasons.append(
+                f"evidence[{evidence_index}].line must be >= 1, got {item['line']}",
+            )
         if not isinstance(item["what"], str) or not item["what"].strip():
-            reasons.append(f"evidence[{j}].what must be a non-empty string")
+            reasons.append(f"evidence[{evidence_index}].what must be a non-empty string")
     return reasons
 
 
@@ -95,21 +106,30 @@ def validate_gap_analyzer_questions(questions, max_questions=40):
     problems = []
     required_keys = {"blocks_file", "topic", "question", "evidence"}
     seen_files_order = []
-    for i, q in enumerate(questions):
-        missing = required_keys - q.keys()
+    for index, question in enumerate(questions):
+        missing = required_keys - question.keys()
         if missing:
-            problems.append((i, f"missing keys: {sorted(missing)}"))
+            problems.append((index, f"missing keys: {sorted(missing)}"))
             continue
-        for reason in _gap_evidence_problems(q["evidence"]):
-            problems.append((i, reason))
-        if q["blocks_file"] not in VALID_DOC_FILES:
-            problems.append((i, f"blocks_file {q['blocks_file']!r} not one of the fourteen output files"))
-        if not seen_files_order or seen_files_order[-1] != q["blocks_file"]:
-            if q["blocks_file"] in seen_files_order:
+        for reason in _gap_evidence_problems(question["evidence"]):
+            problems.append((index, reason))
+        if question["blocks_file"] not in VALID_DOC_FILES:
+            problems.append(
+                (
+                    index,
+                    f"blocks_file {question['blocks_file']!r} not one of the fourteen output files",
+                ),
+            )
+        if not seen_files_order or seen_files_order[-1] != question["blocks_file"]:
+            if question["blocks_file"] in seen_files_order:
                 problems.append(
-                    (i, f"blocks_file {q['blocks_file']!r} reappears non-contiguously — output must be grouped by file"),
+                    (
+                        index,
+                        f"blocks_file {question['blocks_file']!r} reappears non-contiguously — "
+                        "output must be grouped by file",
+                    ),
                 )
-            seen_files_order.append(q["blocks_file"])
+            seen_files_order.append(question["blocks_file"])
     if len(questions) > max_questions:
         problems.append(
             (None, f"{len(questions)} questions exceeds sanity ceiling of {max_questions} — "
@@ -141,7 +161,9 @@ def _validate_external_research(index: int, external: dict) -> list:
             (index, f"external_research verdict {verdict!r} not one of {sorted(VALID_RESEARCH_VERDICTS)}"),
         )
     sources = external.get("sources", [])
-    only_tier_c = bool(sources) and all(source.get("tier") == "C" for source in sources)
+    only_tier_c = bool(sources) and all(
+        source.get("tier") == ResearchTiers.C for source in sources
+    )
     if only_tier_c:
         problems.append(
             (index, "external_research rests entirely on Tier C sources — Tier C is orientation-only "
